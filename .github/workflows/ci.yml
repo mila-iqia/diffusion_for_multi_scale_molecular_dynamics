@@ -1,0 +1,41 @@
+name: unit-tests
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  push:
+    branches:
+      - main
+      - development
+  pull_request:
+    branches:
+      - main
+      - development
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: python-3.11
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.11
+    - name: linting checks
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 flake8-docstrings isort
+        sh hooks/pre-commit
+    - name: install project dependencies
+      run: |
+        pip install -e .
+    - name: unit tests
+      run: |
+        pytest --cov=crystal_diffusion
+    - name: pytorch-end2end
+      run: |
+        ./tests/end2end_pytorch/run.sh
+    - name: type checking
+      run: |
+        pytype crystal_diffusion/
+    - name: doc-creation-test
+      run: |
+        ./tests/test_docs/run.sh
