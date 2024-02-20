@@ -49,7 +49,8 @@ def main():
                         help='will disable the progressbar while going over the mini-batch')
     parser.add_argument('--start-from-scratch', action='store_true',
                         help='will not load any existing saved model - even if present')
-    parser.add_argument('--gpus', default=None,
+    parser.add_argument('--accelerator', help='PL trainer accelerator. Defaults to None.', default=None)
+    parser.add_argument('--devices', default=None,
                         help='list of GPUs to use. If not specified, runs on CPU.'
                              'Example of GPU usage: 1 means run on GPU 1, 0 on GPU 0.')
     parser.add_argument('--debug', action='store_true')
@@ -128,7 +129,7 @@ def run(args, data_dir, output_dir, hyper_params):
     model = load_model(hyper_params)
 
     train(model=model, datamodule=datamodule, output=output_dir, hyper_params=hyper_params,
-          use_progress_bar=not args.disable_progressbar, gpus=args.gpus)
+          use_progress_bar=not args.disable_progressbar, accelerator=args.accelerator, devices=args.devices)
 
 
 def train(**kwargs):  # pragma: no cover
@@ -151,7 +152,8 @@ def train(**kwargs):  # pragma: no cover
         value=-float(best_dev_metric))])
 
 
-def train_impl(model, datamodule, output, hyper_params, use_progress_bar, gpus):  # pragma: no cover
+def train_impl(model, datamodule, output, hyper_params, use_progress_bar, accelerator=None, devices=None
+               ):  # pragma: no cover
     """Main training loop implementation.
 
     Args:
@@ -160,7 +162,8 @@ def train_impl(model, datamodule, output, hyper_params, use_progress_bar, gpus):
         output (str): Output directory.
         hyper_params (dict): Dict containing hyper-parameters.
         use_progress_bar (bool): Use tqdm progress bar (can be disabled when logging).
-        gpus: number of GPUs to use.
+        accelerator: PL trainer accelerator
+        devices: PL devices to use
     """
     check_and_log_hp(['max_epoch'], hyper_params)
 
@@ -203,7 +206,8 @@ def train_impl(model, datamodule, output, hyper_params, use_progress_bar, gpus):
         callbacks=[early_stopping, best_checkpoint_callback, last_checkpoint_callback],
         max_epochs=hyper_params['max_epoch'],
         resume_from_checkpoint=resume_from_checkpoint,
-        gpus=gpus,
+        accelerator=accelerator,
+        devices=devices,
         logger=logger,
     )
 

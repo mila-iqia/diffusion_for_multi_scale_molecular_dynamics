@@ -30,7 +30,8 @@ def main():
                         help='config file with generic hyper-parameters,  such as optimizer, '
                              'batch_size, ... -  in yaml format')
     parser.add_argument('--data', help='path to data', required=True)
-    parser.add_argument('--gpus', default=None,
+    parser.add_argument('--accelerator', help='PL trainer accelerator. Defaults to None.', default=None)
+    parser.add_argument('--devices', default=None,
                         help='list of GPUs to use. If not specified, runs on CPU.'
                              'Example of GPU usage: 1 means run on GPU 1, 0 on GPU 0.')
     args = parser.parse_args()
@@ -78,7 +79,8 @@ def evaluate(args, data_dir, hyper_params):
         hyper_params)
 
     trainer = pl.Trainer(
-        gpus=args.gpus,
+        accelerator=args.accelerator,
+        devices=args.devices,
     )
 
     datamodule = FashionMnistDM(data_dir, hyper_params)
