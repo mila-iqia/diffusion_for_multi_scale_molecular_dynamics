@@ -30,10 +30,8 @@ def main():
                         help='config file with generic hyper-parameters,  such as optimizer, '
                              'batch_size, ... -  in yaml format')
     parser.add_argument('--data', help='path to data', required=True)
-    parser.add_argument('--accelerator', help='PL trainer accelerator. Defaults to None.', default=None)
-    parser.add_argument('--devices', default=None,
-                        help='list of GPUs to use. If not specified, runs on CPU.'
-                             'Example of GPU usage: 1 means run on GPU 1, 0 on GPU 0.')
+    parser.add_argument('--accelerator', help='PL trainer accelerator. Defaults to auto.', default='auto')
+    parser.add_argument('--devices', default=1, help='pytorch-lightning devices kwarg. Defaults to 1.')
     args = parser.parse_args()
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
