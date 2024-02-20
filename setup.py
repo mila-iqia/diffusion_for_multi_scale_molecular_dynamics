@@ -20,7 +20,6 @@ setup(
         'pytype==2024.2.13',
         'sphinx==7.2.6',
         'sphinx-autoapi==3.0.0',
-        'sphinx-rtd-theme==1.0.0',
         'sphinxcontrib-napoleon==0.7',
         'sphinxcontrib-katex==0.8.6',
         'tensorboard==2.16.2',
