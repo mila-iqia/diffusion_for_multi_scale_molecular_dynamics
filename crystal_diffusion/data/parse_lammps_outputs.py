@@ -50,7 +50,7 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: s
     if not output_name.endswith('.parquet'):
         output_name += '.parquet'
 
-    pd.DataFrame(pd_data).to_parquet(output_name, engine='pyarrow')
+    pd.DataFrame(pd_data).to_parquet(output_name, engine='pyarrow', index=False)
 
 
 def main():
