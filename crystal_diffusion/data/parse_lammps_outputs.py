@@ -32,7 +32,7 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: s
             for data in doc['data']:  # loop over the atoms to get their positions and forces
                 for key, v in zip(doc['keywords'], data):
                     print(key, v)
-                    if key not in ['x', 'y', 'z', 'fx', 'fy', 'fz']:
+                    if key not in ['id', 'type', 'x', 'y', 'z', 'fx', 'fy', 'fz']:
                         continue
                     else:
                         atoms_info[key] = atoms_info.get(key, []) + [v]  # get positions or forces
