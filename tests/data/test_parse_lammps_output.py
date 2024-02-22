@@ -16,6 +16,7 @@ def generate_fake_yaml(filename, documents, multiple_docs=True):
         else:
             yaml.dump(documents, yaml_file)
 
+
 @pytest.fixture
 def fake_lammps_yaml(tmpdir):
     # fake LAMMPS output file with 4 MD steps in 1D for 3 atoms
