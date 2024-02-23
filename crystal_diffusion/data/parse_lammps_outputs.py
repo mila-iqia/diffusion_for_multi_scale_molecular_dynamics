@@ -10,7 +10,7 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: s
 
     Args:
         lammps_dump: LAMMPS output file
-        lammps_thermo_log: LAMMPS
+        lammps_thermo_log: LAMMPS thermodynamic variables output file
         output_name: name of parsed output written by the script
     """
     if not os.path.exists(lammps_dump):
