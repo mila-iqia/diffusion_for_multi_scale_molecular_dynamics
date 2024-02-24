@@ -8,6 +8,7 @@ setup(
     install_requires=[
         'flake8==4.0.1',
         'flake8-docstrings==1.6.0',
+        'isort==5.13.2',
         'gitpython==3.1.27',
         'jupyter==1.0.0',
         'jinja2==3.1.2',
