@@ -35,12 +35,14 @@ if [ -z "${python_staged_files}" ]; then
     echo "No python file to lint"
 else
     flake8 --ignore D,W503 --max-line-length=120 $python_staged_files # Check everything but docstrings
+    isort --check $python_staged_files # Check imports
 fi
 
 if [ -z "${python_non_tests_staged_files}" ]; then
     echo "No non-test python file to docstring lint"
 else
     flake8 --select D --ignore D104,D100,D401 --docstring-convention google --exclude tests/  $python_non_tests_staged_files  # Check only the docstrings
+    isort --check $python_non_tests_staged_files # Check imports
 fi
 
 
