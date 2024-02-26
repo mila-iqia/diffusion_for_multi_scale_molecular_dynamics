@@ -30,6 +30,7 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: s
             if 'id' not in doc['keywords']:  # sanity check
                 raise ValueError('id should be in LAMMPS dump file')
             atoms_info = defaultdict(list) # store information on atoms positions and forces here
+
             for data in doc['data']:  # loop over the atoms to get their positions and forces
                 for key, v in zip(doc['keywords'], data):
                     if key not in ['id', 'type', 'x', 'y', 'z', 'fx', 'fy', 'fz']:
