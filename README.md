@@ -19,6 +19,9 @@ These hooks will:
 
     cd .git/hooks/ && ln -s ../../hooks/pre-commit .
 
+Alternatively, to only lint files that have been staged in git, use
+    cd .git/hooks/ && ln -s ../../hooks/pre-commit_staged pre-commit
+
 ### Setup Continuous Integration
 
 Continuous integration will run the following:
