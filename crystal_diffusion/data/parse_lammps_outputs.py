@@ -1,5 +1,6 @@
 import argparse
 import os
+from collections import defaultdict
 
 import pandas as pd
 import yaml
@@ -24,20 +25,20 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: s
         dump_yaml = yaml.safe_load_all(f)
         # every MD iteration is saved as a separate document in the yaml file
         # prepare a dataframe to get all the data
-        pd_data = {}
+        pd_data = defaultdict(list)
         for doc in dump_yaml:  # loop over MD steps
             if 'id' not in doc['keywords']:  # sanity check
                 raise ValueError('id should be in LAMMPS dump file')
-            atoms_info = {}  # store information on atoms positions and forces here
+            atoms_info = defaultdict(list) # store information on atoms positions and forces here
             for data in doc['data']:  # loop over the atoms to get their positions and forces
                 for key, v in zip(doc['keywords'], data):
                     if key not in ['id', 'type', 'x', 'y', 'z', 'fx', 'fy', 'fz']:
                         continue
                     else:
-                        atoms_info[key] = atoms_info.get(key, []) + [v]  # get positions or forces
+                        atoms_info[key].append(v)  # get positions or forces
             # add the information about that MD step to the dataframe
-            for k, v in atoms_info.items():  # k should be x, y, z, fx, fy, fz
-                pd_data[k] = pd_data.get(k, []) + [v]
+            for k, v in atoms_info.items():  # k should be id, type, x, y, z, fx, fy, fz
+                pd_data[k].append(v)
 
     # get the total energy from the LAMMPS second output
     with open(lammps_thermo_log, 'r') as f:
