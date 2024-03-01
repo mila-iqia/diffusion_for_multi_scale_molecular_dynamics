@@ -156,7 +156,7 @@ def test_get_sigma_normalized_s2(list_u, list_sigma, list_k):
         for k in list_k:
             g_term = torch.exp(-2 * np.pi**2 * sigma**2 * k**2) - torch.exp(
                 -np.pi * k**2
-            ) / sigma / np.sqrt(2.0)
+            ) / sigma / np.sqrt(2.0 * np.pi)
             z2 += torch.exp(-np.pi * (u + k) ** 2) + np.sqrt(
                 2.0 * np.pi
             ) * sigma * g_term * torch.cos(2 * np.pi * k * u)

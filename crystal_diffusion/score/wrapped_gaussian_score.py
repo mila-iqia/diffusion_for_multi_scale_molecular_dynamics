@@ -286,18 +286,14 @@ def _get_sigma_normalized_s2(
     exp_sigma_g = (-2.0 * np.pi**2 * sigma_g**2).exp()
     exp_g = (-np.pi * g**2).exp()
 
-    g_exponential_combination = exp_sigma_g - exp_g / np.sqrt(2.0) / sig
+    g_exponential_combination = np.sqrt(2.0 * np.pi) * sig * exp_sigma_g - exp_g
 
     cos = torch.cos(2.0 * np.pi * gu)
     sin = torch.sin(2.0 * np.pi * gu)
 
     # The sum is over Nk, leaving arrays of dimensions [Nu]
-    z2 = exp_upk.sum(dim=1) + np.sqrt(2.0 * np.pi) * (
-        sig * g_exponential_combination * cos
-    ).sum(dim=1)
-    deriv_z2 = -2.0 * np.pi * (upk * exp_upk).sum(dim=1) - (2.0 * np.pi) ** 1.5 * (
-        sigma_g * g_exponential_combination * sin
-    ).sum(dim=1)
+    z2 = exp_upk.sum(dim=1) + (g_exponential_combination * cos).sum(dim=1)
+    deriv_z2 = -2.0 * np.pi * ((upk * exp_upk).sum(dim=1) + (g * g_exponential_combination * sin).sum(dim=1))
     list_sigma_normalized_scores_s2 = list_sigma**2 * deriv_z2 / z2
 
     return list_sigma_normalized_scores_s2
