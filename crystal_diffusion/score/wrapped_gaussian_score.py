@@ -24,6 +24,8 @@ Relevant papers:
 
     "Riemannian Score-Based Generative Modelling", Bortoli et al.
 """
+from typing import Union
+
 import numpy as np
 import torch
 
@@ -31,7 +33,7 @@ SIGMA_THRESHOLD = 1.0 / np.sqrt(2.0 * np.pi)
 U_THRESHOLD = 0.5
 
 
-def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float):
+def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Union[float, None] = None):
     """Brute force implementation.
 
     A brute force implementation of the sigma normalized score to check that main code is correct.
@@ -40,7 +42,8 @@ def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float):
     z = 0.0
     sigma2_derivative_z = 0.0
 
-    kmax = np.max([1, np.round(10 * sigma)])
+    if kmax is None:
+        kmax = np.max([1, np.round(10 * sigma)])
 
     for k in np.arange(-kmax, kmax + 1):
         upk = u + k
