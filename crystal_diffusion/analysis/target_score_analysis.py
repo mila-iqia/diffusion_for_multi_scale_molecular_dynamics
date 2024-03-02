@@ -9,8 +9,9 @@ import torch
 
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.score.wrapped_gaussian_score import get_expected_sigma_normalized_score_brute_force, \
-    SIGMA_THRESHOLD, get_sigma_normalized_score
+from crystal_diffusion.score.wrapped_gaussian_score import (
+    SIGMA_THRESHOLD, get_expected_sigma_normalized_score_brute_force,
+    get_sigma_normalized_score)
 
 plt.style.use(PLOT_STYLE_PATH)
 
