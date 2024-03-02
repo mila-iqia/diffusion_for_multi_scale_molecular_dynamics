@@ -89,9 +89,9 @@ def get_sigma_normalized_score(
     # The dimension of list_k is [2 kmax + 1].
     list_k = torch.arange(-kmax, kmax + 1)
 
-    # Initialize a results array, and view it as a column.
-    # Since "column_view" is a view on "sigma_normalized_scores",  sigma_normalized_scores is updatedo
-    # when we assign in column_view.
+    # Initialize a results array, and view it as a flat list.
+    # Since "flat_view" is a view on "sigma_normalized_scores",  sigma_normalized_scores is updated
+    # when we assign values in flat_view (both tensors share the same underlying data structure).
     sigma_normalized_scores = torch.zeros_like(relative_positions)
     flat_view = sigma_normalized_scores.view(total_number_of_elements)
 
