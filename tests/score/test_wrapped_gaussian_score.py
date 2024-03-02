@@ -124,7 +124,7 @@ class TestExponentials:
             for j, k in enumerate(list_k):
                 computed_value = exponential[i, j]
 
-                exponent = -0.5 * (k**2 - 1.0 + 2 * u * (k - 1.0)) / sigma**2
+                exponent = -0.5 * (k**2 - 1.0 + 2 * u * (k + 1.0)) / sigma**2
                 expected_value = exponent.exp()
                 torch.testing.assert_close(computed_value, expected_value)
 
@@ -169,12 +169,11 @@ def test_get_sigma_normalized_s2(list_u, list_sigma, list_k):
     torch.testing.assert_close(computed_value, expected_value)
 
 
-@pytest.mark.parametrize("kmax", [10])
+@pytest.mark.parametrize("kmax", [4])
 @pytest.mark.parametrize("shape", test_shapes)
 def test_get_sigma_normalized_score(
     relative_positions, sigmas, kmax, expected_sigma_normalized_scores
 ):
-    # THIS TEST IS CURRENTLY BROKEN
     sigma_normalized_score_small_sigma = get_sigma_normalized_score(
         relative_positions, sigmas, kmax
     )

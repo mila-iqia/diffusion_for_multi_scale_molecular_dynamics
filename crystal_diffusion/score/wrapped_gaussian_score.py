@@ -35,7 +35,7 @@ def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float):
     """Brute force implementation.
 
     A brute force implementation of the sigma normalized score to check that main code is correct.
-    This is only useful if summed to convergence, which is expensive!
+    This is only useful if summed to convergence, which is expensive for large sigma!
     """
     z = 0.0
     sigma2_derivative_z = 0.0
@@ -189,9 +189,10 @@ def _get_s1b_exponential(
     # Broadcast to shape [Nu, Nk]
     column_u = list_u.view(list_u.nelement(), 1)
     column_sigma = list_sigma.view(list_u.nelement(), 1)
+
     exponential = torch.exp(
         -0.5
-        * ((list_k**2 - 1.0) + 2.0 * column_u * (list_k - 1.0))
+        * ((list_k**2 - 1.0) + 2.0 * column_u * (list_k + 1.0))
         / column_sigma**2
     )
     return exponential
