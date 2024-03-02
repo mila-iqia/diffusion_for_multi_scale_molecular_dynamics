@@ -10,11 +10,11 @@ The score is defined as S = nabla_x ln K(x, x0). Implementing this naively yield
 potentially converges slowly when sigma is large.
 
 The code below will implement expressions that leverages the "Ewald trick" (ie, part of the sum in real space,
-part of the sum in Fourier space) to insures quick convergence for any sigma. Also, the formula for small
+part of the sum in Fourier space) to insure quick convergence for any sigma. The formula for small
 sigma is derived to avoid division by a number that is very close to zero, or summing very large terms that
 can overlflow.
 
-Also, what will be computed will actually be "sigma2 x S" (ie, the "sigma normalized score"). This is because
+Also, what is computed is actually "sigma2 x S" (ie, the "sigma normalized score"). This is because
 S ~ 1/ sigma^2; since sigma can be small, this makes the raw score arbitrarily large, and it is better to
 manipulate numbers of small magnitude.
 
