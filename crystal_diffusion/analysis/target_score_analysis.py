@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.score.wrapped_gaussian_score import get_expected_sigma_normalized_score_brute_force, \
     SIGMA_THRESHOLD, get_sigma_normalized_score
@@ -49,27 +50,41 @@ if __name__ == '__main__':
         ax.legend(loc=0)
 
     fig1.tight_layout()
+    fig1.savefig(ANALYSIS_RESULTS_DIR.joinpath("score_convergence_with_sigma.png"))
 
     # A second figure to show convergence with kmax
     fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig2.suptitle("Convergence with kmax")
 
-    ax3 = fig2.add_subplot(111)
+    ax3 = fig2.add_subplot(121)
+    ax4 = fig2.add_subplot(122)
 
-    sigmas = torch.linspace(0.01, 2., 20) * SIGMA_THRESHOLD
+    sigma_factors = torch.linspace(0.001, 4., 40).to(torch.double)
+    sigmas = sigma_factors * SIGMA_THRESHOLD
 
     u = 0.6
-    relative_positions = torch.ones_like(sigmas) * u
+    relative_positions = torch.ones_like(sigmas).to(torch.double) * u
 
     ms = 8
-    for kmax, color in zip([1, 2, 3, 4], ['r', 'g', 'b', 'k']):
+    for kmax, color in zip([1, 2, 3, 4, 5], ['y', 'r', 'g', 'b', 'k']):
         list_scores = get_sigma_normalized_score(relative_positions, sigmas, kmax=kmax).numpy()
-        ax3.plot(sigmas, list_scores, 'o-', ms=ms, c=color, lw=2, alpha=0.25, label=f'kmax = {kmax}')
+        ax3.semilogy(sigma_factors, list_scores, 'o-',
+                     ms=ms, c=color, lw=2, alpha=0.25, label=f'kmax = {kmax}')
+
+        list_scores_brute = np.array([
+            get_expected_sigma_normalized_score_brute_force(u, sigma, kmax=4 * kmax) for sigma in sigmas])
+        ax4.semilogy(sigma_factors, list_scores_brute, 'o-',
+                     ms=ms, c=color, lw=2, alpha=0.25, label=f'kmax = {4 * kmax}')
+
         ms = 0.75 * ms
 
-    ax3.set_xlabel('$\\sigma$')
-    ax3.set_ylabel(f'$\\sigma^2 \\times S(u={u})$')
-    ax3.set_xlim([0., 1.1 * sigma.max()])
-    ax3.legend(loc=0)
+    for ax in [ax3, ax4]:
+        ax.set_xlabel('$\\sigma$ ($\\sigma_{th}$)')
+        ax.set_ylabel(f'$\\sigma^2 \\times S(u={u})$')
+        ax.set_xlim([0., 1.1 * sigma_factors.max()])
+        ax.legend(loc=0)
 
-    plt.show()
+    ax3.set_title("Smart implementation")
+    ax4.set_title("Brute force implementation")
+    fig2.tight_layout()
+    fig2.savefig(ANALYSIS_RESULTS_DIR.joinpath("score_convergence_with_k.png"))
