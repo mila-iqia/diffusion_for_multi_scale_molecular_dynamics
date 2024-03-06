@@ -1,11 +1,9 @@
-import io
 import itertools
-import json
 import os
 import re
 import shutil
 import subprocess
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -15,7 +13,7 @@ from maml.apps.pes import MTPotential
 from maml.utils import check_structures_forces_stresses, pool_from
 from monty.io import zopen
 from monty.tempfile import ScratchDir
-from pymatgen.core import Lattice, Structure
+from pymatgen.core import Structure
 from sklearn.metrics import mean_absolute_error
 
 
@@ -61,15 +59,15 @@ def convert_to_dataframe(docs: List[Dict[str, Any]]) -> pd.DataFrame:
     return df
 
 
-class MTP_with_MLIP3(MTPotential):
+class MTPWithMLIP3(MTPotential):
     """MTP with MLIP-3."""
     def __init__(self,
                  mlip_path: str,
                  maml_path: str,
                  name: Optional[str] = None,
                  param: Optional[Dict[Any, Any]] = None,
-                 version:Optional[str] = None):
-        """Modifications to maml.apps.pes._mtp.MTPotential to be compatible with mlip-3
+                 version: Optional[str] = None):
+        """Modifications to maml.apps.pes._mtp.MTPotential to be compatible with mlip-3.
 
         Args:
             mlip_path: path to mlip3 mlp command
@@ -83,8 +81,10 @@ class MTP_with_MLIP3(MTPotential):
         # TODO there is a better way to do this
         self.module_dir = maml_path
         self.fitted_mtp = None
+        self.elements = None
 
     def to_lammps_format(self):
+        """Write the trained MTP in a LAMMPS compatible format."""
         # TODO
         # write params write the fitted mtp in a LAMMPS compatible format
         # self.write_param(
@@ -102,11 +102,9 @@ class MTP_with_MLIP3(MTPotential):
                  test_structures: List[Structure],
                  test_energies: List[float],
                  test_forces: List[List[float]],
-                 test_stresses: Optional[List[List[float]]]=None,
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """
-        Evaluate energies, forces, stresses and MaxVol gamma factor of structures with trained
-        interatomic potentials.
+                 test_stresses: Optional[List[List[float]]] = None,
+                 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Evaluate energies, forces, stresses and MaxVol gamma factor of structures with trained MTP.
 
         Args:
             fitted_mtp_path: path to fitted mtp file.
@@ -164,7 +162,7 @@ class MTP_with_MLIP3(MTPotential):
             dataframe with energies, forces, optional nbh grades (MaxVol gamma)
         """
         def formatify(string: str) -> List[float]:
-            """Utility to convert string to a list of float"""
+            """Convert string to a list of float."""
             return [float(s) for s in string.split()]
 
         if not self.elements:
@@ -238,7 +236,6 @@ class MTP_with_MLIP3(MTPotential):
 
         Args:
             train_structures: The list of Pymatgen Structure object.
-            energies: The list of total energies of each structure in structures list.
             train_energies: List of total energies of each structure in structures list.
             train_forces: List of (m, 3) forces array of each structure with m atoms in structures list.
                 m can be varied with each single structure case.
@@ -282,7 +279,7 @@ class MTP_with_MLIP3(MTPotential):
             mtp_file_path = os.path.join(self.module_dir, "params", unfitted_mtp)
             shutil.copyfile(mtp_file_path, os.path.join(os.getcwd(), unfitted_mtp))
             commands = [self.mlp_command, "mindist", atoms_filename]
-            with open("min_dist", "w") as f, subprocess.Popen(commands, stdout=f)  as p:
+            with open("min_dist", "w") as f, subprocess.Popen(commands, stdout=f) as p:
                 p.communicate()[0]
 
             with open("min_dist") as f:
@@ -308,14 +305,14 @@ class MTP_with_MLIP3(MTPotential):
                 f"--iteration_limit={max_iter}",
                 "--al_mode=nbh",  # active learning mode - required to get extrapolation grade
                 # f"--curr-pot-name={unfitted_mtp}",  # TODO check those kwargs
-                #f"--energy-weight={energy_weight}",
-                #f"--force-weight={force_weight}",
-                #f"--stress-weight={stress_weight}",
-                #f"--init-params={init_params}",
-                #f"--scale-by-force={scale_by_force}",
-                #f"--bfgs-conv-tol={bfgs_conv_tol}",
-                #f"--weighting={weighting}",
-             ]
+                # f"--energy-weight={energy_weight}",
+                # f"--force-weight={force_weight}",
+                # f"--stress-weight={stress_weight}",
+                # f"--init-params={init_params}",
+                # f"--scale-by-force={scale_by_force}",
+                # f"--bfgs-conv-tol={bfgs_conv_tol}",
+                # f"--weighting={weighting}",
+            ]
             with subprocess.Popen(cmds_list, stdout=subprocess.PIPE) as p:
                 stdout = p.communicate()[0]
                 rc = p.returncode
@@ -361,8 +358,8 @@ def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, A
             coords_idx = [d['keywords'].index(x) for x in ['x', 'y', 'z']]
             coords = [[x[i] for i in coords_idx] for x in d['data']]
             pm_structure = Structure(lattice=lattice,
-                                    species=species,
-                                    coords=coords)
+                                     species=species,
+                                     coords=coords)
             structures.append(pm_structure)
             force_idx = [d['keywords'].index(x) for x in ['fx', 'fy', 'fz']]
             structure_forces = [[x[i] for i in force_idx] for x in d['data']]
@@ -387,8 +384,10 @@ def extract_energy_from_thermo_log(filename: str) -> List[float]:
     return energies
 
 
-def prepare_mtp_inputs_from_lammps(output_yaml: List[str], thermo_yaml: List[str], atom_dict: Dict[int, Any]) -> \
-    Dict[str, Any]:
+def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
+                                   thermo_yaml: List[str],
+                                   atom_dict: Dict[int, Any]
+                                   ) -> Dict[str, Any]:
     """Convert a list of LAMMPS output files and thermodynamic output files to MTP input format.
 
     Args:
@@ -413,12 +412,11 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str], thermo_yaml: List[str
     return mtp_inputs
 
 
-def train_mtp(train_inputs: Dict[str, Any], max_dist: float=5) -> MTP_with_MLIP3:
-    """Create and evaluate a MTP potential.
+def train_mtp(train_inputs: Dict[str, Any]) -> MTPWithMLIP3:
+    """Create and evaluate an MTP potential.
 
     Args:
         train_inputs: inputs for training. Should contain structure, energies and forces
-        max_dist (optional): radial cutoff. Defaults to 5.
 
     Returns:
        dataframe with original and predicted energies and forces.
@@ -427,7 +425,7 @@ def train_mtp(train_inputs: Dict[str, Any], max_dist: float=5) -> MTP_with_MLIP3
     # create MTP
     mlp_path = "/Users/simonb/ic-collab/courtois_collab/crystal_diffusion/mlip-3/build/mlp"
     maml_path = "/Users/simonb/miniconda/envs/crystal_diffusion/lib/python3.11/site-packages/maml/apps/pes/"
-    mtp = MTP_with_MLIP3(mlip_path=mlp_path, maml_path=maml_path)
+    mtp = MTPWithMLIP3(mlip_path=mlp_path, maml_path=maml_path)
     # train
     mtp.train(
         train_structures=train_inputs["structure"],
@@ -442,8 +440,8 @@ def train_mtp(train_inputs: Dict[str, Any], max_dist: float=5) -> MTP_with_MLIP3
     return mtp
 
 
-def evaluate_mtp(eval_inputs: Dict[str, Any], mtp: MTP_with_MLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Create and evaluate a MTP potential.
+def evaluate_mtp(eval_inputs: Dict[str, Any], mtp: MTPWithMLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Create and evaluate an MTP potential.
 
     Args:
         eval_inputs: inputs to evaluate. Should contain structure, energies and forces
@@ -485,16 +483,17 @@ def get_metrics_from_pred(df_orig: pd.DataFrame, df_predict: pd.DataFrame) -> Tu
     predicted_forces = df_predict.groupby('structure_index').agg({'fx': 'sum', 'fy': 'sum', 'fz': 'sum',
                                                                   'atom_index': 'count'})
     predicted_forces = np.concatenate([(predicted_forces[f'f{x}'] / predicted_forces['atom_index']).to_numpy()
-                                  for x in ['x', 'y', 'z']])
+                                       for x in ['x', 'y', 'z']])
 
     gt_forces = df_orig.groupby('structure_index').agg({'fx': 'sum', 'fy': 'sum', 'fz': 'sum',
-                                                                  'atom_index': 'count'})
+                                                        'atom_index': 'count'})
     gt_forces = np.concatenate([(gt_forces[f'f{x}'] / gt_forces['atom_index']).to_numpy() for x in ['x', 'y', 'z']])
 
-    return mean_absolute_error(predicted_energy, gt_energy) , mean_absolute_error(predicted_forces, gt_forces)
+    return mean_absolute_error(predicted_energy, gt_energy), mean_absolute_error(predicted_forces, gt_forces)
 
 
 def main():
+    """Train and evaluate an example for MTP."""
     mtp_inputs = prepare_mtp_inputs_from_lammps(lammps_yaml, lammps_thermo_yaml, atom_dict)
     mtp = train_mtp(mtp_inputs)
     print("Training is done")
