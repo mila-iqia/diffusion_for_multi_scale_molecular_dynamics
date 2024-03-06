@@ -1,5 +1,6 @@
 .idea
 mlruns
+analysis_results/
 
 examples/data/
 examples/*/output/
