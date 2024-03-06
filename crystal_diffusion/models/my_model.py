@@ -2,10 +2,8 @@ import logging
 import typing
 
 import pytorch_lightning as pl
-from torch import nn
 
-from crystal_diffusion.models.optim import load_loss, load_optimizer
-from crystal_diffusion.utils.hp_utils import check_and_log_hp
+from crystal_diffusion.models.optim import load_optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +26,9 @@ class BaseModel(pl.LightningModule):
         return load_optimizer(self.hparams, self)
 
     def _generic_step(
-            self,
-            batch: typing.Any,
-            batch_idx: int,
+        self,
+        batch: typing.Any,
+        batch_idx: int,
     ) -> typing.Any:
         """Runs the prediction + evaluation step for training/validation/testing."""
         input_data, targets = batch
@@ -55,40 +53,3 @@ class BaseModel(pl.LightningModule):
         """Runs a prediction step for testing, logging the loss."""
         loss = self._generic_step(batch, batch_idx)
         self.log("test_loss", loss)
-
-
-class SimpleMLP(BaseModel):  # pragma: no cover
-    """Simple Model Class.
-
-    Inherits from the given framework's model class. This is a simple MLP model.
-    """
-    def __init__(self, hyper_params: typing.Dict[typing.AnyStr, typing.Any]):
-        """__init__.
-
-        Args:
-            hyper_params (dict): hyper parameters from the config file.
-        """
-        super(SimpleMLP, self).__init__()
-
-        check_and_log_hp(['hidden_dim', 'num_classes'], hyper_params)
-        self.save_hyperparameters(hyper_params)  # they will become available via model.hparams
-        num_classes = hyper_params['num_classes']
-        hidden_dim = hyper_params['hidden_dim']
-        self.loss_fn = load_loss(hyper_params)  # 'load_loss' could be part of the model itself...
-
-        self.flatten = nn.Flatten()
-        self.mlp_layers = nn.Sequential(
-            nn.Linear(
-                784, hidden_dim,
-            ),  # The input size for the linear layer is determined by the previous operations
-            nn.ReLU(),
-            nn.Linear(
-                hidden_dim, num_classes
-            ),  # Here we get exactly num_classes logits at the output
-        )
-
-    def forward(self, x):
-        """Model forward."""
-        x = self.flatten(x)  # Flatten is necessary to pass from CNNs to MLP
-        x = self.mlp_layers(x)
-        return x
