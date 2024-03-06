@@ -24,7 +24,7 @@ Relevant papers:
 
     "Riemannian Score-Based Generative Modelling", Bortoli et al.
 """
-from typing import Union
+from typing import Optional
 
 import numpy as np
 import torch
@@ -33,11 +33,20 @@ SIGMA_THRESHOLD = 1.0 / np.sqrt(2.0 * np.pi)
 U_THRESHOLD = 0.5
 
 
-def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Union[float, None] = None):
+def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Optional[int] = None) -> float:
     """Brute force implementation.
 
-    A brute force implementation of the sigma normalized score to check that main code is correct.
+    A brute force implementation of the sigma normalized score to check that the main code is correct.
     This is only useful if summed to convergence, which is expensive for large sigma!
+
+    Args:
+        u (float): the relative position at which the wrapped Gaussian is evaluated. Assumed between 0 and 1.
+        sigma (float): the variance in the definition of the wrapped Gaussian.
+        kmax (int, Optional): if provided, the sum will be from -kmax to kmax. If not provided, a large
+            default value will be used.
+
+    Returns:
+        sigma_normalized_score (float): the value of the normalized score.
     """
     z = 0.0
     sigma2_derivative_z = 0.0
