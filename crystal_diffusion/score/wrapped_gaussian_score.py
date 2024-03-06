@@ -40,13 +40,13 @@ def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float, kmax
     This is only useful if summed to convergence, which is expensive for large sigma!
 
     Args:
-        u (float): the relative position at which the wrapped Gaussian is evaluated. Assumed between 0 and 1.
-        sigma (float): the variance in the definition of the wrapped Gaussian.
-        kmax (int, Optional): if provided, the sum will be from -kmax to kmax. If not provided, a large
+        u : the relative position at which the wrapped Gaussian is evaluated. Assumed between 0 and 1.
+        sigma : the variance in the definition of the wrapped Gaussian.
+        kmax : if provided, the sum will be from -kmax to kmax. If not provided, a large
             default value will be used.
 
     Returns:
-        sigma_normalized_score (float): the value of the normalized score.
+        sigma_normalized_score : the value of the normalized score.
     """
     z = 0.0
     sigma2_derivative_z = 0.0
@@ -66,20 +66,20 @@ def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float, kmax
 
 def get_sigma_normalized_score(
     relative_positions: torch.Tensor, sigmas: torch.Tensor, kmax: int
-):
+) -> torch.Tensor:
     """Get the sigma normalized score.
 
     This method branches to different formulas depending on the values of sigma and relative position
     to insures rapid convergence and numerical stability.
 
     Args:
-        relative_positions (torch.Tensor): input relative coordinates: should be between 0 and 1.
+        relative_positions : input relative coordinates: should be between 0 and 1.
             relative_positions is assumed to have an arbitrary shape.
-        sigmas (torch.Tensor): the values of sigma. Should have the same dimension as relative positions.
-        kmax (int): largest positive integer in the sum. The sum is from -kmax to +kmax.
+        sigmas : the values of sigma. Should have the same dimension as relative positions.
+        kmax : largest positive integer in the sum. The sum is from -kmax to +kmax.
 
     Returns:
-        list_sigma_normalized_score (torch.Tensor): the sigma_normalized_scores, in the same shape as
+        list_sigma_normalized_score : the sigma_normalized_scores, in the same shape as
             relative_positions.
     """
     assert kmax >= 0, "kmax must be a non negative integer"
@@ -123,57 +123,57 @@ def get_sigma_normalized_score(
     return sigma_normalized_scores
 
 
-def _get_small_sigma_small_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor):
+def _get_small_sigma_small_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> torch.Tensor:
     """Get the boolean mask for small sigma and small u.
 
     Args:
-        list_u (torch.Tensor): the relative positions, with shape [Nu].
-        list_sigma (torch.Tensor): the values of sigma, one value for each value of u, with shape [Nu].
+        list_u : the relative positions, with shape [Nu].
+        list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
 
     Returns:
-        mask_1a (torch.Tensor): an array of booleans of shape [Nu]
+        mask_1a : an array of booleans of shape [Nu]
     """
     return torch.logical_and(list_sigma <= SIGMA_THRESHOLD, list_u < U_THRESHOLD)
 
 
-def _get_small_sigma_large_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor):
+def _get_small_sigma_large_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> torch.Tensor:
     """Get the boolean mask for small sigma and large u.
 
     Args:
-        list_u (torch.Tensor): the relative positions, with shape [Nu].
-        list_sigma (torch.Tensor): the values of sigma, one value for each value of u, with shape [Nu].
+        list_u : the relative positions, with shape [Nu].
+        list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
 
     Returns:
-        mask_1b (torch.Tensor): an array of booleans of shape [Nu]
+        mask_1b : an array of booleans of shape [Nu]
     """
     return torch.logical_and(list_sigma <= SIGMA_THRESHOLD, list_u >= U_THRESHOLD)
 
 
-def _get_large_sigma_mask(list_u: torch.Tensor, list_sigma: torch.Tensor):
+def _get_large_sigma_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> torch.Tensor:
     """Get the boolean mask for large sigma.
 
     Args:
-        list_u (torch.Tensor): NOT USED. Only passed for compatibility with the other mask calculators.
-        list_sigma (torch.Tensor): the values of sigma, with shape [N].
+        list_u : NOT USED. Only passed for compatibility with the other mask calculators.
+        list_sigma : the values of sigma, with shape [N].
 
     Returns:
-        mask_2 (torch.Tensor): an array of booleans of shape [N]
+        mask_2 : an array of booleans of shape [N]
     """
     return list_sigma > SIGMA_THRESHOLD
 
 
 def _get_s1a_exponential(
     list_u: torch.Tensor, list_sigma: torch.Tensor, list_k: torch.Tensor
-):
+) -> torch.Tensor:
     """Get the exponential terms for small sigma and 0 <= u < 0.5.
 
     Args:
-        list_u (torch.Tensor): the relative positions, with shape [Nu].
-        list_sigma (torch.Tensor): the values of sigma, one value for each value of u, with shape [Nu].
-        list_k (torch.Tensor): the integer values that will be summed over, with shape [Nk].
+        list_u : the relative positions, with shape [Nu].
+        list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
+        list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        exponential (torch.Tensor): the exponential terms, with shape [Nu, Nk].
+        exponential : the exponential terms, with shape [Nu, Nk].
     """
     # Broadcast to shape [Nu, Nk]
     column_u = list_u.view(list_u.nelement(), 1)
@@ -186,16 +186,16 @@ def _get_s1a_exponential(
 
 def _get_s1b_exponential(
     list_u: torch.Tensor, list_sigma: torch.Tensor, list_k: torch.Tensor
-):
+) -> torch.Tensor:
     """Get the exponential terms for small sigma and 0.5 <= u < 1.
 
     Args:
-        list_u (torch.Tensor): the relative positions, with shape [Nu].
-        list_sigma (torch.Tensor): the values of sigma, one value for each value of u, with shape [Nu].
-        list_k (torch.Tensor): the integer values that will be summed over, with shape [Nk].
+        list_u : the relative positions, with shape [Nu].
+        list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
+        list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        exponential (torch.Tensor): the exponential terms, with shape [Nu, Nk].
+        exponential : the exponential terms, with shape [Nu, Nk].
     """
     # Broadcast to shape [Nu, Nk]
     # Broadcast to shape [Nu, Nk]
@@ -212,16 +212,16 @@ def _get_s1b_exponential(
 
 def _get_sigma_normalized_s1_from_exponential(
     exponential: torch.Tensor, list_u: torch.Tensor, list_k: torch.Tensor
-):
+) -> torch.Tensor:
     """Get one of the contributions to the S1 score, assuming the exponentials has been computed and is passed as input.
 
     Args:
-        exponential (torch.Tensor): the exponential terms, with shape [Nu, Nk].
-        list_u (torch.Tensor): the relative positions, with shape [Nu].
-        list_k (torch.Tensor): the integer values that will be summed over, with shape [Nk].
+        exponential : the exponential terms, with shape [Nu, Nk].
+        list_u : the relative positions, with shape [Nu].
+        list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        sigma_normalized_score_component (torch.Tensor): the corresponding sigma score, with shape [Nu]
+        sigma_normalized_score_component : the corresponding sigma score, with shape [Nu]
     """
     # Sum is on Nk
     column_u = list_u.view(list_u.nelement(), 1)
@@ -234,18 +234,18 @@ def _get_sigma_normalized_s1_from_exponential(
 
 def _get_sigma_normalized_s1a(
     list_u: torch.Tensor, list_sigma: torch.Tensor, list_k: torch.Tensor
-):
+) -> torch.Tensor:
     """Get the sigma normalized score for small sigma and 0 <= u < 0.5.
 
     This method assumes that the inputs are appropriate.
 
     Args:
-        list_u (torch.Tensor): the relative positions, with shape [Nu].
-        list_sigma (torch.Tensor): the values of sigma, one value for each value of u, with shape [Nu].
-        list_k (torch.Tensor): the integer values that will be summed over, with shape [Nk].
+        list_u : the relative positions, with shape [Nu].
+        list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
+        list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        list_normalized_score (torch.Tensor): the sigma^2 x s1a scores, with shape [Nu].
+        list_normalized_score : the sigma^2 x s1a scores, with shape [Nu].
     """
     exponential = _get_s1a_exponential(list_u, list_sigma, list_k)
     return _get_sigma_normalized_s1_from_exponential(exponential, list_u, list_k)
@@ -253,18 +253,18 @@ def _get_sigma_normalized_s1a(
 
 def _get_sigma_normalized_s1b(
     list_u: torch.Tensor, list_sigma: torch.Tensor, list_k: torch.Tensor
-):
+) -> torch.Tensor:
     """Get the sigma normalized score for small sigma and 0.5 <= u < 1.
 
     This method assumes that the inputs are appropriate.
 
     Args:
-        list_u (torch.Tensor): the relative positions, with shape [Nu].
-        list_sigma (torch.Tensor): the values of sigma, one value for each value of u, with shape [Nu].
-        list_k (torch.Tensor): the integer values that will be summed over, with shape [Nk].
+        list_u : the relative positions, with shape [Nu].
+        list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
+        list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        list_column_normalized_score (torch.Tensor): the sigma^2 x s1b scores, with shape [Nu].
+        list_column_normalized_score : the sigma^2 x s1b scores, with shape [Nu].
     """
     exponential = _get_s1b_exponential(list_u, list_sigma, list_k)
     return _get_sigma_normalized_s1_from_exponential(exponential, list_u, list_k)
@@ -272,18 +272,18 @@ def _get_sigma_normalized_s1b(
 
 def _get_sigma_normalized_s2(
     list_u: torch.Tensor, list_sigma: torch.Tensor, list_k: torch.Tensor
-):
+) -> torch.Tensor:
     """Get the sigma normalized score for large sigma.
 
     This method assumes that the inputs are appropriate.
 
     Args:
-        list_u (torch.Tensor): the relative positions, with shape [Nu].
-        list_sigma (torch.Tensor): the values of sigma, one value for each value of u, with shape [Nu].
-        list_k (torch.Tensor): the integer values that will be summed over, with shape [Nk].
+        list_u : the relative positions, with shape [Nu].
+        list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
+        list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        list_normalized_score (torch.Tensor): the sigma^2 x s2 scores, with shape [Nu].
+        list_normalized_score : the sigma^2 x s2 scores, with shape [Nu].
     """
     column_u = list_u.view(list_u.nelement(), 1)
     column_sigma = list_sigma.view(list_u.nelement(), 1)
