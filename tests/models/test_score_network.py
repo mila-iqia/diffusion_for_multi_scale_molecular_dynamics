@@ -1,0 +1,109 @@
+import pytest
+import torch
+
+from crystal_diffusion.models.score_network import (BaseScoreNetwork,
+                                                    MLPScoreNetwork)
+
+
+class TestScoreNetworkCheck:
+
+    @pytest.fixture()
+    def base_score_network(self):
+        return BaseScoreNetwork({})
+
+    @pytest.fixture()
+    def good_batch(self):
+        torch.manual_seed(123)
+        batch_size = 16
+        positions = torch.rand(batch_size, 8, 3)
+        times = torch.rand(batch_size, 1)
+        return {'positions': positions, 'time': times}
+
+    @pytest.fixture()
+    def bad_batch(self, good_batch, problem):
+
+        bad_batch = dict(good_batch)
+
+        match problem:
+            case "position_name":
+                bad_batch['bad_position_name'] = bad_batch['positions']
+                del bad_batch['positions']
+
+            case "position_shape":
+                shape = bad_batch['positions'].shape
+                bad_batch['positions'] = bad_batch['positions'].reshape(shape[0], shape[1] // 2, shape[2] * 2)
+
+            case "position_range1":
+                bad_batch['positions'][0, 0, 0] = 1.01
+
+            case "position_range2":
+                bad_batch['positions'][1, 0, 0] = -0.01
+
+            case "time_name":
+                bad_batch['bad_time_name'] = bad_batch['time']
+                del bad_batch['time']
+
+            case "time_shape":
+                shape = bad_batch['time'].shape
+                bad_batch['time'] = bad_batch['time'].reshape(shape[0] // 2, shape[1] * 2)
+
+            case "time_range1":
+                bad_batch['time'][5, 0] = 2.00
+            case "time_range2":
+                bad_batch['time'][0, 0] = -0.05
+
+        return bad_batch
+
+    def test_check_batch_good(self, base_score_network, good_batch):
+        base_score_network._check_batch(good_batch)
+
+    @pytest.mark.parametrize('problem', ['position_name', 'time_name', 'position_shape',
+                                         'time_shape', 'position_range1', 'position_range2',
+                                         'time_range1', 'time_range2'])
+    def test_check_batch_bad(self, base_score_network, bad_batch):
+        with pytest.raises(AssertionError):
+            base_score_network._check_batch(bad_batch)
+
+
+class TestMLPScoreNetwork:
+
+    @pytest.fixture()
+    def batch_size(self):
+        return 16
+
+    @pytest.fixture()
+    def number_of_atoms(self):
+        return 8
+
+    @pytest.fixture()
+    def expected_score_shape(self, batch_size, number_of_atoms):
+        return batch_size, number_of_atoms, 3
+
+    @pytest.fixture()
+    def good_batch(self, batch_size, number_of_atoms):
+        torch.manual_seed(123)
+        positions = torch.rand(batch_size, number_of_atoms, 3)
+        times = torch.rand(batch_size, 1)
+        return {'positions': positions, 'time': times}
+
+    @pytest.fixture()
+    def bad_batch(self, batch_size, number_of_atoms):
+        torch.manual_seed(123)
+        positions = torch.rand(batch_size, number_of_atoms // 2, 3)
+        times = torch.rand(batch_size, 1)
+        return {'positions': positions, 'time': times}
+
+    @pytest.fixture()
+    def score_network(self, number_of_atoms):
+        return MLPScoreNetwork({'hidden_dim': 16, 'number_of_atoms': number_of_atoms})
+
+    def test_check_batch_bad(self, score_network, bad_batch):
+        with pytest.raises(AssertionError):
+            score_network._check_batch(bad_batch)
+
+    def test_check_batch_good(self, score_network, good_batch):
+        score_network._check_batch(good_batch)
+
+    def test_output_shape(self, score_network, good_batch, expected_score_shape):
+        scores = score_network(good_batch)
+        assert scores.shape == expected_score_shape
