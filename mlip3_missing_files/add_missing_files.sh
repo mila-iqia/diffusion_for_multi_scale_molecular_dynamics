@@ -1,64 +1,5 @@
-# MTP README
+#!/bin/bash
 
-## How to setup:
-
-We use the maml (MAterials Machine Learning) library for the MTP implementation.
-
-```
-pip install maml
-```
-
-To make MTP works, we also need the mlp library
-https://gitlab.com/ashapeev/mlip-3
-
-## Instructions to install on a Mac
-
-First, install open-mpi with brew.
-Beware that open-mpi uses Mac gcc compiler, not the brew gcc, which is not linked to a gfortran compiler.
-Set the path properly.
-
-```
-brew install gcc  
-export HOMEBREW_CC=gcc-13  # gcc-13 is brew gcc: /usr/local/bin/gcc-13
-export HOMEBREW_CXX=g++-13  # brew g++
-brew install openmpi --build-from-source
-```
-
-If openmpi is already installed, but doesn't work because of the gcc / gfortran unlinkable, you can reinstall
-
-```
-export HOMEBREW_CC=gcc-13  # gcc-13 is brew gcc: /usr/local/bin/gcc-13
-export HOMEBREW_CXX=g++-13  # brew g++
-brew reinstall openmpi --build-from-source
-```
-
-Then, you can install MLIP
-
-```
-git clone https://gitlab.com/ashapeev/mlip-3.git
-```
-
-The build instructions are supposed to be:
-
-```
-cd mlip-3
-./configure
-make mlip
-```
-
-But this doesn't work. Instead, we have to use cmake:
-
-```
-cd mlip-3
-./configure
-mkdir build              # create a build directory
-cd build
-cmake ..                 # configuration
-```
-
-But this doesn't work either, because the cmake instructions are missing from the repo.
-
-```
 cp mlip3_missing_files/CMakeLists.txt mlip-3/CMakeLists.txt
 cp mlip3_missing_files/src_CMakeLists.txt mlip-3/src/CMakeLists.txt
 cp mlip3_missing_files/test_CMakeLists.txt mlip-3/test/CMakeLists.txt
@@ -79,23 +20,4 @@ cp mlip3_missing_files/test_examples_07_CMakeLists.txt mlip-3/test/examples/07.r
 cp mlip3_missing_files/test_examples_08_CMakeLists.txt mlip-3/test/examples/08.relax_preselect/CMakeLists.txt
 cp -r mlip3_missing_files/cmake mlip-3/
 cp mlip3_missing_files/mlp_commands.cpp mlip-3/src/mlp/mlp_commands.cpp
-```
-A .sh file is provided in the missing_data folder for this.
 
-
-then we can cmake. For the last file, we commented the tests as they were not working. 
-On mac, we use openblas:
-
-```
-cmake .. -DBLAS_ROOT=/usr/local/opt/openblas/
-make
-```
-
-If the installation is successful, the command is 
-```
-mlip-3/build/mlp
-```
-
-You can try running the tests in *mlip-3/test/examples/* and compare to the results in the respective *sample_out* folder.
-
-The *train_mtp.py* script 

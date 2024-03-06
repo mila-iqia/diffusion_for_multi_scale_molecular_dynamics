@@ -1,0 +1,6 @@
+set(SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/mlp.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/mlp_commands.cpp
+  )
+
+target_sources(mlp PRIVATE ${SOURCES})

@@ -1,0 +1,15 @@
+set(TEST_NAME "check_errors")
+set(TEST_DIR ${TEST_BASE_DIR}/examples/${TEST_NAME})
+file(MAKE_DIRECTORY ${TEST_DIR}/out)
+set(TEST_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/pot.almtp
+  ${CMAKE_CURRENT_SOURCE_DIR}/train.cfg
+  )
+file(COPY ${TEST_SOURCES} DESTINATION ${TEST_DIR})
+
+add_test(
+    NAME ${TEST_NAME}
+    COMMAND sh -c "$<TARGET_FILE:mlp> check_errors pot.almtp train.cfg --log=stdout --report_to=./out/errors.txt > ./out/stdout.log"
+    WORKING_DIRECTORY ${TEST_DIR}
+)
+
