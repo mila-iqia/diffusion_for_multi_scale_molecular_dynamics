@@ -269,11 +269,11 @@ class MTPWithMLIP3(MTPotential):
             with open("min_dist", "w") as f, subprocess.Popen(commands, stdout=f) as p:
                 p.communicate()[0]
 
-            with open("min_dist") as f:
-                lines = f.readlines()
-
-            split_symbol = "="  # different for mlip-2 (":") and mlip-3 ("=")
-            min_dist = float(lines[-1].split(split_symbol)[1])
+            # TODO check what min_dist is used for in maml
+            # with open("min_dist") as f:
+            #    lines = f.readlines()
+            # split_symbol = "="  # different for mlip-2 (":") and mlip-3 ("=")
+            # min_dist = float(lines[-1].split(split_symbol)[1])
 
             save_fitted_mtp = ".".join([unfitted_mtp.split(".")[0] + "_fitted", unfitted_mtp.split(".")[1]])
             cmds_list = [
