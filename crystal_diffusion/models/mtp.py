@@ -206,7 +206,7 @@ class MTPWithMLIP3(MTPotential):
             train_energies: List[float],
             train_forces: List[np.array],
             train_stresses: List[List[float]],
-            unfitted_mtp: str = "08g.amltp",
+            unfitted_mtp: str = "08.almtp",
             fitted_mtp_savedir: str = '../',
             max_dist: float = 5,
             radial_basis_size: int = 8,
@@ -274,13 +274,6 @@ class MTPWithMLIP3(MTPotential):
 
             split_symbol = "="  # different for mlip-2 (":") and mlip-3 ("=")
             min_dist = float(lines[-1].split(split_symbol)[1])
-
-            with open(unfitted_mtp) as f:
-                template = f.read()
-
-            s = template % (len(self.elements), min_dist, max_dist, radial_basis_size)
-            with open(unfitted_mtp, "w") as f:
-                f.write(s)
 
             save_fitted_mtp = ".".join([unfitted_mtp.split(".")[0] + "_fitted", unfitted_mtp.split(".")[1]])
             cmds_list = [
