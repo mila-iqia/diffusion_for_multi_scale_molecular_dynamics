@@ -1,4 +1,5 @@
 import pytest
+from pymatgen.core import Structure
 
 from crystal_diffusion.models.mtp import MTPWithMLIP3
 
@@ -46,7 +47,6 @@ def test_train_method(mocker, mock_subprocess):
     model = MTPWithMLIP3(mlip_path="/mock/path", name="test_model")
     # Call the train method
 
-
     return_code = model.train(
         train_structures=[MockStructure(['H', 'O']), MockStructure(['Si'])],
         train_energies=[1, 2],
@@ -60,3 +60,65 @@ def test_train_method(mocker, mock_subprocess):
 
     # Optionally, assert that mocked methods were called the expected number of times
     model.write_cfg.assert_called()
+
+
+@pytest.fixture
+def mock_structure():
+    # Setup a simple mock structure object
+    # Replace with appropriate structure setup for your use case
+    return Structure(lattice=[1, 0, 0, 0, 1, 0, 0, 0, 1], species=[""], coords=[[0, 0, 0]])
+
+@pytest.fixture
+def mtp_instance(mocker):
+    # Mock __init__ to not execute its original behavior
+    mocker.patch.object(MTPWithMLIP3, '__init__', lambda x, y: None)
+    # Setup a mocked instance with necessary attributes
+    instance = MTPWithMLIP3("mock_path")
+    instance.mlp_command = "mock_mlp_command"
+    instance.fitted_mtp = "mock_fitted_mtp"
+    instance.elements = ["Si"]
+    return instance
+
+
+@pytest.mark.parametrize("mock_subprocess", [0])  # Here, 0 simulates a successful subprocess return code
+def test_evaluate(mocker, mock_structure, mtp_instance, mock_subprocess):
+    test_structures = [mock_structure]
+    test_energies = [1.0]
+    test_forces = [[[0, 0, 0]]]
+    test_stresses = None  # or appropriate mock stresses
+
+    # Mock check_structures_forces_stresses to return the arguments unmodified
+    mocker.patch("crystal_diffusion.models.mtp.check_structures_forces_stresses",
+                 side_effect=lambda s, f, st: (s, f, st))
+
+    # Mock pool_from to return a mocked value
+    mocker.patch("crystal_diffusion.models.mtp.pool_from", return_value="mock_pool")
+
+    # Mock self.write_cfg to simulate creating a config file without file operations
+    mocker.patch.object(MTPWithMLIP3, "write_cfg", return_value="mock_filename.cfg")
+
+    # Mock subprocess.Popen for evaluate method's call
+    # Mock subprocess.Popen to simulate an external call to `mlp` command
+    mock_popen = mocker.patch("subprocess.Popen")
+    mock_popen.return_value.__enter__.return_value.communicate.return_value = (b'', b'')  # stdout, stderr
+    mock_popen.return_value.__enter__.return_value.returncode = mock_subprocess
+
+    # process_mock = mocker.Mock()
+    # attrs = {'communicate.return_value': (b'mock_stdout', b'mock_stderr'), 'returncode': 0}
+    # process_mock.configure_mock(**attrs)
+    # mocker.patch('subprocess.Popen', return_value=process_mock)
+
+    # Mock read_cfgs to simulate reading of configurations without accessing the file system
+    mocker.patch.object(MTPWithMLIP3, "read_cfgs", return_value="mock_dataframe")
+
+    # Mock os.remove, shutil.copyfile and os.path.exists since evaluate interacts with the filesystem
+    mocker.patch("os.remove", return_value=None)
+    mocker.patch("shutil.copyfile", return_value=None)
+    mocker.patch("os.path.exists", return_value=True)
+
+    # Perform the test
+    df_orig, df_predict = mtp_instance.evaluate(test_structures, test_energies, test_forces, test_stresses)
+
+    # Assertions can vary based on the real output of `read_cfgs`
+    # Here's an example assertion assuming `read_cfgs` returns a string in this mocked scenario
+    assert df_orig == "mock_dataframe" and df_predict == "mock_dataframe", "Evaluate method should return mock dataframes"
