@@ -1,18 +1,21 @@
+from pathlib import Path
+
+import numpy as np
 import pytest
 from pymatgen.core import Structure
 
 from crystal_diffusion.models.mtp import MTPWithMLIP3
-
 
 class MockStructure:
     """Mock a pymatgen structure"""
     def __init__(self, species):
         self.species = species
 
-def passthrough(*args, **kwargs):
-    """Function to return arguments as passed.
 
-       Useful for mocking a function to return its input arguments directly.
+def passthrough(*args, **kwargs):
+    """Return arguments as passed.
+
+    Useful for mocking a function to return its input arguments directly.
     """
     return args if len(kwargs) == 0 else (args, kwargs)
 
@@ -103,11 +106,6 @@ def test_evaluate(mocker, mock_structure, mtp_instance, mock_subprocess):
     mock_popen.return_value.__enter__.return_value.communicate.return_value = (b'', b'')  # stdout, stderr
     mock_popen.return_value.__enter__.return_value.returncode = mock_subprocess
 
-    # process_mock = mocker.Mock()
-    # attrs = {'communicate.return_value': (b'mock_stdout', b'mock_stderr'), 'returncode': 0}
-    # process_mock.configure_mock(**attrs)
-    # mocker.patch('subprocess.Popen', return_value=process_mock)
-
     # Mock read_cfgs to simulate reading of configurations without accessing the file system
     mocker.patch.object(MTPWithMLIP3, "read_cfgs", return_value="mock_dataframe")
 
@@ -121,4 +119,18 @@ def test_evaluate(mocker, mock_structure, mtp_instance, mock_subprocess):
 
     # Assertions can vary based on the real output of `read_cfgs`
     # Here's an example assertion assuming `read_cfgs` returns a string in this mocked scenario
-    assert df_orig == "mock_dataframe" and df_predict == "mock_dataframe", "Evaluate method should return mock dataframes"
+    assert df_orig == "mock_dataframe" and df_predict == "mock_dataframe", "Evaluate method should return mock" + \
+                                                                           "dataframes"
+
+
+def test_read_cfgs(mtp_instance):
+    cfg_path = Path(__file__).parent.joinpath("mtp_cfg_examples.txt")
+    df = mtp_instance.read_cfgs(cfg_path, True)
+    print(df.keys())
+    assert np.array_equal(df['x'], [0.1, 0.2, 0.3])
+    assert np.array_equal(df['y'], [1.1, 1.2, 1.3])
+    assert np.array_equal(df['z'], [2.1, 2.2, 2.3])
+    assert np.array_equal(df['fx'], [3.1, 3.2, 3.3])
+    assert np.array_equal(df['fy'], [4.1, 4.2, 4.3])
+    assert np.array_equal(df['fz'], [5.1, 5.2, 5.3])
+    assert np.array_equal(df['nbh_grades'], [6.1, 6.2, 6.3])
