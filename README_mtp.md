@@ -32,6 +32,8 @@ export HOMEBREW_CXX=g++-13  # brew g++
 brew reinstall openmpi --build-from-source
 ```
 
+## Build instructions from the package
+
 Then, you can install MLIP
 
 ```
@@ -45,6 +47,8 @@ cd mlip-3
 ./configure
 make mlip
 ```
+
+## Corrected build instructions
 
 But this doesn't work. Instead, we have to use cmake:
 
@@ -81,21 +85,30 @@ cp -r mlip3_missing_files/cmake mlip-3/
 cp mlip3_missing_files/mlp_commands.cpp mlip-3/src/mlp/mlp_commands.cpp
 ```
 A .sh file is provided in the missing_data folder for this.
+For the last file, we commented the tests as they were not working.
 
+The CMakeLists files are based on those present in MLIP-2, but modified for the content of MLIP-3.
 
-then we can cmake. For the last file, we commented the tests as they were not working. 
+We can now compile.
+
 On mac, we use openblas:
 
 ```
 cmake .. -DBLAS_ROOT=/usr/local/opt/openblas/
 make
 ```
+This takes a few minutes and raises a lot of warnings. If no error message appears, then MLIP has compiled!
+
+You can try running the tests in *mlip-3/test/examples/* and compare to the results in the respective *sample_out* folder.
+This can be done automatically with the following command:
+```
+make tests
+```
+
+## Running MLIP
 
 If the installation is successful, the command is 
 ```
 mlip-3/build/mlp
 ```
-
-You can try running the tests in *mlip-3/test/examples/* and compare to the results in the respective *sample_out* folder.
-
-The *train_mtp.py* script 
+This is called by the *train_mtp.py* script.
