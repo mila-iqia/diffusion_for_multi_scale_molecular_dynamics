@@ -6,6 +6,7 @@ from pymatgen.core import Structure
 
 from crystal_diffusion.models.mtp import MTPWithMLIP3
 
+
 class MockStructure:
     """Mock a pymatgen structure"""
     def __init__(self, species):
