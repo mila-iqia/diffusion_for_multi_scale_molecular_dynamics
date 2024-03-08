@@ -13,7 +13,6 @@ from sklearn.metrics import mean_absolute_error
 
 from crystal_diffusion.models.mtp import MTPWithMLIP3
 
-
 MLIP_PATH = os.path.join(os.getcwd(), "mlip-3")
 SAVE_DIR = os.path.join(os.getcwd(), "debug_mlip3")  # for demo only
 
