@@ -207,8 +207,8 @@ class MTPWithMLIP3(MTPotential):
             self,
             train_structures: List[Structure],
             train_energies: List[float],
-            train_forces: List[np.array],
-            train_stresses: List[List[float]],
+            train_forces: List[List[float]],
+            train_stresses: Optional[List[List[float]]] = None,
             unfitted_mtp: str = "08.almtp",
             fitted_mtp_savedir: str = '../',
             max_dist: float = 5,
@@ -220,7 +220,7 @@ class MTPWithMLIP3(MTPotential):
             init_params: str = "same",
             scale_by_force: float = 0,
             bfgs_conv_tol: float = 1e-3,
-            weighting: float = "vibration",
+            weighting: str = "vibration",
     ) -> int:
         """Training data with moment tensor method using MLIP-3.
 
@@ -231,7 +231,8 @@ class MTPWithMLIP3(MTPotential):
             train_energies: List of total energies of each structure in structures list.
             train_forces: List of (m, 3) forces array of each structure with m atoms in structures list.
                 m can be varied with each single structure case.
-            train_stresses: List of (6, ) virial stresses of each structure in structures list.
+            train_stresses (optional): List of (6, ) virial stresses of each structure in structures list.
+                Defaults to None.
             unfitted_mtp (optional): Define the initial mtp file. Default to 08g.amltp
             fitted_mtp_savedir (optional): save directory for the fitted MTP. Defaults to '../' (current wd)
             max_dist (optional): The actual radial cutoff. Defaults to 5.
