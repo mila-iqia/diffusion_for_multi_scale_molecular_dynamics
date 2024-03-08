@@ -72,6 +72,7 @@ def mock_structure():
     # Replace with appropriate structure setup for your use case
     return Structure(lattice=[1, 0, 0, 0, 1, 0, 0, 0, 1], species=[""], coords=[[0, 0, 0]])
 
+
 @pytest.fixture
 def mtp_instance(mocker):
     # Mock __init__ to not execute its original behavior
