@@ -10,9 +10,8 @@ import re
 import shutil
 import subprocess
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, TextIO, Tuple
 
-import _io
 import numpy as np
 import pandas as pd
 from maml.apps.pes import MTPotential
@@ -210,7 +209,7 @@ class MTPWithMLIP3(MTPotential):
         return df
 
     @staticmethod
-    def _call_mlip(cmd_list: List[str]) -> Tuple[str, int]:
+    def _call_mlip(cmd_list: List[str]) -> Tuple[bytes, int]:
         """Call MLIP library with subprocess.
 
         Args:
@@ -226,7 +225,7 @@ class MTPWithMLIP3(MTPotential):
         return stdout, rc
 
     @staticmethod
-    def _call_cmd_to_stdout(cmd: List[str], output_file: _io.TextIOWrapper):
+    def _call_cmd_to_stdout(cmd: List[str], output_file: TextIO):
         """Call commands with subprocess.POpen and pipe output to a file.
 
         Args:
