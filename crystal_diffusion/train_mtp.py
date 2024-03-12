@@ -4,7 +4,7 @@ Running the main() runs a debugging example. Entry points are train_mtp and eval
 """
 import os
 from collections import namedtuple
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, NamedTuple, Tuple
 
 import numpy as np
 import pandas as pd
@@ -81,10 +81,17 @@ def extract_energy_from_thermo_log(filename: str) -> List[float]:
     return energies
 
 
+class MTP_Inputs(NamedTuple):
+    """Create a namedtuple instance for MTP inputs."""
+    structure: List[Structure]
+    forces: List[List[float]]
+    energy: List[float]
+
+
 def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
                                    thermo_yaml: List[str],
                                    atom_dict: Dict[int, Any]
-                                   ) -> Dict[str, Any]:
+                                   ) -> MTP_Inputs:
     """Convert a list of LAMMPS output files and thermodynamic output files to MTP input format.
 
     Args:
@@ -93,7 +100,7 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
         atom_dict: mapping of LAMMPS indices to atom type.
 
     Returns:
-        dict with structure, energies and forces usable by MTP.
+        namedtuple with structure, energies and forces usable by MTP.
     """
     mtp_inputs = {
         'structure': [],
@@ -106,10 +113,13 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
         mtp_inputs['forces'] += forces
     for filename in thermo_yaml:
         mtp_inputs['energy'] += extract_energy_from_thermo_log(filename)
+    mtp_inputs = MTP_Inputs(structure=mtp_inputs['structure'],
+                            energy=mtp_inputs['energy'],
+                            forces=mtp_inputs['forces'])
     return mtp_inputs
 
 
-def train_mtp(train_inputs: namedtuple, mlip_folder_path: str, save_dir: str) -> MTPWithMLIP3:
+def train_mtp(train_inputs: MTP_Inputs, mlip_folder_path: str, save_dir: str) -> MTPWithMLIP3:
     """Create and train an MTP potential.
 
     Args:
@@ -125,9 +135,9 @@ def train_mtp(train_inputs: namedtuple, mlip_folder_path: str, save_dir: str) ->
     mtp = MTPWithMLIP3(mlip_path=mlip_folder_path)
     # train
     mtp.train(
-        train_structures=train_inputs["structure"],
-        train_energies=train_inputs["energy"],
-        train_forces=train_inputs["forces"],
+        train_structures=train_inputs.structure,
+        train_energies=train_inputs.energy,
+        train_forces=train_inputs.forces,
         train_stresses=None,
         max_dist=5,
         stress_weight=0,
@@ -137,7 +147,7 @@ def train_mtp(train_inputs: namedtuple, mlip_folder_path: str, save_dir: str) ->
     return mtp
 
 
-def evaluate_mtp(eval_inputs: namedtuple, mtp: MTPWithMLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def evaluate_mtp(eval_inputs: MTP_Inputs, mtp: MTPWithMLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Evaluate a trained MTP potential.
 
     Args:
@@ -149,9 +159,9 @@ def evaluate_mtp(eval_inputs: namedtuple, mtp: MTPWithMLIP3) -> Tuple[pd.DataFra
     """
     # evaluate
     df_orig, df_predict = mtp.evaluate(
-        test_structures=eval_inputs["structure"],
-        test_energies=eval_inputs["energy"],
-        test_forces=eval_inputs["forces"],
+        test_structures=eval_inputs.structure,
+        test_energies=eval_inputs.energy,
+        test_forces=eval_inputs.forces,
         test_stresses=None,
     )
     return df_orig, df_predict
