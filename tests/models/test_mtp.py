@@ -233,17 +233,14 @@ def test_prepare_mtp_inputs_from_lammps(mock_extract_structure_and_forces, mock_
     mock_extract_energy_from_thermo_log.assert_called_with(thermo_yaml_files[1])
 
     # Verify that the result is correctly structured
-    assert 'structure' in mtp_inputs
-    assert 'energy' in mtp_inputs
-    assert 'forces' in mtp_inputs
-    assert isinstance(mtp_inputs['structure'], list)
-    assert isinstance(mtp_inputs['energy'], list)
-    assert isinstance(mtp_inputs['forces'], list)
+    assert isinstance(mtp_inputs.structure, list)
+    assert isinstance(mtp_inputs.energy, list)
+    assert isinstance(mtp_inputs.forces, list)
 
     # Verify that the data from the mocks is aggregated into the results correctly
-    assert mtp_inputs['structure'] == mock_extract_structure_and_forces.return_value[0] * len(output_yaml_files)
-    assert mtp_inputs['forces'] == mock_extract_structure_and_forces.return_value[1] * len(output_yaml_files)
-    assert mtp_inputs['energy'] == mock_extract_energy_from_thermo_log.return_value * len(thermo_yaml_files)
+    assert mtp_inputs.structure == mock_extract_structure_and_forces.return_value[0] * len(output_yaml_files)
+    assert mtp_inputs.forces == mock_extract_structure_and_forces.return_value[1] * len(output_yaml_files)
+    assert mtp_inputs.energy == mock_extract_energy_from_thermo_log.return_value * len(thermo_yaml_files)
 
 
 def test_get_metrics_from_pred():
