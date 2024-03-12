@@ -3,6 +3,7 @@
 Running the main() runs a debugging example. Entry points are train_mtp and evaluate_mtp.
 """
 import os
+from collections import namedtuple
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
@@ -18,9 +19,9 @@ SAVE_DIR = os.path.join(os.getcwd(), "debug_mlip3")  # for demo only
 
 # TODO list of yaml files should come from an external call
 # yaml dump file
-lammps_yaml = ['lammps_scripts/Si/si-custom/dump.si-300-1.yaml']
+lammps_yaml = ['examples/local/mtp_example/dump.si-300-1.yaml']
 # yaml thermodynamic variables
-lammps_thermo_yaml = ['lammps_scripts/Si/si-custom/thermo_log.yaml']
+lammps_thermo_yaml = ['examples/local/mtp_example/thermo_log.yaml']
 # note that the YAML output does not contain the map from index to atomic species
 # this will have to be taken from elsewhere
 # use a manual map for now
@@ -108,12 +109,12 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
     return mtp_inputs
 
 
-def train_mtp(train_inputs: Dict[str, Any], mlip_cmd_path: str, save_dir: str) -> MTPWithMLIP3:
-    """Create and evaluate an MTP potential.
+def train_mtp(train_inputs: namedtuple, mlip_folder_path: str, save_dir: str) -> MTPWithMLIP3:
+    """Create and train an MTP potential.
 
     Args:
         train_inputs: inputs for training. Should contain structure, energies and forces
-        mlip_cmd_path: path to MLIP-3 folder
+        mlip_folder_path: path to MLIP-3 folder
         save_dir: path to directory where to save the fitted model
 
     Returns:
@@ -121,7 +122,7 @@ def train_mtp(train_inputs: Dict[str, Any], mlip_cmd_path: str, save_dir: str) -
     """
     # TODO more kwargs for MTP training. See maml and mlip-3 documentation.
     # create MTP
-    mtp = MTPWithMLIP3(mlip_path=mlip_cmd_path)
+    mtp = MTPWithMLIP3(mlip_path=mlip_folder_path)
     # train
     mtp.train(
         train_structures=train_inputs["structure"],
@@ -136,8 +137,8 @@ def train_mtp(train_inputs: Dict[str, Any], mlip_cmd_path: str, save_dir: str) -
     return mtp
 
 
-def evaluate_mtp(eval_inputs: Dict[str, Any], mtp: MTPWithMLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Create and evaluate an MTP potential.
+def evaluate_mtp(eval_inputs: namedtuple, mtp: MTPWithMLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Evaluate a trained MTP potential.
 
     Args:
         eval_inputs: inputs to evaluate. Should contain structure, energies and forces
@@ -175,14 +176,8 @@ def get_metrics_from_pred(df_orig: pd.DataFrame, df_predict: pd.DataFrame) -> Tu
     gt_energy = df_orig.groupby('structure_index').agg({'energy': 'mean', 'atom_index': 'count'})
     gt_energy = (gt_energy['energy'] / gt_energy['atom_index']).to_numpy()
 
-    predicted_forces = df_predict.groupby('structure_index').agg({'fx': 'sum', 'fy': 'sum', 'fz': 'sum',
-                                                                  'atom_index': 'count'})
-    predicted_forces = np.concatenate([(predicted_forces[f'f{x}'] / predicted_forces['atom_index']).to_numpy()
-                                       for x in ['x', 'y', 'z']])
-
-    gt_forces = df_orig.groupby('structure_index').agg({'fx': 'sum', 'fy': 'sum', 'fz': 'sum',
-                                                        'atom_index': 'count'})
-    gt_forces = np.concatenate([(gt_forces[f'f{x}'] / gt_forces['atom_index']).to_numpy() for x in ['x', 'y', 'z']])
+    predicted_forces = (df_predict[['fx', 'fy', 'fz']].to_numpy().flatten())
+    gt_forces = (df_orig[['fx', 'fy', 'fz']].to_numpy().flatten())
 
     return mean_absolute_error(predicted_energy, gt_energy), mean_absolute_error(predicted_forces, gt_forces)
 

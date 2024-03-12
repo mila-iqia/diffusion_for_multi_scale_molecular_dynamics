@@ -2,12 +2,16 @@ import os
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 import yaml
 from pymatgen.core import Structure
+from sklearn.metrics import mean_absolute_error
 
-from crystal_diffusion.train_mtp import extract_structure_and_forces_from_file, extract_energy_from_thermo_log, prepare_mtp_inputs_from_lammps
 from crystal_diffusion.models.mtp import MTPWithMLIP3
+from crystal_diffusion.train_mtp import (
+    extract_energy_from_thermo_log, extract_structure_and_forces_from_file,
+    get_metrics_from_pred, prepare_mtp_inputs_from_lammps)
 
 
 class FakeStructure:
@@ -238,3 +242,45 @@ def test_prepare_mtp_inputs_from_lammps(mock_extract_structure_and_forces, mock_
     assert mtp_inputs['structure'] == mock_extract_structure_and_forces.return_value[0] * len(output_yaml_files)
     assert mtp_inputs['forces'] == mock_extract_structure_and_forces.return_value[1] * len(output_yaml_files)
     assert mtp_inputs['energy'] == mock_extract_energy_from_thermo_log.return_value * len(thermo_yaml_files)
+
+
+def test_get_metrics_from_pred():
+    # test function from train_mtp
+    # TODO get better metrics and refactor the script
+    # Assuming there are 2 structures, each with 2 atoms (Total 4 readings)
+    df_orig = pd.DataFrame({
+        'structure_index': [0, 0, 1, 1],
+        'atom_index': [0, 1, 0, 1],
+        'energy': [1, 1, 3, 3],  # Total energy for the structure is the same for both atoms
+        'fx': [0.1, -0.1, 0.2, -0.2],
+        'fy': [0.1, -0.1, 0.2, -0.2],
+        'fz': [0.1, -0.1, 0.2, -0.2]
+    })
+
+    # Predicted data with some error introduced
+    df_predict = pd.DataFrame({
+        'structure_index': [0, 0, 1, 1],
+        'atom_index': [0, 1, 0, 1],
+        'energy': [1.05, 0.95, 3.1, 2.9],  # Energy has a slight variation
+        'fx': [0.12, -0.08, 0.23, -0.17],
+        'fy': [0.09, -0.11, 0.19, -0.21],
+        'fz': [0.11, -0.09, 0.18, -0.22]
+    })
+
+    # Calculate expected MAE for energy and forces
+    expected_mae_energy = mean_absolute_error(
+        df_orig.groupby('structure_index')['energy'].mean(),
+        df_predict.groupby('structure_index')['energy'].mean()
+    )
+
+    expected_mae_forces = mean_absolute_error(
+        df_orig[['fx', 'fy', 'fz']].values.flatten(),
+        df_predict[['fx', 'fy', 'fz']].values.flatten()
+    )
+
+    # Call the function under test
+    mae_energy, mae_forces = get_metrics_from_pred(df_orig, df_predict)
+
+    # Verify the MAE values are as expected
+    assert mae_energy == expected_mae_energy
+    assert mae_forces == expected_mae_forces

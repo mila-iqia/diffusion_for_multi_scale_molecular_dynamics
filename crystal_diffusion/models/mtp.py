@@ -80,6 +80,9 @@ class MTPWithMLIP3(MTPotential):
             dataframe with ground truth energies, forces
             dataframe with predicted energies, forces, MaxVol gamma (nbh grades)
         """
+        if self.fitted_mtp is None:
+            raise AttributeError('MTP was not trained. Please call train() before evaluate().')
+
         original_file = "original.cfgs"
         predict_file = "predict.cfgs"
         test_structures, test_forces, test_stresses = check_structures_forces_stresses(
