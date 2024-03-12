@@ -67,17 +67,24 @@ class TimeSampler:
     def get_forward_iterator(self):
         """Get forward iterator.
 
+        Iterate over time steps for indices in 0,..., T-1, where T is the maximum index.
+        This is useful for the NOISING process, which is not formally needed in the formalism,
+        but might be useful for sanity checking / debugging.
+
         Returns:
             forward_iterator: an iterator over (index, time_step) that iterates over increasing values.
         """
-        return iter(enumerate(self._time_step_array))
+        return iter(enumerate(self._time_step_array[:-1]))
 
     def get_backward_iterator(self):
         """Get backward iterator.
+
+        Iterate over time steps for indices in T,...,1 , where T is the maximum index.
+        This is useful for the DENOISING process.
 
         Returns:
             backward_iterator: an iterator over (index, time_step) that iterates over decreasing values.
         """
         maximum_index = len(self._time_step_array) - 1
-        indices = range(maximum_index, -1, -1)
+        indices = range(maximum_index, 0, -1)
         return zip(indices, self._time_step_array.flip(dims=(0,)))

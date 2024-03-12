@@ -38,29 +38,44 @@ class TestTimeSampler:
 
         assert torch.all(torch.isclose(expected_time_steps, computed_time_steps))
 
-    def test_forward_iterator(self, time_sampler, total_time_steps):
-
-        expected_index = 0
-        expected_time = torch.tensor(0.0).to(torch.double)
-
+    @pytest.fixture()
+    def all_indices_and_times(self, total_time_steps):
         dt = torch.tensor(1. / (total_time_steps - 1.)).to(torch.double)
+        all_time_indices = torch.arange(total_time_steps)
+        all_times = (all_time_indices * dt).float()
+        return all_time_indices, all_times
 
+    def test_forward_iterator(self, all_indices_and_times, time_sampler):
+
+        all_time_indices, all_times = all_indices_and_times
+        expected_indices = all_time_indices[:-1]
+        expected_times = all_times[:-1]
+
+        computed_indices = []
+        computed_times = []
         for index, time in time_sampler.get_forward_iterator():
-            assert index == expected_index
-            expected_index += 1
+            computed_indices.append(index)
+            computed_times.append(time)
 
-            assert torch.isclose(time, expected_time.float())
-            expected_time += dt
+        computed_indices = torch.tensor(computed_indices)
+        computed_times = torch.tensor(computed_times)
 
-    def test_backward_iterator(self, time_sampler, total_time_steps):
+        assert torch.all(torch.isclose(computed_times, expected_times))
+        assert torch.all(torch.isclose(computed_indices, expected_indices))
 
-        expected_index = total_time_steps - 1
-        expected_time = torch.tensor(1.0).to(torch.double)
-        dt = torch.tensor(1. / (total_time_steps - 1.)).to(torch.double)
+    def test_backward_iterator(self, all_indices_and_times, time_sampler):
+        all_time_indices, all_times = all_indices_and_times
+        expected_indices = all_time_indices[1:].flip(dims=(0,))
+        expected_times = all_times[1:].flip(dims=(0,))
 
+        computed_indices = []
+        computed_times = []
         for index, time in time_sampler.get_backward_iterator():
-            assert index == expected_index
-            expected_index -= 1
+            computed_indices.append(index)
+            computed_times.append(time)
 
-            assert torch.isclose(time, expected_time.float())
-            expected_time -= dt
+        computed_indices = torch.tensor(computed_indices)
+        computed_times = torch.tensor(computed_times)
+
+        assert torch.all(torch.isclose(computed_times, expected_times))
+        assert torch.all(torch.isclose(computed_indices, expected_indices))
