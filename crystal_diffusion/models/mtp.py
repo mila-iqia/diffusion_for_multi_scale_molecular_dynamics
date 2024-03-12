@@ -4,6 +4,7 @@ This script defines a MTP model in a lightning like manner, with a train() and e
 However, it cannot be called as a standard lightning module as it relies on the MLIP-3 library for the model
 implementation.
 """
+import _io
 import itertools
 import os
 import re
@@ -94,9 +95,7 @@ class MTPWithMLIP3(MTPotential):
             # calculate_grade is the method to get the forces, energy & maxvol values
             cmd = [self.mlp_command, "calculate_grade", self.fitted_mtp, original_file, predict_file]
             predict_file += '.0'  # added by mlp...
-            with subprocess.Popen(cmd, stdout=subprocess.PIPE) as p:  # run mlp
-                stdout = p.communicate()[0]
-                rc = p.returncode
+            stdout, rc = self._call_mlip(cmd)
             if rc != 0:
                 error_msg = f"mlp exited with return code {rc}"
                 msg = stdout.decode("utf-8").split("\n")[:-1]
@@ -115,7 +114,8 @@ class MTPWithMLIP3(MTPotential):
 
         Args:
             filename: name of mlp output file to be parsed.
-            nbh_grade (optional): if True, add the nbh_grades in the resulting dataframe. Defaults to False.
+            nbh_grade (optional): if True, add the nbh_grades (neighborhood-based approach to determine the MaxVol gamma
+                values - see MLIP3 paper) in the resulting dataframe. Defaults to False.
 
         Returns:
             dataframe with energies, forces, optional nbh grades (MaxVol gamma)
@@ -186,22 +186,53 @@ class MTPWithMLIP3(MTPotential):
         """
         df = defaultdict(list)
         for s_idx, d in enumerate(docs):
+            n_atom = d['num_atoms']
             outputs = d["outputs"]
             pos_arr = np.array(outputs["position"])
+            assert n_atom == pos_arr.shape[0], "Number of positions do not match number of atoms"
             force_arr = np.array(outputs["forces"])
-            n_atom = force_arr.shape[0]
+            assert n_atom == force_arr.shape[0], "Number of forces do not match number of atoms"
             for i, x in enumerate(['x', 'y', 'z']):
                 df[x] += pos_arr[:, i].tolist()
                 df[f'f{x}'] += force_arr[:, i].tolist()
             df['energy'] += [outputs['energy']] * n_atom  # copy the value to all atoms
             if "nbh_grades" in outputs.keys():
                 nbh_grades = outputs["nbh_grades"]
+                assert n_atom == len(nbh_grades), "Number of gamma values do not match number of atoms"
                 df['nbh_grades'] += nbh_grades
             df['atom_index'] += list(range(n_atom))
             df['structure_index'] += [s_idx] * n_atom
 
         df = pd.DataFrame(df)
         return df
+
+
+    @staticmethod
+    def _call_mlip(cmd_list: List[str]) -> Tuple[str, int]:
+        """Call MLIP library with subprocess.
+
+        Args:
+            cmd_list: list of commands & arguments to execute
+
+        Returns:
+            stdout: output of the executed commands
+            rc: return code of the executed commands
+        """
+        with subprocess.Popen(cmd_list, stdout=subprocess.PIPE) as p:
+            stdout = p.communicate()[0]
+            rc = p.returncode
+        return stdout, rc
+
+    @staticmethod
+    def _call_cmd_to_stdout(cmd: List[str], output_file: _io.TextIOWrapper):
+        """Call commands with subprocess.POpen and pipe output to a file
+
+        Args:
+            cmd: list of commands & arguments to run
+            output_file: name of the file where the stdout is redirected
+        """
+        with subprocess.Popen(cmd, stdout=output_file) as p:
+            p.communicate()[0]
 
     def train(
             self,
@@ -262,7 +293,7 @@ class MTPWithMLIP3(MTPotential):
 
         atoms_filename = "train.cfgs"
 
-        with ScratchDir("."):  # create a tmpdir - deleted afterwards
+        with (ScratchDir(".")):  # create a tmpdir - deleted afterwards
             atoms_filename = self.write_cfg(filename=atoms_filename, cfg_pool=train_pool)
 
             if not unfitted_mtp:
@@ -270,8 +301,8 @@ class MTPWithMLIP3(MTPotential):
             mtp_file_path = os.path.join(self.mlp_templates, unfitted_mtp)
             shutil.copyfile(mtp_file_path, os.path.join(os.getcwd(), unfitted_mtp))
             commands = [self.mlp_command, "mindist", atoms_filename]
-            with open("min_dist", "w") as f, subprocess.Popen(commands, stdout=f) as p:
-                p.communicate()[0]
+            with open("min_dist", "w") as f:
+                self._call_cmd_to_stdout(commands, f)
 
             # TODO check what min_dist is used for in maml
             # with open("min_dist") as f:
@@ -297,9 +328,7 @@ class MTPWithMLIP3(MTPotential):
                 # f"--bfgs-conv-tol={bfgs_conv_tol}",
                 # f"--weighting={weighting}",
             ]
-            with subprocess.Popen(cmds_list, stdout=subprocess.PIPE) as p:
-                stdout = p.communicate()[0]
-                rc = p.returncode
+            stdout, rc = self._call_mlip(cmds_list)
             if rc != 0:
                 error_msg = f"MLP exited with return code {rc}"
                 msg = stdout.decode("utf-8").split("\n")[:-1]
