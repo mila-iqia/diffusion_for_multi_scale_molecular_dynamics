@@ -4,7 +4,6 @@ This script defines a MTP model in a lightning like manner, with a train() and e
 However, it cannot be called as a standard lightning module as it relies on the MLIP-3 library for the model
 implementation.
 """
-import _io
 import itertools
 import os
 import re
@@ -13,6 +12,7 @@ import subprocess
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
+import _io
 import numpy as np
 import pandas as pd
 from maml.apps.pes import MTPotential
