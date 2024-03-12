@@ -1,9 +1,12 @@
+import os
 from pathlib import Path
 
 import numpy as np
 import pytest
+import yaml
 from pymatgen.core import Structure
 
+from crystal_diffusion.train_mtp import extract_structure_and_forces_from_file, extract_energy_from_thermo_log, prepare_mtp_inputs_from_lammps
 from crystal_diffusion.models.mtp import MTPWithMLIP3
 
 
@@ -129,3 +132,109 @@ def test_read_cfgs(mtp_instance):
     assert np.array_equal(df['fy'], [4.1, 4.2, 4.3])
     assert np.array_equal(df['fz'], [5.1, 5.2, 5.3])
     assert np.array_equal(df['nbh_grades'], [6.1, 6.2, 6.3])
+
+
+def test_extract_structure_and_forces_from_file(tmpdir):
+    # test the function reading the lammps files.
+    # TODO refactor to move to data/
+    # Create a mock LAMMPS output
+    yaml_content = {
+        'box': [[0, 10], [0, 10], [0, 10]],  # x_lim, y_lim, z_lim
+        'keywords': ['x', 'y', 'z', 'type', 'fx', 'fy', 'fz'],
+        'data': [[1, 1, 1, 1, 0.1, 0.2, 0.3], [2, 2, 2, 2, 0.4, 0.5, 0.6]]
+    }
+    yaml_file = os.path.join(tmpdir, "lammps.yaml")
+    with open(yaml_file, "w") as f:
+        yaml.dump(yaml_content, f, sort_keys=False)
+
+    # Mock atom dict that the function expects
+    atom_dict = {1: 'H', 2: 'He'}
+
+    # Call the function
+    structures, forces = extract_structure_and_forces_from_file(yaml_file, atom_dict)
+
+    # Verify structures
+    assert isinstance(structures, list)
+    assert len(structures) == 1
+    assert all(isinstance(structure, Structure) for structure in structures)
+
+    # Verify the lattice was set up correctly, assuming a simple cubic lattice
+    assert np.allclose(structures[0].lattice.matrix, np.diag([10, 10, 10]))
+
+    # Verify species and positions
+    species = structures[0].species
+    assert [str(s) for s in species] == ['H', 'He']
+    np.testing.assert_array_almost_equal(structures[0].frac_coords, [[1, 1, 1], [2, 2, 2]])
+
+    # Verify forces
+    assert isinstance(forces, list)
+    assert len(forces) == 1
+    assert len(forces[0]) == 2  # Two sets of forces for two atoms
+    expected_forces = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+    assert np.allclose(forces[0], expected_forces)
+
+
+def test_extract_energy_from_thermo_log(tmpdir):
+    # test the function reading the lammps thermodynamic output files.
+    # TODO refactor to move to data/
+    # Create a mock LAMMPS thermodynamic output
+    log_content = """
+    keywords:
+      - Step
+      - KinEng
+      - PotEng
+    data:
+      - [0, 50.5, -100.0]
+      - [1, 51.0, -101.5]
+    """
+    yaml_path = os.path.join(tmpdir, "thermo.yaml")
+    with open(yaml_path, "w") as f:
+        f.write(log_content)
+
+    # Call the function
+    energies = extract_energy_from_thermo_log(yaml_path)
+
+    # Check the results
+    expected_energies = [-49.5, -50.5]  # KinEng + PotEng for each step
+    assert isinstance(energies, list)
+    assert energies == expected_energies
+
+
+@pytest.fixture
+def mock_extract_energy_from_thermo_log(mocker):
+    return mocker.patch('crystal_diffusion.train_mtp.extract_energy_from_thermo_log', return_value=[])
+
+@pytest.fixture
+def mock_extract_structure_and_forces(mocker):
+    return mocker.patch('crystal_diffusion.train_mtp.extract_structure_and_forces_from_file', return_value=([], []))
+
+def test_prepare_mtp_inputs_from_lammps(mock_extract_structure_and_forces, mock_extract_energy_from_thermo_log, tmpdir):
+    # Create mock file paths
+    output_yaml_files = [os.path.join(tmpdir, "output1.yaml"), os.path.join(tmpdir, "output2.yaml")]
+    thermo_yaml_files = [os.path.join(tmpdir, "thermo1.yaml"), os.path.join(tmpdir, "thermo2.yaml")]
+
+    # Mock atom dictionary
+    atom_dict = {1: 'H', 2: 'He'}
+
+    # Call the function
+    mtp_inputs = prepare_mtp_inputs_from_lammps(output_yaml_files, thermo_yaml_files, atom_dict)
+
+    # Verify that the mocks were called correctly
+    assert mock_extract_structure_and_forces.call_count == 2
+    mock_extract_structure_and_forces.assert_called_with(output_yaml_files[1], atom_dict)
+
+    assert mock_extract_energy_from_thermo_log.call_count == 2
+    mock_extract_energy_from_thermo_log.assert_called_with(thermo_yaml_files[1])
+
+    # Verify that the result is correctly structured
+    assert 'structure' in mtp_inputs
+    assert 'energy' in mtp_inputs
+    assert 'forces' in mtp_inputs
+    assert isinstance(mtp_inputs['structure'], list)
+    assert isinstance(mtp_inputs['energy'], list)
+    assert isinstance(mtp_inputs['forces'], list)
+
+    # Verify that the data from the mocks is aggregated into the results correctly
+    assert mtp_inputs['structure'] == mock_extract_structure_and_forces.return_value[0] * len(output_yaml_files)
+    assert mtp_inputs['forces'] == mock_extract_structure_and_forces.return_value[1] * len(output_yaml_files)
+    assert mtp_inputs['energy'] == mock_extract_energy_from_thermo_log.return_value * len(thermo_yaml_files)
