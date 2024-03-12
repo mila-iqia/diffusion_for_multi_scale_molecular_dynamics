@@ -1,6 +1,8 @@
 """Score Network.
 
-This module implements score networks for relative positions.
+This module implements score networks for positions in relative coordinates.
+Relative coordinates are with respect to lattice vectors which define the
+periodic unit cell.
 """
 from abc import abstractmethod
 from typing import Any, AnyStr, Dict
@@ -10,8 +12,12 @@ from torch import nn
 
 
 class BaseScoreNetwork(torch.nn.Module):
-    """Base score network."""
-    position_key = "positions"
+    """Base score network.
+
+    This base class defines the interface that all score networks should have
+    in order to be easily interchangeable (ie, polymorphic).
+    """
+    position_key = "relative_positions"  # unitless positions in the lattice coordinate basis
     timestep_key = "time"
     spatial_dimension = (
         3  # the spatial dimension of the space where the atoms live, ie 3D space.
@@ -86,7 +92,6 @@ class BaseScoreNetwork(torch.nn.Module):
 
         Returns:
             computed_scores : the scores computed by the model.
-
         """
         self._check_batch(batch)
         return self._forward_unchecked(batch)
