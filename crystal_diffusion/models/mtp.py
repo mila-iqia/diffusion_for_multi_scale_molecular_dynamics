@@ -209,7 +209,6 @@ class MTPWithMLIP3(MTPotential):
         df = pd.DataFrame(df)
         return df
 
-
     @staticmethod
     def _call_mlip(cmd_list: List[str]) -> Tuple[str, int]:
         """Call MLIP library with subprocess.

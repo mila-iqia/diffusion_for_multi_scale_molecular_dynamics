@@ -208,9 +208,11 @@ def test_extract_energy_from_thermo_log(tmpdir):
 def mock_extract_energy_from_thermo_log(mocker):
     return mocker.patch('crystal_diffusion.train_mtp.extract_energy_from_thermo_log', return_value=[])
 
+
 @pytest.fixture
 def mock_extract_structure_and_forces(mocker):
     return mocker.patch('crystal_diffusion.train_mtp.extract_structure_and_forces_from_file', return_value=([], []))
+
 
 def test_prepare_mtp_inputs_from_lammps(mock_extract_structure_and_forces, mock_extract_energy_from_thermo_log, tmpdir):
     # Create mock file paths
