@@ -24,7 +24,7 @@ class TimeSampler:
             time_parameters: parameters needed to instantiate the time sampler.
         """
         self.time_parameters = time_parameters
-        self._time_step_array = torch.linspace(0, 1, time_parameters.total_time_steps)
+        self.time_step_array = torch.linspace(0, 1, time_parameters.total_time_steps)
 
         self._maximum_index = time_parameters.total_time_steps - 1
         self._minimum_index = 1  # we don't want to sample "0".
@@ -62,7 +62,7 @@ class TimeSampler:
         assert torch.all(indices >= 0), "indices must be non-negative"
         assert torch.all(indices <= self._maximum_index), \
             f"indices must be smaller than or equal to {self._maximum_index}"
-        return self._time_step_array.take(indices)
+        return self.time_step_array.take(indices)
 
     def get_forward_iterator(self):
         """Get forward iterator.
@@ -74,7 +74,7 @@ class TimeSampler:
         Returns:
             forward_iterator: an iterator over (index, time_step) that iterates over increasing values.
         """
-        return iter(enumerate(self._time_step_array[:-1]))
+        return iter(enumerate(self.time_step_array[:-1]))
 
     def get_backward_iterator(self):
         """Get backward iterator.
@@ -85,6 +85,6 @@ class TimeSampler:
         Returns:
             backward_iterator: an iterator over (index, time_step) that iterates over decreasing values.
         """
-        maximum_index = len(self._time_step_array) - 1
+        maximum_index = len(self.time_step_array) - 1
         indices = range(maximum_index, 0, -1)
-        return zip(indices, self._time_step_array.flip(dims=(0,)))
+        return zip(indices, self.time_step_array.flip(dims=(0,)))
