@@ -3,7 +3,6 @@
 Running the main() runs a debugging example. Entry points are train_mtp and evaluate_mtp.
 """
 import os
-from collections import namedtuple
 from typing import Any, Dict, List, NamedTuple, Tuple
 
 import numpy as np
@@ -83,6 +82,7 @@ def extract_energy_from_thermo_log(filename: str) -> List[float]:
 
 class MTP_Inputs(NamedTuple):
     """Create a namedtuple instance for MTP inputs."""
+
     structure: List[Structure]
     forces: List[List[float]]
     energy: List[float]
