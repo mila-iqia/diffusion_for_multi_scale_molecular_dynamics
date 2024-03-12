@@ -17,7 +17,7 @@ class TestScoreNetworkCheck:
         batch_size = 16
         positions = torch.rand(batch_size, 8, 3)
         times = torch.rand(batch_size, 1)
-        return {'positions': positions, 'time': times}
+        return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
     def bad_batch(self, good_batch, problem):
@@ -26,31 +26,33 @@ class TestScoreNetworkCheck:
 
         match problem:
             case "position_name":
-                bad_batch['bad_position_name'] = bad_batch['positions']
-                del bad_batch['positions']
+                bad_batch['bad_position_name'] = bad_batch[BaseScoreNetwork.position_key]
+                del bad_batch[BaseScoreNetwork.position_key]
 
             case "position_shape":
-                shape = bad_batch['positions'].shape
-                bad_batch['positions'] = bad_batch['positions'].reshape(shape[0], shape[1] // 2, shape[2] * 2)
+                shape = bad_batch[BaseScoreNetwork.position_key].shape
+                bad_batch[BaseScoreNetwork.position_key] = \
+                    bad_batch[BaseScoreNetwork.position_key].reshape(shape[0], shape[1] // 2, shape[2] * 2)
 
             case "position_range1":
-                bad_batch['positions'][0, 0, 0] = 1.01
+                bad_batch[BaseScoreNetwork.position_key][0, 0, 0] = 1.01
 
             case "position_range2":
-                bad_batch['positions'][1, 0, 0] = -0.01
+                bad_batch[BaseScoreNetwork.position_key][1, 0, 0] = -0.01
 
             case "time_name":
-                bad_batch['bad_time_name'] = bad_batch['time']
-                del bad_batch['time']
+                bad_batch['bad_time_name'] = bad_batch[BaseScoreNetwork.timestep_key]
+                del bad_batch[BaseScoreNetwork.timestep_key]
 
             case "time_shape":
                 shape = bad_batch['time'].shape
-                bad_batch['time'] = bad_batch['time'].reshape(shape[0] // 2, shape[1] * 2)
+                bad_batch[BaseScoreNetwork.timestep_key] = (
+                    bad_batch[BaseScoreNetwork.timestep_key].reshape(shape[0] // 2, shape[1] * 2))
 
             case "time_range1":
-                bad_batch['time'][5, 0] = 2.00
+                bad_batch[BaseScoreNetwork.timestep_key][5, 0] = 2.00
             case "time_range2":
-                bad_batch['time'][0, 0] = -0.05
+                bad_batch[BaseScoreNetwork.timestep_key][0, 0] = -0.05
 
         return bad_batch
 
@@ -84,14 +86,14 @@ class TestMLPScoreNetwork:
         torch.manual_seed(123)
         positions = torch.rand(batch_size, number_of_atoms, 3)
         times = torch.rand(batch_size, 1)
-        return {'positions': positions, 'time': times}
+        return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
     def bad_batch(self, batch_size, number_of_atoms):
         torch.manual_seed(123)
         positions = torch.rand(batch_size, number_of_atoms // 2, 3)
         times = torch.rand(batch_size, 1)
-        return {'positions': positions, 'time': times}
+        return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
     def score_network(self, number_of_atoms):
