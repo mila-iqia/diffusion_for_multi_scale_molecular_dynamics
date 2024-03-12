@@ -1,3 +1,6 @@
+/* Code changed to allow compilation. RunAllTests fails compilation, so we commented them out.
+ */
+
 /*   MLIP is a software for Machine Learning Interatomic Potentials
  *   MLIP is released under the "New BSD License", see the LICENSE file.
  *   Contributors: Alexander Shapeev, Evgeny Podryabinkin, Ivan Novikov

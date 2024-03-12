@@ -262,7 +262,7 @@ class MTPWithMLIP3(MTPotential):
 
         atoms_filename = "train.cfgs"
 
-        with ScratchDir("."):  # create a tmpdir - deleted afterew
+        with ScratchDir("."):  # create a tmpdir - deleted afterwards
             atoms_filename = self.write_cfg(filename=atoms_filename, cfg_pool=train_pool)
 
             if not unfitted_mtp:
