@@ -227,7 +227,7 @@ class MTPWithMLIP3(MTPotential):
 
     @staticmethod
     def _call_cmd_to_stdout(cmd: List[str], output_file: _io.TextIOWrapper):
-        """Call commands with subprocess.POpen and pipe output to a file
+        """Call commands with subprocess.POpen and pipe output to a file.
 
         Args:
             cmd: list of commands & arguments to run
