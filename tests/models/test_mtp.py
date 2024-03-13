@@ -260,17 +260,16 @@ def test_get_metrics_from_pred():
     df_predict = pd.DataFrame({
         'structure_index': [0, 0, 1, 1],
         'atom_index': [0, 1, 0, 1],
-        'energy': [1.05, 0.95, 3.1, 2.9],  # Energy has a slight variation
+        'energy': [1.1, 1.1, 3.3, 3.3],  # energy cannot be different per atom for a given structure
         'fx': [0.12, -0.08, 0.23, -0.17],
         'fy': [0.09, -0.11, 0.19, -0.21],
         'fz': [0.11, -0.09, 0.18, -0.22]
     })
 
     # Calculate expected MAE for energy and forces
-    expected_mae_energy = mean_absolute_error(
-        df_orig.groupby('structure_index')['energy'].mean(),
-        df_predict.groupby('structure_index')['energy'].mean()
-    )
+    # 1 value per structure - here, we take indices 0 and 2
+    expected_mae_energy = np.abs(df_orig['energy'].iloc[[0, 2]] - df_predict['energy'].iloc[[0, 2]]).mean() / 2
+    # we take the energy per atom. 2 atoms per structure here, so we can simply divide by 2
 
     expected_mae_forces = mean_absolute_error(
         df_orig[['fx', 'fy', 'fz']].values.flatten(),
