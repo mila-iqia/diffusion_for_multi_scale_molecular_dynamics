@@ -1,6 +1,6 @@
 import logging
 
-from crystal_diffusion.models.my_model import SimpleMLP
+from crystal_diffusion.models.score_network import MLPScoreNetwork
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ def load_model(hyper_params):  # pragma: no cover
     architecture = hyper_params['architecture']
     # __TODO__ fix architecture list
     if architecture == 'simple_mlp':
-        model_class = SimpleMLP
+        model_class = MLPScoreNetwork
     else:
         raise ValueError('architecture {} not supported'.format(architecture))
     logger.info('selected architecture: {}'.format(architecture))
