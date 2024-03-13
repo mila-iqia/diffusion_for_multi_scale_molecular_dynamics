@@ -4,12 +4,30 @@ import typing
 import pytorch_lightning as pl
 
 from crystal_diffusion.models.optim import load_optimizer
+from crystal_diffusion.models.score_network import BaseScoreNetwork
 
 logger = logging.getLogger(__name__)
 
 
-class BaseModel(pl.LightningModule):
-    """Base class for Pytorch Lightning model - useful to reuse the same *_step methods."""
+class PositionDiffusionLightningModel(pl.LightningModule):
+    """Position Diffusion Lightning Model.
+
+    This lightning model can train a score network predict the noise for relative positions.
+
+    TODO : filling this class with what is needed to train a diffusion model.
+    """
+
+    def __init__(self, score_network: BaseScoreNetwork):
+        """Init method.
+
+        This initializes the class.
+
+        Args:
+            score_network: the model that computes the scores.
+        """
+        super().__init__()
+
+        self.score_network = score_network
 
     def configure_optimizers(self):
         """Returns the combination of optimizer(s) and learning rate scheduler(s) to train with.
