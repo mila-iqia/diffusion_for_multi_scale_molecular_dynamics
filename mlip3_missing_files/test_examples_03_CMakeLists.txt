@@ -1,0 +1,15 @@
+set(TEST_NAME "calculate_efs")
+set(TEST_DIR ${TEST_BASE_DIR}/examples/${TEST_NAME})
+file(MAKE_DIRECTORY ${TEST_DIR}/out)
+set(TEST_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/pot.almtp
+  ${CMAKE_CURRENT_SOURCE_DIR}/train.cfg
+  )
+file(COPY ${TEST_SOURCES} DESTINATION ${TEST_DIR})
+
+add_test(
+    NAME ${TEST_NAME}
+    COMMAND sh -c "$<TARGET_FILE:mlp> calculate_efs pot.almtp train.cfg --output_filename=./out/calculated.cfg > ./out/stdout.log"
+    WORKING_DIRECTORY ${TEST_DIR}
+)
+
