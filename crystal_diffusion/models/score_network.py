@@ -4,7 +4,6 @@ This module implements score networks for positions in relative coordinates.
 Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 """
-from abc import abstractmethod
 from typing import Any, AnyStr, Dict
 
 import torch
@@ -96,7 +95,6 @@ class BaseScoreNetwork(torch.nn.Module):
         self._check_batch(batch)
         return self._forward_unchecked(batch)
 
-    @abstractmethod
     def _forward_unchecked(self, batch: Dict[AnyStr, torch.Tensor]) -> torch.Tensor:
         """Forward unchecked.
 
