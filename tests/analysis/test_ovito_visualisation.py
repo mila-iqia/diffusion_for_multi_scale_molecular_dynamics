@@ -25,6 +25,7 @@ box:
         f.write(lattice_output)
     return os.path.join(tmpdir, "test_output.yaml")
 
+
 class TestMTP2Ovito:
     """This class tests the functions to convert outputs to OVITO readable files."""
 
@@ -55,6 +56,7 @@ box:
 
         # Assert that the returned lattice is as expected
         np.testing.assert_array_equal(lattice, expected_lattice)
+
     @pytest.fixture
     def fake_prediction_csv(self, tmpdir):
         # Create a DataFrame with mock prediction data
