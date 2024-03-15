@@ -55,7 +55,8 @@ def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, A
             coords = [[x[i] for i in coords_idx] for x in d['data']]
             pm_structure = Structure(lattice=lattice,
                                      species=species,
-                                     coords=coords)
+                                     coords=coords,
+                                     coords_are_cartesian=True)
             structures.append(pm_structure)
             force_idx = [d['keywords'].index(x) for x in ['fx', 'fy', 'fz']]
             structure_forces = [[x[i] for i in force_idx] for x in d['data']]
