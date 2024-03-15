@@ -4,10 +4,17 @@ This module implements score networks for positions in relative coordinates.
 Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 """
-from typing import Any, AnyStr, Dict
+from dataclasses import dataclass
+from typing import AnyStr, Dict
 
 import torch
 from torch import nn
+
+
+@dataclass(kw_only=True)
+class BaseScoreNetworkParameters:
+    """Base Hyper-parameters for score networks."""
+    spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
 
 
 class BaseScoreNetwork(torch.nn.Module):
@@ -18,11 +25,8 @@ class BaseScoreNetwork(torch.nn.Module):
     """
     position_key = "relative_positions"  # unitless positions in the lattice coordinate basis
     timestep_key = "time"
-    spatial_dimension = (
-        3  # the spatial dimension of the space where the atoms live, ie 3D space.
-    )
 
-    def __init__(self, hyper_params: Dict[AnyStr, Any]):
+    def __init__(self, hyper_params: BaseScoreNetworkParameters):
         """__init__.
 
         Args:
@@ -30,6 +34,7 @@ class BaseScoreNetwork(torch.nn.Module):
         """
         super(BaseScoreNetwork, self).__init__()
         self._hyper_params = hyper_params
+        self.spatial_dimension = hyper_params.spatial_dimension
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         """Check batch.
@@ -112,23 +117,28 @@ class BaseScoreNetwork(torch.nn.Module):
         raise NotImplementedError
 
 
+@dataclass(kw_only=True)
+class MLPScoreNetworkParameters(BaseScoreNetworkParameters):
+    """Specific Hyper-parameters for MLP score networks."""
+    number_of_atoms: int  # the number of atoms in a configuration.
+    hidden_dim: int
+
+
 class MLPScoreNetwork(BaseScoreNetwork):
     """Simple Model Class.
 
     Inherits from the given framework's model class. This is a simple MLP model.
     """
 
-    def __init__(self, hyper_params: Dict[AnyStr, Any]):
+    def __init__(self, hyper_params: MLPScoreNetworkParameters):
         """__init__.
 
         Args:
             hyper_params (dict): hyper parameters from the config file.
         """
         super(MLPScoreNetwork, self).__init__(hyper_params)
-        hidden_dim = hyper_params["hidden_dim"]
-        self._natoms = hyper_params[
-            "number_of_atoms"
-        ]  # the number of atoms in a configuration.
+        hidden_dim = hyper_params.hidden_dim
+        self._natoms = hyper_params.number_of_atoms
 
         output_dimension = self.spatial_dimension * self._natoms
         input_dimension = output_dimension + 1

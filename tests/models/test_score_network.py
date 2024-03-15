@@ -2,20 +2,23 @@ import pytest
 import torch
 
 from crystal_diffusion.models.score_network import (BaseScoreNetwork,
-                                                    MLPScoreNetwork)
+                                                    BaseScoreNetworkParameters,
+                                                    MLPScoreNetwork,
+                                                    MLPScoreNetworkParameters)
 
 
+@pytest.mark.parametrize("spatial_dimension", [2, 3])
 class TestScoreNetworkCheck:
 
     @pytest.fixture()
-    def base_score_network(self):
-        return BaseScoreNetwork({})
+    def base_score_network(self, spatial_dimension):
+        return BaseScoreNetwork(BaseScoreNetworkParameters(spatial_dimension=spatial_dimension))
 
     @pytest.fixture()
-    def good_batch(self):
+    def good_batch(self, spatial_dimension):
         torch.manual_seed(123)
         batch_size = 16
-        positions = torch.rand(batch_size, 8, 3)
+        positions = torch.rand(batch_size, 8, spatial_dimension)
         times = torch.rand(batch_size, 1)
         return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
 
@@ -67,6 +70,7 @@ class TestScoreNetworkCheck:
             base_score_network._check_batch(bad_batch)
 
 
+@pytest.mark.parametrize("spatial_dimension", [2, 3])
 class TestMLPScoreNetwork:
 
     @pytest.fixture()
@@ -78,26 +82,29 @@ class TestMLPScoreNetwork:
         return 8
 
     @pytest.fixture()
-    def expected_score_shape(self, batch_size, number_of_atoms):
-        return batch_size, number_of_atoms, 3
+    def expected_score_shape(self, batch_size, number_of_atoms, spatial_dimension):
+        return batch_size, number_of_atoms, spatial_dimension
 
     @pytest.fixture()
-    def good_batch(self, batch_size, number_of_atoms):
+    def good_batch(self, batch_size, number_of_atoms, spatial_dimension):
         torch.manual_seed(123)
-        positions = torch.rand(batch_size, number_of_atoms, 3)
+        positions = torch.rand(batch_size, number_of_atoms, spatial_dimension)
         times = torch.rand(batch_size, 1)
         return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
-    def bad_batch(self, batch_size, number_of_atoms):
+    def bad_batch(self, batch_size, number_of_atoms, spatial_dimension):
         torch.manual_seed(123)
-        positions = torch.rand(batch_size, number_of_atoms // 2, 3)
+        positions = torch.rand(batch_size, number_of_atoms // 2, spatial_dimension)
         times = torch.rand(batch_size, 1)
         return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
-    def score_network(self, number_of_atoms):
-        return MLPScoreNetwork({'hidden_dim': 16, 'number_of_atoms': number_of_atoms})
+    def score_network(self, number_of_atoms, spatial_dimension):
+        hyper_params = MLPScoreNetworkParameters(spatial_dimension=spatial_dimension,
+                                                 number_of_atoms=number_of_atoms,
+                                                 hidden_dim=16)
+        return MLPScoreNetwork(hyper_params)
 
     def test_check_batch_bad(self, score_network, bad_batch):
         with pytest.raises(AssertionError):
