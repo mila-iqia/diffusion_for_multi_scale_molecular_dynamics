@@ -28,7 +28,7 @@ def main():
     mtp_predictions_to_ovito(args.prediction_file, lattice, args.output_name)
 
 
-def get_lattice_from_lammps(lammps_output_file: str) -> np.array:
+def get_lattice_from_lammps(lammps_output_file: str) -> np.ndarray:
     """Read periodic bounding box from LAMMPS output file.
 
     Args:
@@ -50,7 +50,7 @@ def get_lattice_from_lammps(lammps_output_file: str) -> np.array:
     return lattice
 
 
-def mtp_predictions_to_ovito(pred_file: str, lattice: np.array, output_name: str):
+def mtp_predictions_to_ovito(pred_file: str, lattice: np.ndarray, output_name: str):
     """Convert output csv to ovito readable file.
 
     Args:
