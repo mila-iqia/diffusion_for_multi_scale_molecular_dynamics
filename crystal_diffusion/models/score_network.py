@@ -23,7 +23,7 @@ class BaseScoreNetwork(torch.nn.Module):
     This base class defines the interface that all score networks should have
     in order to be easily interchangeable (ie, polymorphic).
     """
-    position_key = "relative_positions"  # unitless positions in the lattice coordinate basis
+    position_key = "noisy_relative_positions"  # unitless positions in the lattice coordinate basis
     timestep_key = "time"
 
     def __init__(self, hyper_params: BaseScoreNetworkParameters):
@@ -169,7 +169,7 @@ class MLPScoreNetwork(BaseScoreNetwork):
         Returns:
             computed_scores : the scores computed by the model.
         """
-        positions = batch[self.position_key]  # shape [batch_size, number_of_atoms, 3]
+        positions = batch[self.position_key]  # shape [batch_size, number_of_atoms, spatial_dimension]
         times = batch[self.timestep_key]  # shape [batch_size, 1]
 
         input = torch.cat([self.flatten(positions), times], dim=1)
