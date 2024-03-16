@@ -93,7 +93,7 @@ def get_sigma_normalized_score(
 
     total_number_of_elements = relative_positions.nelement()
     list_u = relative_positions.view(total_number_of_elements)
-    list_sigma = sigmas.view(total_number_of_elements)
+    list_sigma = sigmas.reshape(total_number_of_elements)
 
     # The dimension of list_k is [2 kmax + 1].
     list_k = torch.arange(-kmax, kmax + 1)
