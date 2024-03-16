@@ -4,12 +4,13 @@ from typing import Tuple
 
 import torch
 
-NoiseSample = namedtuple("NoiseSample", ["time", "sigma", "sigma_squared", "g", "g_squared"])
+Noise = namedtuple("Noise", ["time", "sigma", "sigma_squared", "g", "g_squared"])
 
 
 @dataclass
 class NoiseParameters:
     """Variance parameters."""
+
     total_time_steps: int
     # Default values come from the paper:
     #   "Torsional Diffusion for Molecular Conformer Generation",
@@ -41,7 +42,7 @@ class ExplodingVarianceSampler:
         self._time_array = torch.linspace(0, 1, noise_parameters.total_time_steps)
 
         self._sigma_array = self._create_sigma_array(noise_parameters, self._time_array)
-        self._sigma_squared_array = self._sigma_array ** 2
+        self._sigma_squared_array = self._sigma_array**2
 
         self._g_squared_array = self._create_g_squared_array(self._sigma_squared_array)
         self._g_array = torch.sqrt(self._g_squared_array)
@@ -50,17 +51,21 @@ class ExplodingVarianceSampler:
         self._minimum_random_index = 1  # we don't want to randomly sample "0".
 
     @staticmethod
-    def _create_sigma_array(noise_parameters: NoiseParameters, time_array: torch.Tensor) -> torch.Tensor:
+    def _create_sigma_array(
+        noise_parameters: NoiseParameters, time_array: torch.Tensor
+    ) -> torch.Tensor:
         sigma_min = noise_parameters.sigma_min
         sigma_max = noise_parameters.sigma_max
 
-        sigma = sigma_min**(1.0 - time_array) * sigma_max**time_array
+        sigma = sigma_min ** (1.0 - time_array) * sigma_max**time_array
         return sigma
 
     @staticmethod
     def _create_g_squared_array(sigma_squared_array: torch.Tensor) -> torch.Tensor:
-        nan_tensor = torch.tensor([float('nan')])
-        return torch.cat([nan_tensor, sigma_squared_array[1:] - sigma_squared_array[:-1]])
+        nan_tensor = torch.tensor([float("nan")])
+        return torch.cat(
+            [nan_tensor, sigma_squared_array[1:] - sigma_squared_array[:-1]]
+        )
 
     def _get_random_time_step_indices(self, shape: Tuple[int]) -> torch.Tensor:
         """Random time step indices.
@@ -74,13 +79,16 @@ class ExplodingVarianceSampler:
         Returns:
             time_step_indices: random time step indices in a tensor of shape "shape".
         """
-        random_indices = torch.randint(self._minimum_random_index,
-                                       self._maximum_random_index + 1,  # +1 because the maximum value is not sampled
-                                       size=shape)
+        random_indices = torch.randint(
+            self._minimum_random_index,
+            self._maximum_random_index
+            + 1,  # +1 because the maximum value is not sampled
+            size=shape,
+        )
         return random_indices
 
-    def get_random_noise_sample(self, batch_size: int) -> NoiseSample:
-        """Get random noise parameter sample.
+    def get_random_noise_sample(self, batch_size: int) -> Noise:
+        """Get random noise sample.
 
         It is assumed that a batch is of the form [batch_size, (dimensions of a configuration)].
         In order to train a diffusion model, a configuration must be "noised" to a time t with a parameter sigma(t).
@@ -92,9 +100,8 @@ class ExplodingVarianceSampler:
             batch_size : number of configurations in a batch,
 
         Returns:
-            noise_parameter_sample: a collection of all the noise parameters (t, sigma, sigma^2, g, g^2)
+            noise_sample: a collection of all the noise parameters (t, sigma, sigma^2, g, g^2)
                 for some random indices. The arrays are all of dimension [batch_size].
-
         """
         indices = self._get_random_time_step_indices((batch_size,))
         times = self._time_array.take(indices)
@@ -103,4 +110,27 @@ class ExplodingVarianceSampler:
         gs = self._g_array.take(indices)
         gs_squared = self._g_squared_array.take(indices)
 
-        return NoiseSample(time=times, sigma=sigmas, sigma_squared=sigmas_squared, g=gs, g_squared=gs_squared)
+        return Noise(
+            time=times,
+            sigma=sigmas,
+            sigma_squared=sigmas_squared,
+            g=gs,
+            g_squared=gs_squared,
+        )
+
+    def get_all_noise(self) -> Noise:
+        """Get all noise.
+
+        All the internal noise parameter arrays, passed as a Noise object.
+
+        Returns:
+            all_noise: a collection of all the noise parameters (t, sigma, sigma^2, g, g^2)
+                for all indices. The arrays are all of dimension [total_time_steps].
+        """
+        return Noise(
+            time=self._time_array,
+            sigma=self._sigma_array,
+            sigma_squared=self._sigma_squared_array,
+            g=self._g_array,
+            g_squared=self._g_squared_array,
+        )

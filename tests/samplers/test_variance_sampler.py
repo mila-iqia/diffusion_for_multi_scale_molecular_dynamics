@@ -99,3 +99,13 @@ class TestExplodingVarianceSampler:
         )
         assert torch.all(torch.isclose(noise_sample.g, expected_gs))
         assert torch.all(torch.isclose(noise_sample.g_squared, expected_gs_squared))
+
+    def test_get_all_noise(self, variance_sampler):
+        noise = variance_sampler.get_all_noise()
+        assert torch.all(torch.isclose(noise.time, variance_sampler._time_array))
+        assert torch.all(torch.isclose(noise.sigma, variance_sampler._sigma_array))
+        assert torch.all(torch.isclose(noise.sigma_squared, variance_sampler._sigma_squared_array))
+        assert torch.isnan(noise.g[0])
+        assert torch.isnan(noise.g_squared[0])
+        assert torch.all(torch.isclose(noise.g[1:], variance_sampler._g_array[1:]))
+        assert torch.all(torch.isclose(noise.g_squared[1:], variance_sampler._g_squared_array[1:]))
