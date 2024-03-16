@@ -30,20 +30,30 @@ class NoisyPositionSampler:
         return torch.randn(shape)
 
     @staticmethod
-    def get_noisy_position_sample(real_relative_positions: torch.Tensor, sigma: float) -> torch.Tensor:
+    def get_noisy_position_sample(real_relative_positions: torch.Tensor, sigmas: torch.Tensor) -> torch.Tensor:
         """Get noisy positions sample.
 
         This method draws a sample from the perturbation kernel centered on the real_relative_positions
         and with a variance parameter sigma. The sample is brought back into the periodic unit cell.
 
+        Note that sigmas is assumed to be of the same shape as real_relative_positions. There is no
+        check that the sigmas are "all the same" for a given batch index: it is the user's responsibility to
+        provide a consistent sigma, if the desired behavior is to noise a batch of configurations consistently.
+
+
         Args:
             real_relative_positions : relative coordinates of real data. Should be between 0 and 1.
                 relative_positions is assumed to have an arbitrary shape.
-            sigma : variance of the perturbation kernel.
+            sigmas : variance of the perturbation kernel. Tensor is assumed to be of the same shape as
+                real_relative_positions.
 
         Returns:
             noisy_relative_positions: a sample of noised relative positions, of the same shape as relative_positions.
         """
-        noise = sigma * NoisyPositionSampler._get_gaussian_noise(real_relative_positions.shape)
+        assert real_relative_positions.shape == sigmas.shape, \
+            "sigmas array is expected to be of the same shape as the real_relative_positions array"
+
+        z_scores = NoisyPositionSampler._get_gaussian_noise(real_relative_positions.shape)
+        noise = sigmas * z_scores
         noisy_relative_positions = torch.remainder(real_relative_positions + noise, 1.0)
         return noisy_relative_positions

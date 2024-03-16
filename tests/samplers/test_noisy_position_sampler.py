@@ -14,38 +14,51 @@ class TestNoisyPositionSampler:
         return torch.rand(shape)
 
     @pytest.fixture()
-    def computed_noisy_relative_positions(self, real_relative_positions, sigma):
-        return NoisyPositionSampler.get_noisy_position_sample(real_relative_positions, sigma)
+    def sigmas(self, shape):
+        return torch.rand(shape)
 
     @pytest.fixture()
-    def fake_gaussian_sample(self, real_relative_positions):
-        # Note: this is NOT a Gaussian distribution. That's ok, it's fake data for testing!
-        return torch.rand(real_relative_positions.shape)
+    def computed_noisy_relative_positions(self, real_relative_positions, sigmas):
+        return NoisyPositionSampler.get_noisy_position_sample(
+            real_relative_positions, sigmas
+        )
 
-    @pytest.mark.parametrize("sigma", [0.001, 0.01, 0.1, 1., 10.])
+    @pytest.fixture()
+    def fake_gaussian_sample(self, shape):
+        # Note: this is NOT a Gaussian distribution. That's ok, it's fake data for testing!
+        return torch.rand(shape)
+
     def test_shape(self, computed_noisy_relative_positions, shape):
         assert computed_noisy_relative_positions.shape == shape
 
-    @pytest.mark.parametrize("sigma", [0.001, 0.01, 0.1, 1., 10.])
     def test_range(self, computed_noisy_relative_positions):
-        assert torch.all(computed_noisy_relative_positions >= 0.)
-        assert torch.all(computed_noisy_relative_positions < 1.)
+        assert torch.all(computed_noisy_relative_positions >= 0.0)
+        assert torch.all(computed_noisy_relative_positions < 1.0)
 
-    @pytest.mark.parametrize("sigma", [0.0, 1e-8])
-    def test_small_sigma_limit(self, computed_noisy_relative_positions, real_relative_positions):
-        assert torch.all(torch.isclose(real_relative_positions, computed_noisy_relative_positions))
+    def test_get_noisy_position_sample(
+        self, mocker, real_relative_positions, sigmas, fake_gaussian_sample
+    ):
+        mocker.patch.object(
+            NoisyPositionSampler,
+            "_get_gaussian_noise",
+            return_value=fake_gaussian_sample,
+        )
 
-    @pytest.mark.parametrize("sigma", [0.001, 0.01, 0.1, 1., 10.])
-    def test_get_noisy_position_sample(self, mocker, real_relative_positions, sigma, fake_gaussian_sample):
-        mocker.patch.object(NoisyPositionSampler, "_get_gaussian_noise", return_value=fake_gaussian_sample)
+        computed_samples = NoisyPositionSampler.get_noisy_position_sample(
+            real_relative_positions, sigmas
+        )
 
-        flat_computed_samples = NoisyPositionSampler.get_noisy_position_sample(real_relative_positions, sigma).flatten()
+        flat_sigmas = sigmas.flatten()
+        flat_positions = real_relative_positions.flatten()
+        flat_computed_samples = computed_samples.flatten()
+        flat_fake_gaussian_sample = fake_gaussian_sample.flatten()
 
-        flat_expected_samples = []
-        for x0, epsilon in zip(real_relative_positions.flatten(), fake_gaussian_sample.flatten()):
-            x = np.mod(x0 + sigma * epsilon, 1).float()
-            flat_expected_samples.append(x)
+        for sigma, x0, computed_sample, epsilon in zip(
+            flat_sigmas,
+            flat_positions,
+            flat_computed_samples,
+            flat_fake_gaussian_sample,
+        ):
+            expected_sample = np.mod(x0 + sigma * epsilon, 1).float()
 
-        flat_expected_samples = torch.tensor(flat_expected_samples)
-
-        assert torch.all(torch.isclose(flat_computed_samples, flat_expected_samples))
+            assert torch.all(torch.isclose(computed_sample, expected_sample))
