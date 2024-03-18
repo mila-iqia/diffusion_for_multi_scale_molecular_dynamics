@@ -93,7 +93,7 @@ class ExplodingVarianceSampler:
         It is assumed that a batch is of the form [batch_size, (dimensions of a configuration)].
         In order to train a diffusion model, a configuration must be "noised" to a time t with a parameter sigma(t).
         Different values can be used for different configurations: correspondingly, this method returns
-        one random pair per element in the batch.
+        one random time per element in the batch.
 
 
         Args:
@@ -101,7 +101,7 @@ class ExplodingVarianceSampler:
 
         Returns:
             noise_sample: a collection of all the noise parameters (t, sigma, sigma^2, g, g^2)
-                for some random indices. The arrays are all of dimension [batch_size].
+                for some random indices. All the arrays are of dimension [batch_size].
         """
         indices = self._get_random_time_step_indices((batch_size,))
         times = self._time_array.take(indices)
