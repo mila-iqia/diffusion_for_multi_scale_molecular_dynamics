@@ -29,5 +29,6 @@ def test_broadcast_batch_tensor_to_all_dimensions(batch_size, batch_values, fina
 
     value_arrays = broadcast_values.reshape(batch_size, -1)
 
-    for value, value_array in zip(batch_values, value_arrays):
-        assert torch.all(torch.isclose(value_array, value))
+    for expected_value, computed_values in zip(batch_values, value_arrays):
+        expected_values = torch.ones_like(computed_values) * expected_value
+        torch.testing.assert_allclose(expected_values, computed_values)
