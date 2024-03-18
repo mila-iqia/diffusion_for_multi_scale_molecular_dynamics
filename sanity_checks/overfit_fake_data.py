@@ -18,20 +18,20 @@ from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from sanity_checks import SANITY_CHECK_FOLDER
 
-batch_size = 4
-number_of_atoms = 8
-spatial_dimension = 3
+batch_size = 16
+number_of_atoms = 4
+spatial_dimension = 2
 
 score_network_parameters = MLPScoreNetworkParameters(
     number_of_atoms=number_of_atoms,
-    hidden_dim=16,
+    hidden_dim=32,
     spatial_dimension=spatial_dimension,
 )
 
 optimizer_parameters = OptimizerParameters(name=ValidOptimizerNames("adam"),
-                                           learning_rate=0.001)
+                                           learning_rate=0.01)
 
-noise_parameters = NoiseParameters(total_time_steps=100)
+noise_parameters = NoiseParameters(total_time_steps=10)
 
 hyper_params = PositionDiffusionParameters(
     score_network_parameters=score_network_parameters,
@@ -52,5 +52,5 @@ if __name__ == '__main__':
 
     lightning_model = PositionDiffusionLightningModel(hyper_params)
 
-    trainer = Trainer(accelerator='cpu', max_epochs=100, logger=tbx_logger, log_every_n_steps=1)
+    trainer = Trainer(accelerator='cpu', max_epochs=10000, logger=tbx_logger, log_every_n_steps=1)
     trainer.fit(lightning_model, train_dataloaders=train_dataloader)
