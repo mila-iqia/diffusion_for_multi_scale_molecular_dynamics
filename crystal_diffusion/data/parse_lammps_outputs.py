@@ -1,18 +1,23 @@
 import argparse
 import os
 from collections import defaultdict
+from typing import Optional
 
 import pandas as pd
 import yaml
 
 
-def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: str):
+def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: Optional[str] = None) -> pd.DataFrame:
     """Parse a LAMMPS output file and save in a .csv format.
 
     Args:
         lammps_dump: LAMMPS output file
         lammps_thermo_log: LAMMPS thermodynamic variables output file
-        output_name: name of parsed output written by the script
+        output_name (optional): name of parsed output written by the script. If none, do not write data to disk.
+            Defaults to None.
+
+    Returns:
+        data in a dataframe
     """
     if not os.path.exists(lammps_dump):
         raise ValueError(f'{lammps_dump} does not exist. Please provide a valid LAMMPS dump file as yaml.')
@@ -50,11 +55,16 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: s
     if not output_name.endswith('.parquet'):
         output_name += '.parquet'
 
-    pd.DataFrame(pd_data).to_parquet(output_name, engine='pyarrow', index=False)
+    df = pd.DataFrame(pd_data)
+
+    if output_name is not None:
+        df.to_parquet(output_name, engine='pyarrow', index=False)
+
+    return df
 
 
 def main():
-    """Main script to parse LAMMPS files and output a single parquet file."""
+    """Parse LAMMPS files and output a single parquet file."""
     parser = argparse.ArgumentParser(description="Convert LAMMPS outputs in parquet file compatible with a dataloader.")
     parser.add_argument("--dump_file", type=str, help="LAMMPS dump file in yaml format.")
     parser.add_argument("--thermo_file", type=str, help="LAMMPS thermo output file in yaml format.")
