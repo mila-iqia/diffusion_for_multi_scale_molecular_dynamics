@@ -33,13 +33,11 @@ class TestExplodingVarianceSampler:
         return time_sampler.get_random_time_step_indices(shape)
 
     def test_time_array(self, variance_sampler, expected_times):
-        assert torch.all(torch.isclose(variance_sampler._time_array, expected_times))
+        torch.testing.assert_allclose(variance_sampler._time_array, expected_times)
 
     def test_sigma_and_sigma_squared_arrays(self, variance_sampler, expected_sigmas):
-        assert torch.all(torch.isclose(variance_sampler._sigma_array, expected_sigmas))
-        assert torch.all(
-            torch.isclose(variance_sampler._sigma_squared_array, expected_sigmas**2)
-        )
+        torch.testing.assert_allclose(variance_sampler._sigma_array, expected_sigmas)
+        torch.testing.assert_allclose(variance_sampler._sigma_squared_array, expected_sigmas**2)
 
     def test_g_and_g_square_array(self, variance_sampler, expected_sigmas):
         expected_sigmas_square = expected_sigmas**2
@@ -56,14 +54,8 @@ class TestExplodingVarianceSampler:
 
         assert torch.isnan(variance_sampler._g_array[0])
         assert torch.isnan(variance_sampler._g_squared_array[0])
-        assert torch.all(
-            torch.isclose(variance_sampler._g_array[1:], expected_g_array[1:])
-        )
-        assert torch.all(
-            torch.isclose(
-                variance_sampler._g_squared_array[1:], expected_g_squared_array[1:]
-            )
-        )
+        torch.testing.assert_allclose(variance_sampler._g_array[1:], expected_g_array[1:])
+        torch.testing.assert_allclose(variance_sampler._g_squared_array[1:], expected_g_squared_array[1:])
 
     def test_get_random_time_step_indices(self, variance_sampler, total_time_steps):
         # Check that we never sample zero.
@@ -92,20 +84,18 @@ class TestExplodingVarianceSampler:
         expected_gs = variance_sampler._g_array.take(random_indices)
         expected_gs_squared = variance_sampler._g_squared_array.take(random_indices)
 
-        assert torch.all(torch.isclose(noise_sample.time, expected_times))
-        assert torch.all(torch.isclose(noise_sample.sigma, expected_sigmas))
-        assert torch.all(
-            torch.isclose(noise_sample.sigma_squared, expected_sigmas_squared)
-        )
-        assert torch.all(torch.isclose(noise_sample.g, expected_gs))
-        assert torch.all(torch.isclose(noise_sample.g_squared, expected_gs_squared))
+        torch.testing.assert_allclose(noise_sample.time, expected_times)
+        torch.testing.assert_allclose(noise_sample.sigma, expected_sigmas)
+        torch.testing.assert_allclose(noise_sample.sigma_squared, expected_sigmas_squared)
+        torch.testing.assert_allclose(noise_sample.g, expected_gs)
+        torch.testing.assert_allclose(noise_sample.g_squared, expected_gs_squared)
 
     def test_get_all_noise(self, variance_sampler):
         noise = variance_sampler.get_all_noise()
-        assert torch.all(torch.isclose(noise.time, variance_sampler._time_array))
-        assert torch.all(torch.isclose(noise.sigma, variance_sampler._sigma_array))
-        assert torch.all(torch.isclose(noise.sigma_squared, variance_sampler._sigma_squared_array))
+        torch.testing.assert_allclose(noise.time, variance_sampler._time_array)
+        torch.testing.assert_allclose(noise.sigma, variance_sampler._sigma_array)
+        torch.testing.assert_allclose(noise.sigma_squared, variance_sampler._sigma_squared_array)
         assert torch.isnan(noise.g[0])
         assert torch.isnan(noise.g_squared[0])
-        assert torch.all(torch.isclose(noise.g[1:], variance_sampler._g_array[1:]))
-        assert torch.all(torch.isclose(noise.g_squared[1:], variance_sampler._g_squared_array[1:]))
+        torch.testing.assert_allclose(noise.g[1:], variance_sampler._g_array[1:])
+        torch.testing.assert_allclose(noise.g_squared[1:], variance_sampler._g_squared_array[1:])

@@ -65,4 +65,4 @@ class TestNoisyPositionSampler:
         ):
             expected_sample = np.mod(x0 + sigma * epsilon, 1).float()
 
-            assert torch.all(torch.isclose(computed_sample, expected_sample))
+            torch.testing.assert_allclose(computed_sample, expected_sample)
