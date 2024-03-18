@@ -1,140 +1,92 @@
-import gzip
+"""Convert results of LAMMPS simulation into dataloader friendly format."""
 import logging
 import os
-import typing
-import urllib.request
+import warnings
+from typing import List, Optional
 
-import numpy as np
+import pandas as pd
+
+from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
 
 logger = logging.getLogger(__name__)
 
 
-BASE_URL = "https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/"
+class LammpsProcessorForDiffusion:
+    """Prepare data from LAMMPS for a diffusion model."""
 
+    def __init__(self, raw_data_dir: str, processed_data_dir: str):
+        """Read LAMMPS experiment directory and write a processed version to disk.
 
-class FashionMnistParser:
-    """Parser for the Fashion MNIST dataset.
-
-    This parser will download the original data and process it to numpy arrays.
-    It will also generate train/val/test splits.
-    """
-    def __init__(self, data_dir):
-        """Processing occurs on init."""
-        self.data_dir = data_dir
-        self.prepare_dataset()
-
-    @staticmethod
-    def download_dataset(data_dir: typing.AnyStr):
-        """Download and extract the fashion mnist dataset to data_dir."""
-        files = [
-            "t10k-images-idx3-ubyte.gz",
-            "t10k-labels-idx1-ubyte.gz",
-            "train-images-idx3-ubyte.gz",
-            "train-labels-idx1-ubyte.gz",
-        ]
-        logger.info("Fetching fashion mnist...")
-        # Create dataset dir if it doesn't already exist
-        if not os.path.isdir(data_dir):
-            os.mkdir(data_dir)
-
-        for fname in files:
-            url = BASE_URL + fname
-            output_fname = os.path.join(data_dir, fname)
-            if os.path.isfile(output_fname):
-                logger.info(f"{fname} already downloaded. Skipping {data_dir}")
-                continue
-            logger.info(f"downloading {fname} to {data_dir}")
-            urllib.request.urlretrieve(url, output_fname)
-
-    @staticmethod
-    def extract_images(fname: typing.AnyStr):
-        """Extract raw bytes to numpy arrays.
-
-        See: https://stackoverflow.com/questions/40427435/extract-images-from-idx3-ubyte-file-or-gzip-via-python # noqa
+        Args:
+            raw_data_dir: path to LAMMPS runs outputs
+            processed_data_dir: path where processed files are saved
         """
-        with gzip.open(fname, "r") as f:
-            # skip first 4 bytes
-            _ = int.from_bytes(f.read(4), "big")
-            # second 4 bytes is the number of images
-            image_count = int.from_bytes(f.read(4), "big")
-            # third 4 bytes is the row count
-            row_count = int.from_bytes(f.read(4), "big")
-            # fourth 4 bytes is the column count
-            column_count = int.from_bytes(f.read(4), "big")
-            # rest is the image pixel data, each pixel is stored as an unsigned byte
-            # pixel values are 0 to 255
-            image_data = f.read()
-            images = np.frombuffer(image_data, dtype=np.uint8).reshape(
-                (image_count, row_count, column_count)
-            )
-            # images = np.expand_dims(images, axis=-1) # add greyscale color channel
-            return images
+        if not os.path.exists(processed_data_dir):
+            os.makedirs(processed_data_dir)  # create the dir if it doesn't exist
+        self.data_dir = processed_data_dir
+        # TODO revisit data splits
+        self.train_files = self.prepare_data(raw_data_dir, mode='train')
+        self.valid_files = self.prepare_data(raw_data_dir, mode='valid')
 
-    @staticmethod
-    def extract_labels(fname: typing.AnyStr):
-        """Extract the labels [0-9] for the dataset."""
-        with gzip.open(fname, "r") as f:
-            # skip first 4 bytes
-            _ = int.from_bytes(f.read(4), "big")
-            # second 4 bytes is the number of labels
-            _ = int.from_bytes(f.read(4), "big")
-            # rest is the label data, each label is stored as unsigned byte
-            # label values are 0 to 9
-            label_data = f.read()
-            labels = np.frombuffer(label_data, dtype=np.uint8)
-            return labels
+    def prepare_data(self, raw_data_dir: str, mode: str = 'train') -> List[str]:
+        """Read data in raw_data_dir and write to a parquet file for Datasets.
 
-    @staticmethod
-    def val_from_train(images: np.ndarray, labels: np.ndarray, val_pct: float):
-        """Fashion mnist doesn't have a validation set, we create one here."""
-        assert 0 < val_pct < 1
-        num_samples = len(images)
-        train_pct = 1 - val_pct
-        train_idx = int(num_samples * train_pct)
+        Args:
+            raw_data_dir: folder where LAMMPS runs are located.
+            mode: train, valid or test split
 
-        train_images = images[0:train_idx]
-        train_labels = labels[0:train_idx]
+        Returns:
+            list of processed dataframe in parquet files
+        """
+        # TODO split is assumed from data generation. We might revisit this.
+        # we assume that raw_data_dir contains subdirectories named train_run_N for N>=1
+        # get the list of runs to parse
+        assert mode in ['train', 'valid', 'test'], f"Mode should be train, valid or test. Got {mode}."
+        list_runs = [d for d in os.listdir(raw_data_dir) if os.path.isdir(os.path.join(raw_data_dir, d)) and
+                     d.startswith(f"{mode}_run")]
+        list_files = []
+        for d in list_runs:
+            if f"{d}.parquet" not in os.listdir(self.data_dir):
+                df = self.parse_lammps_run(os.path.join(raw_data_dir, d))
+                if df is not None:
+                    df.to_parquet(os.path.join(raw_data_dir, f"{d}.parquet"), engine='pyarrow', index=False)
+            if f"{d}.parquet" in os.listdir(self.data_dir):
+                list_files.append(os.path.join(raw_data_dir, f"{d}.parquet"))
+        return list_files
 
-        val_images = images[train_idx:]
-        val_labels = labels[train_idx:]
+    def parse_lammps_run(self, run_dir: str) -> Optional[pd.DataFrame]:
+        """Parse outputs of a LAMMPS run and convert in a dataframe.
 
-        return train_images, train_labels, val_images, val_labels
+        Args:
+            run_dir: directory where the outputs are located
 
-    @staticmethod
-    def subsample_dataset(images: np.ndarray, labels: np.ndarray, num_samples: int):
-        """Extract a subset of the dataset to speed up training."""
-        return images[:num_samples], labels[:num_samples]
+        Returns:
+            df: dataframe with bounding box, atoms species and coordinates. None if LAMMPS outputs are ambiguous.
+        """
+        # do something
+        # find the LAMMPS dump file and thermo file
+        dump_file = [d for d in os.listdir(run_dir) if 'dump' in d]
+        if len(dump_file) != 1:
+            warnings.warn(f"Found {len(dump_file)} files with dump in the name in {run_dir}. Skipping this run.",
+                          UserWarning)
+            return None
 
-    def prepare_dataset(self):
-        """Download, processes and splits the data."""
-        data_dir = self.data_dir
-        self.download_dataset(data_dir=data_dir)
+        thermo_file = [d for d in os.listdir(run_dir) if 'thermo' in d]
+        if len(thermo_file) != 1:
+            warnings.warn(f"Found {len(thermo_file)} files with thermo in the name in {run_dir}. Skipping this run.",
+                          UserWarning)
+            return None
 
-        # load the train set, split to train and val
-        images = self.extract_images(
-            os.path.join(data_dir, "train-images-idx3-ubyte.gz")
-        )
-        labels = self.extract_labels(
-            os.path.join(data_dir, "train-labels-idx1-ubyte.gz")
-        )
+        # parse lammps output and store in a dataframe
+        df = parse_lammps_output(os.path.join(run_dir, dump_file[0]), os.path.join(run_dir, thermo_file[0]), None)
 
-        images, labels = self.subsample_dataset(images, labels, num_samples=20000)
-        train_images, train_labels, val_images, val_labels = self.val_from_train(
-            images, labels, val_pct=0.2
-        )
-
-        test_images = self.extract_images(
-            os.path.join(data_dir, "t10k-images-idx3-ubyte.gz")
-        )
-        test_labels = self.extract_labels(
-            os.path.join(data_dir, "t10k-labels-idx1-ubyte.gz")
-        )
-
-        self.train_images = train_images
-        self.train_labels = train_labels
-
-        self.val_images = val_images
-        self.val_labels = val_labels
-
-        self.test_images = test_images
-        self.test_labels = test_labels
+        # the dataframe contains the following columns: id (list of atom indices), type (list of int representing
+        # atom type, x (list of x cartesian coordinates for each atom), y, z, fx (list forces in direction x for each
+        # atom), energy (1 float).
+        # Each row is a different MD step / usable example for diffusion model
+        # TODO consider filtering out samples with large forces and MD steps that are too similar
+        # TODO large force and similar are to be defined
+        df = df[['type', 'x', 'y', 'z', 'box']]
+        df['natom'] = df['type'].apply(lambda x: len(x))  # count number of atoms in a structure
+        df['position'] = df.apply(lambda x: [x[y] for y in ['x', 'y', 'z']], axis=1)  # position as 3d array
+        return df[['natom', 'box', 'type', 'position']]
