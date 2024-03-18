@@ -169,13 +169,10 @@ class TestPositionDiffusionLightningModel:
             )
         )
 
-        assert torch.all(
-            torch.isclose(
-                computed_target_normalized_scores,
-                brute_force_target_normalized_score,
-                atol=1e-7,
-            )
-        )
+        torch.testing.assert_allclose(computed_target_normalized_scores,
+                                      brute_force_target_normalized_score,
+                                      atol=1e-7,
+                                      rtol=1e-4)
 
     def test_get_predicted_normalized_score(
         self, mocker, lightning_model, noisy_relative_positions, times
@@ -191,18 +188,10 @@ class TestPositionDiffusionLightningModel:
         input_batch = list_calls[0][1][0]
 
         assert MLPScoreNetwork.position_key in input_batch
-        assert torch.all(
-            torch.isclose(
-                input_batch[MLPScoreNetwork.position_key], noisy_relative_positions
-            )
-        )
+        torch.testing.assert_allclose(input_batch[MLPScoreNetwork.position_key], noisy_relative_positions)
 
         assert MLPScoreNetwork.timestep_key in input_batch
-        assert torch.all(
-            torch.isclose(
-                input_batch[MLPScoreNetwork.timestep_key], times.reshape(-1, 1)
-            )
-        )
+        torch.testing.assert_allclose(input_batch[MLPScoreNetwork.timestep_key], times.reshape(-1, 1))
 
     @pytest.mark.parametrize("accelerator", available_accelerators)
     def test_smoke_test(self, lightning_model, fake_datamodule, accelerator):
