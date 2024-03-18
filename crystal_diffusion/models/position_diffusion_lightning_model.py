@@ -9,8 +9,8 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.score_network import (MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
-from crystal_diffusion.samplers.noisy_position_sampler import \
-    NoisyPositionSampler
+from crystal_diffusion.samplers.noisy_position_sampler import (
+    NoisyPositionSampler, map_positions_to_unit_cell)
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.score.wrapped_gaussian_score import \
@@ -159,9 +159,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         target normalized score: sigma times target score, ie, sigma times nabla_xt log P_{t|0}(xt| x0).
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
         """
-        delta_relative_positions = torch.remainder(
-            noisy_relative_positions - real_relative_positions, 1.0
-        )
+        delta_relative_positions = map_positions_to_unit_cell(noisy_relative_positions - real_relative_positions)
         target_normalized_scores = get_sigma_normalized_score(
             delta_relative_positions, sigmas, kmax=self.hyper_params.kmax_target_score
         )

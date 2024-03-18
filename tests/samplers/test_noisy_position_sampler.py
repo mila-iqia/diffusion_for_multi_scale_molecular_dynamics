@@ -2,8 +2,35 @@ import numpy as np
 import pytest
 import torch
 
-from crystal_diffusion.samplers.noisy_position_sampler import \
-    NoisyPositionSampler
+from crystal_diffusion.samplers.noisy_position_sampler import (
+    NoisyPositionSampler, map_positions_to_unit_cell)
+
+
+def test_remainder_failure():
+    # This test demonstrates how torch.remainder does not do what we want.
+    epsilon = -torch.tensor(1.e-8)
+    position_not_in_unit_cell = torch.remainder(epsilon, 1.0)
+    assert position_not_in_unit_cell == 1.0
+
+
+@pytest.mark.parametrize("shape", [(10,), (10, 20), (3, 4, 5)])
+def test_map_positions_to_unit_cell_hard(shape):
+    positions = 1e-8 * (torch.rand((10,)) - 0.5)
+    computed_positions = map_positions_to_unit_cell(positions)
+
+    positive_positions_mask = positions >= 0.
+    assert torch.all(positions[positive_positions_mask] == computed_positions[positive_positions_mask])
+    torch.testing.assert_allclose(computed_positions[~positive_positions_mask],
+                                  torch.zeros_like(computed_positions[~positive_positions_mask]))
+
+
+@pytest.mark.parametrize("shape", [(100, 8, 16)])
+def test_map_positions_to_unit_cell_easy(shape):
+    # Very unlikely to hit the edge cases.
+    positions = 10. * (torch.rand((10,)) - 0.5)
+    expected_values = torch.remainder(positions, 1.)
+    computed_values = map_positions_to_unit_cell(positions)
+    torch.testing.assert_allclose(computed_values, expected_values)
 
 
 @pytest.mark.parametrize("shape", [(10, 1), (4, 5, 3), (2, 2, 2, 2)])

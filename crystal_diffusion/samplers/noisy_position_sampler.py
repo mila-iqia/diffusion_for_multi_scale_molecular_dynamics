@@ -7,6 +7,31 @@ from typing import Tuple
 import torch
 
 
+def map_positions_to_unit_cell(positions: torch.Tensor) -> torch.Tensor:
+    """Map positions back to unit cell.
+
+    The function torch.remainder does not always bring back the positions in the range [0, 1).
+    If the input is very small and negative, torch.remainder returns 1. This is problematic
+    when using floats instead of doubles.
+
+    This method makes sure that the positions are mapped back in the [0, 1) range and does reasonable
+    things when the position is close to the edge.
+
+    See issues:
+        https://github.com/pytorch/pytorch/issues/37743
+        https://github.com/pytorch/pytorch/issues/24861
+
+    Args:
+        positions : atomic positions, tensor of arbitrary shape.
+
+    Returns:
+        relative_positions: atomic positions in the unit cell, ie, in the range [0, 1).
+    """
+    relative_positions = torch.remainder(positions, 1.0)
+    relative_positions[relative_positions == 1.] = 0.
+    return relative_positions
+
+
 class NoisyPositionSampler:
     """Noisy Position Sampler.
 
@@ -55,5 +80,5 @@ class NoisyPositionSampler:
 
         z_scores = NoisyPositionSampler._get_gaussian_noise(real_relative_positions.shape)
         noise = sigmas * z_scores
-        noisy_relative_positions = torch.remainder(real_relative_positions + noise, 1.0)
+        noisy_relative_positions = map_positions_to_unit_cell(real_relative_positions + noise)
         return noisy_relative_positions
