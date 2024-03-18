@@ -10,13 +10,16 @@ from crystal_diffusion.models.score_network import (BaseScoreNetwork,
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
 class TestScoreNetworkCheck:
 
+    @pytest.fixture(scope="class", autouse=True)
+    def set_random_seed(self):
+        torch.manual_seed(123)
+
     @pytest.fixture()
     def base_score_network(self, spatial_dimension):
         return BaseScoreNetwork(BaseScoreNetworkParameters(spatial_dimension=spatial_dimension))
 
     @pytest.fixture()
     def good_batch(self, spatial_dimension):
-        torch.manual_seed(123)
         batch_size = 16
         positions = torch.rand(batch_size, 8, spatial_dimension)
         times = torch.rand(batch_size, 1)
@@ -87,14 +90,12 @@ class TestMLPScoreNetwork:
 
     @pytest.fixture()
     def good_batch(self, batch_size, number_of_atoms, spatial_dimension):
-        torch.manual_seed(123)
         positions = torch.rand(batch_size, number_of_atoms, spatial_dimension)
         times = torch.rand(batch_size, 1)
         return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
     def bad_batch(self, batch_size, number_of_atoms, spatial_dimension):
-        torch.manual_seed(123)
         positions = torch.rand(batch_size, number_of_atoms // 2, spatial_dimension)
         times = torch.rand(batch_size, 1)
         return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}

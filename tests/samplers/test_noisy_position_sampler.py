@@ -8,9 +8,13 @@ from crystal_diffusion.samplers.noisy_position_sampler import \
 
 @pytest.mark.parametrize("shape", [(10, 1), (4, 5, 3), (2, 2, 2, 2)])
 class TestNoisyPositionSampler:
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_random_seed(self):
+        torch.manual_seed(23423)
+
     @pytest.fixture()
     def real_relative_positions(self, shape):
-        torch.manual_seed(23423)
         return torch.rand(shape)
 
     @pytest.fixture()

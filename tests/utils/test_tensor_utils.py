@@ -5,9 +5,13 @@ from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
 
+@pytest.fixture(scope="module", autouse=True)
+def set_random_seed():
+    torch.manual_seed(2345234)
+
+
 @pytest.fixture()
 def batch_values(batch_size):
-    torch.manual_seed(2345234)
     return torch.rand(batch_size)
 
 
