@@ -147,6 +147,8 @@ class MLPScoreNetwork(BaseScoreNetwork):
         self.mlp_layers = nn.Sequential(
             nn.Linear(input_dimension, hidden_dim),
             nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
             nn.Linear(hidden_dim, output_dimension),
         )
 
