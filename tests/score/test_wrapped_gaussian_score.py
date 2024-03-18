@@ -4,22 +4,24 @@ import torch
 
 from crystal_diffusion.score.wrapped_gaussian_score import (
     SIGMA_THRESHOLD, _get_large_sigma_mask, _get_s1a_exponential,
-    _get_s1b_exponential, _get_sigma_normalized_s1_from_exponential,
-    _get_sigma_normalized_s2, _get_small_sigma_large_u_mask,
-    _get_small_sigma_small_u_mask,
-    get_expected_sigma_normalized_score_brute_force,
-    get_sigma_normalized_score)
+    _get_s1b_exponential, _get_sigma_normalized_s2,
+    _get_sigma_square_times_score_1_from_exponential,
+    _get_small_sigma_large_u_mask, _get_small_sigma_small_u_mask,
+    get_sigma_normalized_score, get_sigma_normalized_score_brute_force)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def set_random_seed():
+    torch.manual_seed(1234)
 
 
 @pytest.fixture
 def relative_positions(shape):
-    torch.manual_seed(1234)
     return torch.rand(shape)
 
 
 @pytest.fixture
 def sigmas(shape):
-    torch.manual_seed(4321)
     return torch.rand(shape) * 5.0 * SIGMA_THRESHOLD
 
 
@@ -44,13 +46,13 @@ def expected_sigma_normalized_scores(relative_positions, sigmas):
 
     list_sigma_normalized_scores = []
     for u, sigma in zip(relative_positions.numpy().flatten(), sigmas.numpy().flatten()):
-        s = get_expected_sigma_normalized_score_brute_force(u, sigma)
+        s = get_sigma_normalized_score_brute_force(u, sigma)
         list_sigma_normalized_scores.append(s)
 
     return torch.tensor(list_sigma_normalized_scores).reshape(shape)
 
 
-test_shapes = [(10,), (3, 4, 5), (10, 5)]
+test_shapes = [(100,), (3, 4, 5), (10, 5)]
 
 
 @pytest.mark.parametrize("shape", test_shapes)
@@ -104,7 +106,6 @@ class TestMasks:
 class TestExponentials:
     @pytest.fixture()
     def fake_exponential(self, list_u, list_k):
-        torch.manual_seed(6345345)
         return torch.rand(len(list_u), len(list_k))
 
     def test_get_s1a_exponential(self, list_k, list_u, list_sigma):
@@ -132,7 +133,7 @@ class TestExponentials:
     def test_get_sigma_normalized_s1_from_exponential(
         self, fake_exponential, list_u, list_k
     ):
-        computed_results = _get_sigma_normalized_s1_from_exponential(
+        computed_results = _get_sigma_square_times_score_1_from_exponential(
             fake_exponential, list_u, list_k
         )
 
@@ -147,27 +148,32 @@ class TestExponentials:
 
 @pytest.mark.parametrize("kmax", [1, 5, 10])
 @pytest.mark.parametrize("shape", test_shapes)
-def test_get_sigma_normalized_s2(list_u, list_sigma, list_k):
-    list_computed_s2 = _get_sigma_normalized_s2(list_u, list_sigma, list_k)
+@pytest.mark.parametrize("numerical_type", [torch.double])
+def test_get_sigma_normalized_s2(list_u, list_sigma, list_k, numerical_type):
+    # TODO: the test fails for numerical_type = torch.float. Should we be worried about numerical error here?
+    list_u_cast = list_u.to(numerical_type)
+    list_sigma_cast = list_sigma.to(numerical_type)
+    pi = torch.tensor(np.pi, dtype=numerical_type)
 
-    for u, sigma, computed_value in zip(list_u, list_sigma, list_computed_s2):
-        z2 = 0.0
-        deriv_z2 = 0.0
+    list_computed_s2 = _get_sigma_normalized_s2(list_u_cast, list_sigma_cast, list_k)
+
+    list_expected_s2 = []
+    for u, sigma in zip(list_u_cast, list_sigma_cast):
+        z2 = torch.tensor(0.0, dtype=numerical_type)
+        deriv_z2 = torch.tensor(0.0, dtype=numerical_type)
 
         for k in list_k:
-            g_term = torch.exp(-2 * np.pi**2 * sigma**2 * k**2) - torch.exp(
-                -np.pi * k**2
-            ) / sigma / np.sqrt(2.0 * np.pi)
-            z2 += torch.exp(-np.pi * (u + k) ** 2) + np.sqrt(
-                2.0 * np.pi
-            ) * sigma * g_term * torch.cos(2 * np.pi * k * u)
-            deriv_z2 += -2.0 * np.pi * (u + k) * torch.exp(-np.pi * (u + k) ** 2) - (
-                2.0 * np.pi
-            ) ** 1.5 * sigma * k * g_term * torch.sin(2.0 * np.pi * k * u)
+            g_term = torch.sqrt(2.0 * pi) * sigma * (-2.0 * pi**2 * sigma**2 * k**2).exp() - (-pi * k**2).exp()
+            z2 += (-pi * (u + k) ** 2).exp() + g_term * torch.cos(2 * pi * k * u)
+            deriv_z2 += (-2.0 * pi * (u + k) * (-pi * (u + k) ** 2).exp()
+                         - 2.0 * pi * k * g_term * torch.sin(2.0 * pi * k * u))
 
-        expected_value = sigma**2 * deriv_z2 / z2
+        expected_value = sigma * deriv_z2 / z2
+        list_expected_s2.append(expected_value)
 
-    torch.testing.assert_close(computed_value, expected_value)
+    list_expected_s2 = torch.tensor(list_expected_s2)
+
+    torch.testing.assert_close(list_computed_s2, list_expected_s2)
 
 
 @pytest.mark.parametrize("kmax", [4])

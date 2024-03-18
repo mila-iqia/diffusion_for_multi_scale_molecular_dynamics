@@ -11,7 +11,7 @@ from crystal_diffusion.models.score_network import (MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
-    get_expected_sigma_normalized_score_brute_force
+    get_sigma_normalized_score_brute_force
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
@@ -144,7 +144,7 @@ class TestPositionDiffusionLightningModel:
 
             # Note that the brute force algorithm is not robust and can sometimes produce NaNs in single precision!
             # Let's compute in double precision to avoid NaNs.
-            expected_score = get_expected_sigma_normalized_score_brute_force(
+            expected_score = get_sigma_normalized_score_brute_force(
                 u.to(torch.double), sigma.to(torch.double), kmax=20
             ).to(torch.float)
             expected_scores.append(expected_score)
