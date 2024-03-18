@@ -52,10 +52,10 @@ if __name__ == '__main__':
     gs_squared = noise.g_squared.take(indices)
 
     for t, sigma in zip(times, sigmas):
-        target_scores = get_sigma_normalized_score(relative_positions,
-                                                   torch.ones_like(relative_positions) * sigma,
-                                                   kmax=kmax)
-        ax3.plot(relative_positions, sigma * target_scores, label=f"t = {t:3.2f}")
+        target_sigma_normalized_scores = get_sigma_normalized_score(relative_positions,
+                                                                    torch.ones_like(relative_positions) * sigma,
+                                                                    kmax=kmax)
+        ax3.plot(relative_positions, target_sigma_normalized_scores, label=f"t = {t:3.2f}")
 
     ax3.set_title("Target Normalized Score")
     ax3.set_xlabel("relative position, u")
