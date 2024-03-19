@@ -138,4 +138,3 @@ class FashionMnistParser:
 
         self.test_images = test_images
         self.test_labels = test_labels
-

@@ -42,8 +42,8 @@ class LammpsProcessorForDiffusion:
         # we assume that raw_data_dir contains subdirectories named train_run_N for N>=1
         # get the list of runs to parse
         assert mode in ['train', 'valid', 'test'], f"Mode should be train, valid or test. Got {mode}."
-        list_runs = [d for d in os.listdir(raw_data_dir) if os.path.isdir(os.path.join(raw_data_dir, d)) and
-                     d.startswith(f"{mode}_run")]
+        list_runs = [d for d in os.listdir(raw_data_dir) if os.path.isdir(os.path.join(raw_data_dir, d))
+                     and d.startswith(f"{mode}_run")]
         list_files = []
         for d in list_runs:
             if f"{d}.parquet" not in os.listdir(self.data_dir):
