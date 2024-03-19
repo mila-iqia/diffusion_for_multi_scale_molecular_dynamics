@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from crystal_diffusion.data.diffusion.data_loader import LammpsForDiffusionDataModule  # Replace 'your_module' with the actual module name
+from crystal_diffusion.data.diffusion.data_loader import LammpsForDiffusionDataModule
 
 
 @pytest.fixture
