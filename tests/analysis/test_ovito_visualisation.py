@@ -9,24 +9,6 @@ from crystal_diffusion.analysis.ovito_visualisation import (
     get_lattice_from_lammps, mtp_predictions_to_ovito)
 
 
-@pytest.fixture
-def lammps_output(tmpdir):
-    lattice_output = """
-box:
-    - [0, 4.0]
-    - [0, 5.0]
-    - [0, 6.0]
----
-box:
-    - [0, 4.0]
-    - [0, 5.0]
-    - [0, 6.0]
-"""
-    with open(os.path.join(tmpdir, "test_output.yaml"), "w") as f:
-        f.write(lattice_output)
-    return os.path.join(tmpdir, "test_output.yaml")
-
-
 class TestMTP2Ovito:
     """This class tests the functions to convert outputs to OVITO readable files."""
 
@@ -47,7 +29,7 @@ box:
             f.write(lattice_output)
         return os.path.join(tmpdir, "test_output.yaml")
 
-    def test_get_lattice_from_lammps(self, lammps_output, tmpdir):
+    def test_get_lattice_from_lammps(self, lammps_output):
         # Get the lattice array from the function using the test file
         lattice = get_lattice_from_lammps(lammps_output)
 

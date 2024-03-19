@@ -14,8 +14,8 @@ import yaml
 def main():
     """Read MTP output files and convert to xyz format readable by OVITO."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--prediction_file", help="MTP prediction files. Should contain position and MaxVol gamma")
-    parser.add_argument("--lammps_output", help="MTP prediction files. Should contain position and MaxVol gamma")
+    parser.add_argument("--prediction_file", help="MTP prediction files. Should contain position and MaxVol gamma.")
+    parser.add_argument("--lammps_output", help="LAMMPS output file. Should contain the bounding box information.")
     parser.add_argument("--output_name", help="Name of the output file that can be loaded by OVITO. ")
     args = parser.parse_args()
 
@@ -42,7 +42,6 @@ def get_lattice_from_lammps(lammps_output_file: str) -> np.ndarray:
         for d in l_yaml:  # loop over LAMMPS outputs to get the MD box - we only need the first step
             # lattice in yaml is 3 x 2 [0, x_lim]
             # we assume a rectangular lattice for now with the 2nd coordinates as the lattice vectors
-            print(d)
             lattice = np.zeros((3, 3))
             for i, x in enumerate(d['box']):
                 lattice[i, i] = x[1]
