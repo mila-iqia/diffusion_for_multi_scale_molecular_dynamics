@@ -10,8 +10,8 @@ import torch
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.score.wrapped_gaussian_score import (
-    SIGMA_THRESHOLD, get_expected_sigma_normalized_score_brute_force,
-    get_sigma_normalized_score)
+    SIGMA_THRESHOLD, get_sigma_normalized_score,
+    get_sigma_normalized_score_brute_force)
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -32,7 +32,7 @@ if __name__ == '__main__':
         sigma = sigma_factor * SIGMA_THRESHOLD
 
         sigmas = torch.ones_like(relative_positions) * sigma
-        list_scores_brute = np.array([get_expected_sigma_normalized_score_brute_force(u, sigma) for u in list_u])
+        list_scores_brute = np.array([get_sigma_normalized_score_brute_force(u, sigma) for u in list_u])
         list_scores = get_sigma_normalized_score(relative_positions, sigmas, kmax=kmax).numpy()
         error = list_scores - list_scores_brute
 
@@ -73,7 +73,7 @@ if __name__ == '__main__':
                      ms=ms, c=color, lw=2, alpha=0.25, label=f'kmax = {kmax}')
 
         list_scores_brute = np.array([
-            get_expected_sigma_normalized_score_brute_force(u, sigma, kmax=4 * kmax) for sigma in sigmas])
+            get_sigma_normalized_score_brute_force(u, sigma, kmax=4 * kmax) for sigma in sigmas])
         ax4.semilogy(sigma_factors, list_scores_brute, 'o-',
                      ms=ms, c=color, lw=2, alpha=0.25, label=f'kmax = {4 * kmax}')
 

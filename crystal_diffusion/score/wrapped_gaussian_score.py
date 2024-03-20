@@ -14,15 +14,18 @@ part of the sum in Fourier space) to insure quick convergence for any sigma. The
 sigma is derived to avoid division by a number that is very close to zero, or summing very large terms that
 can overlflow.
 
-Also, what is computed is actually "sigma2 x S" (ie, the "sigma normalized score"). This is because
-S ~ 1/ sigma^2; since sigma can be small, this makes the raw score arbitrarily large, and it is better to
-manipulate numbers of small magnitude.
+Also, what is computed is actually "sigma x S" (ie, the "sigma normalized score"). This is because, as argued
+in section 4.2 of the paper
+    "Generative Modeling by Estimating Gradients of the Data Distribution", Song & Ermon
+at convergence we expect |S| ~ 1 / sigma. Normalizing the score should lead to numbers of the same order of magnitude.
 
 Relevant papers:
     "Torsional Diffusion for Molecular Conformer Generation",
         Bowen Jing, Gabriele Corso, Jeffrey Chang, Regina Barzilay, Tommi Jaakkola
 
     "Riemannian Score-Based Generative Modelling", Bortoli et al.
+
+    "Generative Modeling by Estimating Gradients of the Data Distribution", Song & Ermon
 """
 from typing import Optional
 
@@ -33,7 +36,7 @@ SIGMA_THRESHOLD = 1.0 / np.sqrt(2.0 * np.pi)
 U_THRESHOLD = 0.5
 
 
-def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Optional[int] = None) -> float:
+def get_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Optional[int] = None) -> float:
     """Brute force implementation.
 
     A brute force implementation of the sigma normalized score to check that the main code is correct.
@@ -61,7 +64,10 @@ def get_expected_sigma_normalized_score_brute_force(u: float, sigma: float, kmax
         z += exp
         sigma2_derivative_z += -upk * exp
 
-    return sigma2_derivative_z / z
+    sigma2_score = sigma2_derivative_z / z
+    sigma_score = sigma2_score / sigma
+
+    return sigma_score
 
 
 def get_sigma_normalized_score(
@@ -93,7 +99,7 @@ def get_sigma_normalized_score(
 
     total_number_of_elements = relative_positions.nelement()
     list_u = relative_positions.view(total_number_of_elements)
-    list_sigma = sigmas.view(total_number_of_elements)
+    list_sigma = sigmas.reshape(total_number_of_elements)
 
     # The dimension of list_k is [2 kmax + 1].
     list_k = torch.arange(-kmax, kmax + 1)
@@ -110,8 +116,8 @@ def get_sigma_normalized_score(
         _get_large_sigma_mask,
     ]
     score_calculators = [
-        _get_sigma_normalized_s1a,
-        _get_sigma_normalized_s1b,
+        _get_sigma_normalized_score_1a,
+        _get_sigma_normalized_score_1b,
         _get_sigma_normalized_s2,
     ]
 
@@ -210,7 +216,7 @@ def _get_s1b_exponential(
     return exponential
 
 
-def _get_sigma_normalized_s1_from_exponential(
+def _get_sigma_square_times_score_1_from_exponential(
     exponential: torch.Tensor, list_u: torch.Tensor, list_k: torch.Tensor
 ) -> torch.Tensor:
     """Get one of the contributions to the S1 score, assuming the exponentials has been computed and is passed as input.
@@ -221,21 +227,21 @@ def _get_sigma_normalized_s1_from_exponential(
         list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        sigma_normalized_score_component : the corresponding sigma score, with shape [Nu]
+        sigma_square_times_score_component : the corresponding score multiplied by sigma^2, with shape [Nu].
     """
     # Sum is on Nk
     column_u = list_u.view(list_u.nelement(), 1)
     numerator = ((torch.ones_like(column_u) * list_k) * exponential).sum(dim=1)
     denominator = exponential.sum(dim=1)
 
-    list_sigma_normalized_score = -list_u - (numerator / denominator)
-    return list_sigma_normalized_score
+    list_sigma_square_times_score = -list_u - (numerator / denominator)
+    return list_sigma_square_times_score
 
 
-def _get_sigma_normalized_s1a(
+def _get_sigma_normalized_score_1a(
     list_u: torch.Tensor, list_sigma: torch.Tensor, list_k: torch.Tensor
 ) -> torch.Tensor:
-    """Get the sigma normalized score for small sigma and 0 <= u < 0.5.
+    """Get the sigma times the score for small sigma and 0 <= u < 0.5.
 
     This method assumes that the inputs are appropriate.
 
@@ -245,16 +251,18 @@ def _get_sigma_normalized_s1a(
         list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        list_normalized_score : the sigma^2 x s1a scores, with shape [Nu].
+        list_sigma_normalized_score : the sigma x s1a scores, with shape [Nu].
     """
     exponential = _get_s1a_exponential(list_u, list_sigma, list_k)
-    return _get_sigma_normalized_s1_from_exponential(exponential, list_u, list_k)
+    list_sigma_square_times_score = _get_sigma_square_times_score_1_from_exponential(exponential, list_u, list_k)
+    list_normalized_score = list_sigma_square_times_score / list_sigma
+    return list_normalized_score
 
 
-def _get_sigma_normalized_s1b(
+def _get_sigma_normalized_score_1b(
     list_u: torch.Tensor, list_sigma: torch.Tensor, list_k: torch.Tensor
 ) -> torch.Tensor:
-    """Get the sigma normalized score for small sigma and 0.5 <= u < 1.
+    """Get the sigma times the score for small sigma and 0.5 <= u < 1.
 
     This method assumes that the inputs are appropriate.
 
@@ -264,10 +272,12 @@ def _get_sigma_normalized_s1b(
         list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        list_column_normalized_score : the sigma^2 x s1b scores, with shape [Nu].
+        list_sigma_normalized_score : the sigma x s1b scores, with shape [Nu].
     """
     exponential = _get_s1b_exponential(list_u, list_sigma, list_k)
-    return _get_sigma_normalized_s1_from_exponential(exponential, list_u, list_k)
+    list_sigma_square_times_score = _get_sigma_square_times_score_1_from_exponential(exponential, list_u, list_k)
+    list_normalized_score = list_sigma_square_times_score / list_sigma
+    return list_normalized_score
 
 
 def _get_sigma_normalized_s2(
@@ -283,8 +293,10 @@ def _get_sigma_normalized_s2(
         list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
-        list_normalized_score : the sigma^2 x s2 scores, with shape [Nu].
+        list_normalized_score : the sigma x s2 scores, with shape [Nu].
     """
+    numerical_type = list_u.dtype
+
     column_u = list_u.view(list_u.nelement(), 1)
     column_sigma = list_sigma.view(list_u.nelement(), 1)
 
@@ -295,18 +307,20 @@ def _get_sigma_normalized_s2(
     g = torch.ones_like(column_u) * list_k
     sig = column_sigma * torch.ones_like(list_k)
 
-    exp_upk = (-np.pi * upk**2).exp()
-    exp_sigma_g = (-2.0 * np.pi**2 * sigma_g**2).exp()
-    exp_g = (-np.pi * g**2).exp()
+    pi = torch.tensor(np.pi, dtype=numerical_type)
 
-    g_exponential_combination = np.sqrt(2.0 * np.pi) * sig * exp_sigma_g - exp_g
+    exp_upk = (-pi * upk**2).exp()
+    exp_sigma_g = (-2.0 * pi**2 * sigma_g**2).exp()
+    exp_g = (-pi * g**2).exp()
 
-    cos = torch.cos(2.0 * np.pi * gu)
-    sin = torch.sin(2.0 * np.pi * gu)
+    g_exponential_combination = torch.sqrt(2.0 * pi) * sig * exp_sigma_g - exp_g
+
+    cos = torch.cos(2.0 * pi * gu)
+    sin = torch.sin(2.0 * pi * gu)
 
     # The sum is over Nk, leaving arrays of dimensions [Nu]
     z2 = exp_upk.sum(dim=1) + (g_exponential_combination * cos).sum(dim=1)
-    deriv_z2 = -2.0 * np.pi * ((upk * exp_upk).sum(dim=1) + (g * g_exponential_combination * sin).sum(dim=1))
-    list_sigma_normalized_scores_s2 = list_sigma**2 * deriv_z2 / z2
+    deriv_z2 = -2.0 * pi * ((upk * exp_upk).sum(dim=1) + (g * g_exponential_combination * sin).sum(dim=1))
+    list_sigma_normalized_scores_s2 = list_sigma * deriv_z2 / z2
 
     return list_sigma_normalized_scores_s2
