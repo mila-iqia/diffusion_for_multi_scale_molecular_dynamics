@@ -136,7 +136,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         )
 
         output = dict(loss=loss,
-                      predicted_normalized_scores=predicted_normalized_scores,
+                      real_relative_positions=x0,
+                      noisy_relative_positions=xt,
+                      sigmas=sigmas,
+                      predicted_normalized_scores=predicted_normalized_scores.detach(),
                       target_normalized_conditional_scores=target_normalized_conditional_scores)
         return output
 
@@ -204,16 +207,18 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.log("train_loss", loss)
         self.log("epoch", self.current_epoch)
         self.log("step", self.global_step)
-        return loss  # this function is required, as the loss returned here is used for backprop
+        return output
 
     def validation_step(self, batch, batch_idx):
         """Runs a prediction step for validation, logging the loss."""
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
         self.log("val_loss", loss)
+        return output
 
     def test_step(self, batch, batch_idx):
         """Runs a prediction step for testing, logging the loss."""
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
         self.log("test_loss", loss)
+        return output
