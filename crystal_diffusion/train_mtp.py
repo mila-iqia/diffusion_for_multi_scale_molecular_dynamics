@@ -2,7 +2,7 @@
 
 Running the main() runs a debugging example. Entry points are train_mtp and evaluate_mtp.
 """
-import os
+import argparse
 from typing import Any, Dict, List, NamedTuple, Tuple
 
 import numpy as np
@@ -13,17 +13,7 @@ from sklearn.metrics import mean_absolute_error
 
 from crystal_diffusion.models.mtp import MTPWithMLIP3
 
-MLIP_PATH = os.path.join(os.getcwd(), "mlip-3")
-SAVE_DIR = os.path.join(os.getcwd(), "debug_mlip3")  # for demo only
 
-# TODO list of yaml files should come from an external call
-# yaml dump file
-lammps_yaml = ['examples/local/mtp_example/dump.si-300-1.yaml']
-# yaml thermodynamic variables
-lammps_thermo_yaml = ['examples/local/mtp_example/thermo_log.yaml']
-# note that the YAML output does not contain the map from index to atomic species
-# this will have to be taken from elsewhere
-# use a manual map for now
 atom_dict = {1: 'Si'}
 
 
@@ -195,8 +185,19 @@ def get_metrics_from_pred(df_orig: pd.DataFrame, df_predict: pd.DataFrame) -> Tu
 
 def main():
     """Train and evaluate an example for MTP."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--lammps_yaml', help='path to LAMMPS yaml file', required=True, nargs='+')
+    parser.add_argument('--lammps_thermo', help='path to LAMMPS thermo output', required=True, nargs='+')
+    parser.add_argument('--mlip_dir', help='directory to MLIP compilation folder', required=True)
+    parser.add_argument('--output_dir', help='path to folder where outputs will be saved', required=True)
+    args = parser.parse_args()
+
+    lammps_yaml = args.lammps_yaml
+    lammps_thermo_yaml = args.lammps_thermo
+    assert len(lammps_yaml) == len(lammps_thermo_yaml), "LAMMPS outputs yaml should match thermodynamics output."
+
     mtp_inputs = prepare_mtp_inputs_from_lammps(lammps_yaml, lammps_thermo_yaml, atom_dict)
-    mtp = train_mtp(mtp_inputs, MLIP_PATH, SAVE_DIR)
+    mtp = train_mtp(mtp_inputs, args.mlip_dir, args.output_dir)
     print("Training is done")
     df_orig, df_predict = evaluate_mtp(mtp_inputs, mtp)
     energy_mae, force_mae = get_metrics_from_pred(df_orig, df_predict)
