@@ -13,7 +13,6 @@ from sklearn.metrics import mean_absolute_error
 
 from crystal_diffusion.models.mtp import MTPWithMLIP3
 
-
 atom_dict = {1: 'Si'}
 
 
