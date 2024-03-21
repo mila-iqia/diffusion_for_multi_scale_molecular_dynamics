@@ -1,6 +1,7 @@
 """DataLoader from LAMMPS outputs for a diffusion model."""
 import logging
 import typing
+from dataclasses import dataclass
 from functools import partial
 from typing import Dict, Optional
 
@@ -17,6 +18,12 @@ from crystal_diffusion.utils.hp_utils import check_and_log_hp
 logger = logging.getLogger(__name__)
 
 
+@dataclass(kw_only=True)
+class LammpsLoaderParameters:
+    """Base Hyper-parameters for score networks."""
+    spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
+
+
 class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
     """Data module class that prepares dataset parsers and instantiates data loaders."""
 
@@ -24,7 +31,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
             self,
             lammps_run_dir: str,
             processed_dataset_dir: str,
-            hyper_params: Dict[typing.AnyStr, typing.Any],
+            hyper_params: LammpsLoaderParameters,
             working_cache_dir: Optional[str] = None
     ):
         """Initialize a dataset of LAMMPS structures for training a diffusion model.
@@ -46,9 +53,10 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         self.batch_size = hyper_params["batch_size"]
         self.num_workers = hyper_params["num_workers"]
         self.max_atom = hyper_params.get("max_atom", 64)  # number of atoms to pad tensors
+        self.spatial_dim = hyper_params.spatial_dimension
 
     @staticmethod
-    def dataset_transform(x: Dict[typing.AnyStr, typing.Any]) -> Dict[str, torch.Tensor]:
+    def dataset_transform(x: Dict[typing.AnyStr, typing.Any], spatial_dim: int = 3) -> Dict[str, torch.Tensor]:
         """Format the tensors for the Datasets library.
 
         This function is applied right after returning the objects in __getitem__ in a torch DataLoader. Everything is
@@ -56,6 +64,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
 
         Args:
             x: raw columns from the processed data files. Should contain natom, box, type and position.
+            spatial_dim (optional): number of spatial dimensions. Defaults to 3.
 
         Returns:
             transformed_x: formatted values as tensors
@@ -63,20 +72,21 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         transformed_x = {}
         transformed_x['natom'] = torch.as_tensor(x['natom']).long()  # resulting tensor size: (batchsize, )
         bsize = transformed_x['natom'].size(0)
-        transformed_x['box'] = torch.as_tensor(x['box'])  # size: (batchsize, 3)
+        transformed_x['box'] = torch.as_tensor(x['box'])  # size: (batchsize, spatial dimension)
         for pos in ['position', 'reduced_position']:
-            transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, 3)  # hard-coding 3D system
+            transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
         transformed_x['type'] = torch.as_tensor(x['type']).long()  # size: (batchsize, natom after padding)
 
         return transformed_x
 
     @staticmethod
-    def pad_samples(x: Dict[typing.AnyStr, typing.Any], max_atom: int) -> Dict[str, torch.Tensor]:
+    def pad_samples(x: Dict[typing.AnyStr, typing.Any], max_atom: int, spatial_dim: int = 3) -> Dict[str, torch.Tensor]:
         """Pad a sample for batching.
 
         Args:
             x: initial sample from the dataset. Should contain natom, position, and type.
             max_atom: maximum number of atoms to pad to
+            spatial_dim (optional): number of spatial dimensions. Defaults to 3.
 
         Returns:
             x: sample with padded type and position
@@ -86,7 +96,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
             raise ValueError(f"Hyper-parameter max_atom is smaller than an example in the dataset with {natom} atoms.")
         x['type'] = F.pad(torch.as_tensor(x['type']).long(), (0, max_atom - natom), 'constant', -1)
         for pos in ['position', 'reduced_position']:
-            x[pos] = F.pad(torch.as_tensor(x[pos]).float(), (0, 3 * (max_atom - natom)), 'constant', torch.nan)
+            x[pos] = F.pad(torch.as_tensor(x[pos]).float(), (0, spatial_dim * (max_atom - natom)), 'constant',
+                           torch.nan)
         return x
 
     def setup(self, stage: Optional[str] = None):
@@ -110,12 +121,14 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         self.max_atom = max(max(self.train_dataset['natom']), self.max_atom)
         # map() are applied once, not in-place.
         # The kwarg batch can accelerate by working with batches, not useful for padding
-        self.train_dataset = self.train_dataset.map(partial(self.pad_samples, max_atom=self.max_atom), batched=False)
-        self.valid_dataset = self.valid_dataset.map(partial(self.pad_samples, max_atom=self.max_atom), batched=False)
+        self.train_dataset = self.train_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
+                                                            spatial_dim=self.spatial_dim), batched=False)
+        self.valid_dataset = self.valid_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
+                                                            spatial_dim=self.spatial_dim), batched=False)
         # set_transform is applied on-the-fly and is less costly upfront. Works with batches, so we can't use it for
         # padding
-        self.train_dataset.set_transform(self.dataset_transform)
-        self.valid_dataset.set_transform(self.dataset_transform)
+        self.train_dataset.set_transform(partial(self.dataset_transform, spatial_dim=self.spatial_dim))
+        self.valid_dataset.set_transform(partial(self.dataset_transform, spatial_dim=self.spatial_dim))
 
     def train_dataloader(self) -> DataLoader:
         """Create the training dataloader using the training data parser."""
