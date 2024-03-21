@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 @dataclass(kw_only=True)
 class LammpsLoaderParameters:
     """Base Hyper-parameters for score networks."""
+    batch_size: int = 64
+    num_workers: int = 0
+    max_atom: int = 64
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
-
 
 class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
     """Data module class that prepares dataset parsers and instantiates data loaders."""
@@ -50,9 +52,9 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         self.lammps_run_dir = lammps_run_dir
         self.processed_dataset_dir = processed_dataset_dir
         self.working_cache_dir = working_cache_dir
-        self.batch_size = hyper_params["batch_size"]
-        self.num_workers = hyper_params["num_workers"]
-        self.max_atom = hyper_params.get("max_atom", 64)  # number of atoms to pad tensors
+        self.batch_size = hyper_params.batch_size
+        self.num_workers = hyper_params.num_workers
+        self.max_atom = hyper_params.max_atom  # number of atoms to pad tensors
         self.spatial_dim = hyper_params.spatial_dimension
 
     @staticmethod
