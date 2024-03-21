@@ -26,6 +26,7 @@ class LammpsLoaderParameters:
     max_atom: int = 64
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
 
+
 class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
     """Data module class that prepares dataset parsers and instantiates data loaders."""
 
