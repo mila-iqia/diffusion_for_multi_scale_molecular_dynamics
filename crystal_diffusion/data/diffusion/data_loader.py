@@ -1,11 +1,14 @@
 """DataLoader from LAMMPS outputs for a diffusion model."""
 import logging
 import typing
+from functools import partial
 from typing import Dict, Optional
 
 import datasets
+import numpy as np
 import pytorch_lightning as pl
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from crystal_diffusion.data.diffusion.data_preprocess import \
@@ -43,6 +46,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         self.working_cache_dir = working_cache_dir
         self.batch_size = hyper_params["batch_size"]
         self.num_workers = hyper_params["num_workers"]
+        self.max_atom = hyper_params.get("max_atom", 64)  # number of atoms to pad tensors
 
     @staticmethod
     def dataset_transform(x: Dict[typing.AnyStr, typing.Any]) -> Dict[str, torch.Tensor]:
@@ -60,11 +64,30 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         transformed_x = {}
         transformed_x['natom'] = torch.as_tensor(x['natom']).long()  # resulting tensor size: (batchsize, )
         bsize = transformed_x['natom'].size(0)
-        transformed_x['positions'] = torch.as_tensor(x['position']).view(bsize, -1, 3)  # hard-coding 3D system
         transformed_x['box'] = torch.as_tensor(x['box'])  # size: (batchsize, 3)
+        transformed_x['position'] = torch.as_tensor(x['position']).view(bsize, -1, 3)  # hard-coding 3D system
         transformed_x['type'] = torch.as_tensor(x['type']).long()  # size: (batchsize, natom after padding)
 
         return transformed_x
+
+    @staticmethod
+    def pad_samples(x: Dict[typing.AnyStr, typing.Any], max_atom: int) -> Dict[str, torch.Tensor]:
+        """Pad a sample for batching.
+
+        Args:
+            x: initial sample from the dataset. Should contain natom, position, and type.
+            max_atom: maximum number of atoms to pad to
+
+        Returns:
+            x: sample with padded type and position
+        """
+        natom = x['natom']
+        if natom > max_atom:
+            raise ValueError(f"Hyper-parameter max_atom is smaller than an example in the dataset with {natom} atoms.")
+        x['type'] = F.pad(torch.as_tensor(x['type']).long(), (0, max_atom - natom), 'constant', -1)
+        x['position'] = F.pad(torch.as_tensor(x['position']).float(), (0, 3 * (max_atom - natom)), 'constant',
+                              torch.nan)
+        return x
 
     def setup(self, stage: Optional[str] = None):
         """Parse and split all samples across the train/valid/test parsers."""
@@ -83,8 +106,14 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         # we can filter out samples at this stage using the .filter(lambda x: f(x)) with f(x) a boolean function
         # or a .select(list[int]) with a list of indices to keep a subset. This is much faster than .filter
         # padding needs to be done here OR in the preprocessor
-        # example for adding arguments to dataset_transform
-        # self.train_dataset.set_transform(partial(self.dataset_transform, args=args))
+        # check if the max number of atoms matches at least the max in the training set
+        self.max_atom = max(max(self.train_dataset['natom']), self.max_atom)
+        # map() are applied once, not in-place.
+        # The kwarg batch can accelerate by working with batches, not useful for padding
+        self.train_dataset = self.train_dataset.map(partial(self.pad_samples, max_atom=self.max_atom), batched=False)
+        self.valid_dataset = self.valid_dataset.map(partial(self.pad_samples, max_atom=self.max_atom), batched=False)
+        # set_transform is applied on-the-fly and is less costly upfront. Works with batches, so we can't use it for
+        # padding
         self.train_dataset.set_transform(self.dataset_transform)
         self.valid_dataset.set_transform(self.dataset_transform)
 
@@ -114,3 +143,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
             shuffle=False,
             num_workers=self.num_workers,
         )
+
+    def clean_up(self):
+        """Delete the Datasets working cache."""
+        self.train_dataset.cleanup_cache_files()
+        self.valid_dataset.cleanup_cache_files()
