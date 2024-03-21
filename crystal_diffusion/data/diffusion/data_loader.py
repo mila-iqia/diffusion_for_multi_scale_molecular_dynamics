@@ -5,7 +5,6 @@ from functools import partial
 from typing import Dict, Optional
 
 import datasets
-import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -65,7 +64,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         transformed_x['natom'] = torch.as_tensor(x['natom']).long()  # resulting tensor size: (batchsize, )
         bsize = transformed_x['natom'].size(0)
         transformed_x['box'] = torch.as_tensor(x['box'])  # size: (batchsize, 3)
-        transformed_x['position'] = torch.as_tensor(x['position']).view(bsize, -1, 3)  # hard-coding 3D system
+        for pos in ['position', 'reduced_position']:
+            transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, 3)  # hard-coding 3D system
         transformed_x['type'] = torch.as_tensor(x['type']).long()  # size: (batchsize, natom after padding)
 
         return transformed_x
@@ -85,8 +85,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         if natom > max_atom:
             raise ValueError(f"Hyper-parameter max_atom is smaller than an example in the dataset with {natom} atoms.")
         x['type'] = F.pad(torch.as_tensor(x['type']).long(), (0, max_atom - natom), 'constant', -1)
-        x['position'] = F.pad(torch.as_tensor(x['position']).float(), (0, 3 * (max_atom - natom)), 'constant',
-                              torch.nan)
+        for pos in ['position', 'reduced_position']:
+            x[pos] = F.pad(torch.as_tensor(x[pos]).float(), (0, 3 * (max_atom - natom)), 'constant', torch.nan)
         return x
 
     def setup(self, stage: Optional[str] = None):

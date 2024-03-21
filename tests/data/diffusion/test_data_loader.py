@@ -14,6 +14,7 @@ class TestDiffusionDataLoader:
             'position': [[1., 2., 3, 4., 5, 6]],  # for one batch, two atoms, 3D positions
             'type': [[1, 2]]
         }
+
     def test_dataset_transform(self, input_data_to_transform):
         result = LammpsForDiffusionDataModule.dataset_transform(input_data_to_transform)
         # Check keys in result
@@ -54,4 +55,4 @@ class TestDiffusionDataLoader:
             assert padded_sample['type'].tolist()[-(k + 1)] == -1
 
         # Check that the padding uses nan for position
-        assert torch.isnan(padded_sample['position'][-(max_atom -2) * 3:]).all()
+        assert torch.isnan(padded_sample['position'][-(max_atom - 2) * 3:]).all()

@@ -55,6 +55,33 @@ class LammpsProcessorForDiffusion:
                 list_files.append(os.path.join(self.data_dir, f"{d}.parquet"))
         return list_files
 
+    @staticmethod
+    def _convert_coords_to_reduced(row: pd.Series) -> List[float]:
+        """Convert a dataframe row to reduced coordinates.
+
+        Args:
+            row: entry in the dataframe. Should contain box, x, y and z
+
+        Returns:
+            x, y and z in reduced coordinates
+        """
+        x_lim, y_lim, z_lim = row['box']
+        coord_red = [coord for triple in zip(row['x'], row['y'], row['z']) for coord in
+                     (triple[0] / x_lim, triple[1] / y_lim, triple[2] / z_lim)]
+        return coord_red
+
+    def get_x_reduced(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Add a column with reduced x,y, z coordinates.
+
+        Args:
+            df: dataframe with atomic positions. Should contain box, x, y and z.
+
+        Returns:
+            dataframe with added column of reduced positions [x1, y1, z1, x2, y2, ...]
+        """
+        df['reduced_position'] = df.apply(lambda x: self._convert_coords_to_reduced(x), axis=1)
+        return df
+
     def parse_lammps_run(self, run_dir: str) -> Optional[pd.DataFrame]:
         """Parse outputs of a LAMMPS run and convert in a dataframe.
 
@@ -88,10 +115,11 @@ class LammpsProcessorForDiffusion:
         # TODO consider filtering out samples with large forces and MD steps that are too similar
         # TODO large force and similar are to be defined
         df = df[['type', 'x', 'y', 'z', 'box']]
+        df = self.get_x_reduced(df)  # add reduced coordinates
         df['natom'] = df['type'].apply(lambda x: len(x))  # count number of atoms in a structure
         # naive implementation: a list of list which is converted into a 2d array by torch later
         # but a list of list is not ok with the writing on files with parquet
         df['position'] = df.apply(lambda x: [j for i in ['x', 'y', 'z'] for j in x[i]], axis=1)  # position as 3d array
         # position is natom * 3 array
         # TODO unit test to check the order after reshape
-        return df[['natom', 'box', 'type', 'position']]
+        return df[['natom', 'box', 'type', 'position', 'reduced_position']]
