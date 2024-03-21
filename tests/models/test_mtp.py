@@ -168,7 +168,10 @@ def test_extract_structure_and_forces_from_file(tmpdir):
     # Verify species and positions
     species = structures[0].species
     assert [str(s) for s in species] == ['H', 'He']
-    np.testing.assert_array_almost_equal(structures[0].frac_coords, [[1, 1, 1], [2, 2, 2]])
+    # frac coordinates are reduced coordinates - the values in data are cartesian coordinates
+    # divide by the box length (10) to convert
+    np.testing.assert_array_almost_equal(structures[0].frac_coords,
+                                         [[1 / 10, 1 / 10, 1 / 10], [2 / 10, 2 / 10, 2 / 10]])
 
     # Verify forces
     assert isinstance(forces, list)
