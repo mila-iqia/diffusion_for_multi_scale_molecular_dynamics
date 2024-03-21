@@ -11,7 +11,7 @@ class TestDiffusionDataLoader:
         return {
             'natom': [2],  # batch size of 1
             'box': [[1.0, 1.0, 1.0]],
-            'position': [[[1., 2., 3], [4., 5, 6]]],  # for one batch, two atoms, 3D positions
+            'position': [[1., 2., 3, 4., 5, 6]],  # for one batch, two atoms, 3D positions
             'type': [[1, 2]]
         }
     def test_dataset_transform(self, input_data_to_transform):
