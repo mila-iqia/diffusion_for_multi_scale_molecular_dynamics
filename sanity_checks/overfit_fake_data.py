@@ -118,10 +118,10 @@ if __name__ == '__main__':
 
             lines = ax1.plot(list_x[m1], predicted_normalized_scores[m1], lw=1, label='PREDICTION')
             color = lines[0].get_color()
-            ax1.plot(list_x[m2], predicted_normalized_scores[m2], lw=2, color=color, label='_none_')
+            ax1.plot(list_x[m2], predicted_normalized_scores[m2], lw=1, color=color, label='_none_')
 
-            ax1.plot(list_x[m1], sigma_normalized_kernel[m1], '--', lw=2, color=color, label='TARGET')
-            ax1.plot(list_x[m2], sigma_normalized_kernel[m2], '--', lw=2, color=color, label='_none_')
+            ax1.plot(list_x[m1], sigma_normalized_kernel[m1], '--', lw=1, color=color, label='TARGET')
+            ax1.plot(list_x[m2], sigma_normalized_kernel[m2], '--', lw=1, color=color, label='_none_')
 
             ax2.plot(list_x[m1], error[m1], '-', color=color,
                      label=f't = {time:4.3f}, $\\sigma$ = {sigma:4.3f}')
