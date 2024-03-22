@@ -5,7 +5,7 @@ Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 """
 from dataclasses import dataclass
-from typing import AnyStr, Dict
+from typing import AnyStr, Dict, List
 
 import torch
 from torch import nn
@@ -121,7 +121,7 @@ class BaseScoreNetwork(torch.nn.Module):
 class MLPScoreNetworkParameters(BaseScoreNetworkParameters):
     """Specific Hyper-parameters for MLP score networks."""
     number_of_atoms: int  # the number of atoms in a configuration.
-    hidden_dim: int
+    hidden_dimensions: List[int]  # dimensions of the hidden layers. Length of array determines number of layers.
 
 
 class MLPScoreNetwork(BaseScoreNetwork):
@@ -137,20 +137,23 @@ class MLPScoreNetwork(BaseScoreNetwork):
             hyper_params (dict): hyper parameters from the config file.
         """
         super(MLPScoreNetwork, self).__init__(hyper_params)
-        hidden_dim = hyper_params.hidden_dim
+        hidden_dimensions = hyper_params.hidden_dimensions
         self._natoms = hyper_params.number_of_atoms
 
         output_dimension = self.spatial_dimension * self._natoms
         input_dimension = output_dimension + 1
 
         self.flatten = nn.Flatten()
-        self.mlp_layers = nn.Sequential(
-            nn.Linear(input_dimension, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, output_dimension),
-        )
+        self.mlp_layers = nn.Sequential()
+        input_dimensions = [input_dimension] + hidden_dimensions
+        output_dimensions = hidden_dimensions + [output_dimension]
+        add_relus = len(input_dimensions) * [True]
+        add_relus[-1] = False
+
+        for input_dimension, output_dimension, add_relu in zip(input_dimensions, output_dimensions, add_relus):
+            self.mlp_layers.append(nn.Linear(input_dimension, output_dimension))
+            if add_relu:
+                self.mlp_layers.append(nn.ReLU())
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MLPScoreNetwork, self)._check_batch(batch)

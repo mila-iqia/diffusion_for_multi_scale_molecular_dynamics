@@ -124,16 +124,24 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         xt = self.noisy_position_sampler.get_noisy_position_sample(x0, sigmas)
 
-        target_normalized_scores = self._get_target_normalized_score(xt, x0, sigmas)
+        # The target is nabla log p_{t|0} (xt | x0): it is NOT the "score", but rather a "conditional" (on x0) score.
+        target_normalized_conditional_scores = self._get_target_normalized_score(xt, x0, sigmas)
 
         predicted_normalized_scores = self._get_predicted_normalized_score(
             xt, noise_sample.time
         )
 
         loss = torch.nn.functional.mse_loss(
-            predicted_normalized_scores, target_normalized_scores, reduction="mean"
+            predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
         )
-        return loss
+
+        output = dict(loss=loss,
+                      real_relative_positions=x0,
+                      noisy_relative_positions=xt,
+                      sigmas=sigmas,
+                      predicted_normalized_scores=predicted_normalized_scores.detach(),
+                      target_normalized_conditional_scores=target_normalized_conditional_scores)
+        return output
 
     def _get_target_normalized_score(
         self,
@@ -194,18 +202,23 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         """Runs a prediction step for training, returning the loss."""
-        loss = self._generic_step(batch, batch_idx)
+        output = self._generic_step(batch, batch_idx)
+        loss = output["loss"]
         self.log("train_loss", loss)
         self.log("epoch", self.current_epoch)
         self.log("step", self.global_step)
-        return loss  # this function is required, as the loss returned here is used for backprop
+        return output
 
     def validation_step(self, batch, batch_idx):
         """Runs a prediction step for validation, logging the loss."""
-        loss = self._generic_step(batch, batch_idx)
+        output = self._generic_step(batch, batch_idx)
+        loss = output["loss"]
         self.log("val_loss", loss)
+        return output
 
     def test_step(self, batch, batch_idx):
         """Runs a prediction step for testing, logging the loss."""
-        loss = self._generic_step(batch, batch_idx)
+        output = self._generic_step(batch, batch_idx)
+        loss = output["loss"]
         self.log("test_loss", loss)
+        return output
