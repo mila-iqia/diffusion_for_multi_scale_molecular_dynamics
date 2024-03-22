@@ -29,7 +29,7 @@ class TensorBoardDebuggingLoggingCallback(Callback):
 
     @staticmethod
     def _get_tensorboard_logger(trainer):
-        if type(trainer.logger) == TensorBoardLogger:
+        if type(trainer.logger) is TensorBoardLogger:
             return trainer.logger.experiment
         return None
 
