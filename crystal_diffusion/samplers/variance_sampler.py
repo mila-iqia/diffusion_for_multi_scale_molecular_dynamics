@@ -25,8 +25,8 @@ class NoiseParameters:
 class ExplodingVarianceSampler:
     """Exploding Variance Sampler.
 
-    This class is responsible for creating the all the quantities
-    needed for noise generation.
+    This class is responsible for creating all the quantities needed
+    for noise generation.
 
     This implementation will use "exponential diffusion" as discussed in
     the paper "Torsional Diffusion for Molecular Conformer Generation".
