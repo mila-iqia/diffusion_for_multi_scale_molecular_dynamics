@@ -1,4 +1,4 @@
-log log.si-${T}-${S}.lammps
+log log.lammps
 
 units           metal
 atom_style      atomic
