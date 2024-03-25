@@ -124,8 +124,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         # padding needs to be done here OR in the preprocessor
         # check if the max number of atoms matches at least the max in the training set
         if max(self.train_dataset['natom']) > self.max_atom:
-            raise ValueError(f"Hyper-paramater max_atom {self.max_atom} is smaller than the largest structure in the" +
-                             f"dataset which has {max(self.train_dataset['natom'])} atoms.")
+            raise ValueError(f"Hyper-paramater max_atom {self.max_atom} is smaller than the largest structure in the"
+                             + f"dataset which has {max(self.train_dataset['natom'])} atoms.")
         # map() are applied once, not in-place.
         # The keyword argument "batched" can accelerate by working with batches, not useful for padding
         self.train_dataset = self.train_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
