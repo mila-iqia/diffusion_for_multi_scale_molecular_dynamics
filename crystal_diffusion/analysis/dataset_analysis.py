@@ -3,10 +3,11 @@
 This script computes and plots different features of a dataset used to train a diffusion model.
 """
 import os
+from typing import Dict
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from typing import Dict
 
 from crystal_diffusion import ANALYSIS_RESULTS_DIR, DATA_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
