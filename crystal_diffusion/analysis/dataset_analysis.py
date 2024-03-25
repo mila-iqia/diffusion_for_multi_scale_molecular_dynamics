@@ -52,7 +52,7 @@ def plot_metrics_runs(dataset_name: str, mode: str = 'train'):
 
     Args:
         dataset_name: name of the dataset - should match the name of the folder in DATA_DIR
-        mode (optional: analyze train or valid data. Defaults to train.
+        mode (optional): analyze train or valid data. Defaults to train.
     """
     assert mode in ["train", "valid"], f"Mode should be train or valid. Got {mode}"
     dataset_path = os.path.join(DATA_DIR, dataset_name)
