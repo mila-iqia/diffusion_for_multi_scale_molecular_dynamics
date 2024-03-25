@@ -22,11 +22,11 @@ class FakePCSampler(PredictorCorrectorPositionSampler):
     def initialize(self, number_of_samples: int):
         return self.initial_sample
 
-    def predictor_step(self, x_ip1: torch.Tensor) -> torch.Tensor:
-        return 1.2 * x_ip1 + 3.4
+    def predictor_step(self, x_ip1: torch.Tensor, ip1: int) -> torch.Tensor:
+        return 1.2 * x_ip1 + 3.4 + ip1 / 111.
 
-    def corrector_step(self, x_i: torch.Tensor) -> torch.Tensor:
-        return 0.56 * x_i + 7.89
+    def corrector_step(self, x_i: torch.Tensor, i: int) -> torch.Tensor:
+        return 0.56 * x_i + 7.89 + i / 117.
 
 
 @pytest.mark.parametrize("number_of_samples", [4])
@@ -60,16 +60,16 @@ class TestPredictorCorrectorPositionSampler:
         number_of_discretization_steps,
         number_of_corrector_steps,
     ):
-        # the value of i doesn't matter; we can traverse it in whatever order.
         list_i = list(range(number_of_discretization_steps))
+        list_i.reverse()
         list_j = list(range(number_of_corrector_steps))
 
         noisy_sample = map_positions_to_unit_cell(initial_sample)
         x_ip1 = noisy_sample
-        for _ in list_i:
-            xi = map_positions_to_unit_cell(sampler.predictor_step(x_ip1))
+        for i in list_i:
+            xi = map_positions_to_unit_cell(sampler.predictor_step(x_ip1, i + 1))
             for _ in list_j:
-                xi = map_positions_to_unit_cell(sampler.corrector_step(xi))
+                xi = map_positions_to_unit_cell(sampler.corrector_step(xi, i))
             x_ip1 = xi
         return xi
 
