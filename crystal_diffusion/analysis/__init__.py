@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 PLEASANT_FIG_SIZE = (7.2, 4.45)

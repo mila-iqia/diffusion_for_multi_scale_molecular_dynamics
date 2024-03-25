@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lammps_yaml', help='path to LAMMPS yaml file', required=True)
     parser.add_argument('--lammps_thermo', help='path to LAMMPS thermo output', required=True)
-    parser.add_argument('--crop', help='number of steps to remove at the start of the run', required=True)
+    parser.add_argument('--crop', type=int, help='number of steps to remove at the start of the run', required=True)
     parser.add_argument('--output_dir', help='path to folder where outputs will be saved', required=True)
     args = parser.parse_args()
 

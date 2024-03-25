@@ -47,10 +47,14 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: s
         pot_idx = log_yaml['keywords'].index('PotEng')
         pd_data['energy'] = [x[kin_idx] + x[pot_idx] for x in log_yaml['data']]
 
-    if not output_name.endswith('.parquet'):
+    if output_name is not None and not output_name.endswith('.parquet'):
         output_name += '.parquet'
 
-    pd.DataFrame(pd_data).to_parquet(output_name, engine='pyarrow', index=False)
+    df = pd.DataFrame(pd_data)
+
+    if output_name is not None:
+        df.to_parquet(output_name, engine='pyarrow', index=False)
+    return df
 
 
 def main():
