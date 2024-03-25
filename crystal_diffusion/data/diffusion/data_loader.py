@@ -28,7 +28,7 @@ class LammpsLoaderParameters:
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
 
 
-class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
+class LammpsForDiffusionDataModule(pl.LightningDataModule):
     """Data module class that prepares dataset parsers and instantiates data loaders."""
 
     def __init__(
@@ -67,7 +67,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         already batched. Lightning handles the devices (gpu, cpu, mps, etc.)
 
         Args:
-            x: raw columns from the processed data files. Should contain natom, box, type and position.
+            x: raw columns from the processed data files. Should contain natom, box, type, position and
+                reduced_position.
             spatial_dim (optional): number of spatial dimensions. Defaults to 3.
 
         Returns:
@@ -88,7 +89,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         """Pad a sample for batching.
 
         Args:
-            x: initial sample from the dataset. Should contain natom, position, and type.
+            x: initial sample from the dataset. Should contain natom, position, reduced_position and type.
             max_atom: maximum number of atoms to pad to
             spatial_dim (optional): number of spatial dimensions. Defaults to 3.
 
@@ -122,9 +123,11 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
         # or a .select(list[int]) with a list of indices to keep a subset. This is much faster than .filter
         # padding needs to be done here OR in the preprocessor
         # check if the max number of atoms matches at least the max in the training set
-        self.max_atom = max(max(self.train_dataset['natom']), self.max_atom)
+        if max(self.train_dataset['natom']) > self.max_atom:
+            raise ValueError(f"Hyper-paramater max_atom {self.max_atom} is smaller than the largest structure in the" +
+                             f"dataset which has {max(self.train_dataset['natom'])} atoms.")
         # map() are applied once, not in-place.
-        # The kwarg batch can accelerate by working with batches, not useful for padding
+        # The keyword argument "batched" can accelerate by working with batches, not useful for padding
         self.train_dataset = self.train_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
                                                             spatial_dim=self.spatial_dim), batched=False)
         self.valid_dataset = self.valid_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
@@ -154,12 +157,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):  # pragma: no cover
 
     def test_dataloader(self):
         """Creates the testing dataloader using the testing data parser."""
-        return DataLoader(
-            self.valid_dataset,  # TODO replace with test dataset
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=self.num_workers,
-        )
+        raise NotImplementedError("Test set is not defined at the moment.")
 
     def clean_up(self):
         """Delete the Datasets working cache."""

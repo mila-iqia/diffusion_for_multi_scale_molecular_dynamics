@@ -49,7 +49,6 @@ class LammpsProcessorForDiffusion:
             if f"{d}.parquet" not in os.listdir(self.data_dir):
                 df = self.parse_lammps_run(os.path.join(raw_data_dir, d))
                 if df is not None:
-                    print('hello')
                     df.to_parquet(os.path.join(self.data_dir, f"{d}.parquet"), engine='pyarrow', index=False)
             if f"{d}.parquet" in os.listdir(self.data_dir):
                 list_files.append(os.path.join(self.data_dir, f"{d}.parquet"))

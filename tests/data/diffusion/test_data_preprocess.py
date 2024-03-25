@@ -90,23 +90,28 @@ def test_parse_lammps_run(mock_processor, mock_parse_lammps_output, tmp_path):
 
 
 @pytest.fixture
-def sample_coordinates():
+def box_coordinates():
+    return [1, 2, 3]
+
+
+@pytest.fixture
+def sample_coordinates(box_coordinates):
     # Sample data frame
     return pd.DataFrame({
-        'box': [[1, 2, 3]],
+        'box': [box_coordinates],
         'x': [[60, 6, 0.6, 0.06]],
         'y': [[120, 12, 1.2, 0.12]],
         'z': [[180, 18, 1.8, 0.18]]
     })
 
 
-def test_convert_coords_to_reduced(sample_coordinates):
-    # Expected output: Each coordinate divided by 10 (the box limit)
+def test_convert_coords_to_reduced(sample_coordinates, box_coordinates):
+    # Expected output: Each coordinate divided by 1, 2, 3 (the box limits)
     for index, row in sample_coordinates.iterrows():
         reduced_coords = LammpsProcessorForDiffusion._convert_coords_to_reduced(row)
         expected_coords = []
         for x, y, z in zip(row['x'], row['y'], row['z']):
-            expected_coords.extend([x, y / 2, z / 3])
+            expected_coords.extend([x / box_coordinates[0], y / box_coordinates[1], z / box_coordinates[2]])
         assert reduced_coords == expected_coords
 
 
