@@ -26,6 +26,8 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
+from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
+    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
@@ -37,11 +39,12 @@ batch_size = 4096
 number_of_atoms = 1
 spatial_dimension = 1
 total_time_steps = 100
+number_of_corrector_steps = 1
 
 sigma_min = 0.005
 sigma_max = 0.5
 
-lr = 0.01
+lr = 0.001
 max_epochs = 3000
 
 hidden_dimensions = [64, 128, 256]
@@ -85,14 +88,29 @@ if __name__ == '__main__':
                                  LearningRateMonitor(logging_interval='step')])
     trainer.fit(lightning_model, train_dataloaders=train_dataloader)
 
-    fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
+    sigma_normalized_score_network = lightning_model.sigma_normalized_score_network
+    pc_sampler = AnnealedLangevinDynamicsSampler(noise_parameters=noise_parameters,
+                                                 number_of_corrector_steps=number_of_corrector_steps,
+                                                 number_of_atoms=number_of_atoms,
+                                                 spatial_dimension=spatial_dimension,
+                                                 sigma_normalized_score_network=sigma_normalized_score_network)
+    n_samples = 1024
+    samples = pc_sampler.sample(n_samples).flatten()
+
+    fig_size = (1.5 * PLEASANT_FIG_SIZE[0], PLEASANT_FIG_SIZE[1])
+    fig = plt.figure(figsize=fig_size)
     fig.suptitle("Predictions, Targets and Errors within 2 $\\sigma$ of Data Point")
-    ax1 = fig.add_subplot(121)
-    ax2 = fig.add_subplot(122)
+    ax1 = fig.add_subplot(131)
+    ax2 = fig.add_subplot(132)
+    ax3 = fig.add_subplot(133)
     ax1.set_ylabel('$\\sigma \\times S_{\\theta}(x, t)$')
     ax2.set_ylabel('$\\sigma \\times S_{\\theta}(x, t) - \\sigma \\nabla \\log P(x | 0)$')
-    ax1.set_xlabel('$x$')
-    ax2.set_xlabel('$x$')
+    ax3.set_ylabel('Counts')
+    for ax in [ax1, ax2, ax3]:
+        ax.set_xlabel('$x$')
+
+    ax3.hist(samples, bins=100, label=f'{n_samples} samples')
+    ax3.set_title("Samples Count")
 
     list_x = torch.linspace(0, 1, 1001)[:-1]
 
@@ -127,7 +145,7 @@ if __name__ == '__main__':
                      label=f't = {time:4.3f}, $\\sigma$ = {sigma:4.3f}')
             ax2.plot(list_x[m2], error[m2], '-', color=color, label='_none_')
 
-    for ax in [ax1, ax2]:
+    for ax in [ax1, ax2, ax3]:
         ax.set_xlim([-0.05, 1.05])
         ax.legend(loc=0)
 
