@@ -31,16 +31,16 @@ from sanity_checks import SANITY_CHECK_FOLDER
 batch_size = 4096
 number_of_atoms = 1
 spatial_dimension = 1
-total_time_steps = 20
+total_time_steps = 100
 number_of_corrector_steps = 1
 
-x0 = 0.0
+x0 = 0.5
 
 sigma_min = 0.005
 sigma_max = 0.5
 
 lr = 0.001
-max_epochs = 500
+max_epochs = 2000
 
 hidden_dimensions = [64, 128, 256]
 
