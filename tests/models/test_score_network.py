@@ -1,10 +1,10 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.score_network import (BaseScoreNetwork,
-                                                    BaseScoreNetworkParameters,
+from crystal_diffusion.models.score_network import (BaseScoreNetworkParameters,
                                                     MLPScoreNetwork,
-                                                    MLPScoreNetworkParameters)
+                                                    MLPScoreNetworkParameters,
+                                                    ScoreNetwork)
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
@@ -16,14 +16,14 @@ class TestScoreNetworkCheck:
 
     @pytest.fixture()
     def base_score_network(self, spatial_dimension):
-        return BaseScoreNetwork(BaseScoreNetworkParameters(spatial_dimension=spatial_dimension))
+        return ScoreNetwork(BaseScoreNetworkParameters(spatial_dimension=spatial_dimension))
 
     @pytest.fixture()
     def good_batch(self, spatial_dimension):
         batch_size = 16
         positions = torch.rand(batch_size, 8, spatial_dimension)
         times = torch.rand(batch_size, 1)
-        return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
+        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
     def bad_batch(self, good_batch, problem):
@@ -32,33 +32,33 @@ class TestScoreNetworkCheck:
 
         match problem:
             case "position_name":
-                bad_batch['bad_position_name'] = bad_batch[BaseScoreNetwork.position_key]
-                del bad_batch[BaseScoreNetwork.position_key]
+                bad_batch['bad_position_name'] = bad_batch[ScoreNetwork.position_key]
+                del bad_batch[ScoreNetwork.position_key]
 
             case "position_shape":
-                shape = bad_batch[BaseScoreNetwork.position_key].shape
-                bad_batch[BaseScoreNetwork.position_key] = \
-                    bad_batch[BaseScoreNetwork.position_key].reshape(shape[0], shape[1] // 2, shape[2] * 2)
+                shape = bad_batch[ScoreNetwork.position_key].shape
+                bad_batch[ScoreNetwork.position_key] = \
+                    bad_batch[ScoreNetwork.position_key].reshape(shape[0], shape[1] // 2, shape[2] * 2)
 
             case "position_range1":
-                bad_batch[BaseScoreNetwork.position_key][0, 0, 0] = 1.01
+                bad_batch[ScoreNetwork.position_key][0, 0, 0] = 1.01
 
             case "position_range2":
-                bad_batch[BaseScoreNetwork.position_key][1, 0, 0] = -0.01
+                bad_batch[ScoreNetwork.position_key][1, 0, 0] = -0.01
 
             case "time_name":
-                bad_batch['bad_time_name'] = bad_batch[BaseScoreNetwork.timestep_key]
-                del bad_batch[BaseScoreNetwork.timestep_key]
+                bad_batch['bad_time_name'] = bad_batch[ScoreNetwork.timestep_key]
+                del bad_batch[ScoreNetwork.timestep_key]
 
             case "time_shape":
                 shape = bad_batch['time'].shape
-                bad_batch[BaseScoreNetwork.timestep_key] = (
-                    bad_batch[BaseScoreNetwork.timestep_key].reshape(shape[0] // 2, shape[1] * 2))
+                bad_batch[ScoreNetwork.timestep_key] = (
+                    bad_batch[ScoreNetwork.timestep_key].reshape(shape[0] // 2, shape[1] * 2))
 
             case "time_range1":
-                bad_batch[BaseScoreNetwork.timestep_key][5, 0] = 2.00
+                bad_batch[ScoreNetwork.timestep_key][5, 0] = 2.00
             case "time_range2":
-                bad_batch[BaseScoreNetwork.timestep_key][0, 0] = -0.05
+                bad_batch[ScoreNetwork.timestep_key][0, 0] = -0.05
 
         return bad_batch
 
@@ -93,13 +93,13 @@ class TestMLPScoreNetwork:
     def good_batch(self, batch_size, number_of_atoms, spatial_dimension):
         positions = torch.rand(batch_size, number_of_atoms, spatial_dimension)
         times = torch.rand(batch_size, 1)
-        return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
+        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
     def bad_batch(self, batch_size, number_of_atoms, spatial_dimension):
         positions = torch.rand(batch_size, number_of_atoms // 2, spatial_dimension)
         times = torch.rand(batch_size, 1)
-        return {BaseScoreNetwork.position_key: positions, BaseScoreNetwork.timestep_key: times}
+        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
     def score_network(self, number_of_atoms, spatial_dimension, hidden_dimensions):

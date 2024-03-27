@@ -20,27 +20,25 @@ if __name__ == '__main__':
     noise_parameters = NoiseParameters(total_time_steps=1000)
     variance_sampler = ExplodingVarianceSampler(noise_parameters=noise_parameters)
 
-    noise = variance_sampler.get_all_noise()
+    noise, langevin_dynamics = variance_sampler.get_all_sampling_parameters()
 
     fig1 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig1.suptitle("Noise Schedule")
 
-    ax1 = fig1.add_subplot(221)
-    ax2 = fig1.add_subplot(223)
-    ax3 = fig1.add_subplot(122)
+    ax1 = fig1.add_subplot(121)
+    ax2 = fig1.add_subplot(122)
 
-    ax1.plot(noise.time, noise.sigma, '-', c='k', lw=2)
-    ax2.plot(noise.time[1:], noise.g[1:], '-', c='k', lw=2)
+    ax1.plot(noise.time, noise.sigma, '-', c='b', lw=4, label='$\\sigma(t)$')
+    ax1.plot(noise.time, noise.g, '-', c='g', lw=4, label="$g(t)$")
 
-    ax1.set_ylabel('$\\sigma(t)$')
-    ax2.set_ylabel('$g(t)$')
+    shifted_time = torch.cat([torch.tensor([0]), noise.time[:-1]])
+    ax1.plot(shifted_time, langevin_dynamics.epsilon, '-', c='r', lw=4, label="$\\epsilon(t)$")
+    ax1.legend(loc=0)
 
-    for ax in [ax1, ax2]:
-        ax.set_xlabel('time')
-        ax.set_xlim([-0.01, 1.01])
+    ax1.set_xlabel('time')
+    ax1.set_xlim([-0.01, 1.01])
 
-    ax1.set_title("$\\sigma$ schedule")
-    ax2.set_title("g schedule")
+    ax1.set_title("$\\sigma, g, \\epsilon$ schedules")
 
     relative_positions = torch.linspace(0, 1, 101)[:-1]
 
@@ -55,13 +53,13 @@ if __name__ == '__main__':
         target_sigma_normalized_scores = get_sigma_normalized_score(relative_positions,
                                                                     torch.ones_like(relative_positions) * sigma,
                                                                     kmax=kmax)
-        ax3.plot(relative_positions, target_sigma_normalized_scores, label=f"t = {t:3.2f}")
+        ax2.plot(relative_positions, target_sigma_normalized_scores, label=f"t = {t:3.2f}")
 
-    ax3.set_title("Target Normalized Score")
-    ax3.set_xlabel("relative position, u")
-    ax3.set_ylabel("$\\sigma(t) \\times S(u, t)$")
-    ax3.legend(loc=0)
-    ax3.set_xlim([-0.01, 1.01])
+    ax2.set_title("Target Normalized Score")
+    ax2.set_xlabel("relative position, u")
+    ax2.set_ylabel("$\\sigma(t) \\times S(u, t)$")
+    ax2.legend(loc=0)
+    ax2.set_xlim([-0.01, 1.01])
 
     fig1.tight_layout()
 

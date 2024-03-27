@@ -17,7 +17,7 @@ class BaseScoreNetworkParameters:
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
 
 
-class BaseScoreNetwork(torch.nn.Module):
+class ScoreNetwork(torch.nn.Module):
     """Base score network.
 
     This base class defines the interface that all score networks should have
@@ -32,7 +32,7 @@ class BaseScoreNetwork(torch.nn.Module):
         Args:
             hyper_params : hyperparameters from the config file.
         """
-        super(BaseScoreNetwork, self).__init__()
+        super(ScoreNetwork, self).__init__()
         self._hyper_params = hyper_params
         self.spatial_dimension = hyper_params.spatial_dimension
 
@@ -124,7 +124,7 @@ class MLPScoreNetworkParameters(BaseScoreNetworkParameters):
     hidden_dimensions: List[int]  # dimensions of the hidden layers. Length of array determines number of layers.
 
 
-class MLPScoreNetwork(BaseScoreNetwork):
+class MLPScoreNetwork(ScoreNetwork):
     """Simple Model Class.
 
     Inherits from the given framework's model class. This is a simple MLP model.
