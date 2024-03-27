@@ -146,10 +146,10 @@ class TensorboardGeneratedSamplesLoggingCallback(TensorBoardDebuggingLoggingCall
         ax = fig.add_subplot(111)
         ax.set_title(f"Generated Samples: global step = {pl_module.global_step}")
         ax.set_xlabel('$x$')
-        ax.hist(samples, bins=100, range=(0, 1), label=f'{self.number_of_samples} samples')
+        ax.hist(samples, bins=101, range=(0, 1), label=f'{self.number_of_samples} samples')
         ax.set_title("Samples Count")
         ax.set_xlim([-0.05, 1.05])
-        ax.set_ylim([0., self.number_of_samples // 2])
+        ax.set_ylim([0., self.number_of_samples])
         fig.tight_layout()
         tbx_logger.add_figure("train/generated_samples", fig, global_step=pl_module.global_step)
 
