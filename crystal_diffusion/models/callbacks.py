@@ -5,7 +5,18 @@ import torch
 from pytorch_lightning import Callback
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE
+from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
+from crystal_diffusion.samplers.noisy_position_sampler import \
+    map_positions_to_unit_cell
+from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
+    AnnealedLangevinDynamicsSampler
+from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from crystal_diffusion.score.wrapped_gaussian_score import \
+    get_sigma_normalized_score
+
+plt.style.use(PLOT_STYLE_PATH)
+TENSORBOARD_FIGSIZE = (0.65 * PLEASANT_FIG_SIZE[0], 0.65 * PLEASANT_FIG_SIZE[1])
 
 
 class HPLoggingCallback(Callback):
@@ -94,10 +105,114 @@ class TensorboardSamplesLoggingCallback(TensorBoardDebuggingLoggingCallback):
             list_sigmas.append(output["sigmas"].flatten())
         list_xt = torch.cat(list_xt)
         list_sigmas = torch.cat(list_sigmas)
-        fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
+        fig = plt.figure(figsize=TENSORBOARD_FIGSIZE)
         ax = fig.add_subplot(111)
         ax.set_title(f"Position Samples: global step = {pl_module.global_step}")
         ax.set_ylabel("$\\sigma$")
         ax.set_xlabel("position samples $x(t)$")
         ax.plot(list_xt, list_sigmas, "bo")
+        ax.set_xlim([-0.05, 1.05])
+        fig.tight_layout()
         tbx_logger.add_figure("train/samples", fig, global_step=pl_module.global_step)
+
+
+class TensorboardGeneratedSamplesLoggingCallback(TensorBoardDebuggingLoggingCallback):
+    """This callback will log an image of a histogram of generated samples on tensorboard."""
+
+    def __init__(self, noise_parameters: NoiseParameters,
+                 number_of_corrector_steps: int,
+                 score_network_parameters: MLPScoreNetworkParameters, number_of_samples: int):
+        """Init method."""
+        super().__init__()
+        self.noise_parameters = noise_parameters
+        self.number_of_corrector_steps = number_of_corrector_steps
+        self.score_network_parameters = score_network_parameters
+        self.number_of_atoms = score_network_parameters.number_of_atoms
+        self.spatial_dimension = score_network_parameters.spatial_dimension
+        self.number_of_samples = number_of_samples
+
+    def log_artifact(self, pl_module, tbx_logger):
+        """Create artifact and log to tensorboard."""
+        sigma_normalized_score_network = pl_module.sigma_normalized_score_network
+        pc_sampler = AnnealedLangevinDynamicsSampler(noise_parameters=self.noise_parameters,
+                                                     number_of_corrector_steps=self.number_of_corrector_steps,
+                                                     number_of_atoms=self.number_of_atoms,
+                                                     spatial_dimension=self.spatial_dimension,
+                                                     sigma_normalized_score_network=sigma_normalized_score_network)
+
+        samples = pc_sampler.sample(self.number_of_samples).flatten()
+
+        fig = plt.figure(figsize=TENSORBOARD_FIGSIZE)
+        ax = fig.add_subplot(111)
+        ax.set_title(f"Generated Samples: global step = {pl_module.global_step}")
+        ax.set_xlabel('$x$')
+        ax.hist(samples, bins=100, range=(0, 1), label=f'{self.number_of_samples} samples')
+        ax.set_title("Samples Count")
+        ax.set_xlim([-0.05, 1.05])
+        ax.set_ylim([0., self.number_of_samples // 2])
+        fig.tight_layout()
+        tbx_logger.add_figure("train/generated_samples", fig, global_step=pl_module.global_step)
+
+
+class TensorboardScoreAndErrorLoggingCallback(TensorBoardDebuggingLoggingCallback):
+    """This callback will log histograms of the labels, predictions and errors on tensorboard."""
+
+    def __init__(self, x0: float):
+        """Init method."""
+        super().__init__()
+        self.x0 = x0
+
+    def log_artifact(self, pl_module, tbx_logger):
+        """Create artifact and log to tensorboard."""
+        fig = plt.figure(figsize=TENSORBOARD_FIGSIZE)
+        fig.suptitle("Scores within 2 $\\sigma$ of Data")
+        ax1 = fig.add_subplot(121)
+        ax2 = fig.add_subplot(122)
+        ax1.set_ylabel('$\\sigma \\times S_{\\theta}(x, t)$')
+        ax2.set_ylabel('$\\sigma \\times S_{\\theta}(x, t) - \\sigma \\nabla \\log P(x | 0)$')
+        for ax in [ax1, ax2]:
+            ax.set_xlabel('$x$')
+
+        list_x = torch.linspace(0, 1, 1001)[:-1]
+
+        times = torch.tensor([0.25, 0.75, 1.])
+        sigmas = pl_module.variance_sampler._create_sigma_array(pl_module.variance_sampler.noise_parameters, times)
+
+        with torch.no_grad():
+            for time, sigma in zip(times, sigmas):
+                times = time * torch.ones(1000).reshape(-1, 1)
+
+                sigma_normalized_kernel = get_sigma_normalized_score(map_positions_to_unit_cell(list_x - self.x0),
+                                                                     sigma * torch.ones_like(list_x),
+                                                                     kmax=4)
+                predicted_normalized_scores = pl_module._get_predicted_normalized_score(list_x.reshape(-1, 1, 1),
+                                                                                        times).flatten()
+
+                error = predicted_normalized_scores - sigma_normalized_kernel
+
+                # only plot the errors in the sampling region! These regions might be disconnected, let's make
+                # sure the continuous lines make sense.
+                mask1 = torch.abs(list_x - self.x0) < 2 * sigma
+                mask2 = torch.abs(1. - list_x + self.x0) < 2 * sigma
+
+                lines = ax1.plot(list_x[mask1], predicted_normalized_scores[mask1], lw=1, label='Prediction')
+                color = lines[0].get_color()
+                ax1.plot(list_x[mask2], predicted_normalized_scores[mask2], lw=1, color=color, label='_none_')
+
+                ax1.plot(list_x[mask1], sigma_normalized_kernel[mask1], '--', lw=2, color=color, label='Target')
+                ax1.plot(list_x[mask2], sigma_normalized_kernel[mask2], '--', lw=2, color=color, label='_none_')
+
+                ax2.plot(list_x[mask1], error[mask1], '-', color=color,
+                         label=f't = {time:4.3f}, $\\sigma$ = {sigma:4.3f}')
+                ax2.plot(list_x[mask2], error[mask2], '-', color=color, label='_none_')
+
+        for ax in [ax1, ax2]:
+            ax.set_xlim([-0.05, 1.05])
+            ax.legend(loc=3, prop={'size': 6})
+
+        ax1.set_ylim([-3., 3.])
+        ax2.set_ylim([-1., 1.])
+
+        fig.tight_layout()
+
+        tbx_logger.add_figure("train/scores", fig, global_step=pl_module.global_step)
