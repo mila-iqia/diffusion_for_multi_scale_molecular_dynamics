@@ -9,6 +9,10 @@ import sys
 import orion
 import pytorch_lightning as pl
 import yaml
+from orion.client import report_results
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from yaml import load
+
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from crystal_diffusion.models.model_loader import load_diffusion_model
@@ -16,9 +20,6 @@ from crystal_diffusion.utils.file_utils import rsync_folder
 from crystal_diffusion.utils.hp_utils import check_and_log_hp
 from crystal_diffusion.utils.logging_utils import LoggerWriter, log_exp_details
 from crystal_diffusion.utils.reproducibility_utils import set_seed
-from orion.client import report_results
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from yaml import load
 
 logger = logging.getLogger(__name__)
 

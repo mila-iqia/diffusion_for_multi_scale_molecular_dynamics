@@ -5,6 +5,7 @@ import warnings
 from typing import List, Optional
 
 import pandas as pd
+
 from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
 
 logger = logging.getLogger(__name__)

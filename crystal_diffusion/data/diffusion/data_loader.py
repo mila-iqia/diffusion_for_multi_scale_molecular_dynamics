@@ -9,9 +9,10 @@ import datasets
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
+
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
-from torch.utils.data import DataLoader
 
 logger = logging.getLogger(__name__)
 
