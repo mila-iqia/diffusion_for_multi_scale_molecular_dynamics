@@ -86,7 +86,7 @@ def test_parse_lammps_run(mock_processor, mock_parse_lammps_output, tmp_path):
     assert 'box' in df.columns
     assert 'type' in df.columns
     assert 'position' in df.columns
-    assert 'reduced_position' in df.columns
+    assert 'relative_positions' in df.columns
 
 
 @pytest.fixture
@@ -105,14 +105,14 @@ def sample_coordinates(box_coordinates):
     })
 
 
-def test_convert_coords_to_reduced(sample_coordinates, box_coordinates):
+def test_convert_coords_to_relative(sample_coordinates, box_coordinates):
     # Expected output: Each coordinate divided by 1, 2, 3 (the box limits)
     for index, row in sample_coordinates.iterrows():
-        reduced_coords = LammpsProcessorForDiffusion._convert_coords_to_reduced(row)
+        relative_coords = LammpsProcessorForDiffusion._convert_coords_to_relative(row)
         expected_coords = []
         for x, y, z in zip(row['x'], row['y'], row['z']):
             expected_coords.extend([x / box_coordinates[0], y / box_coordinates[1], z / box_coordinates[2]])
-        assert reduced_coords == expected_coords
+        assert relative_coords == expected_coords
 
 
 @pytest.fixture
@@ -123,9 +123,9 @@ def mock_prepare_data():
         yield mock_prepare
 
 
-def test_get_x_reduced(mock_prepare_data, sample_coordinates, tmpdir):
-    # Call get_x_reduced on the test data
+def test_get_x_relative(mock_prepare_data, sample_coordinates, tmpdir):
+    # Call get_x_relative on the test data
     lp = LammpsProcessorForDiffusion(tmpdir, tmpdir)
-    result_df = lp.get_x_reduced(sample_coordinates)
-    # Check if 'reduced_position' column is added
-    assert 'reduced_position' in result_df.columns
+    result_df = lp.get_x_relative(sample_coordinates)
+    # Check if 'relative_positions' column is added
+    assert 'relative_positions' in result_df.columns

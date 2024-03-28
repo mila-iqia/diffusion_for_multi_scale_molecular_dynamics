@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader
 
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
-from crystal_diffusion.utils.hp_utils import check_and_log_hp
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
                 lot of disk space. Defaults to None.
         """
         super().__init__()
-        check_and_log_hp(["batch_size", "num_workers"], hyper_params)  # validate the hyperparameters
+        # check_and_log_hp(["batch_size", "num_workers"], hyper_params)  # validate the hyperparameters
         # TODO add the padding parameters for number of atoms
         self.lammps_run_dir = lammps_run_dir
         self.processed_dataset_dir = processed_dataset_dir
@@ -68,7 +67,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
 
         Args:
             x: raw columns from the processed data files. Should contain natom, box, type, position and
-                reduced_position.
+                relative_positions.
             spatial_dim (optional): number of spatial dimensions. Defaults to 3.
 
         Returns:
@@ -78,7 +77,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         transformed_x['natom'] = torch.as_tensor(x['natom']).long()  # resulting tensor size: (batchsize, )
         bsize = transformed_x['natom'].size(0)
         transformed_x['box'] = torch.as_tensor(x['box'])  # size: (batchsize, spatial dimension)
-        for pos in ['position', 'reduced_position']:
+        for pos in ['position', 'relative_positions']:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
         transformed_x['type'] = torch.as_tensor(x['type']).long()  # size: (batchsize, max atom)
 
@@ -89,7 +88,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         """Pad a sample for batching.
 
         Args:
-            x: initial sample from the dataset. Should contain natom, position, reduced_position and type.
+            x: initial sample from the dataset. Should contain natom, position, relative_positions and type.
             max_atom: maximum number of atoms to pad to
             spatial_dim (optional): number of spatial dimensions. Defaults to 3.
 
@@ -100,7 +99,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         if natom > max_atom:
             raise ValueError(f"Hyper-parameter max_atom is smaller than an example in the dataset with {natom} atoms.")
         x['type'] = F.pad(torch.as_tensor(x['type']).long(), (0, max_atom - natom), 'constant', -1)
-        for pos in ['position', 'reduced_position']:
+        for pos in ['position', 'relative_positions']:
             x[pos] = F.pad(torch.as_tensor(x[pos]).float(), (0, spatial_dim * (max_atom - natom)), 'constant',
                            torch.nan)
         return x

@@ -12,14 +12,14 @@ class TestDiffusionDataLoader:
             'natom': [2],  # batch size of 1
             'box': [[1.0, 1.0, 1.0]],
             'position': [[1., 2., 3, 4., 5, 6]],  # for one batch, two atoms, 3D positions
-            'reduced_position': [[1., 2., 3, 4., 5, 6]],
+            'relative_positions': [[1., 2., 3, 4., 5, 6]],
             'type': [[1, 2]]
         }
 
     def test_dataset_transform(self, input_data_to_transform):
         result = LammpsForDiffusionDataModule.dataset_transform(input_data_to_transform)
         # Check keys in result
-        assert set(result.keys()) == {'natom', 'position', 'reduced_position', 'box', 'type'}
+        assert set(result.keys()) == {'natom', 'position', 'relative_positions', 'box', 'type'}
 
         # Check tensor types and shapes
         assert torch.equal(result['natom'], torch.tensor([2]).long())
@@ -39,7 +39,7 @@ class TestDiffusionDataLoader:
             'natom': 2,  # batch size of 1
             'box': [1.0, 1.0, 1.0],
             'position': [1., 2., 3, 4., 5, 6],  # for one batch, two atoms, 3D positions
-            'reduced_position': [1., 2., 3, 4., 5, 6],
+            'relative_positions': [1., 2., 3, 4., 5, 6],
             'type': [1, 2]
         }
 
