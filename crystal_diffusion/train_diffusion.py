@@ -198,7 +198,6 @@ def train_impl(model, datamodule, output, hyper_params, use_progress_bar, accele
     # TODO pl Trainer does not use the kwarg resume_from_checkpoint now - check about resume training works now
     # resume_from_checkpoint = handle_previous_models(output, last_model_path, best_model_path)
 
-
     early_stopping_params = hyper_params['early_stopping']
     check_and_log_hp(['metric', 'mode', 'patience'], hyper_params['early_stopping'])
     early_stopping = EarlyStopping(
