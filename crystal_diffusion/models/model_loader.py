@@ -6,7 +6,8 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 ValidOptimizerNames)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
-from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
+from crystal_diffusion.models.score_network import (MLPScoreNetwork,
+                                                    MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,29 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
     )
 
     model = PositionDiffusionLightningModel(diffusion_params)
+    logger.info('model info:\n' + str(model) + '\n')
+
+    return model
+
+
+def load_model(hyper_params):  # pragma: no cover
+    """Instantiate a model.
+
+    Args:
+        hyper_params (dict): hyper parameters from the config file
+
+    Returns:
+        model (obj): A neural network model object.
+    """
+    architecture = hyper_params['architecture']
+    # __TODO__ fix architecture list
+    if architecture == 'simple_mlp':
+        model_class = MLPScoreNetwork
+    else:
+        raise ValueError('architecture {} not supported'.format(architecture))
+    logger.info('selected architecture: {}'.format(architecture))
+
+    model = model_class(hyper_params)
     logger.info('model info:\n' + str(model) + '\n')
 
     return model
