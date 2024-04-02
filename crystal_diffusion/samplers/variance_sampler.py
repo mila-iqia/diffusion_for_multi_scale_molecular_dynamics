@@ -36,7 +36,7 @@ class ExplodingVarianceSampler:
     for noise generation for training and sampling.
 
     This implementation will use "exponential diffusion" as discussed in
-    the papers (no one paper presents everything clearly)
+    the following papers (no one paper presents everything clearly)
         - [1] "Torsional Diffusion for Molecular Conformer Generation".
         - [2] "SCORE-BASED GENERATIVE MODELING THROUGH STOCHASTIC DIFFERENTIAL EQUATIONS"
         - [3] "Generative Modeling by Estimating Gradients of the Data Distribution"
@@ -45,8 +45,8 @@ class ExplodingVarianceSampler:
         - total number of times steps, N
 
         - time steps:
-            t in [delta, 1], on an even discretized grid, t_i for i = 1, ..., N.
-            We avoid t = 0 because sigma(t) is poorly defined there. See Appendix C of  [2]
+            t in [delta, 1], on a discretized grid, t_i for i = 1, ..., N.
+            We avoid t = 0 because sigma(t) is poorly defined there. See Appendix C of [2].
 
         - sigma and sigma^2:
             standard deviation, following the "exploding variance scheme",
@@ -56,7 +56,7 @@ class ExplodingVarianceSampler:
         - g and g^2:
             g is the diffusion coefficient that appears in the stochastic differential equation (SDE).
                 g^2(t) = d sigma^2(t)/ dt for the exploding variance scheme. This becomes discretized as
-                g^2_i = sigma^2_{i} - sigma^2_{i-1} for i = 1, .., N.
+                g^2_i = sigma^2_{i} - sigma^2_{i-1} for i = 1, ..., N.
 
                 --> The papers never clearly state what to do for sigma_{i=0}.
                     We CHOOSE sigma_{i=0} = sigma_min = sigma(t=0)
@@ -67,10 +67,6 @@ class ExplodingVarianceSampler:
                     eps_i = 0.5 epsilon_step * sigma^2_i / sigma^2_1 for i = 0, ..., N-1.
 
                 --> Careful! eps_0 is needed for the corrector steps.
-
-
-
-
     """
 
     def __init__(self, noise_parameters: NoiseParameters):
