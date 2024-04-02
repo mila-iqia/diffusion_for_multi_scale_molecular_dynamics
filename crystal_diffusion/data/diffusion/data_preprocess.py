@@ -110,6 +110,22 @@ class LammpsProcessorForDiffusion:
 
         return dump_file_path, thermo_file_path
 
+    def get_lammps_output(self, run_dir: str):
+        """Get lammps output.
+
+        Args:
+            run_dir : path to run directory.
+
+        Returns:
+            df: dataframe that contains the parsed lammps output. If the input files are missing, return None.
+        """
+        dump_file_path, thermo_file_path = self.get_dump_and_thermo_files(run_dir)
+        if dump_file_path is None or thermo_file_path is None:
+            return None
+
+        df = parse_lammps_output(dump_file_path, thermo_file_path, None)
+        return df
+
     def parse_lammps_run(self, run_dir: str) -> Optional[pd.DataFrame]:
         """Parse outputs of a LAMMPS run and convert in a dataframe.
 
@@ -119,13 +135,11 @@ class LammpsProcessorForDiffusion:
         Returns:
             df: dataframe with bounding box, atoms species and coordinates. None if LAMMPS outputs are ambiguous.
         """
-        dump_file_path, thermo_file_path = self.get_dump_and_thermo_files(run_dir)
-        if dump_file_path is None or thermo_file_path is None:
+        # parse lammps output and store in a dataframe
+        df = self.get_lammps_output(run_dir)
+        if df is None:
             warnings.warn("Skipping this run.", UserWarning)
             return None
-
-        # parse lammps output and store in a dataframe
-        df = parse_lammps_output(dump_file_path, thermo_file_path, None)
 
         # the dataframe contains the following columns: id (list of atom indices), type (list of int representing
         # atom type, x (list of x cartesian coordinates for each atom), y, z, fx (list forces in direction x for each
