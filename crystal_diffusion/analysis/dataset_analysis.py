@@ -46,7 +46,7 @@ def compute_metrics_for_a_run(run_path: str) -> Dict[str, pd.Series]:
 
     metrics['root_mean_square_displacement'] = square_displacement.apply(lambda row: np.sqrt(np.mean(row)))
 
-    metrics['std_displacement'] = np.sqrt(sum([np.var(df[x]) for x in ['x', 'y', 'z']]))
+    metrics['std_displacement'] = np.std(square_displacement.apply(np.sqrt))
 
     return metrics
 
