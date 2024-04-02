@@ -16,19 +16,32 @@ from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
 DATASET_NAME = 'si_diffusion_v1'
 
 
-def compute_metrics_for_a_run(run_path: str) -> Dict[str, pd.Series]:
-    """Get the energy, forces average, RMS displacement and std dev for a single MD run.
+def read_lammps_run(run_path: str) -> pd.DataFrame:
+    """Read and organize the LAMMPS output files in a dataframe.
 
     Args:
         run_path: path to LAMMPS output directory. Should contain a dump file and a thermo log file.
 
     Returns:
-        metrics evaluated at each MD step organized in a dict
+        output as
     """
     dump_file = [d for d in os.listdir(run_path) if 'dump' in d]
     thermo_file = [d for d in os.listdir(run_path) if 'thermo' in d]
 
     df = parse_lammps_output(os.path.join(run_path, dump_file[0]), os.path.join(run_path, thermo_file[0]), None)
+
+    return df
+
+
+def compute_metrics_for_a_run(df: pd.DataFrame) -> Dict[str, pd.Series]:
+    """Get the energy, forces average, RMS displacement and std dev for a single MD run.
+
+    Args:
+        df: LAMMPS output organized in a DataFrame.
+
+    Returns:
+        metrics evaluated at each MD step organized in a dict
+    """
     metrics = {}
     metrics['energy'] = df['energy']
     force_norm_mean = df.apply(lambda row: np.mean([np.sqrt(fx**2 + fy**2 + fz**2) for fx, fy, fz in
@@ -38,8 +51,6 @@ def compute_metrics_for_a_run(run_path: str) -> Dict[str, pd.Series]:
     x0s = df['x'][0]
     y0s = df['y'][0]
     z0s = df['z'][0]
-
-    # compute the square displacement: d^2 = (x - x0)^2
 
     square_displacement = df.apply(lambda row: [(x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 for x, y, z, x0, y0, z0 in
                                                 zip(row['x'], row['y'], row['z'], x0s, y0s, z0s)], axis=1)
@@ -66,7 +77,8 @@ def plot_metrics_runs(dataset_name: str, mode: str = 'train'):
 
     metrics = {}
     for run in list_runs:
-        metrics_run = compute_metrics_for_a_run(os.path.join(dataset_path, run))
+        df = read_lammps_run(os.path.join(dataset_path, run))
+        metrics_run = compute_metrics_for_a_run(df)
         metrics[run] = metrics_run
 
     plt.style.use(PLOT_STYLE_PATH)
