@@ -2,7 +2,7 @@
 import logging
 import os
 import warnings
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -81,6 +81,35 @@ class LammpsProcessorForDiffusion:
         df['relative_positions'] = df.apply(lambda x: self._convert_coords_to_relative(x), axis=1)
         return df
 
+    def get_dump_and_thermo_files(self, run_dir: str) -> Tuple[Union[str, None], Union[str, None]]:
+        """Get dump and thermo files.
+
+        Args:
+            run_dir : path to run directory.
+
+        Returns:
+            dump_file_path, thermo_file_path: full path to data files; return None if there is not exactly
+                one data file for each of (dump, thermo).
+        """
+        # find the LAMMPS dump file and thermo file
+        dump_file = [d for d in os.listdir(run_dir) if 'dump' in d]
+        if len(dump_file) == 1:
+            dump_file_path = os.path.join(run_dir, dump_file[0])
+        else:
+            warnings.warn(f"Found {len(dump_file)} files with dump in the name in {run_dir}. "
+                          f"Expected exactly one.", UserWarning)
+            dump_file_path = None
+
+        thermo_file = [d for d in os.listdir(run_dir) if 'thermo' in d]
+        if len(thermo_file) == 1:
+            thermo_file_path = os.path.join(run_dir, thermo_file[0])
+        else:
+            warnings.warn(f"Found {len(thermo_file)} files with thermo in the name in {run_dir}. "
+                          f"Expected exactly one.", UserWarning)
+            thermo_file_path = None
+
+        return dump_file_path, thermo_file_path
+
     def parse_lammps_run(self, run_dir: str) -> Optional[pd.DataFrame]:
         """Parse outputs of a LAMMPS run and convert in a dataframe.
 
@@ -90,22 +119,13 @@ class LammpsProcessorForDiffusion:
         Returns:
             df: dataframe with bounding box, atoms species and coordinates. None if LAMMPS outputs are ambiguous.
         """
-        # do something
-        # find the LAMMPS dump file and thermo file
-        dump_file = [d for d in os.listdir(run_dir) if 'dump' in d]
-        if len(dump_file) != 1:
-            warnings.warn(f"Found {len(dump_file)} files with dump in the name in {run_dir}. Skipping this run.",
-                          UserWarning)
-            return None
-
-        thermo_file = [d for d in os.listdir(run_dir) if 'thermo' in d]
-        if len(thermo_file) != 1:
-            warnings.warn(f"Found {len(thermo_file)} files with thermo in the name in {run_dir}. Skipping this run.",
-                          UserWarning)
+        dump_file_path, thermo_file_path = self.get_dump_and_thermo_files(run_dir)
+        if dump_file_path is None or thermo_file_path is None:
+            warnings.warn("Skipping this run.", UserWarning)
             return None
 
         # parse lammps output and store in a dataframe
-        df = parse_lammps_output(os.path.join(run_dir, dump_file[0]), os.path.join(run_dir, thermo_file[0]), None)
+        df = parse_lammps_output(dump_file_path, thermo_file_path, None)
 
         # the dataframe contains the following columns: id (list of atom indices), type (list of int representing
         # atom type, x (list of x cartesian coordinates for each atom), y, z, fx (list forces in direction x for each
