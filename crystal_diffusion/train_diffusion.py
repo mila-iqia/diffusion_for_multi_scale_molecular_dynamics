@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import sys
+import typing
 
 import orion
 import pytorch_lightning as pl
@@ -27,13 +28,12 @@ BEST_MODEL_NAME = 'best_model'
 LAST_MODEL_NAME = 'last_model'
 
 
-def main():
+def main(args: typing.Optional[typing.Any] = None):
     """Create and train a diffusion model: main entry point of the program.
 
     Note:
         This main.py file is meant to be called using the cli,
         see the `examples/local/run_diffusion.sh` file to see how to use it.
-
     """
     parser = argparse.ArgumentParser()
     # __TODO__ check you need all the following CLI parameters
@@ -57,7 +57,7 @@ def main():
     parser.add_argument('--accelerator', help='PL trainer accelerator. Defaults to auto.', default='auto')
     parser.add_argument('--devices', default=1, help='pytorch-lightning devices kwarg. Defaults to 1.')
     parser.add_argument('--debug', action='store_true')  # TODO not used yet
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
