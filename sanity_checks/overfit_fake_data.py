@@ -16,7 +16,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-from crystal_diffusion.models.callbacks import (
+from crystal_diffusion.callbacks.callbacks import (
     HPLoggingCallback, TensorboardGeneratedSamplesLoggingCallback,
     TensorboardHistogramLoggingCallback, TensorboardSamplesLoggingCallback,
     TensorboardScoreAndErrorLoggingCallback)
