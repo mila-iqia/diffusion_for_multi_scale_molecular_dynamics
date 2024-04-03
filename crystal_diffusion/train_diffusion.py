@@ -1,6 +1,5 @@
 """Entry point to train a diffusion model."""
 import argparse
-import glob
 import logging
 import os
 import shutil
@@ -11,21 +10,18 @@ import orion
 import pytorch_lightning as pl
 import yaml
 from orion.client import report_results
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from yaml import load
 
+from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from crystal_diffusion.models.model_loader import load_diffusion_model
 from crystal_diffusion.utils.file_utils import rsync_folder
 from crystal_diffusion.utils.hp_utils import check_and_log_hp
-from crystal_diffusion.utils.logging_utils import LoggerWriter, log_exp_details
+from crystal_diffusion.utils.logging_utils import log_exp_details
 from crystal_diffusion.utils.reproducibility_utils import set_seed
 
 logger = logging.getLogger(__name__)
-
-BEST_MODEL_NAME = 'best_model'
-LAST_MODEL_NAME = 'last_model'
 
 
 def main(args: typing.Optional[typing.Any] = None):
@@ -87,10 +83,6 @@ def main(args: typing.Optional[typing.Any] = None):
         root.setLevel(logging.INFO)
         root.addHandler(handler)
 
-    # to intercept any print statement:
-    sys.stdout = LoggerWriter(logger.info)
-    sys.stderr = LoggerWriter(logger.warning)
-
     if args.config is not None:
         with open(args.config, 'r') as stream:
             hyper_params = load(stream, Loader=yaml.FullLoader)
@@ -135,8 +127,13 @@ def run(args, output_dir, hyper_params):
 
     model = load_diffusion_model(hyper_params)
 
-    train(model=model, datamodule=datamodule, output=output_dir, hyper_params=hyper_params,
-          use_progress_bar=not args.disable_progressbar, accelerator=args.accelerator, devices=args.devices)
+    train(model=model,
+          datamodule=datamodule,
+          output=output_dir,
+          hyper_params=hyper_params,
+          use_progress_bar=not args.disable_progressbar,
+          accelerator=args.accelerator,
+          devices=args.devices)
 
     # clean up the data cache to save disk space
     datamodule.clean_up()
@@ -162,7 +159,13 @@ def train(**kwargs):  # pragma: no cover
         value=-float(best_dev_metric))])
 
 
-def train_impl(model, datamodule, output, hyper_params, use_progress_bar, accelerator=None, devices=None
+def train_impl(model,
+               datamodule,
+               output: str,
+               hyper_params: typing.Dict[typing.AnyStr, typing.Any],
+               use_progress_bar: bool,
+               accelerator=None,
+               devices=None
                ):  # pragma: no cover
     """Train a model: main training loop implementation.
 
@@ -177,35 +180,10 @@ def train_impl(model, datamodule, output, hyper_params, use_progress_bar, accele
     """
     check_and_log_hp(['max_epoch'], hyper_params)
 
-    best_model_path = os.path.join(output, BEST_MODEL_NAME)
-    best_checkpoint_callback = ModelCheckpoint(
-        dirpath=best_model_path,
-        filename='model',
-        save_top_k=1,
-        verbose=use_progress_bar,
-        monitor="val_loss",
-        mode="max",
-        every_n_epochs=1,
-    )
-
-    last_model_path = os.path.join(output, LAST_MODEL_NAME)
-    last_checkpoint_callback = ModelCheckpoint(
-        dirpath=last_model_path,
-        filename='model',
-        verbose=use_progress_bar,
-        every_n_epochs=1,
-    )
-
     # TODO pl Trainer does not use the kwarg resume_from_checkpoint now - check about resume training works now
     # resume_from_checkpoint = handle_previous_models(output, last_model_path, best_model_path)
 
-    early_stopping_params = hyper_params['early_stopping']
-    check_and_log_hp(['metric', 'mode', 'patience'], hyper_params['early_stopping'])
-    early_stopping = EarlyStopping(
-        early_stopping_params['metric'],
-        mode=early_stopping_params['mode'],
-        patience=early_stopping_params['patience'],
-        verbose=use_progress_bar)
+    callbacks_dict = create_all_callbacks(hyper_params, output, verbose=use_progress_bar)
 
     logger = pl.loggers.TensorBoardLogger(
         save_dir=output,
@@ -214,7 +192,7 @@ def train_impl(model, datamodule, output, hyper_params, use_progress_bar, accele
     )
 
     trainer = pl.Trainer(
-        callbacks=[early_stopping, best_checkpoint_callback, last_checkpoint_callback],
+        callbacks=list(callbacks_dict.values()),
         max_epochs=hyper_params['max_epoch'],
         # resume_from_checkpoint=resume_from_checkpoint,
         accelerator=accelerator,
@@ -225,23 +203,12 @@ def train_impl(model, datamodule, output, hyper_params, use_progress_bar, accele
     trainer.fit(model, datamodule=datamodule)
 
     # Log the best result and associated hyper parameters
-    best_dev_result = float(early_stopping.best_score.cpu().numpy())
-    logger.log_hyperparams(hyper_params, metrics={'best_dev_metric': best_dev_result})
+    if 'early_stopping' in callbacks_dict:
+        early_stopping = callbacks_dict['early_stopping']
+        best_dev_result = float(early_stopping.best_score.cpu().numpy())
+        logger.log_hyperparams(hyper_params, metrics={'best_dev_metric': best_dev_result})
 
     return best_dev_result
-
-
-def handle_previous_models(output, last_model_path, best_model_path):
-    """Move the previous models in a new timestamp folder."""
-    last_models = glob.glob(last_model_path + os.sep + '*')
-
-    if len(last_models) >= 1:
-        resume_from_checkpoint = sorted(last_models)[-1]
-        logger.info(f'models found - resuming from {resume_from_checkpoint}')
-    else:
-        logger.info('no model found - starting training from scratch')
-        resume_from_checkpoint = None
-    return resume_from_checkpoint
 
 
 if __name__ == '__main__':
