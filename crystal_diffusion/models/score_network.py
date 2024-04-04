@@ -175,8 +175,7 @@ class MLPScoreNetwork(ScoreNetwork):
             computed_scores : the scores computed by the model.
         """
         positions = batch[self.position_key]  # shape [batch_size, number_of_atoms, spatial_dimension]
-        times = batch[self.timestep_key]  # shape [batch_size, 1]
-
+        times = batch[self.timestep_key].to(positions.device)  # shape [batch_size, 1]
         input = torch.cat([self.flatten(positions), times], dim=1)
 
         output = self.mlp_layers(input).reshape(positions.shape)

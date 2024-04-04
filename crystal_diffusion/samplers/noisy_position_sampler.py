@@ -79,6 +79,6 @@ class NoisyPositionSampler:
             "sigmas array is expected to be of the same shape as the real_relative_positions array"
 
         z_scores = NoisyPositionSampler._get_gaussian_noise(real_relative_positions.shape)
-        noise = sigmas * z_scores
+        noise = (sigmas * z_scores).to(real_relative_positions.device)
         noisy_relative_positions = map_positions_to_unit_cell(real_relative_positions + noise)
         return noisy_relative_positions
