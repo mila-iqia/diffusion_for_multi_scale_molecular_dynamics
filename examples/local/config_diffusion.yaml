@@ -16,7 +16,7 @@ data:
 spatial_dimension: 3
 model:
   score_network:
-    hidden_dimensions: [16, 16]  # dimensions of the hidden layers. Length of array determines number of la
+    hidden_dimensions: [16, 16]  # dimensions of the hidden layers. Length of array determines number of layers
   noise:
     total_time_steps: 10
     sigma_min: 0.005  # default value
