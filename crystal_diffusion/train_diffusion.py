@@ -184,14 +184,13 @@ def train(model,
     trainer = pl.Trainer(
         callbacks=list(callbacks_dict.values()),
         max_epochs=hyper_params['max_epoch'],
-        # resume_from_checkpoint=resume_from_checkpoint,
         accelerator=accelerator,
         devices=devices,
         logger=logger,
     )
 
     # Using the keyword ckpt_path="last" tells the trainer to resume from the last
-    # checkpoint, or to start from scratch if none exist.
+    # checkpoint, or to start from scratch if none exists.
     trainer.fit(model, datamodule=datamodule, ckpt_path='last')
 
     # By convention, it is assumed that the metric to be reported is the early stopping metric.
