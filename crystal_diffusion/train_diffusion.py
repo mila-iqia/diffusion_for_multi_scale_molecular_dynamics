@@ -6,15 +6,17 @@ import shutil
 import sys
 import typing
 
-import orion
 import pytorch_lightning as pl
 import yaml
-from orion.client import report_results
 from yaml import load
 
 from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
+from crystal_diffusion.main_utils import (MetricResult,
+                                          get_crash_metric_result,
+                                          get_optimized_metric_name_and_mode,
+                                          report_to_orion_if_on)
 from crystal_diffusion.models.model_loader import load_diffusion_model
 from crystal_diffusion.utils.file_utils import rsync_folder
 from crystal_diffusion.utils.hp_utils import check_and_log_hp
@@ -127,46 +129,34 @@ def run(args, output_dir, hyper_params):
 
     model = load_diffusion_model(hyper_params)
 
-    train(model=model,
-          datamodule=datamodule,
-          output=output_dir,
-          hyper_params=hyper_params,
-          use_progress_bar=not args.disable_progressbar,
-          accelerator=args.accelerator,
-          devices=args.devices)
+    try:
+        metric_result = train(model=model,
+                              datamodule=datamodule,
+                              output=output_dir,
+                              hyper_params=hyper_params,
+                              use_progress_bar=not args.disable_progressbar,
+                              accelerator=args.accelerator,
+                              devices=args.devices)
+        run_time_error = None
+    except RuntimeError as err:
+        run_time_error = err
+        logger.error(err)
+        metric_result = get_crash_metric_result(hyper_params)
 
     # clean up the data cache to save disk space
     datamodule.clean_up()
 
-
-def train(**kwargs):  # pragma: no cover
-    """Training loop wrapper. Used to catch exception if Orion is being used."""
-    try:
-        best_dev_metric = train_impl(**kwargs)
-    except RuntimeError as err:
-        if orion.client.cli.IS_ORION_ON and 'CUDA out of memory' in str(err):
-            logger.error(err)
-            logger.error('model was out of memory - assigning a bad score to tell Orion to avoid'
-                         'too big model')
-            best_dev_metric = -999
-        else:
-            raise err
-
-    report_results([dict(
-        name='dev_metric',
-        type='objective',
-        # note the minus - cause orion is always trying to minimize (cit. from the guide)
-        value=-float(best_dev_metric))])
+    report_to_orion_if_on(metric_result, run_time_error)
 
 
-def train_impl(model,
-               datamodule,
-               output: str,
-               hyper_params: typing.Dict[typing.AnyStr, typing.Any],
-               use_progress_bar: bool,
-               accelerator=None,
-               devices=None
-               ):  # pragma: no cover
+def train(model,
+          datamodule,
+          output: str,
+          hyper_params: typing.Dict[typing.AnyStr, typing.Any],
+          use_progress_bar: bool,
+          accelerator=None,
+          devices=None
+          ):
     """Train a model: main training loop implementation.
 
     Args:
@@ -200,15 +190,22 @@ def train_impl(model,
         logger=logger,
     )
 
-    trainer.fit(model, datamodule=datamodule)
+    # Using the keyword ckpt_path="last" tells the trainer to resume from the last
+    # checkpoint, or to start from scratch if none exist.
+    trainer.fit(model, datamodule=datamodule, ckpt_path='last')
 
-    # Log the best result and associated hyper parameters
+    # By convention, it is assumed that the metric to be reported is the early stopping metric.
     if 'early_stopping' in callbacks_dict:
         early_stopping = callbacks_dict['early_stopping']
-        best_dev_result = float(early_stopping.best_score.cpu().numpy())
-        logger.log_hyperparams(hyper_params, metrics={'best_dev_metric': best_dev_result})
+        best_value = float(early_stopping.best_score.cpu().numpy())
 
-    return best_dev_result
+        metric_name, mode = get_optimized_metric_name_and_mode(hyper_params)
+        logger.log_hyperparams(hyper_params, metrics={metric_name: best_value})
+        metric_result = MetricResult(report=True, metric_name=metric_name, mode=mode, metric_value=best_value)
+    else:
+        metric_result = MetricResult(report=False)
+
+    return metric_result
 
 
 if __name__ == '__main__':
