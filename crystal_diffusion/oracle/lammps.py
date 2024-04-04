@@ -1,5 +1,6 @@
 """Call LAMMPS to get the forces and energy in a given configuration."""
 import os
+from pathlib import Path
 from typing import Dict, Tuple
 
 import lammps
@@ -16,7 +17,7 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
                                       atom_types: np.ndarray,
                                       atom_type_map: Dict[int, str] = {1: 'Si'},
                                       tmp_work_dir: str = './',
-                                      pair_coeff_dir: str = DATA_DIR) -> Tuple[float, pd.DataFrame]:
+                                      pair_coeff_dir: Path = DATA_DIR) -> Tuple[float, pd.DataFrame]:
     """Call LAMMPS to compute the forces on all atoms in a configuration.
 
     Args:
