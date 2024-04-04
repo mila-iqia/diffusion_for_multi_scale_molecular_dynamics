@@ -1,5 +1,6 @@
+"""Call LAMMPS to get the forces and energy in a given configuration."""
 import os
-from typing import Dict
+from typing import Dict, Tuple
 
 import lammps
 import numpy as np
@@ -10,12 +11,12 @@ from pymatgen.core import Element
 from crystal_diffusion import DATA_DIR
 
 
-def get_forces_from_lammps(positions: np.ndarray,
-                           box: np.ndarray,
-                           atom_types: np.ndarray,
-                           atom_type_map: Dict[int, str] = {1: 'Si'},
-                           tmp_work_dir: str = './',
-                           pair_coeff_dir: str = DATA_DIR) -> pd.DataFrame:
+def get_energy_and_forces_from_lammps(positions: np.ndarray,
+                                      box: np.ndarray,
+                                      atom_types: np.ndarray,
+                                      atom_type_map: Dict[int, str] = {1: 'Si'},
+                                      tmp_work_dir: str = './',
+                                      pair_coeff_dir: str = DATA_DIR) -> Tuple[float, pd.DataFrame]:
     """Call LAMMPS to compute the forces on all atoms in a configuration.
 
     Args:
@@ -28,6 +29,7 @@ def get_forces_from_lammps(positions: np.ndarray,
         pair_coeff_dir (optional): directory where the potentials as .sw files are stored. Defaults to DATA_DIR
 
     Returns:
+        energy
         dataframe with x, y, z coordinates and fx, fy, fz information in a dataframe.
     """
     n_atom = positions.shape[0]
@@ -51,6 +53,12 @@ def get_forces_from_lammps(positions: np.ndarray,
     with open(os.path.join(tmp_work_dir, "dump.yaml"), "r") as f:
         dump_yaml = yaml.safe_load_all(f)
         doc = next(iter(dump_yaml))
-    os.remove(os.path.join(tmp_work_dir, "dump.yaml"))  # no need to keep the output as arteface
+    os.remove(os.path.join(tmp_work_dir, "dump.yaml"))  # no need to keep the output as artefact
     forces = pd.DataFrame(doc['data'], columns=doc['keywords']).sort_values("id")  # organize in a dataframe
-    return forces
+
+    # get the energy
+    ke = lmp.get_thermo('ke')  # kinetic energy - should be 0 as atoms are created with 0 velocity
+    pe = lmp.get_thermo('pe')  # potential energy
+    energy = ke + pe
+
+    return energy, forces
