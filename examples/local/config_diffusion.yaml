@@ -1,0 +1,34 @@
+# general
+loss: cross_entropy
+max_epoch: 5
+exp_name: exp_example
+# set to null to avoid setting a seed (can speed up GPU computation, but
+# results will not be reproducible)
+seed: 1234
+
+# data
+data:
+  batch_size: 32
+  num_workers: 0
+  max_atom: 512
+
+# architecture
+spatial_dimension: 3
+model:
+  score_network:
+    hidden_dimensions: [16, 16]  # dimensions of the hidden layers. Length of array determines number of layers
+  noise:
+    total_time_steps: 10
+    sigma_min: 0.005  # default value
+    sigma_max: 0.5  # default value
+
+# optimizer
+optimizer:
+  name: adam
+  learning_rate: 0.001
+
+# early stopping
+early_stopping:
+  metric: val_loss
+  mode: min
+  patience: 3
