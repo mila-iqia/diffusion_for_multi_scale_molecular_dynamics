@@ -29,6 +29,8 @@ def create_all_callbacks(hyper_params: Dict[AnyStr, Any], output_directory: str,
     all_callbacks_dict = dict()
 
     for callback_name, instantiate_callback in CALLBACK_DICTIONARY.items():
+        if callback_name not in hyper_params:
+            continue
         callback_params = hyper_params[callback_name]
         callback_dict = instantiate_callback(callback_params, output_directory, verbose)
         all_callbacks_dict.update(callback_dict)

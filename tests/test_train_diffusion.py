@@ -13,6 +13,7 @@ import pytest
 import yaml
 
 from crystal_diffusion import train_diffusion
+from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
 from crystal_diffusion.callbacks.standard_callbacks import (BEST_MODEL_NAME,
                                                             LAST_MODEL_NAME)
 
@@ -135,9 +136,16 @@ class TestMain:
     def run_main(self, args, mock_get_lammps_output_method):
         train_diffusion.main(args)
 
+    @pytest.fixture()
+    def callback_dictionary(self, config, paths):
+        return create_all_callbacks(hyper_params=config, output_directory=paths['output'], verbose=False)
+
     def test_checkpoint_callback(self, paths):
         best_model_path = os.path.join(paths['output'], BEST_MODEL_NAME)
         last_model_path = os.path.join(paths['output'], LAST_MODEL_NAME)
 
         for model_path in [best_model_path, last_model_path]:
             assert len(glob.glob(model_path + '/*.ckpt')) == 1
+
+    def test_restart(self, run_main, args, mock_get_lammps_output_method):
+        train_diffusion.main(args)
