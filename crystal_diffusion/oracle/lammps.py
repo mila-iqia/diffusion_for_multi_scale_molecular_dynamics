@@ -36,6 +36,7 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
     n_atom = positions.shape[0]
     assert atom_types.shape == (n_atom, ), f"Atom types should match the number of atoms. Got {atom_types.shape}."
     lmp = lammps.lammps()  # create a lammps run
+    assert np.allclose(box, np.diag(np.diag(box))), "only orthogonal LAMMPS box are valid"
     lmp.command(f"region simbox block 0 {box[0, 0]} 0 {box[1, 1]} 0 {box[2, 2]}")  # TODO what if box is not orthogonal
     lmp.command("create_box 1 simbox")
     lmp.command("pair_style sw")
