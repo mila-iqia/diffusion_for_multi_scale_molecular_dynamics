@@ -5,6 +5,7 @@ import os
 import shutil
 import typing
 
+import numpy as np
 import pytorch_lightning
 import pytorch_lightning as pl
 import yaml
@@ -187,7 +188,7 @@ def train(model,
                                f"not implemented for logger {pl_logger.__class__}")
         metric_result = MetricResult(report=True, metric_name=metric_name, mode=mode, metric_value=best_value)
     else:
-        metric_result = MetricResult(report=False)
+        metric_result = MetricResult(report=False, metric_name=None, mode=None, metric_value=np.NaN)
 
     return metric_result
 
