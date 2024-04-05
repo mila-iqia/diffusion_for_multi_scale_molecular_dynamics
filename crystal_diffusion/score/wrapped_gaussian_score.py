@@ -32,8 +32,8 @@ from typing import Optional
 import numpy as np
 import torch
 
-SIGMA_THRESHOLD = 1.0 / np.sqrt(2.0 * np.pi)
-U_THRESHOLD = 0.5
+SIGMA_THRESHOLD = torch.Tensor([1.0 / np.sqrt(2.0 * np.pi)])
+U_THRESHOLD = torch.Tensor([0.5])
 
 
 def get_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Optional[int] = None) -> float:
@@ -124,7 +124,8 @@ def get_sigma_normalized_score(
     for mask_calculator, score_calculator in zip(mask_calculators, score_calculators):
         mask = mask_calculator(list_u, list_sigma)
         if mask.any():
-            flat_view[mask] = score_calculator(list_u[mask], list_sigma[mask], list_k)
+            device = flat_view.device
+            flat_view[mask] = score_calculator(list_u[mask], list_sigma.to(device)[mask], list_k.to(device))
 
     return sigma_normalized_scores
 
@@ -139,7 +140,8 @@ def _get_small_sigma_small_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor
     Returns:
         mask_1a : an array of booleans of shape [Nu]
     """
-    return torch.logical_and(list_sigma <= SIGMA_THRESHOLD, list_u < U_THRESHOLD)
+    device = list_u.device
+    return torch.logical_and(list_sigma.to(device) <= SIGMA_THRESHOLD.to(device), list_u < U_THRESHOLD.to(device))
 
 
 def _get_small_sigma_large_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> torch.Tensor:
@@ -152,7 +154,8 @@ def _get_small_sigma_large_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor
     Returns:
         mask_1b : an array of booleans of shape [Nu]
     """
-    return torch.logical_and(list_sigma <= SIGMA_THRESHOLD, list_u >= U_THRESHOLD)
+    device = list_u.device
+    return torch.logical_and(list_sigma.to(device) <= SIGMA_THRESHOLD.to(device), list_u >= U_THRESHOLD.to(device))
 
 
 def _get_large_sigma_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> torch.Tensor:
