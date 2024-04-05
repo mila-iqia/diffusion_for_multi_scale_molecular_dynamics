@@ -49,9 +49,9 @@ def get_crash_metric_result(hyper_params: Dict[AnyStr, Any]) -> MetricResult:
     metric_name, mode = get_optimized_metric_name_and_mode(hyper_params)
 
     if metric_name is None:
-        return MetricResult(report=False)
+        return MetricResult(report=False, metric_name=None, mode=None, metric_value=np.NaN)
     else:
-        return MetricResult(report=True, metric_name=metric_name, mode=mode)
+        return MetricResult(report=True, metric_name=metric_name, mode=mode, metric_value=np.NaN)
 
 
 def get_name_and_sign_of_orion_optimization_objective(metric_name: str, mode: str) -> Tuple[str, int]:
