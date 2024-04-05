@@ -13,6 +13,7 @@ from yaml import load
 from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
+from crystal_diffusion.loggers.logger_loader import create_all_loggers
 from crystal_diffusion.main_utils import (MetricResult,
                                           get_crash_metric_result,
                                           get_optimized_metric_name_and_mode,
@@ -170,23 +171,15 @@ def train(model,
     """
     check_and_log_hp(['max_epoch'], hyper_params)
 
-    # TODO pl Trainer does not use the kwarg resume_from_checkpoint now - check about resume training works now
-    # resume_from_checkpoint = handle_previous_models(output, last_model_path, best_model_path)
-
     callbacks_dict = create_all_callbacks(hyper_params, output, verbose=use_progress_bar)
-
-    logger = pl.loggers.TensorBoardLogger(
-        save_dir=output,
-        default_hp_metric=False,
-        version=0,  # Necessary to resume tensorboard logging
-    )
+    pl_loggers = create_all_loggers(hyper_params, output)
 
     trainer = pl.Trainer(
         callbacks=list(callbacks_dict.values()),
         max_epochs=hyper_params['max_epoch'],
         accelerator=accelerator,
         devices=devices,
-        logger=logger,
+        logger=pl_loggers,
     )
 
     # Using the keyword ckpt_path="last" tells the trainer to resume from the last
@@ -199,7 +192,12 @@ def train(model,
         best_value = float(early_stopping.best_score.cpu().numpy())
 
         metric_name, mode = get_optimized_metric_name_and_mode(hyper_params)
-        logger.log_hyperparams(hyper_params, metrics={metric_name: best_value})
+        for pl_logger in pl_loggers:
+            try:
+                pl_logger.log_hyperparams(hyper_params, metrics={metric_name: best_value})
+            except TypeError:
+                logger.warning(f"Logging metrics and hyperparameters is "
+                               f"not implemented for logger {pl_logger.__class__}")
         metric_result = MetricResult(report=True, metric_name=metric_name, mode=mode, metric_value=best_value)
     else:
         metric_result = MetricResult(report=False)
