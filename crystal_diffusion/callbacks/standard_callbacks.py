@@ -1,10 +1,10 @@
-import glob
 import logging
 import os
 from typing import Any, AnyStr, Dict
 
 from pytorch_lightning import Callback
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import (EarlyStopping, ModelCheckpoint,
+                                         RichProgressBar)
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +48,11 @@ def instantiate_model_checkpoint_callbacks(callback_params: Dict[AnyStr, Any],
     return dict(best_checkpoint=best_checkpoint_callback, last_checkpoint=last_checkpoint_callback)
 
 
-def handle_previous_models(output, last_model_path, best_model_path):
-    """Move the previous models in a new timestamp folder."""
-    # TODO: fix this method.
-    last_models = glob.glob(last_model_path + os.sep + '*')
-
-    if len(last_models) >= 1:
-        resume_from_checkpoint = sorted(last_models)[-1]
-        logger.info(f'models found - resuming from {resume_from_checkpoint}')
-    else:
-        logger.info('no model found - starting training from scratch')
-        resume_from_checkpoint = None
-    return resume_from_checkpoint
+class CustomProgressBar(RichProgressBar):
+    """A custom progress bar based on Rich that doesn't log the v_num stuff."""
+    def get_metrics(self, *args, **kwargs):
+        """Get metrics."""
+        # don't show the version number
+        items = super().get_metrics(*args, **kwargs)
+        items.pop("v_num", None)
+        return items

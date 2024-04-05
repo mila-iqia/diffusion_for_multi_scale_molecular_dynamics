@@ -3,11 +3,11 @@ from typing import Any, AnyStr, Dict
 from pytorch_lightning import Callback
 
 from crystal_diffusion.callbacks.standard_callbacks import (
-    instantiate_early_stopping_callback,
+    CustomProgressBar, instantiate_early_stopping_callback,
     instantiate_model_checkpoint_callbacks)
 
-CALLBACK_DICTIONARY = dict(early_stopping=instantiate_early_stopping_callback,
-                           model_checkpoint=instantiate_model_checkpoint_callbacks)
+OPTIONAL_CALLBACK_DICTIONARY = dict(early_stopping=instantiate_early_stopping_callback,
+                                    model_checkpoint=instantiate_model_checkpoint_callbacks)
 
 
 def create_all_callbacks(hyper_params: Dict[AnyStr, Any], output_directory: str, verbose: bool) -> Dict[str, Callback]:
@@ -26,9 +26,9 @@ def create_all_callbacks(hyper_params: Dict[AnyStr, Any], output_directory: str,
     Returns:
         all_callbacks_dict: a dictionary of instantiated callbacks with relevant names as keys.
     """
-    all_callbacks_dict = dict()
+    all_callbacks_dict = dict(progress_bar=CustomProgressBar())
 
-    for callback_name, instantiate_callback in CALLBACK_DICTIONARY.items():
+    for callback_name, instantiate_callback in OPTIONAL_CALLBACK_DICTIONARY.items():
         if callback_name not in hyper_params:
             continue
         callback_params = hyper_params[callback_name]
