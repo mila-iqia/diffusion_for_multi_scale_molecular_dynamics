@@ -99,9 +99,9 @@ def sample_coordinates(box_coordinates):
     # Sample data frame
     return pd.DataFrame({
         'box': [box_coordinates],
-        'x': [[60, 6, 0.6, 0.06]],
-        'y': [[120, 12, 1.2, 0.12]],
-        'z': [[180, 18, 1.8, 0.18]]
+        'x': [[0.6, 0.06, 0.006, 0.00006]],
+        'y': [[1.2, 0.12, 0.0012, 0.00012]],
+        'z': [[1.8, 0.18, 0.018, 0.0018]]
     })
 
 
