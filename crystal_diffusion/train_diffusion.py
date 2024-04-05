@@ -163,6 +163,7 @@ def train(model,
     trainer = pl.Trainer(
         callbacks=list(callbacks_dict.values()),
         max_epochs=hyper_params['max_epoch'],
+        log_every_n_steps=hyper_params.get('log_every_n_steps', None),
         accelerator=accelerator,
         devices=devices,
         logger=pl_loggers,
