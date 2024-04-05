@@ -1,6 +1,6 @@
 # general
-loss: cross_entropy
-max_epoch: 5
+max_epoch: 50
+log_every_n_steps: 1
 exp_name: exp_example
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
@@ -8,7 +8,7 @@ seed: 1234
 
 # data
 data:
-  batch_size: 32
+  batch_size: 1024
   num_workers: 0
   max_atom: 512
 
@@ -32,3 +32,6 @@ early_stopping:
   metric: val_loss
   mode: min
   patience: 3
+
+logging:
+  - tensorboard
