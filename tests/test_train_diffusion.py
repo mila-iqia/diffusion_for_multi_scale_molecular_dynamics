@@ -115,7 +115,6 @@ def paths(tmpdir, config, number_of_atoms, random_number_generator):
         # use random names to make sure we didn't accidentally hardcode a folder name.
         directory = os.path.join(tmpdir, f"folder{random_number_generator.integers(99999999)}")
         paths[directory_name] = directory
-        os.makedirs(directory)
 
     # dump some fake data into the appropriate folder.
     raw_data_directory = paths['data']
@@ -128,7 +127,6 @@ def paths(tmpdir, config, number_of_atoms, random_number_generator):
             os.makedirs(run_directory)
             df.to_pickle(os.path.join(run_directory, 'fake_data.pickle'))
 
-    paths['log'] = os.path.join(tmpdir, f"file{random_number_generator.integers(99999999)}.log")
     paths['config'] = os.path.join(tmpdir, f"file{random_number_generator.integers(99999999)}.yaml")
 
     with open(paths['config'], 'w') as fd:
@@ -140,8 +138,7 @@ def paths(tmpdir, config, number_of_atoms, random_number_generator):
 @pytest.fixture()
 def args(paths):
     """Input arguments for main."""
-    input_args = [f"--log={paths['log']}",
-                  f"--config={paths['config']}",
+    input_args = [f"--config={paths['config']}",
                   f"--data={paths['data']}",
                   f"--processed_datadir={paths['processed_datadir']}",
                   f"--dataset_working_dir={paths['dataset_working_dir']}",

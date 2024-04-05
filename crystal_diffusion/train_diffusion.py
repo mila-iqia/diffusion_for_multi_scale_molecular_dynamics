@@ -3,9 +3,9 @@ import argparse
 import logging
 import os
 import shutil
-import sys
 import typing
 
+import pytorch_lightning
 import pytorch_lightning as pl
 import yaml
 from yaml import load
@@ -21,8 +21,8 @@ from crystal_diffusion.main_utils import (MetricResult,
 from crystal_diffusion.models.model_loader import load_diffusion_model
 from crystal_diffusion.utils.file_utils import rsync_folder
 from crystal_diffusion.utils.hp_utils import check_and_log_hp
-from crystal_diffusion.utils.logging_utils import log_exp_details
-from crystal_diffusion.utils.reproducibility_utils import set_seed
+from crystal_diffusion.utils.logging_utils import (log_exp_details,
+                                                   setup_console_logger)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,6 @@ def main(args: typing.Optional[typing.Any] = None):
     """
     parser = argparse.ArgumentParser()
     # __TODO__ check you need all the following CLI parameters
-    parser.add_argument('--log', help='log to this file (in addition to stdout/err)')
     parser.add_argument('--config',
                         help='config file with generic hyper-parameters,  such as optimizer, '
                              'batch_size, ... -  in yaml format')
@@ -55,19 +54,21 @@ def main(args: typing.Optional[typing.Any] = None):
                         help='will not load any existing saved model - even if present')
     parser.add_argument('--accelerator', help='PL trainer accelerator. Defaults to auto.', default='auto')
     parser.add_argument('--devices', default=1, help='pytorch-lightning devices kwarg. Defaults to 1.')
-    parser.add_argument('--debug', action='store_true')  # TODO not used yet
     args = parser.parse_args(args)
 
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-
     if os.path.exists(args.output) and args.start_from_scratch:
-        logger.info('Starting from scratch, removing any previous experiments.')
+        first_logging_message = "Previous experiment found: starting from scratch, removing any previous experiments."
         shutil.rmtree(args.output)
-
-    if os.path.exists(args.output):
-        logger.info("Previous experiment found, resuming from checkpoint")
+    elif os.path.exists(args.output):
+        first_logging_message = "Previous experiment found: resuming from checkpoint"
     else:
+        first_logging_message = "NO previous experiment found: starting from scratch"
         os.makedirs(args.output)
+
+    # Very opinionated logger, which writes to the output folder.
+    setup_console_logger(experiment_dir=args.output)
+    logger.info(first_logging_message)
+    log_exp_details(os.path.realpath(__file__), args)
 
     if args.tmp_folder is not None:
         # TODO data rsync to tmp_folder
@@ -77,20 +78,13 @@ def main(args: typing.Optional[typing.Any] = None):
     else:
         output_dir = args.output
 
-    # will log to a file if provided (useful for orion on cluster)
-    if args.log is not None:
-        handler = logging.handlers.WatchedFileHandler(args.log)
-        formatter = logging.Formatter(logging.BASIC_FORMAT)
-        handler.setFormatter(formatter)
-        root = logging.getLogger()
-        root.setLevel(logging.INFO)
-        root.addHandler(handler)
-
     if args.config is not None:
         with open(args.config, 'r') as stream:
             hyper_params = load(stream, Loader=yaml.FullLoader)
     else:
         hyper_params = {}
+
+    logger.info("Input hyper-parameters:\n" + yaml.dump(hyper_params, allow_unicode=True, default_flow_style=False))
 
     run(args, output_dir, hyper_params)
 
@@ -108,16 +102,8 @@ def run(args, output_dir, hyper_params):
     """
     # __TODO__ change the hparam that are used from the training algorithm
     # (and NOT the model - these will be specified in the model itself)
-    logger.info('List of hyper-parameters:')
-    check_and_log_hp(
-        ['model', 'data', 'exp_name', 'max_epoch', 'optimizer', 'seed',
-         'early_stopping'],
-        hyper_params)
-
     if hyper_params["seed"] is not None:
-        set_seed(hyper_params["seed"])
-
-    log_exp_details(os.path.realpath(__file__), args)
+        pytorch_lightning.seed_everything(hyper_params["seed"])
 
     data_params = LammpsLoaderParameters(**hyper_params['data'])
 
