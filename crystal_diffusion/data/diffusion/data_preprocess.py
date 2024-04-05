@@ -66,7 +66,7 @@ class LammpsProcessorForDiffusion:
         """
         x_lim, y_lim, z_lim = row['box']
         coord_red = [coord for triple in zip(row['x'], row['y'], row['z']) for coord in
-                     (triple[0] / x_lim, triple[1] / y_lim, triple[2] / z_lim)]
+                     ((triple[0] / x_lim) % 1, (triple[1] / y_lim) % 1, (triple[2] / z_lim) % 1)]
         return coord_red
 
     def get_x_relative(self, df: pd.DataFrame) -> pd.DataFrame:
