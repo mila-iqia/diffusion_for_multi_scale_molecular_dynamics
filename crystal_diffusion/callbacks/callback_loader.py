@@ -13,8 +13,8 @@ OPTIONAL_CALLBACK_DICTIONARY = dict(early_stopping=instantiate_early_stopping_ca
 def create_all_callbacks(hyper_params: Dict[AnyStr, Any], output_directory: str, verbose: bool) -> Dict[str, Callback]:
     """Create all callbacks.
 
-    This method leverages the global dictionary CALLBACK_DICTIONARY which should be used to
-    register all available callbacks and provide a standardized interface to intialize the callbacks.
+    This method leverages the global dictionary OPTIONAL_CALLBACK_DICTIONARY which should be used to
+    register all available optional callbacks and provide a standardized interface to intialize these callbacks.
 
     The instantiation methods can define sane defaults or hardcode constant choices.
 
@@ -26,6 +26,7 @@ def create_all_callbacks(hyper_params: Dict[AnyStr, Any], output_directory: str,
     Returns:
         all_callbacks_dict: a dictionary of instantiated callbacks with relevant names as keys.
     """
+    # We always need a progress bar.
     all_callbacks_dict = dict(progress_bar=CustomProgressBar())
 
     for callback_name, instantiate_callback in OPTIONAL_CALLBACK_DICTIONARY.items():
