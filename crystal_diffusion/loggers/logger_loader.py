@@ -20,6 +20,7 @@ def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -
 
     for logger_name in hyper_params.get('logging', []):
 
+        # TODO: add comet when we get accounts going!
         match logger_name:
             case "csv":
                 logger = CSVLogger(save_dir=output_directory)
