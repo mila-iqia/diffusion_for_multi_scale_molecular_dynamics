@@ -1,6 +1,9 @@
 import logging
 import os
 import socket
+import sys
+from logging import StreamHandler
+from logging.handlers import WatchedFileHandler
 
 from git import InvalidGitRepositoryError, Repo
 from pip._internal.operations import freeze
@@ -8,7 +11,43 @@ from pip._internal.operations import freeze
 logger = logging.getLogger(__name__)
 
 
-class LoggerWriter:  # pragma: no cover
+def setup_console_logger(experiment_dir: str):
+    """Set up the console logger.
+
+    This method sets up logging for analysis scripts. It is very opinionated about how to log:
+        - Always log to a file, with a fixed name, in the experiment_dir folder.
+        - Always log to console as well.
+
+    Args:
+        experiment_dir : directory where the logging file will be written.
+
+    Returns:
+        no output.
+    """
+    logging_format = "%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s"
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+
+    # Remove stale handlers. Stale handlers can occur when this setup method is called multiple times,
+    # in tests for examples.
+    for handler in root.handlers:
+        if type(handler) is WatchedFileHandler or type(handler) is StreamHandler:
+            root.removeHandler(handler)
+
+    console_log_file = os.path.join(experiment_dir, "console.log")
+    formatter = logging.Formatter(logging_format)
+
+    file_handler = WatchedFileHandler(console_log_file)
+    stream_handler = StreamHandler(stream=sys.stdout)
+
+    list_handlers = [file_handler, stream_handler]
+
+    for handler in list_handlers:
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+
+
+class LoggerWriter:
     """LoggerWriter.
 
     see: https://stackoverflow.com/questions/19425736/
@@ -38,7 +77,7 @@ class LoggerWriter:  # pragma: no cover
         pass
 
 
-def get_git_hash(script_location):  # pragma: no cover
+def get_git_hash(script_location):
     """Find the git hash for the running repository.
 
     :param script_location: (str) path to the script inside the git repos we want to find.
@@ -55,7 +94,7 @@ def get_git_hash(script_location):  # pragma: no cover
     return commit_hash
 
 
-def log_exp_details(script_location, args):  # pragma: no cover
+def log_exp_details(script_location, args):
     """Will log the experiment details to both screen logger and mlflow.
 
     :param script_location: (str) path to the script inside the git repos we want to find.

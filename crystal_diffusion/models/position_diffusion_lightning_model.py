@@ -204,7 +204,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """Runs a prediction step for training, returning the loss."""
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, prog_bar=True)
         self.log("epoch", self.current_epoch)
         self.log("step", self.global_step)
         return output
@@ -213,7 +213,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """Runs a prediction step for validation, logging the loss."""
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
-        self.log("val_loss", loss)
+        self.log("val_loss", loss, prog_bar=True)
         return output
 
     def test_step(self, batch, batch_idx):
