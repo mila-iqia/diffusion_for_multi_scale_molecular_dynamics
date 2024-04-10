@@ -1,6 +1,7 @@
 from typing import Any, AnyStr, Dict, List
 
-from pytorch_lightning.loggers import CSVLogger, Logger, TensorBoardLogger
+from pytorch_lightning.loggers import (CometLogger, CSVLogger, Logger,
+                                       TensorBoardLogger)
 
 
 def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -> List[Logger]:
@@ -20,7 +21,6 @@ def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -
 
     for logger_name in hyper_params.get('logging', []):
 
-        # TODO: add comet when we get accounts going!
         match logger_name:
             case "csv":
                 logger = CSVLogger(save_dir=output_directory)
@@ -29,6 +29,12 @@ def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -
                                            default_hp_metric=False,
                                            version=0,  # Necessary to resume tensorboard logging
                                            )
+            case "comet":
+                assert 'exp_name' in hyper_params, "Cannot log to Comet without an 'exp_name'."
+                # The comet logger will read the API key from ~/.comet.logger.
+                logger = CometLogger(project_name='institut-courtois',      # hardcoding the project.
+                                     experiment_name=hyper_params["exp_name"])
+
             case other:
                 raise ValueError(f"Logger {other} is not implemented. Review input")
 
