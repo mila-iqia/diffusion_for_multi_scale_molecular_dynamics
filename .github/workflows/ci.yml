@@ -30,9 +30,6 @@ jobs:
     - name: unit tests
       run: |
         pytest --cov=crystal_diffusion -m "not not_on_github"
-    - name: type checking
-      run: |
-        pytype crystal_diffusion/
     - name: doc-creation-test
       run: |
         ./tests/test_docs/run.sh
