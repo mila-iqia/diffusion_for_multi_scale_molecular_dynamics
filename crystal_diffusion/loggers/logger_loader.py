@@ -79,7 +79,7 @@ def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -
                 logger = CometLogger(project_name='institut-courtois',      # hardcoding the project.
                                      save_dir=output_directory,
                                      experiment_key=experiment_key,
-                                     experiment_name=experiment_name)
+                                     experiment_name=full_run_name)
                 if experiment_key is None:
                     experiment_key = logger.version
                     write_comet_experiment_key(experiment_key=experiment_key,
