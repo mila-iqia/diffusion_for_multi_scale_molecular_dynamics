@@ -60,6 +60,7 @@ def main(args: typing.Optional[typing.Any] = None):
     if os.path.exists(args.output) and args.start_from_scratch:
         first_logging_message = "Previous experiment found: starting from scratch, removing any previous experiments."
         shutil.rmtree(args.output)
+        os.makedirs(args.output)
     elif os.path.exists(args.output):
         first_logging_message = "Previous experiment found: resuming from checkpoint"
     else:
@@ -165,6 +166,7 @@ def train(model,
         callbacks=list(callbacks_dict.values()),
         max_epochs=hyper_params['max_epoch'],
         log_every_n_steps=hyper_params.get('log_every_n_steps', None),
+        fast_dev_run=hyper_params.get('fast_dev_run', False),
         accelerator=accelerator,
         devices=devices,
         logger=pl_loggers,
@@ -181,11 +183,8 @@ def train(model,
 
         metric_name, mode = get_optimized_metric_name_and_mode(hyper_params)
         for pl_logger in pl_loggers:
-            try:
-                pl_logger.log_hyperparams(hyper_params, metrics={metric_name: best_value})
-            except TypeError:
-                logger.warning(f"Logging metrics and hyperparameters is "
-                               f"not implemented for logger {pl_logger.__class__}")
+            pl_logger.log_metrics({f"best_{metric_name}": best_value})
+
         metric_result = MetricResult(report=True, metric_name=metric_name, mode=mode, metric_value=best_value)
     else:
         metric_result = MetricResult(report=False, metric_name=None, mode=None, metric_value=np.NaN)
