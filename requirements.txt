@@ -29,4 +29,4 @@ torch==2.2.0
 torchvision>=0.17.0
 matplotlib==3.8.3
 rich==13.7.1
-commet_ml
+comet_ml
