@@ -20,10 +20,10 @@ def get_run_name(hyper_params: Dict[AnyStr, Any]) -> str:
         run_name: the name of the run.
     """
     default_run_name = uuid.uuid4().hex  # will be used in case we've got no other ID...
-    if orion.client.cli.IS_ORION_ON and "run_id" not in hyper_params:
+    if orion.client.cli.IS_ORION_ON and "run_name" not in hyper_params:
         run_name = str(os.getenv("ORION_TRIAL_ID", default=default_run_name))
     else:
-        run_name = str(hyper_params.get("run_id", default_run_name))
+        run_name = str(hyper_params.get("run_name", default_run_name))
     return run_name
 
 
@@ -106,7 +106,7 @@ def write_comet_experiment_key(experiment_key: str, full_run_name: str, output_d
         No returns.
     """
     data = {full_run_name: experiment_key}
-    with open(os.path.join(output_directory, "comet_experiment_key.yaml")) as fd:
+    with open(os.path.join(output_directory, "comet_experiment_key.yaml"), 'w') as fd:
         yaml.dump(data, fd)
 
 
@@ -124,7 +124,7 @@ def read_and_validate_comet_experiment_key(full_run_name: str, output_directory:
     key_file = os.path.join(output_directory, "comet_experiment_key.yaml")
     if os.path.isfile(key_file):
         with open(key_file) as fd:
-            data = yaml.load(fd)
+            data = yaml.load(fd, Loader=yaml.FullLoader)
             assert full_run_name in data, (f"The experiment full name is {full_run_name}; this is not the full name "
                                            f"that was used to initially generate this experiment. "
                                            f"Something is inconsistent and requires a manual fix.")
