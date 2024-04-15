@@ -24,6 +24,8 @@ def setup_console_logger(experiment_dir: str):
     Returns:
         no output.
     """
+    logging.captureWarnings(capture=True)
+
     logging_format = "%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s"
     root = logging.getLogger()
     root.setLevel(logging.INFO)

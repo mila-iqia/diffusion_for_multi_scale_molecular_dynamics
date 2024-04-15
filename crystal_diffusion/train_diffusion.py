@@ -80,6 +80,10 @@ def main(args: typing.Optional[typing.Any] = None):
         output_dir = args.output
 
     if args.config is not None:
+        config_backup_path = os.path.join(output_dir, "config.yaml")
+        logger.info(f"Copying configuration file {args.config} to {config_backup_path}")
+        shutil.copyfile(src=args.config, dst=config_backup_path)
+        logger.info(f"Reading in configuration file {args.config}")
         with open(args.config, 'r') as stream:
             hyper_params = load(stream, Loader=yaml.FullLoader)
     else:
@@ -160,6 +164,8 @@ def train(model,
 
     callbacks_dict = create_all_callbacks(hyper_params, output, verbose=use_progress_bar)
     pl_loggers = create_all_loggers(hyper_params, output)
+    for pl_logger in pl_loggers:
+        pl_logger.log_hyperparams(hyper_params)
 
     trainer = pl.Trainer(
         callbacks=list(callbacks_dict.values()),
