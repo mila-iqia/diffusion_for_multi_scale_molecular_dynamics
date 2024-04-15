@@ -1,9 +1,10 @@
-"""Si diffusion small analysis.
+"""Si diffusion dataset analysis.
 
-A 'small' si dataset was generated in early april, where 'small' means configurations containing only 64 atoms.
-This dataset was processed into parquet files and used to run an experiment by SB on his local machine.
+Si datasets were generated in early april, where 'small' means configurations containing 64 atoms (a 2x2x2 supercell),
+and 1x1x1 means configurations containing only 8 atoms. These datasets were processed into parquet files and used
+to run experiments.
 
-In this script, the energy vs. temperature relationships of this dataset will be analysed starting from the
+In this script, the energy vs. temperature relationships of these datasets will be analysed starting from the
 thermo logs.
 
 It is still early days in the project, so the starting point format for these kinds of analyses is still in flux.
@@ -29,17 +30,23 @@ logger = logging.getLogger(__name__)
 
 #  Taken from this table: http://wild.life.nctu.edu.tw/class/common/energy-unit-conv-table.html
 kelvin_in_ev = 0.0000861705
-number_of_atoms = 64
 
-lammps_dataset_dir = DATA_DIR.joinpath("si_diffusion_small/")
+dataset_name = 'si_diffusion_1x1x1'
 
-cache_dir = ANALYSIS_DIR.joinpath("cache/si_diffusion_small")
+if dataset_name == 'si_diffusion_1x1x1':
+    number_of_atoms = 8
+elif dataset_name == 'si_diffusion_small':
+    number_of_atoms = 64
+
+lammps_dataset_dir = DATA_DIR.joinpath(dataset_name)
+
+cache_dir = ANALYSIS_DIR.joinpath(f"cache/{dataset_name}")
 cache_dir.mkdir(parents=True, exist_ok=True)
 
 if __name__ == '__main__':
     setup_analysis_logger()
 
-    logging.info("Starting Si diffusion small analysis")
+    logging.info(f"Starting {dataset_name} analysis")
 
     list_train_df = []
     list_valid_df = []
@@ -92,7 +99,7 @@ if __name__ == '__main__':
 
     fig1 = plt.figure(figsize=PLEASANT_FIG_SIZE)
 
-    fig1.suptitle('Distributions for dataset si_diffusion_small')
+    fig1.suptitle(f'Distributions for dataset {dataset_name}')
 
     ax1 = fig1.add_subplot(211)
     ax2 = fig1.add_subplot(212)
@@ -123,7 +130,7 @@ if __name__ == '__main__':
     ax2.legend(loc=0)
 
     fig1.tight_layout()
-    fig1.savefig(ANALYSIS_RESULTS_DIR.joinpath("si_diffusion_small_distribution_analysis.png"))
+    fig1.savefig(ANALYSIS_RESULTS_DIR.joinpath(f"{dataset_name}_distribution_analysis.png"))
 
     common_params = dict(density=True, bins=50, histtype="stepfilled", alpha=0.25)
     fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
@@ -170,7 +177,7 @@ if __name__ == '__main__':
     ax3.legend(loc=0)
     ax4.legend(loc=0)
     fig2.tight_layout()
-    fig2.savefig(ANALYSIS_RESULTS_DIR.joinpath("si_diffusion_small_temperature_bins_analysis.png"))
+    fig2.savefig(ANALYSIS_RESULTS_DIR.joinpath(f"{dataset_name}_temperature_bins_analysis.png"))
 
     fig3 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     ax5 = fig3.add_subplot(111)
@@ -185,4 +192,4 @@ if __name__ == '__main__':
     ax5.legend(loc=0)
 
     fig3.tight_layout()
-    fig3.savefig(ANALYSIS_RESULTS_DIR.joinpath("si_diffusion_small_energy_temperature_2D_histogram.png"))
+    fig3.savefig(ANALYSIS_RESULTS_DIR.joinpath(f"{dataset_name}_energy_temperature_2D_histogram.png"))
