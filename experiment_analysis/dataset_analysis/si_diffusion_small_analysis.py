@@ -9,9 +9,7 @@ thermo logs.
 
 It is still early days in the project, so the starting point format for these kinds of analyses is still in flux.
 """
-import glob
 import logging
-import os
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,8 +19,8 @@ import scipy
 from crystal_diffusion import ANALYSIS_RESULTS_DIR, DATA_DIR
 from crystal_diffusion.analysis import (ANALYSIS_DIR, PLEASANT_FIG_SIZE,
                                         PLOT_STYLE_PATH)
-from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_thermo_log
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from experiment_analysis.analysis_utils import get_thermo_dataset
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -48,33 +46,7 @@ if __name__ == '__main__':
 
     logging.info(f"Starting {dataset_name} analysis")
 
-    list_train_df = []
-    list_valid_df = []
-
-    logging.info("Parsing the thermo logs")
-
-    run_directories = glob.glob(str(lammps_dataset_dir.joinpath('*_run_*')))
-
-    for run_directory in run_directories:
-        basename = os.path.basename(run_directory)
-        pickle_path = cache_dir.joinpath(f"{basename}.pkl")
-        if os.path.isfile(pickle_path):
-            logging.info(f"Pickle file {pickle_path} exists. Reading in...")
-        else:
-            logging.info(f"Pickle file {pickle_path} does not exist: creating...")
-            lammps_thermo_log = lammps_dataset_dir.joinpath(f"{basename}/lammps_thermo.yaml")
-            df = pd.DataFrame(parse_lammps_thermo_log(lammps_thermo_log))
-            df.to_pickle(pickle_path)
-            logging.info("Done creating pickle file")
-
-        df = pd.read_pickle(pickle_path)
-        if 'train' in basename:
-            list_train_df.append(df)
-        else:
-            list_valid_df.append(df)
-
-    train_df = pd.concat(list_train_df)
-    valid_df = pd.concat(list_valid_df)
+    train_df, valid_df = get_thermo_dataset(dataset_name)
 
     temperatures = train_df['temperature'].values  # Kelvin
     mu_temp = np.mean(temperatures)
