@@ -37,6 +37,10 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
     assert atom_types.shape == (n_atom, ), f"Atom types should match the number of atoms. Got {atom_types.shape}."
     lmp = lammps.lammps()  # create a lammps run
     assert np.allclose(box, np.diag(np.diag(box))), "only orthogonal LAMMPS box are valid"
+
+    lmp.command("units metal")
+    lmp.command("atom_style atomic")
+
     lmp.command(f"region simbox block 0 {box[0, 0]} 0 {box[1, 1]} 0 {box[2, 2]}")  # TODO what if box is not orthogonal
     lmp.command("create_box 1 simbox")
     lmp.command("pair_style sw")
@@ -52,7 +56,7 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
     lmp.command(f"dump 1 all yaml 1 {os.path.join(tmp_work_dir, 'dump.yaml')} id type x y z fx fy fz")
     lmp.command("run 0")  # 0 is the last step index - so run 0 means no MD update - just get the initial forces
 
-    # read informations from lammps output
+    # read information from lammps output
     with open(os.path.join(tmp_work_dir, "dump.yaml"), "r") as f:
         dump_yaml = yaml.safe_load_all(f)
         doc = next(iter(dump_yaml))
