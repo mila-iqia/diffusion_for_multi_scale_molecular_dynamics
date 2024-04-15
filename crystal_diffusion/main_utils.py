@@ -38,7 +38,7 @@ def get_optimized_metric_name_and_mode(hyper_params: Dict[AnyStr, Any]) -> Tuple
 def get_crash_metric_result(hyper_params: Dict[AnyStr, Any]) -> MetricResult:
     """Get crash metric result.
 
-    Produce a MetricResult object that is appropriate for reporting when there is a run time error during training..
+    Produce a MetricResult object that is appropriate for reporting when there is a run time error during training.
 
     Args:
         hyper_params : Dict containing hyper-parameters.
@@ -82,7 +82,7 @@ def get_name_and_sign_of_orion_optimization_objective(metric_name: str, mode: st
 
 
 def report_to_orion_if_on(metric_result: MetricResult, run_time_error: Union[None, RuntimeError]):
-    """Report to orion if on.
+    """Report to Orion if on.
 
     This function manages how to report the metric to Orion. If Orion is not turned on, or if there
     is nothing to report, this method has no effect.
