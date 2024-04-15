@@ -17,8 +17,7 @@ import pandas as pd
 import scipy
 
 from crystal_diffusion import ANALYSIS_RESULTS_DIR, DATA_DIR
-from crystal_diffusion.analysis import (ANALYSIS_DIR, PLEASANT_FIG_SIZE,
-                                        PLOT_STYLE_PATH)
+from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 from experiment_analysis.analysis_utils import get_thermo_dataset
 
@@ -37,9 +36,6 @@ elif dataset_name == 'si_diffusion_small':
     number_of_atoms = 64
 
 lammps_dataset_dir = DATA_DIR.joinpath(dataset_name)
-
-cache_dir = ANALYSIS_DIR.joinpath(f"cache/{dataset_name}")
-cache_dir.mkdir(parents=True, exist_ok=True)
 
 if __name__ == '__main__':
     setup_analysis_logger()
