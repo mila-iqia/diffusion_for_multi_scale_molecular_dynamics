@@ -85,7 +85,8 @@ class TestPredictorCorrectorPositionSampler:
 @pytest.mark.parametrize("total_time_steps", [1, 5, 10])
 @pytest.mark.parametrize("number_of_corrector_steps", [0, 1, 2])
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
-@pytest.mark.parametrize("hidden_dimensions", [[8, 16, 32]])
+@pytest.mark.parametrize("n_hidden_dimensions", 3)
+@pytest.mark.parametrize("hidden_dimensions_size", 16)
 @pytest.mark.parametrize("number_of_atoms", [8])
 @pytest.mark.parametrize("time_delta", [0.1])
 @pytest.mark.parametrize("sigma_min", [0.15])
@@ -94,12 +95,13 @@ class TestPredictorCorrectorPositionSampler:
 class TestAnnealedLangevinDynamics:
     @pytest.fixture()
     def sigma_normalized_score_network(
-        self, number_of_atoms, spatial_dimension, hidden_dimensions
+        self, number_of_atoms, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size
     ):
         hyper_params = MLPScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
-            hidden_dimensions=hidden_dimensions,
+            n_hidden_dimensions=n_hidden_dimensions,
+            hidden_dimensions_size=hidden_dimensions_size
         )
         return MLPScoreNetwork(hyper_params)
 

@@ -62,7 +62,8 @@ def get_fake_configuration_dataframe(number_of_configurations, number_of_atoms):
 def get_config(number_of_atoms: int, max_epoch: int):
     data_config = dict(batch_size=4, num_workers=0, max_atom=number_of_atoms)
 
-    model_config = dict(score_network={'hidden_dimensions': [16, 16]},
+    model_config = dict(score_network={'n_hidden_dimensions': 2,
+                                       'hidden_dimensions_size': 16},
                         noise={'total_time_steps': 10})
 
     optimizer_config = dict(name='adam', learning_rate=0.001)
