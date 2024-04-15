@@ -1,12 +1,16 @@
+import logging
 from abc import ABC, abstractmethod
 
 import torch
+from tqdm import tqdm
 
 from crystal_diffusion.models.score_network import ScoreNetwork
 from crystal_diffusion.samplers.noisy_position_sampler import \
     map_positions_to_unit_cell
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+
+logger = logging.getLogger(__name__)
 
 
 class PredictorCorrectorPositionSampler(ABC):
@@ -32,8 +36,8 @@ class PredictorCorrectorPositionSampler(ABC):
             position samples: position samples.
         """
         x_ip1 = map_positions_to_unit_cell(self.initialize(number_of_samples))
-
-        for i in range(self.number_of_discretization_steps - 1, -1, -1):
+        logger.info("Starting position sampling")
+        for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
             x_i = map_positions_to_unit_cell(self.predictor_step(x_ip1, i + 1))
             for j in range(self.number_of_corrector_steps):
                 x_i = map_positions_to_unit_cell(self.corrector_step(x_i, i))

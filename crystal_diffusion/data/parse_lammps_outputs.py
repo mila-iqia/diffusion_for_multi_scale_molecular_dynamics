@@ -1,7 +1,7 @@
 import argparse
 import os
 from collections import defaultdict
-from typing import Optional
+from typing import Dict, List, Optional
 
 import pandas as pd
 import yaml
@@ -49,11 +49,8 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: O
                 pd_data[k].append(v)
 
     # get the total energy from the LAMMPS second output
-    with open(lammps_thermo_log, 'r') as f:
-        log_yaml = yaml.safe_load(f)
-        kin_idx = log_yaml['keywords'].index('KinEng')
-        pot_idx = log_yaml['keywords'].index('PotEng')
-        pd_data['energy'] = [x[kin_idx] + x[pot_idx] for x in log_yaml['data']]
+    thermo_log_data_dictionary = parse_lammps_thermo_log(lammps_thermo_log)
+    pd_data.update(thermo_log_data_dictionary)
 
     if output_name is not None and not output_name.endswith('.parquet'):
         output_name += '.parquet'
@@ -64,6 +61,43 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: O
         df.to_parquet(output_name, engine='pyarrow', index=False)
 
     return df
+
+
+def parse_lammps_thermo_log(lammps_thermo_log: str) -> Dict[str, List[float]]:
+    """Parse LAMMPS thermo log.
+
+    Args:
+        lammps_thermo_log : path to the lammps thermo log.
+
+    Returns:
+        parsed_data: the data from the log, parsed in a dictionary.
+    """
+    data_dict = defaultdict(list)
+    optional_keywords = {'Press': 'pressure', 'Temp': 'temperature'}
+    optional_indices = dict()
+
+    with open(lammps_thermo_log, 'r') as f:
+        log_yaml = yaml.safe_load(f)
+        kin_idx = log_yaml['keywords'].index('KinEng')
+        pot_idx = log_yaml['keywords'].index('PotEng')
+
+        # For optional keys, impose better names than the LAMMPS keys.
+        for yaml_key, long_name in optional_keywords.items():
+            if yaml_key in log_yaml['keywords']:
+                idx = log_yaml['keywords'].index(yaml_key)
+                optional_indices[long_name] = idx
+
+        for record in log_yaml['data']:
+            potential_energy = record[pot_idx]
+            kinetic_energy = record[kin_idx]
+            data_dict['potential_energy'].append(potential_energy)
+            data_dict['kinetic_energy'].append(kinetic_energy)
+            data_dict['energy'].append(potential_energy + kinetic_energy)
+
+            for long_name, idx in optional_indices.items():
+                data_dict[long_name].append(record[idx])
+
+    return data_dict
 
 
 def main():

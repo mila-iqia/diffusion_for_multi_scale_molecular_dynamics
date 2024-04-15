@@ -47,6 +47,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         super().__init__()
 
         self.hyper_params = hyper_params
+        self.save_hyperparameters()
 
         # we will model sigma x score
         self.sigma_normalized_score_network = MLPScoreNetwork(

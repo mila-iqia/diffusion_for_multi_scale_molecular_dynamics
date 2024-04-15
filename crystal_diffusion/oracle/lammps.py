@@ -48,14 +48,15 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
     for i in range(n_atom):
         lmp.command(f"create_atoms {atom_types[i]} single {' '.join(map(str, positions[i, :]))}")
     lmp.command("fix 1 all nvt temp 300 300 0.01")  # selections here do not matter because we only do 1 step
-    lmp.command(f"dump 1 all yaml 1 {os.path.join(tmp_work_dir, 'dump.yaml')} id x y z fx fy fz")  # TODO not good in 2D
+    # TODO not good in 2D
+    lmp.command(f"dump 1 all yaml 1 {os.path.join(tmp_work_dir, 'dump.yaml')} id type x y z fx fy fz")
     lmp.command("run 0")  # 0 is the last step index - so run 0 means no MD update - just get the initial forces
 
     # read informations from lammps output
     with open(os.path.join(tmp_work_dir, "dump.yaml"), "r") as f:
         dump_yaml = yaml.safe_load_all(f)
         doc = next(iter(dump_yaml))
-    os.remove(os.path.join(tmp_work_dir, "dump.yaml"))  # no need to keep the output as artefact
+
     forces = pd.DataFrame(doc['data'], columns=doc['keywords']).sort_values("id")  # organize in a dataframe
 
     # get the energy

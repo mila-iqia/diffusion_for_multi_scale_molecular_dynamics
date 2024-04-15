@@ -47,6 +47,19 @@ def setup_console_logger(experiment_dir: str):
         root.addHandler(handler)
 
 
+def setup_analysis_logger():
+    """This method sets up logging for analysis scripts."""
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+
+    analysis_logging_format = "%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s"
+    formatter = logging.Formatter(analysis_logging_format)
+
+    stream_handler = logging.StreamHandler(stream=sys.stdout)
+    stream_handler.setFormatter(formatter)
+    root.addHandler(stream_handler)
+
+
 class LoggerWriter:
     """LoggerWriter.
 
