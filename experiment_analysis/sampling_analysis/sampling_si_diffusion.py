@@ -26,27 +26,35 @@ logger = logging.getLogger(__name__)
 
 setup_analysis_logger()
 
-current_directory = Path(__file__).parent
-analysis_output_directory = current_directory.joinpath("si_diffusion_1x1x1_output")
-lammps_work_directory = analysis_output_directory.joinpath('lammps_work_directory')
+dataset_name = 'si_diffusion_2x2x2'
+# dataset_name = 'si_diffusion_1x1x1'
+
+
+# TODO: cell_size should be easily available programmatically.
+if dataset_name == 'si_diffusion_1x1x1':
+    cell_size = 5.43
+    experiment_dir = TOP_DIR.joinpath("experiments/si_diffusion_1x1x1/run1/")
+    config_path = str(experiment_dir.joinpath("config_diffusion.yaml"))
+    checkpoint_path = str(experiment_dir.joinpath("best_model/best_model-epoch=156-step=061386.ckpt"))
+elif dataset_name == 'si_diffusion_2x2x2':
+    cell_size = 10.86
+    experiment_dir = TOP_DIR.joinpath("experiments/si_diffusion_2x2x2/run1/")
+    config_path = str(experiment_dir.joinpath("config_diffusion.yaml"))
+    checkpoint_path = str(experiment_dir.joinpath("best_model/best_model-epoch=1972-step=173623.ckpt"))
+
+
+lammps_work_directory = Path(__file__).parent.joinpath(f"lammps_work_directory/{dataset_name}")
 lammps_work_directory.mkdir(exist_ok=True, parents=True)
 lammps_work_directory = str(lammps_work_directory)
-
-experiment_dir = TOP_DIR.joinpath("experiments/si_diffusion_1x1x1/run1/")
-
-config_path = str(experiment_dir.joinpath("config_diffusion.yaml"))
-checkpoint_path = str(experiment_dir.joinpath("best_model/best_model-epoch=156-step=061386.ckpt"))
 
 number_of_corrector_steps = 3
 total_time_steps = 100
 noise_parameters = NoiseParameters(total_time_steps=total_time_steps)
 
-# By inspection of the datset LAMMPS logs, I deduce this box dimensions.
-# TODO: this should be easily available programmatically.
-cell_size = 5.43
 box = np.diag([cell_size, cell_size, cell_size])
 
 number_of_samples = 4096
+
 
 if __name__ == '__main__':
     logger.info("Loading checkpoint")
@@ -91,4 +99,4 @@ if __name__ == '__main__':
         os.rename(src, dst)
 
     df = pd.DataFrame({'energy': list_energy})
-    pd.to_pickle(df, analysis_output_directory.joinpath('energy_samples.pkl'))
+    pd.to_pickle(df, f'{dataset_name}_energy_samples.pkl')
