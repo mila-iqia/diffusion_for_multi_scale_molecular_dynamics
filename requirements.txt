@@ -29,4 +29,5 @@ torch==2.2.0
 torchvision>=0.17.0
 matplotlib==3.8.3
 rich==13.7.1
+deepdiff==7.0.1
 comet_ml

@@ -1,9 +1,12 @@
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, AnyStr, Dict, Tuple, Union
 
+import deepdiff
 import numpy as np
 import orion.client
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -117,3 +120,63 @@ def report_to_orion_if_on(metric_result: MetricResult, run_time_error: Union[Non
         else:
             logger.error(f"Run time error : {run_time_error}- interrupting Orion trial")
             orion.client.interrupt_trial()
+
+
+def load_and_backup_hyperparameters(config_file_path: Union[str, None], output_directory: str) -> Dict[str, Any]:
+    """Load and process hyperparameters.
+
+    If a configuration file is provided, this method reads in the hyperparameters. It either makes a copy of the
+    configuration parameters to the output_directory, or validates that the hyperparameters are the same
+    as those in the config file already in the output directory (this may happen in the case of a job being resumed).
+
+    If Orion is being used, no copy / validation will take place since Orion already manages copies of configuration
+    files.
+
+    Args:
+        config_file_path : path to config file, if there is one.
+        output_directory : directory where results are output.
+
+    Returns:
+        hyperparameters: all the read hyperparameters. Returns empty dictionary if there is no config file.
+    """
+    hyper_params = _get_hyperparameters(config_file_path)
+
+    if orion.client.cli.IS_ORION_ON:
+        logging.info("The Orion client is ON: Orion will manage configuration file copies.")
+    else:
+        config_backup_path = os.path.join(output_directory, "config_backup.yaml")
+        _create_or_validate_backup_configuration(config_backup_path, hyper_params)
+
+    return hyper_params
+
+
+def _create_or_validate_backup_configuration(config_backup_path: str, hyper_params: Dict[str, Any]) -> None:
+    """Create or validate a backup of the hyperparameters."""
+    if os.path.exists(config_backup_path):
+        logging.info(f"The backup configuration file {config_backup_path} already exists. "
+                     f"Validating hyperparameters are identical...")
+
+        with open(config_backup_path, 'r') as stream:
+            logging.info(f"Reading backup hyperparameters from file {config_backup_path}")
+            backup_hyper_params = yaml.load(stream, Loader=yaml.FullLoader)
+
+        hp_differences = deepdiff.DeepDiff(backup_hyper_params, hyper_params)
+        assert hp_differences == {}, (f"Incompatible backup configuration file already present in output directory! "
+                                      f"The configuration difference is {hp_differences}. Manual clean up is needed.")
+
+    else:
+        logging.info(f"Writing a copy of the configuration file to backup configuration file {config_backup_path}.")
+        with open(config_backup_path, 'w') as steam:
+            yaml.dump(hyper_params, steam)
+
+
+def _get_hyperparameters(config_file_path: Union[str, None]) -> Dict[str, Any]:
+    """Get the hyperparameters."""
+    if config_file_path is None:
+        logging.info("No configuration file was provided. The hyperparameters are set to an empty dictionary.")
+        hyper_params = dict()
+    else:
+        logging.info(f"Reading in hyperparameters from file {config_file_path}")
+        with open(config_file_path, 'r') as stream:
+            hyper_params = yaml.load(stream, Loader=yaml.FullLoader)
+    return hyper_params

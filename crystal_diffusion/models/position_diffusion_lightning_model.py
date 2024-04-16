@@ -47,7 +47,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         super().__init__()
 
         self.hyper_params = hyper_params
-        self.save_hyperparameters()
+        self.save_hyperparameters(logger=False)  # It is not the responsibility of this class to log its parameters.
 
         # we will model sigma x score
         self.sigma_normalized_score_network = MLPScoreNetwork(

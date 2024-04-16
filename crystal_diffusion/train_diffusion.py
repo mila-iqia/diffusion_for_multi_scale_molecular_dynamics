@@ -8,7 +8,6 @@ import typing
 import pytorch_lightning
 import pytorch_lightning as pl
 import yaml
-from yaml import load
 
 from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
 from crystal_diffusion.data.diffusion.data_loader import (
@@ -17,6 +16,7 @@ from crystal_diffusion.loggers.logger_loader import create_all_loggers
 from crystal_diffusion.main_utils import (MetricResult,
                                           get_crash_metric_result,
                                           get_optimized_metric_name_and_mode,
+                                          load_and_backup_hyperparameters,
                                           report_to_orion_if_on)
 from crystal_diffusion.models.model_loader import load_diffusion_model
 from crystal_diffusion.utils.file_utils import rsync_folder
@@ -79,11 +79,7 @@ def main(args: typing.Optional[typing.Any] = None):
     else:
         output_dir = args.output
 
-    if args.config is not None:
-        with open(args.config, 'r') as stream:
-            hyper_params = load(stream, Loader=yaml.FullLoader)
-    else:
-        hyper_params = {}
+    hyper_params = load_and_backup_hyperparameters(config_file_path=args.config, output_directory=output_dir)
 
     logger.info("Input hyper-parameters:\n" + yaml.dump(hyper_params, allow_unicode=True, default_flow_style=False))
 
@@ -160,6 +156,8 @@ def train(model,
 
     callbacks_dict = create_all_callbacks(hyper_params, output, verbose=use_progress_bar)
     pl_loggers = create_all_loggers(hyper_params, output)
+    for pl_logger in pl_loggers:
+        pl_logger.log_hyperparams(hyper_params)
 
     trainer = pl.Trainer(
         callbacks=list(callbacks_dict.values()),
