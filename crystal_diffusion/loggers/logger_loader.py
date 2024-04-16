@@ -4,6 +4,7 @@ from typing import Any, AnyStr, Dict, List, Union
 
 import orion
 import yaml
+from matplotlib import pyplot as plt
 from pytorch_lightning.loggers import (CometLogger, CSVLogger, Logger,
                                        TensorBoardLogger)
 
@@ -131,3 +132,20 @@ def read_and_validate_comet_experiment_key(full_run_name: str, output_directory:
             experiment_key = data[full_run_name]
 
     return experiment_key
+
+
+def log_figure(figure: plt.figure, global_step: int, pl_logger: Logger) -> None:
+    """Log figure.
+
+    Args:
+        figure : a matplotlib figure.
+        global_step: current step index.
+        pl_logger : a pytorch lightning Logger.
+
+    Returns:
+        No return
+    """
+    if type(pl_logger) is CometLogger:
+        pl_logger.experiment.log_figure(figure)
+    elif type(pl_logger) is TensorBoardLogger:
+        pl_logger.experiment.add_figure("train/samples", figure, global_step=global_step)

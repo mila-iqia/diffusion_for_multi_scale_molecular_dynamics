@@ -39,6 +39,20 @@ model_checkpoint:
   monitor: validation_epoch_loss
   mode: min
 
+# Sampling from the generative model
+diffusion_sampling:
+  noise:
+    total_time_steps: 10
+    sigma_min: 0.005  # default value
+    sigma_max: 0.5  # default value
+  sampling:
+    spatial_dimension: 3
+    number_of_corrector_steps: 1
+    number_of_atoms: 64
+    number_of_samples: 128
+    sample_every_n_epochs: 1
+    cell_dimensions: [10.86, 10.86, 10.86]
+
 logging:
   - csv
   - tensorboard

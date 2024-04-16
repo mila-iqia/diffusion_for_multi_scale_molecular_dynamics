@@ -67,8 +67,16 @@ def get_config(number_of_atoms: int, max_epoch: int):
 
     optimizer_config = dict(name='adam', learning_rate=0.001)
 
+    sampling_dict = {'spatial_dimension': 3,
+                     'number_of_corrector_steps': 1,
+                     'number_of_atoms': number_of_atoms,
+                     'number_of_samples': 4,
+                     'sample_every_n_epochs': 1,
+                     'cell_dimensions': [1.23, 4.56, 7.89]}
+
     early_stopping_config = dict(metric='validation_epoch_loss', mode='min', patience=max_epoch)
     model_checkpoint_config = dict(monitor='validation_epoch_loss', mode='min')
+    diffusion_sampling_config = dict(noise={'total_time_steps': 10}, sampling=sampling_dict)
 
     config = dict(max_epoch=max_epoch,
                   exp_name='smoke_test',
@@ -79,6 +87,7 @@ def get_config(number_of_atoms: int, max_epoch: int):
                   optimizer=optimizer_config,
                   early_stopping=early_stopping_config,
                   model_checkpoint=model_checkpoint_config,
+                  diffusion_sampling=diffusion_sampling_config,
                   logging=['csv', 'tensorboard'])
     return config
 
