@@ -2,7 +2,7 @@
 exp_name: example_experiment
 run_name: run_debug_delete_me
 max_epoch: 10
-log_every_n_steps: 1
+log_every_n_steps: 100
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
@@ -10,8 +10,8 @@ seed: 1234
 
 # data
 data:
-  batch_size: 32
-  num_workers: 4
+  batch_size: 128
+  num_workers: 0
   max_atom: 64
 
 # architecture
@@ -31,14 +31,15 @@ optimizer:
 
 # early stopping
 early_stopping:
-  metric: val_loss
+  metric: validation_epoch_loss
   mode: min
   patience: 100
 
 model_checkpoint:
-  monitor: val_loss
+  monitor: validation_epoch_loss
   mode: min
 
 logging:
+  - csv
   - tensorboard
   - comet
