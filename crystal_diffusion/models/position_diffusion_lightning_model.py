@@ -69,6 +69,21 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """
         return load_optimizer(self.hyper_params.optimizer_parameters, self)
 
+    @staticmethod
+    def _get_batch_size(batch: torch.Tensor) -> int:
+        """Get batch size.
+
+        Args:
+            batch : a dictionary that should contain a data sample.
+
+        Returns:
+            batch_size: the size of the batch.
+        """
+        # The relative positions have dimensions [batch_size, number_of_atoms, spatial_dimension].
+        assert "relative_positions" in batch, "The field 'relative_positions' is missing from the input."
+        batch_size = batch["relative_positions"].shape[0]
+        return batch_size
+
     def _generic_step(
         self,
         batch: typing.Any,
@@ -112,7 +127,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             f"the shape of the relative_positions array should be [batch_size, number_of_atoms, spatial_dimensions]. "
             f"Got shape = {shape}."
         )
-        batch_size = shape[0]
+        batch_size = self._get_batch_size(batch)
 
         noise_sample = self.variance_sampler.get_random_noise_sample(batch_size)
 
@@ -205,21 +220,32 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """Runs a prediction step for training, returning the loss."""
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
-        self.log("train_loss", loss, prog_bar=True)
-        self.log("epoch", self.current_epoch)
-        self.log("step", self.global_step)
+
+        batch_size = self._get_batch_size(batch)
+
+        # The 'train_step_loss' is only logged on_step, meaning it is a value for each batch
+        self.log("train_step_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+
+        # The 'train_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
+        self.log("train_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True)
         return output
 
     def validation_step(self, batch, batch_idx):
         """Runs a prediction step for validation, logging the loss."""
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
-        self.log("val_loss", loss, prog_bar=True)
+        batch_size = self._get_batch_size(batch)
+
+        # The 'validation_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
+        self.log("validation_epoch_loss", loss,
+                 batch_size=batch_size, on_step=False, on_epoch=True, prog_bar=True)
         return output
 
     def test_step(self, batch, batch_idx):
         """Runs a prediction step for testing, logging the loss."""
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
-        self.log("test_loss", loss)
+        batch_size = self._get_batch_size(batch)
+        # The 'test_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
+        self.log("test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True)
         return output
