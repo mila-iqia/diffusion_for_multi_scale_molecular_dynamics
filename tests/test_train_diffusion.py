@@ -67,8 +67,8 @@ def get_config(number_of_atoms: int, max_epoch: int):
 
     optimizer_config = dict(name='adam', learning_rate=0.001)
 
-    early_stopping_config = dict(metric='val_loss', mode='min', patience=max_epoch)
-    model_checkpoint_config = dict(monitor='val_loss', mode='min')
+    early_stopping_config = dict(metric='validation_epoch_loss', mode='min', patience=max_epoch)
+    model_checkpoint_config = dict(monitor='validation_epoch_loss', mode='min')
 
     config = dict(max_epoch=max_epoch,
                   exp_name='smoke_test',
