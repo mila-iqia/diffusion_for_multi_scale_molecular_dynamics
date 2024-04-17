@@ -74,7 +74,8 @@ class TestScoreNetworkCheck:
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
-@pytest.mark.parametrize("hidden_dimensions", [[16], [8, 16], [8, 16, 32]])
+@pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
+@pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
 class TestMLPScoreNetwork:
 
     @pytest.fixture()
@@ -102,10 +103,11 @@ class TestMLPScoreNetwork:
         return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times}
 
     @pytest.fixture()
-    def score_network(self, number_of_atoms, spatial_dimension, hidden_dimensions):
+    def score_network(self, number_of_atoms, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size):
         hyper_params = MLPScoreNetworkParameters(spatial_dimension=spatial_dimension,
                                                  number_of_atoms=number_of_atoms,
-                                                 hidden_dimensions=hidden_dimensions)
+                                                 n_hidden_dimensions=n_hidden_dimensions,
+                                                 hidden_dimensions_size=hidden_dimensions_size)
         return MLPScoreNetwork(hyper_params)
 
     def test_check_batch_bad(self, score_network, bad_batch):

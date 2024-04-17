@@ -5,7 +5,7 @@ Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 """
 from dataclasses import dataclass
-from typing import AnyStr, Dict, List
+from typing import AnyStr, Dict
 
 import torch
 from torch import nn
@@ -120,8 +120,10 @@ class ScoreNetwork(torch.nn.Module):
 @dataclass(kw_only=True)
 class MLPScoreNetworkParameters(BaseScoreNetworkParameters):
     """Specific Hyper-parameters for MLP score networks."""
+
     number_of_atoms: int  # the number of atoms in a configuration.
-    hidden_dimensions: List[int]  # dimensions of the hidden layers. Length of array determines number of layers.
+    n_hidden_dimensions: int  # the number of hidden layers.
+    hidden_dimensions_size: int  # the dimensions of the hidden layers.
 
 
 class MLPScoreNetwork(ScoreNetwork):
@@ -137,7 +139,7 @@ class MLPScoreNetwork(ScoreNetwork):
             hyper_params (dict): hyper parameters from the config file.
         """
         super(MLPScoreNetwork, self).__init__(hyper_params)
-        hidden_dimensions = hyper_params.hidden_dimensions
+        hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
         self._natoms = hyper_params.number_of_atoms
 
         output_dimension = self.spatial_dimension * self._natoms
