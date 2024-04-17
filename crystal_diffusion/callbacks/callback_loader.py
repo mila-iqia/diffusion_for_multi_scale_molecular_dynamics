@@ -2,12 +2,15 @@ from typing import Any, AnyStr, Dict
 
 from pytorch_lightning import Callback
 
+from crystal_diffusion.callbacks.sampling_callback import \
+    instantiate_diffusion_sampling_callback
 from crystal_diffusion.callbacks.standard_callbacks import (
     CustomProgressBar, instantiate_early_stopping_callback,
     instantiate_model_checkpoint_callbacks)
 
 OPTIONAL_CALLBACK_DICTIONARY = dict(early_stopping=instantiate_early_stopping_callback,
-                                    model_checkpoint=instantiate_model_checkpoint_callbacks)
+                                    model_checkpoint=instantiate_model_checkpoint_callbacks,
+                                    diffusion_sampling=instantiate_diffusion_sampling_callback)
 
 
 def create_all_callbacks(hyper_params: Dict[AnyStr, Any], output_directory: str, verbose: bool) -> Dict[str, Callback]:

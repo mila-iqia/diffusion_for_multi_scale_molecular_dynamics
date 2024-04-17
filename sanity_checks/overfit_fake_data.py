@@ -7,17 +7,18 @@ This highly artificial case is useful to sanity check that the code behaves as e
  -  the trained score network should reproduce the perturbation kernel, at least in the regions where it is sampled.
  -  the generated samples should be tightly clustered around x0.
 """
+import dataclasses
 import os
 
 import pytorch_lightning
 import torch
-from pytorch_lightning import Trainer
+from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
 from crystal_diffusion.callbacks.callbacks import (
-    HPLoggingCallback, TensorboardGeneratedSamplesLoggingCallback,
+    TensorboardGeneratedSamplesLoggingCallback,
     TensorboardHistogramLoggingCallback, TensorboardSamplesLoggingCallback,
     TensorboardScoreAndErrorLoggingCallback)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
@@ -27,6 +28,19 @@ from crystal_diffusion.models.position_diffusion_lightning_model import (
 from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from sanity_checks import SANITY_CHECK_FOLDER
+
+
+class HPLoggingCallback(Callback):
+    """This callback is responsible for logging hyperparameters."""
+
+    def on_train_start(self, trainer, pl_module):
+        """Log hyperparameters when training starts."""
+        assert hasattr(
+            pl_module, "hyper_params"
+        ), "The lightning module should have a hyper_params attribute for HP logging."
+        hp_dict = dataclasses.asdict(pl_module.hyper_params)
+        trainer.logger.log_hyperparams(hp_dict)
+
 
 batch_size = 4096
 number_of_atoms = 1
@@ -69,11 +83,9 @@ generated_samples_callback = (
 
 score_error_callback = TensorboardScoreAndErrorLoggingCallback(x0=x0)
 
-
 tbx_logger = TensorBoardLogger(save_dir=os.path.join(SANITY_CHECK_FOLDER, "tensorboard"), name="overfit_fake_data")
 
 if __name__ == '__main__':
-
     pytorch_lightning.seed_everything(123)
     all_positions = x0 * torch.ones(batch_size, number_of_atoms, spatial_dimension)
     data = [dict(relative_positions=configuration) for configuration in all_positions]
