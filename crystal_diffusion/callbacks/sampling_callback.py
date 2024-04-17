@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from pytorch_lightning import Callback, LightningModule, Trainer
+from rich.progress import track
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE
 from crystal_diffusion.loggers.logger_loader import log_figure
@@ -94,6 +95,7 @@ class DiffusionSamplingCallback(Callback):
 
     def _compute_lammps_energies(self, batch_relative_positions: np.ndarray) -> np.ndarray:
         """Compute energies from samples."""
+        number_of_samples = len(batch_relative_positions)
         box = np.diag(self.sampling_parameters.cell_dimensions)
         batch_positions = np.dot(batch_relative_positions, box)
         atom_types = np.ones(self.sampling_parameters.number_of_atoms, dtype=int)
@@ -103,7 +105,9 @@ class DiffusionSamplingCallback(Callback):
         logger.info("Compute energy from Oracle")
 
         with tempfile.TemporaryDirectory() as tmp_work_dir:
-            for idx, positions in enumerate(batch_positions):
+            for idx, positions in track(enumerate(batch_positions),
+                                        total=number_of_samples,
+                                        description="Oracle energy calculation"):
                 energy, forces = get_energy_and_forces_from_lammps(positions,
                                                                    box,
                                                                    atom_types,
