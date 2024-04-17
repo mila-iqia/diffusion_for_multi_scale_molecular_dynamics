@@ -1,0 +1,44 @@
+# general
+exp_name: example_experiment
+max_epoch: 2
+log_every_n_steps: 1
+# fast_dev_run: True
+# set to null to avoid setting a seed (can speed up GPU computation, but
+# results will not be reproducible)
+seed: 1234
+
+# data
+data:
+  batch_size: 128
+  num_workers: 4
+  max_atom: 64
+
+# architecture
+spatial_dimension: 3
+model:
+  score_network:
+    n_hidden_dimensions: 'orion~choices([1, 2, 3, 4])'
+    hidden_dimensions_size: 'orion~choices([256, 512, 1024, 2048])'
+  noise:
+    total_time_steps: 'orion~uniform(2, 20, discrete=True)'
+    sigma_min: 'orion~choices([0.001, 0.005, 0.01])'
+    sigma_max: 'orion~choices([0.1, 0.5, 0.75])'
+
+# optimizer
+optimizer:
+  name: adam
+  learning_rate: 'orion~loguniform(1e-6, 1e-3)'
+
+# early stopping
+early_stopping:
+  metric: val_loss
+  mode: min
+  patience: 100
+
+model_checkpoint:
+  monitor: val_loss
+  mode: min
+
+logging:
+  - tensorboard
+  - comet

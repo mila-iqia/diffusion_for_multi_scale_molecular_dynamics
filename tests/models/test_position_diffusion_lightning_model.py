@@ -69,7 +69,8 @@ class TestPositionDiffusionLightningModel:
     def hyper_params(self, number_of_atoms, spatial_dimension):
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
-            hidden_dimensions=[4, 8, 16],
+            n_hidden_dimensions=3,
+            hidden_dimensions_size=8,
             spatial_dimension=spatial_dimension,
         )
 
