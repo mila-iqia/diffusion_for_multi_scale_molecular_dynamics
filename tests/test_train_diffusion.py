@@ -50,7 +50,8 @@ def get_fake_configuration_dataframe(number_of_configurations, number_of_atoms):
                    x=box[0] * np.random.rand(number_of_atoms),
                    y=box[1] * np.random.rand(number_of_atoms),
                    z=box[2] * np.random.rand(number_of_atoms),
-                   type=np.random.randint(0, 10, number_of_atoms)
+                   type=np.random.randint(0, 10, number_of_atoms),
+                   energy=np.random.rand()
                    )
 
         list_rows.append(row)
