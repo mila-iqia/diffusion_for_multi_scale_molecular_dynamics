@@ -2,6 +2,7 @@
 
 TEMPERATURE=300
 BOX_SIZE=2
+MAX_ATOM=64
 STEP=10000
 CROP=10000
 NTRAIN_RUN=10
@@ -9,8 +10,8 @@ NVALID_RUN=5
 
 NRUN=$(($NTRAIN_RUN + $NVALID_RUN))
 
-for SEED in $(seq 1 $NRUN);
-do
+# Generate the data
+for SEED in $(seq 1 $NRUN); do
   if [ "$SEED" -le $NTRAIN_RUN ]; then
     MODE="train"
   else
@@ -36,3 +37,6 @@ do
 
   cd ..
 done
+
+# process the data
+python ../process_lammps_data.py --data "./" --processed_datadir "./processed/" --max_atom ${MAX_ATOM}
