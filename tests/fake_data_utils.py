@@ -43,6 +43,19 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
                          energy=energy)
 
 
+def get_configuration_runs(number_of_runs, spatial_dimension, number_of_atoms):
+    """Generate multiple random configuration runs, each composed of many different configurations."""
+    list_configurations = []
+    for _ in range(number_of_runs):
+        number_of_configs = np.random.randint(1, 16)
+        configurations = [generate_fake_configuration(spatial_dimension=spatial_dimension,
+                                                      number_of_atoms=number_of_atoms)
+                          for _ in range(number_of_configs)]
+        list_configurations.append(configurations)
+
+    return list_configurations
+
+
 def generate_parse_lammps_output(configurations: List[Configuration]) -> pd.DataFrame:
     """Generate parse lammps run
 

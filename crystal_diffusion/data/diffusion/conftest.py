@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from tests.data.diffusion.test_data_loader import get_configuration_runs
 from tests.fake_data_utils import (create_dump_yaml_documents,
-                                   create_thermo_yaml_documents, write_to_yaml)
+                                   create_thermo_yaml_documents,
+                                   get_configuration_runs, write_to_yaml)
 
 
 class TestDiffusionDataBase:
