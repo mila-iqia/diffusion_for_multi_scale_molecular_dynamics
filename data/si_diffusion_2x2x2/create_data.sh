@@ -17,7 +17,7 @@ for SEED in $(seq 1 $NRUN); do
   else
     MODE="valid"
   fi
-  echo "Creating LAMMPS data for $MODE_run_$SEED..."
+  echo "Creating LAMMPS data for ${MODE}_run_${SEED}..."
   mkdir -p "${MODE}_run_${SEED}"
   cd "${MODE}_run_${SEED}"
   lmp  -echo none -screen none < ../in.si.lammps -v STEP $(($STEP + $CROP)) -v T $TEMPERATURE -v S $BOX_SIZE -v SEED $SEED
