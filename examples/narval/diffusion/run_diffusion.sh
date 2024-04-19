@@ -35,7 +35,7 @@ DATA_WORK_DIR=${OUTPUT_ROOT_DIR}/tmp_work_dir/
 OUTPUT=${OUTPUT_ROOT_DIR}/output
 
 ## train_diffusion path assumes we are launching from the examples/narval/diffusion folder
-python ../../../crystal_diffusion/train_diffusion.py \
+srun python ../../../crystal_diffusion/train_diffusion.py \
     --config $CONFIG \
     --data $DATA_DIR \
     --processed_datadir $PROCESSED_DATA \
