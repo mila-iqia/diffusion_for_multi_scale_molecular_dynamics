@@ -17,10 +17,10 @@ for SEED in $(seq 1 $NRUN); do
   else
     MODE="valid"
   fi
-  echo $MODE $SEED
+  echo "Creating LAMMPS data for $MODE_run_$SEED..."
   mkdir -p "${MODE}_run_${SEED}"
   cd "${MODE}_run_${SEED}"
-  lmp < ../in.si.lammps -v STEP $(($STEP + $CROP)) -v T $TEMPERATURE -v S $BOX_SIZE -v SEED $SEED
+  lmp  -echo none -screen none < ../in.si.lammps -v STEP $(($STEP + $CROP)) -v T $TEMPERATURE -v S $BOX_SIZE -v SEED $SEED
 
   # extract the thermodynamic outputs in a yaml file
   egrep  '^(keywords:|data:$|---$|\.\.\.$|  - \[)' log.lammps > thermo_log.yaml
