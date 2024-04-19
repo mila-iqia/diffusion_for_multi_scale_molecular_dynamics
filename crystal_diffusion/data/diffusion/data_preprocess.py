@@ -46,10 +46,13 @@ class LammpsProcessorForDiffusion:
         list_runs = [d for d in os.listdir(raw_data_dir) if os.path.isdir(os.path.join(raw_data_dir, d))
                      and d.startswith(f"{mode}_run")]
         list_files = []
-        for d in list_runs:
+        for count, d in enumerate(list_runs, 1):
+            logging.info(f"Processing run directory {d} ({count} of {len(list_runs)})...")
             if f"{d}.parquet" not in os.listdir(self.data_dir):
+                logging.info("     * parquet file is absent. Generating...")
                 df = self.parse_lammps_run(os.path.join(raw_data_dir, d))
                 if df is not None:
+                    logging.info("     * writing parquet file to disk...")
                     df.to_parquet(os.path.join(self.data_dir, f"{d}.parquet"), engine='pyarrow', index=False)
             if f"{d}.parquet" in os.listdir(self.data_dir):
                 list_files.append(os.path.join(self.data_dir, f"{d}.parquet"))
