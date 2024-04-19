@@ -1,4 +1,5 @@
 """Convert results of LAMMPS simulation into dataloader friendly format."""
+import itertools
 import logging
 import os
 import warnings
@@ -150,13 +151,27 @@ class LammpsProcessorForDiffusion:
         df = df[['type', 'x', 'y', 'z', 'box', 'energy']]
         df = self.get_x_relative(df)  # add relative coordinates
         df['natom'] = df['type'].apply(lambda x: len(x))  # count number of atoms in a structure
-        # naive implementation: a list of list which is converted into a 2d array by torch later
-        # but a list of list is not ok with the writing on files with parquet
 
-        # TODO: the flattening of 'position' is in a different order from 'relative_positions'. This could be
-        #   confusing.
-        df['position'] = df.apply(lambda x: [j for i in ['x', 'y', 'z'] for j in x[i]], axis=1)  # position as 3d array
+        # Parquet cannot handle a list of list; flattening positions.
+        df['position'] = df.apply(self._flatten_positions_in_row, axis=1)
         # position is natom * 3 array
-        # TODO unit test to check the order after reshape
         # TODO: position (singular) and relative_positions (plural) are not consistent.
         return df[['natom', 'box', 'type', 'position', 'relative_positions', 'energy']]
+
+    @staticmethod
+    def _flatten_positions_in_row(row: pd.Series) -> List[float]:
+        """Function to flatten the positions in a dataframe row.
+
+        Args:
+            row : a dataframe row that should contain columns x, y, z.
+
+        Returns:
+            flattened positions: a list of each element is the flattened coordinate for that row, in C-style.
+        """
+        list_x = row['x']
+        list_y = row['y']
+        list_z = row['z']
+
+        flat_positions = list(itertools.chain.from_iterable([[x, y, z] for x, y, z in zip(list_x, list_y, list_z)]))
+
+        return flat_positions

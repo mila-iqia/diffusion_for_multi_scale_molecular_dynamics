@@ -135,10 +135,12 @@ def write_to_yaml(documents: List[Dict[str, Any]], output_file_path: str):
 def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFrame:
     rows = []
     for configuration in configurations:
-        # TODO: by inspection, we see that the relative positions and the positions are not flattened in the same
-        #   way. It would be good to avoid confusion by using the same flattening process for both data types.
+        # There are two possible flattening orders; C-style (c) and fortran-style (f). For an array of the form
+        #   A = [ v1, v2] --> A.flatten(order=c) = [v1, v2, v3, v4],   A.flatten(order=f) = [v1, v3, v2, v4].
+        #       [ v3, v4]
+        # C-style flattening is the correct convention to interoperate wity pytorch reshaping operations.
         relative_positions = configuration.relative_coordinates.flatten(order='c')
-        positions = configuration.positions.flatten(order='f')
+        positions = configuration.positions.flatten(order='c')
         number_of_atoms = len(configuration.ids)
         box = configuration.cell_dimensions
         row = dict(natom=number_of_atoms,

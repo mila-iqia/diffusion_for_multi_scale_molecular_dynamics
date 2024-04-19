@@ -98,3 +98,15 @@ class TestDataProcess(TestDiffusionDataBase):
         result_df = processor.get_x_relative(sample_coordinates)
         # Check if 'relative_positions' column is added
         assert 'relative_positions' in result_df.columns
+
+    def test_flatten_positions_in_row(self):
+
+        number_of_atoms = 12
+        spatial_dimensions = 3
+        position_data = np.random.rand(number_of_atoms, spatial_dimensions)
+        row = pd.Series(dict(x=list(position_data[:, 0]), y=list(position_data[:, 1]), z=list(position_data[:, 2])))
+
+        computed_flattened_positions = LammpsProcessorForDiffusion._flatten_positions_in_row(row)
+        expected_flattened_positions = position_data.flatten()
+
+        np.testing.assert_almost_equal(expected_flattened_positions, computed_flattened_positions)
