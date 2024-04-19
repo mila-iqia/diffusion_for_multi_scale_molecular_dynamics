@@ -25,9 +25,9 @@ def main():
         os.makedirs(args.output_dir)
 
     with open(os.path.join(args.output_dir, 'lammps_dump.yaml'), 'w') as f:
-        yaml.dump_all(lammps_yaml, f, explicit_start=True)
+        yaml.dump_all(lammps_yaml, f, explicit_start=True, sort_keys=False, default_flow_style=None, width=1000)
     with open(os.path.join(args.output_dir, 'lammps_thermo.yaml'), 'w') as f:
-        yaml.dump(lammps_thermo_yaml, f)
+        yaml.dump(lammps_thermo_yaml, f, sort_keys=False, default_flow_style=None, width=1000)
 
 
 if __name__ == '__main__':
