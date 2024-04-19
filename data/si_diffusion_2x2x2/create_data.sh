@@ -9,7 +9,7 @@ NVALID_RUN=5
 
 NRUN=$(($NTRAIN_RUN + $NVALID_RUN))
 
-for SEED in $(seq 2 $NRUN);
+for SEED in $(seq 1 $NRUN);
 do
   if [ "$SEED" -le $NTRAIN_RUN ]; then
     MODE="train"
@@ -27,8 +27,6 @@ do
   mkdir -p "uncropped_outputs"
   mv "dump.si-${TEMPERATURE}-${BOX_SIZE}.yaml" uncropped_outputs/
   mv thermo_log.yaml uncropped_outputs/
-
-  tail -n 760076 uncropped_outputs/dump.si-300-2.yaml > lammps_dump.yaml
 
   python ../../crop_lammps_outputs.py \
       --lammps_yaml "uncropped_outputs/dump.si-${TEMPERATURE}-${BOX_SIZE}.yaml" \
