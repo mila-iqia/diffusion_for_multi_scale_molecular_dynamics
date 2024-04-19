@@ -1,4 +1,5 @@
 """Convert results of LAMMPS simulation into dataloader friendly format."""
+import itertools
 import logging
 import os
 import warnings
@@ -45,10 +46,13 @@ class LammpsProcessorForDiffusion:
         list_runs = [d for d in os.listdir(raw_data_dir) if os.path.isdir(os.path.join(raw_data_dir, d))
                      and d.startswith(f"{mode}_run")]
         list_files = []
-        for d in list_runs:
+        for count, d in enumerate(list_runs, 1):
+            logging.info(f"Processing run directory {d} ({count} of {len(list_runs)})...")
             if f"{d}.parquet" not in os.listdir(self.data_dir):
+                logging.info("     * parquet file is absent. Generating...")
                 df = self.parse_lammps_run(os.path.join(raw_data_dir, d))
                 if df is not None:
+                    logging.info("     * writing parquet file to disk...")
                     df.to_parquet(os.path.join(self.data_dir, f"{d}.parquet"), engine='pyarrow', index=False)
             if f"{d}.parquet" in os.listdir(self.data_dir):
                 list_files.append(os.path.join(self.data_dir, f"{d}.parquet"))
@@ -147,12 +151,30 @@ class LammpsProcessorForDiffusion:
         # Each row is a different MD step / usable example for diffusion model
         # TODO consider filtering out samples with large forces and MD steps that are too similar
         # TODO large force and similar are to be defined
-        df = df[['type', 'x', 'y', 'z', 'box']]
+        df = df[['type', 'x', 'y', 'z', 'box', 'energy']]
         df = self.get_x_relative(df)  # add relative coordinates
         df['natom'] = df['type'].apply(lambda x: len(x))  # count number of atoms in a structure
-        # naive implementation: a list of list which is converted into a 2d array by torch later
-        # but a list of list is not ok with the writing on files with parquet
-        df['position'] = df.apply(lambda x: [j for i in ['x', 'y', 'z'] for j in x[i]], axis=1)  # position as 3d array
+
+        # Parquet cannot handle a list of list; flattening positions.
+        df['position'] = df.apply(self._flatten_positions_in_row, axis=1)
         # position is natom * 3 array
-        # TODO unit test to check the order after reshape
-        return df[['natom', 'box', 'type', 'position', 'relative_positions']]
+        # TODO: position (singular) and relative_positions (plural) are not consistent.
+        return df[['natom', 'box', 'type', 'position', 'relative_positions', 'energy']]
+
+    @staticmethod
+    def _flatten_positions_in_row(row: pd.Series) -> List[float]:
+        """Function to flatten the positions in a dataframe row.
+
+        Args:
+            row : a dataframe row that should contain columns x, y, z.
+
+        Returns:
+            flattened positions: a list of each element is the flattened coordinate for that row, in C-style.
+        """
+        list_x = row['x']
+        list_y = row['y']
+        list_z = row['z']
+
+        flat_positions = list(itertools.chain.from_iterable([[x, y, z] for x, y, z in zip(list_x, list_y, list_z)]))
+
+        return flat_positions

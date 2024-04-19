@@ -1,131 +1,112 @@
 import os
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
+from crystal_diffusion.data.diffusion.conftest import TestDiffusionDataBase
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
+from tests.fake_data_utils import generate_parquet_dataframe
 
 
-@pytest.fixture
-def mock_processor(tmp_path):
-    raw_data_dir = tmp_path / "raw_data"
-    processed_data_dir = tmp_path / "processed_data"
-    raw_data_dir.mkdir()
-    processed_data_dir.mkdir()
-    processor = LammpsProcessorForDiffusion(str(raw_data_dir), str(processed_data_dir))
-    return processor
+class TestDataProcess(TestDiffusionDataBase):
 
+    @pytest.fixture
+    def processor(self, paths):
+        return LammpsProcessorForDiffusion(**paths)
 
-@pytest.fixture
-def mock_parse_lammps_method(monkeypatch):
-    def mock_return(*args, **kwargs):
-        # Mock DataFrame similar to the expected one from parse_lammps_run
+    def test_prepare_train_data(self, processor, paths, train_configuration_runs, number_of_train_runs):
+        list_files = processor.prepare_data(paths['raw_data_dir'], mode='train')
+        assert len(list_files) == number_of_train_runs
+
+        for run_number, configurations in enumerate(train_configuration_runs, 1):
+            expected_parquet_file = os.path.join(processor.data_dir, f"train_run_{run_number}.parquet")
+            assert expected_parquet_file in list_files
+
+            computed_df = pd.read_parquet(expected_parquet_file)
+            expected_df = generate_parquet_dataframe(configurations)
+            pd.testing.assert_frame_equal(computed_df, expected_df)
+
+    def test_prepare_valid_data(self, processor, paths, valid_configuration_runs, number_of_valid_runs):
+        list_files = processor.prepare_data(paths['raw_data_dir'], mode='valid')
+        assert len(list_files) == number_of_valid_runs
+
+        for run_number, configurations in enumerate(valid_configuration_runs, 1):
+            expected_parquet_file = os.path.join(processor.data_dir, f"valid_run_{run_number}.parquet")
+            assert expected_parquet_file in list_files
+
+            computed_df = pd.read_parquet(expected_parquet_file)
+            expected_df = generate_parquet_dataframe(configurations)
+            pd.testing.assert_frame_equal(computed_df, expected_df)
+
+    def test_parse_lammps_run(self, processor, paths, train_configuration_runs, valid_configuration_runs):
+        expected_columns = ['natom', 'box', 'type', 'position', 'relative_positions', 'energy']
+
+        for mode, configuration_runs in zip(['train', 'valid'], [train_configuration_runs, valid_configuration_runs]):
+
+            for run_number, configurations in enumerate(configuration_runs, 1):
+                run_dir = os.path.join(paths['raw_data_dir'], f"{mode}_run_{run_number}")
+                computed_df = processor.parse_lammps_run(run_dir)
+                assert computed_df is not None
+                assert not computed_df.empty
+                for column_name in expected_columns:
+                    assert column_name in computed_df.columns
+
+                expected_df = generate_parquet_dataframe(configurations)
+                pd.testing.assert_frame_equal(computed_df, expected_df)
+
+    @pytest.fixture
+    def box_coordinates(self):
+        return [1, 2, 3]
+
+    @pytest.fixture
+    def sample_coordinates(self, box_coordinates):
+        # Sample data frame
         return pd.DataFrame({
-            'id': [1, 2],
-            'type': [1, 2],
-            'x': [0.1, 0.2],
-            'y': [0.2, 0.3],
-            'z': [0.3, 0.4],
-            'fx': [0.1, -0.1],
-            'energy': [1.5, 2.5]
+            'box': [box_coordinates],
+            'x': [[0.6, 0.06, 0.006, 0.00006]],
+            'y': [[1.2, 0.12, 0.0012, 0.00012]],
+            'z': [[1.8, 0.18, 0.018, 0.0018]]
         })
 
-    monkeypatch.setattr(
-        'crystal_diffusion.data.diffusion.data_preprocess.LammpsProcessorForDiffusion.parse_lammps_run',
-        mock_return
-    )
+    def test_convert_coords_to_relative(self, sample_coordinates, box_coordinates):
+        # Expected output: Each coordinate divided by 1, 2, 3 (the box limits)
+        for index, row in sample_coordinates.iterrows():
+            relative_coords = LammpsProcessorForDiffusion._convert_coords_to_relative(row)
+            expected_coords = []
+            for x, y, z in zip(row['x'], row['y'], row['z']):
+                expected_coords.extend([x / box_coordinates[0], y / box_coordinates[1], z / box_coordinates[2]])
+            assert relative_coords == expected_coords
 
+    def test_convert_coords_to_relative2(self, processor, all_configurations):
 
-def test_prepare_data(mock_processor, mock_parse_lammps_method, tmp_path):
-    # Assuming that the raw_data directory is properly set up with train_run_1 subdirectory
-    train_run_dir = os.path.join(tmp_path, "raw_data", "train_run_1")
-    os.makedirs(train_run_dir)
-    expected_parquet_file = os.path.join(mock_processor.data_dir, "train_run_1.parquet")
-    train_files = mock_processor.prepare_data(os.path.join(tmp_path, "raw_data"), mode='train')
-    assert len(train_files) == 1
-    assert expected_parquet_file in train_files
+        for configuration in all_configurations:
 
+            natom = len(configuration.ids)
+            expected_coordinates = configuration.relative_coordinates
+            positions = configuration.positions
+            box = configuration.cell_dimensions
 
-@pytest.fixture
-def mock_parse_lammps_output(monkeypatch):
-    # Create a fake parse_lammps_output function
-    def mock_parse_lammps_output(*args, **kwargs):
-        # Return a fixed DataFrame that imitates the actual parse_lammps_output output
-        return pd.DataFrame({
-            'id': [[1, 2]],
-            'type': [[1, 2]],
-            'x': [[0.1, 0.2]],
-            'y': [[0.2, 0.3]],
-            'z': [[0.3, 0.4]],
-            'fx': [[0.1, -0.1]],
-            'energy': [[1.5, 2.5]],
-            'box': [[1.6, 2.6, 3.6]]
-        })
-    # Use monkeypatch to replace the actual function with the fake one for tests
-    monkeypatch.setattr(
-        'crystal_diffusion.data.diffusion.data_preprocess.parse_lammps_output',
-        mock_parse_lammps_output
-    )
+            position_series = pd.Series({'x': positions[:, 0], 'y': positions[:, 1], 'z': positions[:, 2], 'box': box})
 
+            computed_coordinates = np.array(processor._convert_coords_to_relative(position_series)).reshape(natom, 3)
+            np.testing.assert_almost_equal(computed_coordinates, expected_coordinates)
 
-def test_parse_lammps_run(mock_processor, mock_parse_lammps_output, tmp_path):
-    # Assuming that the raw_data directory is properly set up with train_run_1 subdirectory
-    train_run_dir = os.path.join(tmp_path, "raw_data", "train_run_1")
-    os.makedirs(train_run_dir)
-    dump_file = os.path.join(train_run_dir, "dump_file")
-    thermo_file = os.path.join(train_run_dir, "thermo_file")
-    Path(dump_file).touch()  # Create the file
-    Path(thermo_file).touch()  # Create the file
-    df = mock_processor.parse_lammps_run(train_run_dir)
-    assert df is not None
-    assert not df.empty
-    assert 'natom' in df.columns
-    assert 'box' in df.columns
-    assert 'type' in df.columns
-    assert 'position' in df.columns
-    assert 'relative_positions' in df.columns
+    def test_get_x_relative(self, processor, sample_coordinates):
+        # Call get_x_relative on the test data
+        result_df = processor.get_x_relative(sample_coordinates)
+        # Check if 'relative_positions' column is added
+        assert 'relative_positions' in result_df.columns
 
+    def test_flatten_positions_in_row(self):
 
-@pytest.fixture
-def box_coordinates():
-    return [1, 2, 3]
+        number_of_atoms = 12
+        spatial_dimensions = 3
+        position_data = np.random.rand(number_of_atoms, spatial_dimensions)
+        row = pd.Series(dict(x=list(position_data[:, 0]), y=list(position_data[:, 1]), z=list(position_data[:, 2])))
 
+        computed_flattened_positions = LammpsProcessorForDiffusion._flatten_positions_in_row(row)
+        expected_flattened_positions = position_data.flatten()
 
-@pytest.fixture
-def sample_coordinates(box_coordinates):
-    # Sample data frame
-    return pd.DataFrame({
-        'box': [box_coordinates],
-        'x': [[0.6, 0.06, 0.006, 0.00006]],
-        'y': [[1.2, 0.12, 0.0012, 0.00012]],
-        'z': [[1.8, 0.18, 0.018, 0.0018]]
-    })
-
-
-def test_convert_coords_to_relative(sample_coordinates, box_coordinates):
-    # Expected output: Each coordinate divided by 1, 2, 3 (the box limits)
-    for index, row in sample_coordinates.iterrows():
-        relative_coords = LammpsProcessorForDiffusion._convert_coords_to_relative(row)
-        expected_coords = []
-        for x, y, z in zip(row['x'], row['y'], row['z']):
-            expected_coords.extend([x / box_coordinates[0], y / box_coordinates[1], z / box_coordinates[2]])
-        assert relative_coords == expected_coords
-
-
-@pytest.fixture
-def mock_prepare_data():
-    with (patch('crystal_diffusion.data.diffusion.data_preprocess.LammpsProcessorForDiffusion.prepare_data')
-          as mock_prepare):
-        mock_prepare.return_value = MagicMock()
-        yield mock_prepare
-
-
-def test_get_x_relative(mock_prepare_data, sample_coordinates, tmpdir):
-    # Call get_x_relative on the test data
-    lp = LammpsProcessorForDiffusion(tmpdir, tmpdir)
-    result_df = lp.get_x_relative(sample_coordinates)
-    # Check if 'relative_positions' column is added
-    assert 'relative_positions' in result_df.columns
+        np.testing.assert_almost_equal(expected_flattened_positions, computed_flattened_positions)

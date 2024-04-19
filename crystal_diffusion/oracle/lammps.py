@@ -35,7 +35,9 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
     """
     n_atom = positions.shape[0]
     assert atom_types.shape == (n_atom, ), f"Atom types should match the number of atoms. Got {atom_types.shape}."
-    lmp = lammps.lammps()  # create a lammps run
+
+    # create a lammps run, turning off logging
+    lmp = lammps.lammps(cmdargs=["-log", "none", "-echo", "none", "-screen", "none"])
     assert np.allclose(box, np.diag(np.diag(box))), "only orthogonal LAMMPS box are valid"
 
     lmp.command("units metal")
