@@ -1,0 +1,152 @@
+from collections import namedtuple
+from typing import Any, Dict, List
+
+import numpy as np
+import pandas as pd
+import yaml
+
+Configuration = namedtuple("Configuration",
+                           ["spatial_dimension", "relative_coordinates", "positions",
+                            "forces", "types", "ids", "cell_dimensions",
+                            "potential_energy", "kinetic_energy", "energy"])
+
+
+def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
+    """Generate fake configuration.
+
+    Args:
+        spatial_dimension : dimension of space. Should be 1, 2 or 3.
+        number_of_atoms : how many atoms to generate.
+
+    Returns:
+        configuration: a configuration object with all the data describing a configuration.
+    """
+
+    relative_coordinates = np.random.rand(number_of_atoms, spatial_dimension)
+
+    cell_dimensions = np.random.rand(spatial_dimension)
+    unit_cell_vectors = np.diag(cell_dimensions)
+    positions = np.dot(relative_coordinates, unit_cell_vectors)
+    potential_energy = np.random.rand()
+    kinetic_energy = np.random.rand()
+    energy = potential_energy + kinetic_energy
+
+    return Configuration(spatial_dimension=spatial_dimension,
+                         relative_coordinates=relative_coordinates,
+                         positions=positions,
+                         forces=np.random.rand(number_of_atoms, spatial_dimension),
+                         types=np.random.randint(1, 10, number_of_atoms),
+                         ids=np.arange(1, number_of_atoms + 1),
+                         cell_dimensions=cell_dimensions,
+                         potential_energy=potential_energy,
+                         kinetic_energy=kinetic_energy,
+                         energy=energy)
+
+
+def generate_parse_lammps_output(configurations: List[Configuration]) -> pd.DataFrame:
+    """Generate parse lammps run
+
+    Args:
+        configurations : a list of configuration objects.
+
+    Returns:
+        df: the expected output of parse_lammps_output.
+    """
+    rows = []
+    for configuration in configurations:
+        row = dict(id=list(configuration.ids), type=list(configuration.types))
+        for coordinates, name in zip(configuration.relative_coordinates.transpose(), ['x', 'y', 'z']):
+            row[name] = list(coordinates)
+
+        for coordinate_forces, name in zip(configuration.forces.transpose(), ['fx', 'fy', 'fz']):
+            row[name] = list(coordinate_forces)
+
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def create_dump_single_record(configuration: Configuration, timestep: int) -> Dict[str, Any]:
+
+    spatial_dimension = configuration.spatial_dimension
+
+    box = [[0, float(dimension)] for dimension in configuration.cell_dimensions]
+
+    # keywords should be of the form : [id, type, x, y, z, fx, fy, fz, ]
+    keywords = ['id', 'type']
+
+    for direction, _ in zip(['x', 'y', 'z'], range(spatial_dimension)):
+        keywords.append(direction)
+
+    for force_direction, _ in zip(['fx', 'fy', 'fz'], range(spatial_dimension)):
+        keywords.append(force_direction)
+
+    # Each row of data should be a list in the same order as the keywords
+    data = []
+
+    for id, type, position, force in (
+            zip(configuration.ids, configuration.types, configuration.positions, configuration.forces)):
+        row = [int(id), int(type)] + [float(p) for p in position] + [float(f) for f in force]
+        data.append(row)
+
+    document = dict(creator='fake LAMMPS for tests',
+                    timestep=timestep,
+                    natoms=len(configuration.ids),
+                    boundary=2 * spatial_dimension * ['p'],
+                    box=box,
+                    keywords=keywords,
+                    data=data)
+    return document
+
+
+def create_dump_yaml_documents(configurations: List[Configuration]) -> List[Dict[str, Any]]:
+    docs = []
+    for timestep, configuration in enumerate(configurations):
+        docs.append(create_dump_single_record(configuration, timestep))
+
+    return docs
+
+
+def create_thermo_yaml_documents(configurations: List[Configuration]) -> List[Dict[str, Any]]:
+
+    keywords = ['Step', 'Temp', 'KinEng', 'PotEng', 'E_bond', 'E_angle',
+                'E_dihed', 'E_impro', 'E_vdwl', 'E_coul', 'E_long', 'Press']
+
+    number_of_keywords = len(keywords)
+
+    data = []
+    for timestep, configuration in enumerate(configurations):
+        row = ([timestep]
+               + [float(np.random.rand())]
+               + [float(configuration.kinetic_energy), float(configuration.potential_energy)]
+               + [float(np.random.rand()) for _ in range(number_of_keywords - 4)])
+        data.append(row)
+
+    document = dict(keywords=keywords, data=data)
+    return [document]
+
+
+def write_to_yaml(documents: List[Dict[str, Any]], output_file_path: str):
+    """Write to yaml."""
+    with open(output_file_path, "w") as fd:
+        # This output format is not perfectly identical to what LAMMPS output, but very similar.
+        yaml.dump_all(documents, fd, sort_keys=False, default_flow_style=None, width=1000)
+
+
+def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFrame:
+    rows = []
+    for configuration in configurations:
+        # TODO: by inspection, we see that the relative positions and the positions are not flattened in the same
+        #   way. It would be good to avoid confusion by using the same flattening process for both data types.
+        relative_positions = configuration.relative_coordinates.flatten(order='c')
+        positions = configuration.positions.flatten(order='f')
+        number_of_atoms = len(configuration.ids)
+        box = configuration.cell_dimensions
+        row = dict(natom=number_of_atoms,
+                   box=box,
+                   type=configuration.types,
+                   position=positions,
+                   relative_positions=relative_positions,
+                   energy=configuration.energy)
+
+        rows.append(row)
+    return pd.DataFrame(rows)
