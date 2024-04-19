@@ -1,11 +1,59 @@
+from collections import defaultdict
+from typing import Dict, List
+
 import pytest
 import torch
 
-from crystal_diffusion.data.diffusion.data_loader import \
-    LammpsForDiffusionDataModule
+from crystal_diffusion.data.diffusion.conftest import TestDiffusionDataBase
+from crystal_diffusion.data.diffusion.data_loader import (
+    LammpsForDiffusionDataModule, LammpsLoaderParameters)
+from tests.fake_data_utils import Configuration
 
 
-class TestDiffusionDataLoader:
+def find_aligning_permutation(first_2d_array: torch.Tensor, second_2d_array: torch.Tensor, tol=1e-6) -> torch.Tensor:
+    """Find aligning permutation, assuming the input two arrays contain the same information."""
+    assert first_2d_array.shape == second_2d_array.shape, "Incompatible shapes."
+    assert len(first_2d_array.shape) == 2, "Unexpected shapes."
+
+    number_of_vectors = first_2d_array.shape[0]
+
+    permutation_indices = []
+
+    for v1 in first_2d_array:
+        found = False
+        for i, v2 in enumerate(second_2d_array):
+            if torch.linalg.norm(v1 - v2) < tol:
+                assert not found, "More than one vector in the 2nd array is identical to the first array."
+                found = True
+                permutation_indices.append(i)
+
+        assert found, "One vector of the first array cannot be found in the 2nd array."
+
+    permutation_indices = torch.tensor(permutation_indices)
+    torch.testing.assert_allclose(torch.sort(permutation_indices).values, torch.arange(number_of_vectors))
+
+    return permutation_indices
+
+
+def convert_configurations_to_dataset(configurations: List[Configuration]) -> Dict[str, torch.Tensor]:
+    """Convert the input configuration into a dict of torch tensors comparable to a pytorch dataset."""
+    # The expected dataset keys are {'natom', 'box', 'position', 'relative_positions', 'type'}
+    data = defaultdict(list)
+    for configuration in configurations:
+        data['natom'].append(len(configuration.ids))
+        data['box'].append(configuration.cell_dimensions)
+        data['position'].append(configuration.positions)
+        data['relative_positions'].append(configuration.relative_coordinates)
+        data['type'].append(configuration.types)
+
+    configuration_dataset = dict()
+    for key, array in data.items():
+        configuration_dataset[key] = torch.tensor(array)
+
+    return configuration_dataset
+
+
+class TestDiffusionDataLoader(TestDiffusionDataBase):
     @pytest.fixture
     def input_data_to_transform(self):
         return {
@@ -58,3 +106,55 @@ class TestDiffusionDataLoader:
 
         # Check that the padding uses nan for position
         assert torch.isnan(padded_sample['position'][-(max_atom - 2) * 3:]).all()
+
+    @pytest.fixture
+    def data_module_hyperparameters(self, number_of_atoms, spatial_dimension):
+        return LammpsLoaderParameters(batch_size=2,
+                                      num_workers=0,
+                                      max_atom=number_of_atoms,
+                                      spatial_dimension=spatial_dimension)
+
+    @pytest.fixture()
+    def data_module(self, paths, data_module_hyperparameters, tmpdir):
+
+        data_module = LammpsForDiffusionDataModule(lammps_run_dir=paths['raw_data_dir'],
+                                                   processed_dataset_dir=paths['processed_data_dir'],
+                                                   hyper_params=data_module_hyperparameters,
+                                                   working_cache_dir=tmpdir)
+        data_module.setup()
+
+        return data_module
+
+    @pytest.fixture()
+    def real_and_test_datasets(self, mode, data_module, all_train_configurations, all_valid_configurations):
+
+        match mode:
+            case 'train':
+                data_module_dataset = data_module.train_dataset[:]
+                configuration_dataset = convert_configurations_to_dataset(all_train_configurations)
+            case 'valid':
+                data_module_dataset = data_module.valid_dataset[:]
+                configuration_dataset = convert_configurations_to_dataset(all_valid_configurations)
+            case _:
+                raise ValueError(f"Unknown mode {mode}")
+
+        return data_module_dataset, configuration_dataset
+
+    @pytest.mark.parametrize('mode', ['train', 'valid'])
+    def test_dataset(self, real_and_test_datasets):
+
+        data_module_dataset, configuration_dataset = real_and_test_datasets
+
+        assert set(data_module_dataset.keys()) == set(configuration_dataset.keys())
+
+        # the configurations and the data module dataset might not be in the same order. Try to build a mapping.
+        dataset_boxes = data_module_dataset['box']
+        configuration_boxes = configuration_dataset['box']
+
+        permutation_indices = find_aligning_permutation(dataset_boxes, configuration_boxes)
+
+        for field_name in data_module_dataset.keys():
+            computed_values = data_module_dataset[field_name]
+            expected_values = configuration_dataset[field_name][permutation_indices]
+
+            torch.testing.assert_allclose(computed_values, expected_values)
