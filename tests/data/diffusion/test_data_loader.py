@@ -45,6 +45,7 @@ def convert_configurations_to_dataset(configurations: List[Configuration]) -> Di
         data['position'].append(configuration.positions)
         data['relative_positions'].append(configuration.relative_coordinates)
         data['type'].append(configuration.types)
+        data['energy'].append(configuration.energy)
 
     configuration_dataset = dict()
     for key, array in data.items():
@@ -61,25 +62,28 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
             'box': [[1.0, 1.0, 1.0]],
             'position': [[1., 2., 3, 4., 5, 6]],  # for one batch, two atoms, 3D positions
             'relative_positions': [[1., 2., 3, 4., 5, 6]],
-            'type': [[1, 2]]
+            'type': [[1, 2]],
+            'energy': [23.233],
         }
 
     def test_dataset_transform(self, input_data_to_transform):
         result = LammpsForDiffusionDataModule.dataset_transform(input_data_to_transform)
         # Check keys in result
-        assert set(result.keys()) == {'natom', 'position', 'relative_positions', 'box', 'type'}
+        assert set(result.keys()) == {'natom', 'position', 'relative_positions', 'box', 'type', 'energy'}
 
         # Check tensor types and shapes
-        assert torch.equal(result['natom'], torch.tensor([2]).long())
+        assert torch.equal(result['natom'], torch.tensor(input_data_to_transform['natom']).long())
         assert result['position'].shape == (1, 2, 3)  # (batchsize, natom, 3 [since it's 3D])
         assert result['box'].shape == (1, 3)
-        assert torch.equal(result['type'], torch.tensor([[1, 2]]).long())
+        assert torch.equal(result['type'], torch.tensor(input_data_to_transform['type']).long())
+        assert torch.equal(result['energy'], torch.tensor(input_data_to_transform['energy']))
 
         # Check tensor types explicitly
         assert result['natom'].dtype == torch.long
         assert result['position'].dtype == torch.float32  # default dtype for torch.as_tensor with float inputs
         assert result['box'].dtype == torch.float32
         assert result['type'].dtype == torch.long
+        assert result['energy'].dtype == torch.float32
 
     @pytest.fixture
     def input_data_to_pad(self):
@@ -88,7 +92,8 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
             'box': [1.0, 1.0, 1.0],
             'position': [1., 2., 3, 4., 5, 6],  # for one batch, two atoms, 3D positions
             'relative_positions': [1., 2., 3, 4., 5, 6],
-            'type': [1, 2]
+            'type': [1, 2],
+            'energy': 23.233,
         }
 
     def test_pad_dataset(self, input_data_to_pad):
@@ -139,6 +144,11 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
                 raise ValueError(f"Unknown mode {mode}")
 
         return data_module_dataset, configuration_dataset
+
+    def test_dataset_feature_names(self, data_module):
+        expected_feature_names = {'natom', 'box', 'position', 'relative_positions', 'type', 'energy'}
+        assert set(data_module.train_dataset.features.keys()) == expected_feature_names
+        assert set(data_module.valid_dataset.features.keys()) == expected_feature_names
 
     @pytest.mark.parametrize('mode', ['train', 'valid'])
     def test_dataset(self, real_and_test_datasets):

@@ -80,6 +80,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         for pos in ['position', 'relative_positions']:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
         transformed_x['type'] = torch.as_tensor(x['type']).long()  # size: (batchsize, max atom)
+        transformed_x['energy'] = torch.as_tensor(x['energy'])  # size: (batchsize, )
 
         return transformed_x
 
