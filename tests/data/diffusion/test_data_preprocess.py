@@ -4,128 +4,97 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from crystal_diffusion.data.diffusion.conftest import TestDiffusionDataBase
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
-from tests.fake_data_utils import (create_dump_yaml_documents,
-                                   create_thermo_yaml_documents,
-                                   generate_fake_configuration,
-                                   generate_parquet_dataframe, write_to_yaml)
+from tests.fake_data_utils import generate_parquet_dataframe
 
 
-@pytest.fixture
-def train_configurations():
-    np.random.seed(23423)
-    return [generate_fake_configuration(spatial_dimension=3, number_of_atoms=8) for _ in range(16)]
+class TestDataProcess(TestDiffusionDataBase):
 
+    @pytest.fixture
+    def processor(self, paths):
+        return LammpsProcessorForDiffusion(**paths)
 
-@pytest.fixture
-def valid_configurations():
-    np.random.seed(1234)
-    return [generate_fake_configuration(spatial_dimension=3, number_of_atoms=8) for _ in range(16)]
+    def test_prepare_train_data(self, processor, paths, train_configuration_runs, number_of_train_runs):
+        list_files = processor.prepare_data(paths['raw_data_dir'], mode='train')
+        assert len(list_files) == number_of_train_runs
 
+        for run_number, configurations in enumerate(train_configuration_runs, 1):
+            expected_parquet_file = os.path.join(processor.data_dir, f"train_run_{run_number}.parquet")
+            assert expected_parquet_file in list_files
 
-@pytest.fixture
-def configurations(train_configurations, valid_configurations):
-    return train_configurations + valid_configurations
+            computed_df = pd.read_parquet(expected_parquet_file)
+            expected_df = generate_parquet_dataframe(configurations)
+            pd.testing.assert_frame_equal(computed_df, expected_df)
 
+    def test_prepare_valid_data(self, processor, paths, valid_configuration_runs, number_of_valid_runs):
+        list_files = processor.prepare_data(paths['raw_data_dir'], mode='valid')
+        assert len(list_files) == number_of_valid_runs
 
-@pytest.fixture
-def paths(tmp_path, train_configurations, valid_configurations):
-    raw_data_dir = tmp_path / "raw_data"
-    raw_data_dir.mkdir()
+        for run_number, configurations in enumerate(valid_configuration_runs, 1):
+            expected_parquet_file = os.path.join(processor.data_dir, f"valid_run_{run_number}.parquet")
+            assert expected_parquet_file in list_files
 
-    for mode, configurations in zip(['train', 'valid'], [train_configurations, valid_configurations]):
-        run_directory = raw_data_dir / f'{mode}_run_1'
-        run_directory.mkdir()
-        dump_docs = create_dump_yaml_documents(configurations)
-        thermo_docs = create_thermo_yaml_documents(configurations)
+            computed_df = pd.read_parquet(expected_parquet_file)
+            expected_df = generate_parquet_dataframe(configurations)
+            pd.testing.assert_frame_equal(computed_df, expected_df)
 
-        write_to_yaml(dump_docs, str(run_directory / f'dump_{mode}.yaml'))
-        write_to_yaml(thermo_docs, str(run_directory / 'thermo_logs.yaml'))
-
-    processed_data_dir = tmp_path / "processed_data"
-    processed_data_dir.mkdir()
-
-    return dict(raw_data_dir=str(raw_data_dir), processed_data_dir=str(processed_data_dir))
-
-
-@pytest.fixture
-def processor(paths):
-    return LammpsProcessorForDiffusion(**paths)
-
-
-def test_prepare_data(processor, paths, train_configurations, valid_configurations):
-    # Assuming that the raw_data directory is properly set up with train_run_1 and valid_run_1 subdirectory
-    for mode, configurations in zip(['train', 'valid'], [train_configurations, valid_configurations]):
-        list_files = processor.prepare_data(paths['raw_data_dir'], mode=mode)
-        assert len(list_files) == 1
-
-        expected_parquet_file = os.path.join(processor.data_dir, f"{mode}_run_1.parquet")
-        assert expected_parquet_file in list_files
-
-        computed_df = pd.read_parquet(expected_parquet_file)
-        expected_df = generate_parquet_dataframe(configurations)
-        pd.testing.assert_frame_equal(computed_df, expected_df)
-
-
-def test_parse_lammps_run(processor, paths, train_configurations, valid_configurations):
-    # Assuming that the raw_data directory is properly set up with train_run_1 and valid_run_1 subdirectory
-    for mode, configurations in zip(['train', 'valid'], [train_configurations, valid_configurations]):
-        run_dir = os.path.join(paths['raw_data_dir'], f"{mode}_run_1")
-        computed_df = processor.parse_lammps_run(run_dir)
-        assert computed_df is not None
-        assert not computed_df.empty
+    def test_parse_lammps_run(self, processor, paths, train_configuration_runs, valid_configuration_runs):
         expected_columns = ['natom', 'box', 'type', 'position', 'relative_positions', 'energy']
-        for column_name in expected_columns:
-            assert column_name in computed_df.columns
 
-        expected_df = generate_parquet_dataframe(configurations)
-        pd.testing.assert_frame_equal(computed_df, expected_df)
+        for mode, configuration_runs in zip(['train', 'valid'], [train_configuration_runs, valid_configuration_runs]):
 
+            for run_number, configurations in enumerate(configuration_runs, 1):
+                run_dir = os.path.join(paths['raw_data_dir'], f"{mode}_run_{run_number}")
+                computed_df = processor.parse_lammps_run(run_dir)
+                assert computed_df is not None
+                assert not computed_df.empty
+                for column_name in expected_columns:
+                    assert column_name in computed_df.columns
 
-@pytest.fixture
-def box_coordinates():
-    return [1, 2, 3]
+                expected_df = generate_parquet_dataframe(configurations)
+                pd.testing.assert_frame_equal(computed_df, expected_df)
 
+    @pytest.fixture
+    def box_coordinates(self):
+        return [1, 2, 3]
 
-@pytest.fixture
-def sample_coordinates(box_coordinates):
-    # Sample data frame
-    return pd.DataFrame({
-        'box': [box_coordinates],
-        'x': [[0.6, 0.06, 0.006, 0.00006]],
-        'y': [[1.2, 0.12, 0.0012, 0.00012]],
-        'z': [[1.8, 0.18, 0.018, 0.0018]]
-    })
+    @pytest.fixture
+    def sample_coordinates(self, box_coordinates):
+        # Sample data frame
+        return pd.DataFrame({
+            'box': [box_coordinates],
+            'x': [[0.6, 0.06, 0.006, 0.00006]],
+            'y': [[1.2, 0.12, 0.0012, 0.00012]],
+            'z': [[1.8, 0.18, 0.018, 0.0018]]
+        })
 
+    def test_convert_coords_to_relative(self, sample_coordinates, box_coordinates):
+        # Expected output: Each coordinate divided by 1, 2, 3 (the box limits)
+        for index, row in sample_coordinates.iterrows():
+            relative_coords = LammpsProcessorForDiffusion._convert_coords_to_relative(row)
+            expected_coords = []
+            for x, y, z in zip(row['x'], row['y'], row['z']):
+                expected_coords.extend([x / box_coordinates[0], y / box_coordinates[1], z / box_coordinates[2]])
+            assert relative_coords == expected_coords
 
-def test_convert_coords_to_relative(sample_coordinates, box_coordinates):
-    # Expected output: Each coordinate divided by 1, 2, 3 (the box limits)
-    for index, row in sample_coordinates.iterrows():
-        relative_coords = LammpsProcessorForDiffusion._convert_coords_to_relative(row)
-        expected_coords = []
-        for x, y, z in zip(row['x'], row['y'], row['z']):
-            expected_coords.extend([x / box_coordinates[0], y / box_coordinates[1], z / box_coordinates[2]])
-        assert relative_coords == expected_coords
+    def test_convert_coords_to_relative2(self, processor, all_configurations):
 
+        for configuration in all_configurations:
 
-def test_convert_coords_to_relative2(processor, configurations):
+            natom = len(configuration.ids)
+            expected_coordinates = configuration.relative_coordinates
+            positions = configuration.positions
+            box = configuration.cell_dimensions
 
-    for configuration in configurations:
+            position_series = pd.Series({'x': positions[:, 0], 'y': positions[:, 1], 'z': positions[:, 2], 'box': box})
 
-        natom = len(configuration.ids)
-        expected_coordinates = configuration.relative_coordinates
-        positions = configuration.positions
-        box = configuration.cell_dimensions
+            computed_coordinates = np.array(processor._convert_coords_to_relative(position_series)).reshape(natom, 3)
+            np.testing.assert_almost_equal(computed_coordinates, expected_coordinates)
 
-        position_series = pd.Series({'x': positions[:, 0], 'y': positions[:, 1], 'z': positions[:, 2], 'box': box})
-
-        computed_coordinates = np.array(processor._convert_coords_to_relative(position_series)).reshape(natom, 3)
-        np.testing.assert_almost_equal(computed_coordinates, expected_coordinates)
-
-
-def test_get_x_relative(processor, sample_coordinates):
-    # Call get_x_relative on the test data
-    result_df = processor.get_x_relative(sample_coordinates)
-    # Check if 'relative_positions' column is added
-    assert 'relative_positions' in result_df.columns
+    def test_get_x_relative(self, processor, sample_coordinates):
+        # Call get_x_relative on the test data
+        result_df = processor.get_x_relative(sample_coordinates)
+        # Check if 'relative_positions' column is added
+        assert 'relative_positions' in result_df.columns
