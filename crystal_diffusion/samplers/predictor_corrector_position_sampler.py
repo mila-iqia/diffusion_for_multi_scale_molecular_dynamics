@@ -24,22 +24,23 @@ class PredictorCorrectorPositionSampler(ABC):
         self.number_of_discretization_steps = number_of_discretization_steps
         self.number_of_corrector_steps = number_of_corrector_steps
 
-    def sample(self, number_of_samples: int) -> torch.Tensor:
+    def sample(self, number_of_samples: int, device=torch.device) -> torch.Tensor:
         """Sample.
 
         This method draws a sample using the PR sampler algorithm.
 
         Args:
             number_of_samples : number of samples to draw.
+            device: device to use (cpu, cuda, etc.). Should match the PL model location.
 
         Returns:
             position samples: position samples.
         """
-        x_ip1 = map_positions_to_unit_cell(self.initialize(number_of_samples))
+        x_ip1 = map_positions_to_unit_cell(self.initialize(number_of_samples)).to(device)
         logger.info("Starting position sampling")
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
             x_i = map_positions_to_unit_cell(self.predictor_step(x_ip1, i + 1))
-            for j in range(self.number_of_corrector_steps):
+            for _ in range(self.number_of_corrector_steps):
                 x_i = map_positions_to_unit_cell(self.corrector_step(x_i, i))
             x_ip1 = x_i
 
@@ -128,7 +129,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
 
         number_of_samples = x.shape[0]
 
-        time_tensor = time * torch.ones(number_of_samples, 1)
+        time_tensor = time * torch.ones(number_of_samples, 1).to(x)
         augmented_batch = {pos_key: x, time_key: time_tensor}
         with torch.no_grad():
             predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
@@ -149,13 +150,13 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
             "The predictor step can only be invoked for index_i between 1 and the total number of discretization steps."
 
         number_of_samples = x_i.shape[0]
-        z = self._draw_gaussian_sample(number_of_samples)
+        z = self._draw_gaussian_sample(number_of_samples).to(x_i)
 
         idx = index_i - 1  # python starts indices at zero
-        t_i = self.noise.time[idx]
-        g_i = self.noise.g[idx]
-        g2_i = self.noise.g_squared[idx]
-        sigma_i = self.noise.sigma[idx]
+        t_i = self.noise.time[idx].to(x_i)
+        g_i = self.noise.g[idx].to(x_i)
+        g2_i = self.noise.g_squared[idx].to(x_i)
+        sigma_i = self.noise.sigma[idx].to(x_i)
 
         sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i)
 
@@ -178,20 +179,20 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
              "the total number of discretization steps minus 1.")
 
         number_of_samples = x_i.shape[0]
-        z = self._draw_gaussian_sample(number_of_samples)
+        z = self._draw_gaussian_sample(number_of_samples).to(x_i)
 
         # The Langevin dynamics array are indexed with [0,..., N-1]
-        eps_i = self.langevin_dynamics.epsilon[index_i]
-        sqrt_2eps_i = self.langevin_dynamics.sqrt_2_epsilon[index_i]
+        eps_i = self.langevin_dynamics.epsilon[index_i].to(x_i)
+        sqrt_2eps_i = self.langevin_dynamics.sqrt_2_epsilon[index_i].to(x_i)
 
         if index_i == 0:
             # TODO: we are extrapolating here; the score network will never have seen this time step...
-            sigma_i = self.noise_parameters.sigma_min
-            t_i = 0.
+            sigma_i = self.noise_parameters.sigma_min  # no need to change device, this is a float
+            t_i = 0.  # same for device - this is a float
         else:
             idx = index_i - 1  # python starts indices at zero
-            sigma_i = self.noise.sigma[idx]
-            t_i = self.noise.time[idx]
+            sigma_i = self.noise.sigma[idx].to(x_i)
+            t_i = self.noise.time[idx].to(x_i)
 
         sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i)
 
