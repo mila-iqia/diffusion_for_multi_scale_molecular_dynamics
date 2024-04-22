@@ -6,7 +6,7 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (
     CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters,
-    ValidSchedulerName, load_scheduler)
+    ValidSchedulerName, load_scheduler_dictionary)
 
 
 class FakeNeuralNet(torch.nn.Module):
@@ -43,4 +43,4 @@ def scheduler_parameters(scheduler_name: ValidSchedulerName):
 
 @pytest.mark.parametrize("scheduler_name", [option.value for option in list(ValidSchedulerName)])
 def test_load_scheduler(optimizer, scheduler_parameters):
-    _ = load_scheduler(hyper_params=scheduler_parameters, optimizer=optimizer)
+    _ = load_scheduler_dictionary(hyper_params=scheduler_parameters, optimizer=optimizer)

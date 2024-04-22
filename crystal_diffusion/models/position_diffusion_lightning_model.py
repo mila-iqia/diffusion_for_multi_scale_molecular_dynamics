@@ -7,6 +7,8 @@ import torch
 
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
+from crystal_diffusion.models.scheduler import (SchedulerParameters,
+                                                load_scheduler_dictionary)
 from crystal_diffusion.models.score_network import (MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.noisy_position_sampler import (
@@ -27,6 +29,7 @@ class PositionDiffusionParameters:
 
     score_network_parameters: MLPScoreNetworkParameters
     optimizer_parameters: OptimizerParameters
+    scheduler_parameters: typing.Union[SchedulerParameters, None] = None
     noise_parameters: NoiseParameters
     kmax_target_score: int = (
         4  # convergence parameter for the Ewald-like sum of the perturbation kernel.
@@ -67,7 +70,15 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         See https://pytorch-lightning.readthedocs.io/en/latest/common/optimizers.html for more info
         on the expected returned elements.
         """
-        return load_optimizer(self.hyper_params.optimizer_parameters, self)
+        optimizer = load_optimizer(self.hyper_params.optimizer_parameters, self)
+        output = dict(optimizer=optimizer)
+
+        if self.hyper_params.scheduler_parameters is not None:
+            scheduler_dict = load_scheduler_dictionary(hyper_params=self.hyper_params.scheduler_parameters,
+                                                       optimizer=optimizer)
+            output.update(scheduler_dict)
+
+        return output
 
     @staticmethod
     def _get_batch_size(batch: torch.Tensor) -> int:
