@@ -4,7 +4,7 @@ from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerNames)
+                                                ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.score_network import (MLPScoreNetwork,
@@ -75,7 +75,7 @@ class TestPositionDiffusionLightningModel:
         )
 
         optimizer_parameters = OptimizerParameters(
-            name=ValidOptimizerNames("adam"), learning_rate=0.01
+            name=ValidOptimizerName("adam"), learning_rate=0.01
         )
         noise_parameters = NoiseParameters(total_time_steps=15)
 

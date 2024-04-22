@@ -22,7 +22,7 @@ from crystal_diffusion.callbacks.callbacks import (
     TensorboardHistogramLoggingCallback, TensorboardSamplesLoggingCallback,
     TensorboardScoreAndErrorLoggingCallback)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerNames)
+                                                ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
@@ -65,7 +65,7 @@ score_network_parameters = MLPScoreNetworkParameters(
     spatial_dimension=spatial_dimension,
 )
 
-optimizer_parameters = OptimizerParameters(name=ValidOptimizerNames("adam"), learning_rate=lr)
+optimizer_parameters = OptimizerParameters(name=ValidOptimizerName("adam"), learning_rate=lr)
 
 noise_parameters = NoiseParameters(total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=sigma_max)
 
