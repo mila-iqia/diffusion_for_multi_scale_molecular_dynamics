@@ -42,6 +42,7 @@ def get_config(number_of_atoms: int, max_epoch: int):
                         noise={'total_time_steps': 10})
 
     optimizer_config = dict(name='adam', learning_rate=0.001)
+    scheduler_config = dict(name='ReduceLROnPlateau', factor=0.6, patience=2)
 
     sampling_dict = {'spatial_dimension': 3,
                      'number_of_corrector_steps': 1,
@@ -61,6 +62,7 @@ def get_config(number_of_atoms: int, max_epoch: int):
                   data=data_config,
                   model=model_config,
                   optimizer=optimizer_config,
+                  scheduler=scheduler_config,
                   early_stopping=early_stopping_config,
                   model_checkpoint=model_checkpoint_config,
                   diffusion_sampling=diffusion_sampling_config,

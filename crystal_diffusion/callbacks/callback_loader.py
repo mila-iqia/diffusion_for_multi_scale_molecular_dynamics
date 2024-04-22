@@ -1,6 +1,7 @@
 from typing import Any, AnyStr, Dict
 
 from pytorch_lightning import Callback
+from pytorch_lightning.callbacks import LearningRateMonitor
 
 from crystal_diffusion.callbacks.sampling_callback import \
     instantiate_diffusion_sampling_callback
@@ -29,8 +30,9 @@ def create_all_callbacks(hyper_params: Dict[AnyStr, Any], output_directory: str,
     Returns:
         all_callbacks_dict: a dictionary of instantiated callbacks with relevant names as keys.
     """
-    # We always need a progress bar.
-    all_callbacks_dict = dict(progress_bar=CustomProgressBar())
+    # We always need a progress bar. We always want to know the learning rate.
+    all_callbacks_dict = dict(progress_bar=CustomProgressBar(),
+                              learning_rate=LearningRateMonitor(logging_interval='epoch'))
 
     for callback_name, instantiate_callback in OPTIONAL_CALLBACK_DICTIONARY.items():
         if callback_name not in hyper_params:
