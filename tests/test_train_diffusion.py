@@ -9,13 +9,13 @@ import os
 import re
 
 import numpy as np
-import pandas as pd
 import pytest
 import yaml
 
 from crystal_diffusion import train_diffusion
 from crystal_diffusion.callbacks.standard_callbacks import (BEST_MODEL_NAME,
                                                             LAST_MODEL_NAME)
+from tests.conftest import TestDiffusionDataBase
 
 best_model_regex = re.compile(r"best_model-epoch=(?P<epoch>(\d+)).*.ckpt")
 last_model_regex = re.compile(r"last_model-epoch=(?P<epoch>(\d+)).*.ckpt")
@@ -32,31 +32,6 @@ class DelayedInterrupt:
         if self.counter == self.how_many_epochs_before_interrupt + 1:
             # Only interrupt once.
             raise KeyboardInterrupt
-
-
-def get_fake_configuration_dataframe(number_of_configurations, number_of_atoms):
-    """Get fake configuration dataframe.
-
-    Generate a random, fake configuration dataframe with the minimal columns to reproduce the
-    behavior of 'parse_lammps_output'.
-    """
-    spatial_dimension = 3
-    list_rows = []
-    for row_id in range(number_of_configurations):
-        box = 10 * np.random.rand(spatial_dimension)
-
-        row = dict(box=box,
-                   x=box[0] * np.random.rand(number_of_atoms),
-                   y=box[1] * np.random.rand(number_of_atoms),
-                   z=box[2] * np.random.rand(number_of_atoms),
-                   type=np.random.randint(0, 10, number_of_atoms),
-                   energy=np.random.rand()
-                   )
-
-        list_rows.append(row)
-
-    df = pd.DataFrame(list_rows)
-    return df
 
 
 def get_config(number_of_atoms: int, max_epoch: int):
@@ -93,144 +68,101 @@ def get_config(number_of_atoms: int, max_epoch: int):
     return config
 
 
-@pytest.fixture(scope="module")
-def random_number_generator():
-    # Create a random number generator to decouple randomness in the test
-    # from the randomness in the model. The model uses its own seeds, which will
-    # affect the behavior of numpy.random: leveraging an independent rng will insure
-    # control over test randomness.
-    rng = np.random.default_rng(seed=2345234234)
-    return rng
+class TestTrainDiffusion(TestDiffusionDataBase):
+    @pytest.fixture()
+    def max_epoch(self):
+        return 5
 
+    @pytest.fixture()
+    def config(self, number_of_atoms, max_epoch):
+        return get_config(number_of_atoms, max_epoch=max_epoch)
 
-@pytest.fixture()
-def number_of_atoms():
-    return 8
+    @pytest.fixture()
+    def all_paths(self, paths, tmpdir, config):
+        all_paths = dict(data=paths['raw_data_dir'], processed_datadir=paths['processed_data_dir'])
 
+        for directory_name in ['dataset_working_dir', 'tmp-folder', 'output']:
+            # use random names to make sure we didn't accidentally hardcode a folder name.
+            directory = os.path.join(tmpdir, f"{directory_name}_{np.random.randint(99999999)}")
+            all_paths[directory_name] = directory
 
-@pytest.fixture()
-def max_epoch():
-    return 5
+        all_paths['config'] = os.path.join(tmpdir, f"config_{np.random.randint(99999999)}.yaml")
 
+        with open(all_paths['config'], 'w') as fd:
+            yaml.dump(config, fd)
 
-@pytest.fixture()
-def config(number_of_atoms, max_epoch):
-    return get_config(number_of_atoms, max_epoch=max_epoch)
+        return all_paths
 
+    @pytest.fixture()
+    def args(self, all_paths):
+        """Input arguments for main."""
+        input_args = [f"--config={all_paths['config']}",
+                      f"--data={all_paths['data']}",
+                      f"--processed_datadir={all_paths['processed_datadir']}",
+                      f"--dataset_working_dir={all_paths['dataset_working_dir']}",
+                      f"--tmp-folder={all_paths['tmp-folder']}",
+                      f"--output={all_paths['output']}",
+                      f"--accelerator={'cpu'}",
+                      f"--devices={1}"]
 
-@pytest.fixture()
-def paths(tmpdir, config, number_of_atoms, random_number_generator):
-    paths = dict()
-    for directory_name in ['data', 'processed_datadir', 'dataset_working_dir', 'tmp-folder', 'output']:
-        # use random names to make sure we didn't accidentally hardcode a folder name.
-        directory = os.path.join(tmpdir, f"folder{random_number_generator.integers(99999999)}")
-        paths[directory_name] = directory
+        return input_args
 
-    # dump some fake data into the appropriate folder.
-    raw_data_directory = paths['data']
-    for mode in ['train', 'valid']:
-        for run in [1, 2, 3]:
-            df = get_fake_configuration_dataframe(number_of_configurations=10,
-                                                  number_of_atoms=number_of_atoms)
+    def test_checkpoint_callback(self, args, all_paths, max_epoch):
+        train_diffusion.main(args)
+        best_model_path = os.path.join(all_paths['output'], BEST_MODEL_NAME)
+        last_model_path = os.path.join(all_paths['output'], LAST_MODEL_NAME)
 
-            run_directory = os.path.join(raw_data_directory, f'{mode}_run_{run}')
-            os.makedirs(run_directory)
-            df.to_pickle(os.path.join(run_directory, 'fake_data.pickle'))
+        model_paths = [best_model_path, last_model_path]
+        regexes = [best_model_regex, last_model_regex]
+        should_test_epoch_number = [False, True]  # the 'best' model epoch is ill-defined. Don't test!
 
-    paths['config'] = os.path.join(tmpdir, f"file{random_number_generator.integers(99999999)}.yaml")
+        for model_path, regex, test_epoch_number in zip(model_paths, regexes, should_test_epoch_number):
+            paths_in_directory = glob.glob(model_path + '/*.ckpt')
 
-    with open(paths['config'], 'w') as fd:
-        yaml.dump(config, fd)
+            assert len(paths_in_directory) == 1
+            model_filename = os.path.basename(paths_in_directory[0])
+            match_object = regex.match(model_filename)
+            assert match_object is not None
+            if test_epoch_number:
+                model_epoch = int(match_object.group('epoch'))
+                assert model_epoch == max_epoch - 1  # the epoch counter starts at zero!
 
-    return paths
+    def test_restart(self, args, all_paths, max_epoch, mocker):
+        last_model_path = os.path.join(all_paths['output'], LAST_MODEL_NAME)
 
+        method_to_patch = ("crystal_diffusion.models.position_diffusion_lightning_model."
+                           "PositionDiffusionLightningModel.on_train_epoch_start")
 
-@pytest.fixture()
-def args(paths):
-    """Input arguments for main."""
-    input_args = [f"--config={paths['config']}",
-                  f"--data={paths['data']}",
-                  f"--processed_datadir={paths['processed_datadir']}",
-                  f"--dataset_working_dir={paths['dataset_working_dir']}",
-                  f"--tmp-folder={paths['tmp-folder']}",
-                  f"--output={paths['output']}",
-                  f"--accelerator={'cpu'}",
-                  f"--devices={1}"]
+        interruption_epoch = max_epoch // 2
+        interruptor = DelayedInterrupt(how_many_epochs_before_interrupt=interruption_epoch)
+        mocker.patch(method_to_patch, side_effect=interruptor.delayed_interrupt)
 
-    return input_args
+        train_diffusion.main(args)
 
-
-@pytest.fixture()
-def mock_get_lammps_output_method(monkeypatch):
-    # Reading in yaml files is slow. This mock aims to go around this.
-
-    def path_to_fake_data_pickle(self, run_dir):
-        fake_data_path = os.path.join(run_dir, 'fake_data.pickle')
-        return pd.read_pickle(fake_data_path)
-
-    monkeypatch.setattr(
-        'crystal_diffusion.data.diffusion.data_preprocess.LammpsProcessorForDiffusion.get_lammps_output',
-        path_to_fake_data_pickle
-    )
-
-
-def test_checkpoint_callback(args, paths, mock_get_lammps_output_method, max_epoch):
-    train_diffusion.main(args)
-    best_model_path = os.path.join(paths['output'], BEST_MODEL_NAME)
-    last_model_path = os.path.join(paths['output'], LAST_MODEL_NAME)
-
-    model_paths = [best_model_path, last_model_path]
-    regexes = [best_model_regex, last_model_regex]
-    should_test_epoch_number = [False, True]  # the 'best' model epoch is ill-defined. Don't test!
-
-    for model_path, regex, test_epoch_number in zip(model_paths, regexes, should_test_epoch_number):
-        paths_in_directory = glob.glob(model_path + '/*.ckpt')
-
-        assert len(paths_in_directory) == 1
-        model_filename = os.path.basename(paths_in_directory[0])
-        match_object = regex.match(model_filename)
-        assert match_object is not None
-        if test_epoch_number:
-            model_epoch = int(match_object.group('epoch'))
-            assert model_epoch == max_epoch - 1  # the epoch counter starts at zero!
-
-
-def test_restart(args, paths, mock_get_lammps_output_method, max_epoch, mocker):
-    last_model_path = os.path.join(paths['output'], LAST_MODEL_NAME)
-
-    method_to_patch = ("crystal_diffusion.models.position_diffusion_lightning_model."
-                       "PositionDiffusionLightningModel.on_train_epoch_start")
-
-    interruption_epoch = max_epoch // 2
-    interruptor = DelayedInterrupt(how_many_epochs_before_interrupt=interruption_epoch)
-    mocker.patch(method_to_patch, side_effect=interruptor.delayed_interrupt)
-
-    train_diffusion.main(args)
-
-    # Check that there is only one last model, and that it fits expectation
-    paths_in_directory = glob.glob(last_model_path + '/*.ckpt')
-    last_model_filename = os.path.basename(paths_in_directory[0])
-    match_object = last_model_regex.match(last_model_filename)
-    assert match_object is not None
-    model_epoch = int(match_object.group('epoch'))
-    assert model_epoch == interruption_epoch - 1
-
-    # Restart training
-    train_diffusion.main(args)
-
-    # test that training was restarted.
-    # NOTE: the checkpoints produced before the interruption are NOT
-    # automatically deleted by pytorch-lightning. This means that there
-    # may be multiple "last" and "best" checkpoints in their respective folders,
-    # which can be mildly confusing. It would be dangerous at this time to
-    # implement complex (and fragile) logic to delete stale checkpoints, and risk
-    # deleting all checkpoints. Interruptions are rare: it is best to deal with
-    # multiple checkpoints by trusting the largest epoch number.
-    list_epoch_numbers = []
-    for path in glob.glob(last_model_path + '/*.ckpt'):
-        last_model_filename = os.path.basename(path)
+        # Check that there is only one last model, and that it fits expectation
+        paths_in_directory = glob.glob(last_model_path + '/*.ckpt')
+        last_model_filename = os.path.basename(paths_in_directory[0])
         match_object = last_model_regex.match(last_model_filename)
         assert match_object is not None
         model_epoch = int(match_object.group('epoch'))
-        list_epoch_numbers.append(model_epoch)
-    assert np.max(list_epoch_numbers) == max_epoch - 1
+        assert model_epoch == interruption_epoch - 1
+
+        # Restart training
+        train_diffusion.main(args)
+
+        # Test that training was restarted.
+        # NOTE: the checkpoints produced before the interruption are NOT
+        # automatically deleted by pytorch-lightning. This means that there
+        # may be multiple "last" and "best" checkpoints in their respective folders,
+        # which can be mildly confusing. It would be dangerous at this time to
+        # implement complex (and fragile) logic to delete stale checkpoints, and risk
+        # deleting all checkpoints. Interruptions are rare: it is best to deal with
+        # multiple checkpoints by trusting the largest epoch number.
+        list_epoch_numbers = []
+        for path in glob.glob(last_model_path + '/*.ckpt'):
+            last_model_filename = os.path.basename(path)
+            match_object = last_model_regex.match(last_model_filename)
+            assert match_object is not None
+            model_epoch = int(match_object.group('epoch'))
+            list_epoch_numbers.append(model_epoch)
+        assert np.max(list_epoch_numbers) == max_epoch - 1
