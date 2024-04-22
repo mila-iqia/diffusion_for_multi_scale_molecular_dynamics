@@ -1,5 +1,6 @@
 import os
 import uuid
+from copy import deepcopy
 from typing import Any, AnyStr, Dict, List, Union
 
 import orion
@@ -149,3 +150,11 @@ def log_figure(figure: plt.figure, global_step: int, pl_logger: Logger) -> None:
         pl_logger.experiment.log_figure(figure)
     elif type(pl_logger) is TensorBoardLogger:
         pl_logger.experiment.add_figure("train/samples", figure, global_step=global_step)
+    elif type(pl_logger) is CSVLogger:
+        # perform a deepcopy to prevent blanking the figure after writing to disk
+        fig = deepcopy(figure)
+        figure_directory = os.path.join(pl_logger.root_dir, 'figures')
+        os.makedirs(figure_directory, exist_ok=True)
+        figure_path = os.path.join(figure_directory, f"train_samples_step={global_step}.png")
+        fig.savefig(figure_path)
+        del fig
