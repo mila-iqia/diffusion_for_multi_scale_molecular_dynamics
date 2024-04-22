@@ -137,7 +137,7 @@ class DiffusionSamplingCallback(Callback):
         energy_range = maximum_energy - minimum_energy
 
         emin = minimum_energy - 0.2 * energy_range
-        emax = minimum_energy + 0.2 * energy_range
+        emax = maximum_energy + 0.2 * energy_range
         bins = np.linspace(emin, emax, 101)
 
         number_of_samples_in_range = np.logical_and(sample_energies >= emin, sample_energies <= emax).sum()
