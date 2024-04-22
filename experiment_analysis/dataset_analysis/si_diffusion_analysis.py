@@ -28,12 +28,14 @@ logger = logging.getLogger(__name__)
 #  Taken from this table: http://wild.life.nctu.edu.tw/class/common/energy-unit-conv-table.html
 kelvin_in_ev = 0.0000861705
 
-dataset_name = 'si_diffusion_small'
+dataset_name = 'si_diffusion_3x3x3'
 
 if dataset_name == 'si_diffusion_1x1x1':
     number_of_atoms = 8
-elif dataset_name == 'si_diffusion_small':
+elif dataset_name == 'si_diffusion_2x2x2':
     number_of_atoms = 64
+elif dataset_name == 'si_diffusion_3x3x3':
+    number_of_atoms = 216
 
 lammps_dataset_dir = DATA_DIR.joinpath(dataset_name)
 

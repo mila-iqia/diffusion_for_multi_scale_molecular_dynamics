@@ -69,8 +69,9 @@ class LammpsProcessorForDiffusion:
             x, y and z in relative (reduced) coordinates
         """
         x_lim, y_lim, z_lim = row['box']
+        # Cast the coordinates to float in case they are read in as strings
         coord_red = [coord for triple in zip(row['x'], row['y'], row['z']) for coord in
-                     ((triple[0] / x_lim) % 1, (triple[1] / y_lim) % 1, (triple[2] / z_lim) % 1)]
+                     ((float(triple[0]) / x_lim) % 1, (float(triple[1]) / y_lim) % 1, (float(triple[2]) / z_lim) % 1)]
         return coord_red
 
     def get_x_relative(self, df: pd.DataFrame) -> pd.DataFrame:
