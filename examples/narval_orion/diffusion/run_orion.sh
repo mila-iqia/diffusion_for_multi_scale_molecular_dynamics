@@ -37,7 +37,7 @@ OUTPUT_ROOT_DIR=/home/blackbur/scratch/test_run/
 DATA_WORK_DIR=${OUTPUT_ROOT_DIR}/tmp_work_dir/
 
 orion -v hunt --config orion_config.yaml \
-    python ${ROOT_DIR}/crystal_diffusion/train_diffusion.py \
+    srun python ${ROOT_DIR}/crystal_diffusion/train_diffusion.py \
     --config $CONFIG \
     --data $DATA_DIR \
     --processed_datadir $PROCESSED_DATA \
