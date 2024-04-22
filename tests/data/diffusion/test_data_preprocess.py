@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from crystal_diffusion.data.diffusion.conftest import TestDiffusionDataBase
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
+from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import generate_parquet_dataframe
 
 

@@ -14,7 +14,6 @@ import pytest
 import yaml
 
 from crystal_diffusion import train_diffusion
-from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
 from crystal_diffusion.callbacks.standard_callbacks import (BEST_MODEL_NAME,
                                                             LAST_MODEL_NAME)
 
@@ -173,11 +172,6 @@ def mock_get_lammps_output_method(monkeypatch):
         'crystal_diffusion.data.diffusion.data_preprocess.LammpsProcessorForDiffusion.get_lammps_output',
         path_to_fake_data_pickle
     )
-
-
-@pytest.fixture()
-def callback_dictionary(config, paths):
-    return create_all_callbacks(hyper_params=config, output_directory=paths['output'], verbose=False)
 
 
 def test_checkpoint_callback(args, paths, mock_get_lammps_output_method, max_epoch):
