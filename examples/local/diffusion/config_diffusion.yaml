@@ -12,22 +12,29 @@ seed: 1234
 data:
   batch_size: 128
   num_workers: 0
-  max_atom: 64
+  max_atom: 8
 
 # architecture
 spatial_dimension: 3
 model:
   score_network:
-    hidden_dimensions: [8, 16, 32]  # dimensions of the hidden layers. Length of array determines number of layers
+    n_hidden_dimensions: 3
+    hidden_dimensions_size: 512
   noise:
-    total_time_steps: 10
+    total_time_steps: 100
     sigma_min: 0.005  # default value
     sigma_max: 0.5  # default value
 
-# optimizer
+# optimizer and scheduler
 optimizer:
-  name: adam
+  name: adamw
   learning_rate: 0.001
+  weight_decay: 1.0e-6
+
+scheduler:
+  name: ReduceLROnPlateau
+  factor: 0.6
+  patience: 10
 
 # early stopping
 early_stopping:
@@ -42,7 +49,7 @@ model_checkpoint:
 # Sampling from the generative model
 diffusion_sampling:
   noise:
-    total_time_steps: 10
+    total_time_steps: 100
     sigma_min: 0.005  # default value
     sigma_max: 0.5  # default value
   sampling:
@@ -51,7 +58,7 @@ diffusion_sampling:
     number_of_atoms: 64
     number_of_samples: 128
     sample_every_n_epochs: 1
-    cell_dimensions: [10.86, 10.86, 10.86]
+    cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:
   - csv
