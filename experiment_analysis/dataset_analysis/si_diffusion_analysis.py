@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 #  Taken from this table: http://wild.life.nctu.edu.tw/class/common/energy-unit-conv-table.html
 kelvin_in_ev = 0.0000861705
 
-dataset_name = 'si_diffusion_3x3x3'
+dataset_name = 'si_diffusion_1x1x1'
 
 if dataset_name == 'si_diffusion_1x1x1':
     number_of_atoms = 8
