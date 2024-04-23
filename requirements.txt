@@ -27,6 +27,7 @@ sphinxcontrib-katex==0.8.6
 tensorboard==2.16.2
 tqdm==4.64.0
 torch==2.2.0
+torch_geometric==2.5.3
 torchvision>=0.17.0
 matplotlib==3.8.3
 rich==13.7.1
