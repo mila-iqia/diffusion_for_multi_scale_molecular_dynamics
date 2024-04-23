@@ -22,7 +22,7 @@ model:
   noise:
     total_time_steps: 10
     sigma_min: 0.005  # default value
-    sigma_max: 0.5  # default value'
+    sigma_max: 0.5  # default value
 
 # optimizer
 optimizer:
@@ -31,12 +31,12 @@ optimizer:
 
 # early stopping
 early_stopping:
-  metric: val_loss
+  metric: validation_epoch_loss
   mode: min
   patience: 100
 
 model_checkpoint:
-  monitor: val_loss
+  monitor: validation_epoch_loss
   mode: min
 
 logging:

@@ -31,12 +31,12 @@ optimizer:
 
 # early stopping
 early_stopping:
-  metric: val_loss
+  metric: validation_epoch_loss
   mode: min
   patience: 100
 
 model_checkpoint:
-  monitor: val_loss
+  monitor: validation_epoch_loss
   mode: min
 
 logging:
