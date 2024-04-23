@@ -86,7 +86,8 @@ class LammpsProcessorForDiffusion:
         df['relative_positions'] = df.apply(lambda x: self._convert_coords_to_relative(x), axis=1)
         return df
 
-    def get_dump_and_thermo_files(self, run_dir: str) -> Tuple[Union[str, None], Union[str, None]]:
+    @staticmethod
+    def get_dump_and_thermo_files(run_dir: str) -> Tuple[Union[str, None], Union[str, None]]:
         """Get dump and thermo files.
 
         Args:
