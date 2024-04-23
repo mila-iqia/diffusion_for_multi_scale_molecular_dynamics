@@ -6,6 +6,7 @@ isort==5.13.2
 jupyter==1.0.0
 jinja2==3.1.2
 lammps
+mace-torch==0.3.4
 maml==2023.9.9
 monty==2024.2.2
 myst-parser==2.0.0
