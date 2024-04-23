@@ -4,9 +4,12 @@ from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerNames)
+                                                ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
+from crystal_diffusion.models.scheduler import (
+    CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters,
+    ValidSchedulerName)
 from crystal_diffusion.models.score_network import (MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -66,7 +69,15 @@ class TestPositionDiffusionLightningModel:
         return 8
 
     @pytest.fixture()
-    def hyper_params(self, number_of_atoms, spatial_dimension):
+    def optimizer_name(self):
+        return 'adam'
+
+    @pytest.fixture()
+    def scheduler_name(self):
+        return None
+
+    @pytest.fixture()
+    def hyper_params(self, number_of_atoms, spatial_dimension, optimizer_name, scheduler_name):
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             n_hidden_dimensions=3,
@@ -75,13 +86,28 @@ class TestPositionDiffusionLightningModel:
         )
 
         optimizer_parameters = OptimizerParameters(
-            name=ValidOptimizerNames("adam"), learning_rate=0.01
+            name=ValidOptimizerName(optimizer_name), learning_rate=0.01, weight_decay=1e-6
         )
+
+        if scheduler_name is None:
+            scheduler_parameters = None
+        elif scheduler_name == 'ReduceLROnPlateau':
+            scheduler_parameters = ReduceLROnPlateauSchedulerParameters(name=ValidSchedulerName(scheduler_name),
+                                                                        factor=0.5,
+                                                                        patience=2)
+        elif scheduler_name == 'CosineAnnealingLR':
+            scheduler_parameters = CosineAnnealingLRSchedulerParameters(name=ValidSchedulerName(scheduler_name),
+                                                                        T_max=5,
+                                                                        eta_min=1e-5)
+        else:
+            raise ValueError(f"Untested case {scheduler_name}")
+
         noise_parameters = NoiseParameters(total_time_steps=15)
 
         hyper_params = PositionDiffusionParameters(
             score_network_parameters=score_network_parameters,
             optimizer_parameters=optimizer_parameters,
+            scheduler_parameters=scheduler_parameters,
             noise_parameters=noise_parameters,
         )
         return hyper_params
@@ -195,6 +221,8 @@ class TestPositionDiffusionLightningModel:
         torch.testing.assert_allclose(input_batch[MLPScoreNetwork.timestep_key], times.reshape(-1, 1))
 
     @pytest.mark.parametrize("accelerator", available_accelerators)
+    @pytest.mark.parametrize("optimizer_name", ['adam', 'adamw'])
+    @pytest.mark.parametrize("scheduler_name", [None, 'ReduceLROnPlateau', 'CosineAnnealingLR'])
     def test_smoke_test(self, lightning_model, fake_datamodule, accelerator):
         trainer = Trainer(fast_dev_run=3, accelerator=accelerator)
         trainer.fit(lightning_model, fake_datamodule)

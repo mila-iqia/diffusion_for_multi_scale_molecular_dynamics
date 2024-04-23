@@ -4,7 +4,7 @@
 # It is also assumed that the user has a Comet account for logging experiments.
 
 CONFIG=config_diffusion.yaml
-DATA_DIR=../../../data/si_diffusion_small
+DATA_DIR=../../../data/si_diffusion_1x1x1
 PROCESSED_DATA=${DATA_DIR}/processed
 DATA_WORK_DIR=./tmp_work_dir/
 OUTPUT=output

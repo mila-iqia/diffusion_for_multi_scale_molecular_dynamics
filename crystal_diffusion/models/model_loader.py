@@ -3,9 +3,10 @@ import logging
 from typing import Any, AnyStr, Dict
 
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerNames)
+                                                ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
+from crystal_diffusion.models.scheduler import get_scheduler_parameters
 from crystal_diffusion.models.score_network import (MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -28,17 +29,20 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
     )
     score_network_parameters.spatial_dimension = hyper_params.get('spatial_dimension', 3)
 
-    hyper_params['optimizer']['name'] = ValidOptimizerNames(hyper_params['optimizer']['name'])
+    hyper_params['optimizer']['name'] = ValidOptimizerName(hyper_params['optimizer']['name'])
 
     optimizer_parameters = OptimizerParameters(
         **hyper_params['optimizer']
     )
+
+    scheduler_parameters = get_scheduler_parameters(hyper_params)
 
     noise_parameters = NoiseParameters(**hyper_params['model']['noise'])
 
     diffusion_params = PositionDiffusionParameters(
         score_network_parameters=score_network_parameters,
         optimizer_parameters=optimizer_parameters,
+        scheduler_parameters=scheduler_parameters,
         noise_parameters=noise_parameters,
     )
 

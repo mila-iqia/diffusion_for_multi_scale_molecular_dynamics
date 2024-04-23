@@ -190,4 +190,9 @@ def train(model,
 
 
 if __name__ == '__main__':
+    # Uncomment the following in order to use Pycharm's Remote Debugging server, which allows to
+    # launch python commands through a bash script (and through Orion!). VERY useful for debugging.
+    # This requires a professional edition of Pycharm and installing the pydevd_pycharm package with pip.
+    #  import pydevd_pycharm
+    #  pydevd_pycharm.settrace('localhost', port=50528, stdoutToServer=True, stderrToServer=True)
     main()
