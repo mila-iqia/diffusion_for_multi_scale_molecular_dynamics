@@ -56,7 +56,7 @@ def get_configuration_runs(number_of_runs, spatial_dimension, number_of_atoms):
     return list_configurations
 
 
-def generate_parse_lammps_output(configurations: List[Configuration]) -> pd.DataFrame:
+def generate_parse_dump_output_dataframe(configurations: List[Configuration]) -> pd.DataFrame:
     """Generate parse lammps run
 
     Args:
@@ -67,8 +67,8 @@ def generate_parse_lammps_output(configurations: List[Configuration]) -> pd.Data
     """
     rows = []
     for configuration in configurations:
-        row = dict(id=list(configuration.ids), type=list(configuration.types))
-        for coordinates, name in zip(configuration.relative_coordinates.transpose(), ['x', 'y', 'z']):
+        row = dict(box=configuration.cell_dimensions, id=list(configuration.ids), type=list(configuration.types))
+        for coordinates, name in zip(configuration.positions.transpose(), ['x', 'y', 'z']):
             row[name] = list(coordinates)
 
         for coordinate_forces, name in zip(configuration.forces.transpose(), ['fx', 'fy', 'fz']):

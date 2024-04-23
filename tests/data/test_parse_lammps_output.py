@@ -6,7 +6,11 @@ import pytest
 import yaml
 
 from crystal_diffusion.data.parse_lammps_outputs import (
-    parse_lammps_output, parse_lammps_thermo_log)
+    parse_lammps_dump, parse_lammps_output, parse_lammps_thermo_log)
+from tests.fake_data_utils import (create_dump_yaml_documents,
+                                   generate_fake_configuration,
+                                   generate_parse_dump_output_dataframe,
+                                   write_to_yaml)
 
 
 def generate_fake_yaml(filename, documents, multiple_docs=True):
@@ -115,3 +119,53 @@ def test_parse_lammps_thermo_log(expected_processed_thermo_dataframe, fake_therm
         expected_values = expected_processed_thermo_dataframe[key].values
         computed_values = parsed_data[key]
         np.testing.assert_almost_equal(computed_values, expected_values)
+
+
+@pytest.fixture()
+def spatial_dimension():
+    return 3
+
+
+@pytest.fixture()
+def number_of_atoms():
+    return 8
+
+
+@pytest.fixture()
+def number_of_configurations():
+    return 16
+
+
+@pytest.fixture
+def configurations(number_of_configurations, spatial_dimension, number_of_atoms):
+    """Generate multiple fake configurations."""
+    np.random.seed(23423423)
+    configurations = [generate_fake_configuration(spatial_dimension=spatial_dimension,
+                                                  number_of_atoms=number_of_atoms)
+                      for _ in range(number_of_configurations)]
+    return configurations
+
+
+@pytest.fixture
+def lammps_dump_path(configurations, tmp_path):
+    lammps_dump = str(tmp_path / "test_dump.yaml")
+    dump_docs = create_dump_yaml_documents(configurations)
+    write_to_yaml(dump_docs, lammps_dump)
+    return lammps_dump
+
+
+@pytest.fixture()
+def expected_lammps_dump_dataframe(configurations):
+    return generate_parse_dump_output_dataframe(configurations)
+
+
+def test_parse_lammps_dump(lammps_dump_path, expected_lammps_dump_dataframe):
+    data_dict = parse_lammps_dump(lammps_dump_path)
+    computed_lammps_dump_dataframe = pd.DataFrame(data_dict)
+
+    assert set(computed_lammps_dump_dataframe.columns) == set(expected_lammps_dump_dataframe)
+
+    for colname in computed_lammps_dump_dataframe.columns:
+        computed_values = np.array([list_values for list_values in computed_lammps_dump_dataframe[colname].values])
+        expected_values = np.array([list_values for list_values in expected_lammps_dump_dataframe[colname].values])
+        np.testing.assert_array_equal(computed_values, expected_values)

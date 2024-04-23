@@ -1,7 +1,7 @@
 import argparse
 import os
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import yaml
@@ -26,6 +26,32 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: O
         raise ValueError(f'{lammps_thermo_log} does not exist. Please provide a valid LAMMPS thermo log file as yaml.')
 
     # get the atom information (positions and forces) from the LAMMPS 'dump' file
+    pd_data = parse_lammps_dump(lammps_dump)
+
+    # get the total energy from the LAMMPS second output
+    thermo_log_data_dictionary = parse_lammps_thermo_log(lammps_thermo_log)
+    pd_data.update(thermo_log_data_dictionary)
+
+    if output_name is not None and not output_name.endswith('.parquet'):
+        output_name += '.parquet'
+
+    df = pd.DataFrame(pd_data)
+
+    if output_name is not None:
+        df.to_parquet(output_name, engine='pyarrow', index=False)
+
+    return df
+
+
+def parse_lammps_dump(lammps_dump: str) -> Dict[str, Any]:
+    """Parse lammps dump.
+
+    Args:
+        lammps_dump : path to lammps dump file, in yaml format.
+
+    Returns:
+        data: a dictionary with all the relevant data.
+    """
     with open(lammps_dump, 'r') as f:
         dump_yaml = yaml.safe_load_all(f)
         # every MD iteration is saved as a separate document in the yaml file
@@ -47,20 +73,7 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: O
             # add the information about that MD step to the dataframe
             for k, v in atoms_info.items():  # k should be id, type, x, y, z, fx, fy, fz
                 pd_data[k].append(v)
-
-    # get the total energy from the LAMMPS second output
-    thermo_log_data_dictionary = parse_lammps_thermo_log(lammps_thermo_log)
-    pd_data.update(thermo_log_data_dictionary)
-
-    if output_name is not None and not output_name.endswith('.parquet'):
-        output_name += '.parquet'
-
-    df = pd.DataFrame(pd_data)
-
-    if output_name is not None:
-        df.to_parquet(output_name, engine='pyarrow', index=False)
-
-    return df
+    return pd_data
 
 
 def parse_lammps_thermo_log(lammps_thermo_log: str) -> Dict[str, List[float]]:
