@@ -2,7 +2,7 @@
 exp_name: example_experiment
 run_name: run_debug_delete_me
 max_epoch: 10
-log_every_n_steps: 100
+log_every_n_steps: 1
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
@@ -10,7 +10,7 @@ seed: 1234
 
 # data
 data:
-  batch_size: 128
+  batch_size: 1024
   num_workers: 0
   max_atom: 8
 
@@ -28,19 +28,19 @@ model:
 # optimizer and scheduler
 optimizer:
   name: adamw
-  learning_rate: 0.001
+  learning_rate: 0.01
   weight_decay: 1.0e-6
 
 scheduler:
   name: ReduceLROnPlateau
-  factor: 0.6
-  patience: 10
+  factor: 0.1
+  patience: 3
 
 # early stopping
 early_stopping:
   metric: validation_epoch_loss
   mode: min
-  patience: 100
+  patience: 10
 
 model_checkpoint:
   monitor: validation_epoch_loss
@@ -55,8 +55,8 @@ diffusion_sampling:
   sampling:
     spatial_dimension: 3
     number_of_corrector_steps: 1
-    number_of_atoms: 64
-    number_of_samples: 128
+    number_of_atoms: 8
+    number_of_samples: 16
     sample_every_n_epochs: 1
     cell_dimensions: [5.43, 5.43, 5.43]
 
