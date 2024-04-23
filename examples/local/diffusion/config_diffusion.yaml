@@ -18,12 +18,12 @@ data:
 spatial_dimension: 3
 model:
   score_network:
-    n_hidden_dimensions: 3
-    hidden_dimensions_size: 512
+    n_hidden_dimensions: 2
+    hidden_dimensions_size: 64
   noise:
     total_time_steps: 100
     sigma_min: 0.005  # default value
-    sigma_max: 0.5  # default value
+    sigma_max: 0.5  # default value'
 
 # optimizer and scheduler
 optimizer:
