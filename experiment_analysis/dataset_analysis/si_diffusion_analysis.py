@@ -163,3 +163,14 @@ if __name__ == '__main__':
 
     fig3.tight_layout()
     fig3.savefig(ANALYSIS_RESULTS_DIR.joinpath(f"{dataset_name}_energy_temperature_2D_histogram.png"))
+
+    fig4 = plt.figure(figsize=PLEASANT_FIG_SIZE)
+    fig4.suptitle('Total Energy and Potential Energy')
+    ax6 = fig4.add_subplot(111)
+    ax6.hist(train_df['potential_energy'].values, **common_params, color='green', label='Potential Energy')
+    ax6.hist(train_df['energy'].values, **common_params, color='red', label='Total Energy')
+    ax6.set_xlabel('Energy (eV)')
+    ax6.set_ylabel('Density')
+    ax6.legend(loc=0)
+    fig4.tight_layout()
+    fig4.savefig(ANALYSIS_RESULTS_DIR.joinpath(f"{dataset_name}_potential_vs_total_energy.png"))
