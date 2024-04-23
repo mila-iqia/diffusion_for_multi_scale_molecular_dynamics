@@ -78,7 +78,7 @@ class TestPredictorCorrectorPositionSampler:
         return xi
 
     def test_sample(self, sampler, number_of_samples, expected_samples):
-        computed_samples = sampler.sample(number_of_samples)
+        computed_samples = sampler.sample(number_of_samples, torch.device('cpu'))
         torch.testing.assert_allclose(expected_samples, computed_samples)
 
 
@@ -129,7 +129,7 @@ class TestAnnealedLangevinDynamics:
 
     def test_smoke_sample(self, pc_sampler, number_of_samples):
         # Just a smoke test that we can sample without crashing.
-        pc_sampler.sample(number_of_samples)
+        pc_sampler.sample(number_of_samples, torch.device('cpu'))
 
     @pytest.fixture()
     def x_i(self, number_of_samples, number_of_atoms, spatial_dimension):

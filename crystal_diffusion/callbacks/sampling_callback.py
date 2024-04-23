@@ -122,7 +122,7 @@ class DiffusionSamplingCallback(Callback):
         pc_sampler = AnnealedLangevinDynamicsSampler(sigma_normalized_score_network=sigma_normalized_score_network,
                                                      **sampler_parameters)
         logger.info("Draw samples")
-        samples = pc_sampler.sample(self.sampling_parameters.number_of_samples)
+        samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device)
 
         batch_relative_positions = samples.cpu().numpy()
         return batch_relative_positions
