@@ -1,7 +1,7 @@
 import dataclasses
 from dataclasses import dataclass
 from enum import Enum
-from typing import AnyStr, Dict, Union
+from typing import Any, AnyStr, Dict, Union
 
 from torch import optim
 
@@ -26,6 +26,33 @@ class ReduceLROnPlateauSchedulerParameters(SchedulerParameters):
     # The scheduler must be told what to monitor. This is not actually a parameter for the scheduler itself,
     # but  must be provided when configuring optimizers and schedulers.
     monitor: str = "validation_epoch_loss"
+
+
+def get_scheduler_parameters(hyper_params: Dict[str, Any]) -> Union[SchedulerParameters, None]:
+    """Get scheduler parameters.
+
+    Extract the relevant information from the general configuration dictionary.
+
+    Args:
+        hyper_params : configuration dictionary.
+
+    Returns:
+        scheduler_parameters: the scheduler parameters.
+    """
+    if 'scheduler' not in hyper_params:
+        return None
+
+    scheduler_dict = dict(hyper_params['scheduler'])
+    name_str = scheduler_dict.pop('name')
+    scheduler_name = ValidSchedulerName(name_str)
+    scheduler_dict['name'] = scheduler_name
+    match scheduler_name:
+        case ValidSchedulerName.reduce_lr_on_plateau:
+            return ReduceLROnPlateauSchedulerParameters(**scheduler_dict)
+        case ValidSchedulerName.cosine_annealing_lr:
+            return CosineAnnealingLRSchedulerParameters(**scheduler_dict)
+        case _:
+            raise ValueError("Invalid scheduler name.")
 
 
 @dataclass(kw_only=True)
