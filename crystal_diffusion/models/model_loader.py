@@ -6,7 +6,8 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 ValidOptimizerNames)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
-from crystal_diffusion.models.score_network import (MLPScoreNetwork,
+from crystal_diffusion.models.score_network import (MACEScoreNetworkParameters,
+                                                    MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
@@ -22,10 +23,19 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
     Returns:
         Diffusion model randomly initialized
     """
-    score_network_parameters = MLPScoreNetworkParameters(
+    score_network_architecture = hyper_params['model']['score_network'].get('architecture', 'mlp')
+    if score_network_architecture == 'mlp':
+        score_network_parameters_class = MLPScoreNetworkParameters
+    elif score_network_architecture == 'mace':
+        score_network_parameters_class = MACEScoreNetworkParameters
+    else:
+        raise NotImplementedError(f'Architecture {score_network_architecture} is not available.')
+
+    score_network_parameters = score_network_parameters_class(
         number_of_atoms=hyper_params['data']['max_atom'],
-        **hyper_params['model']['score_network']
+        **{k: v for k, v in hyper_params['model']['score_network'].items() if k != 'architecture'}
     )
+
     score_network_parameters.spatial_dimension = hyper_params.get('spatial_dimension', 3)
 
     hyper_params['optimizer']['name'] = ValidOptimizerNames(hyper_params['optimizer']['name'])
@@ -42,7 +52,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
         noise_parameters=noise_parameters,
     )
 
-    model = PositionDiffusionLightningModel(diffusion_params)
+    model = PositionDiffusionLightningModel(diffusion_params, score_network_architecture=score_network_architecture)
     logger.info('model info:\n' + str(model) + '\n')
 
     return model

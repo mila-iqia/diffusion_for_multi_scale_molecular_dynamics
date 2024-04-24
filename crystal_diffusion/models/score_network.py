@@ -4,30 +4,30 @@ This module implements score networks for positions in relative coordinates.
 Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 """
+import ast
 import os
 from dataclasses import dataclass
 from typing import AnyStr, Dict
 
+import numpy as np
 import torch
 from e3nn import o3  # e3nn is packaged with mace-torch
-from mace.modules import interaction_classes, gate_dict
+from mace.modules import gate_dict, interaction_classes
 from mace.modules.models import MACE
 from mace.tools import AtomicNumberTable
-
-
 from torch import nn
-
 
 # mac super fun time party mania happy place
 # for mace, conflict with mac
 # https://stackoverflow.com/questions/53014306/error-15-initializing-libiomp5-dylib-but-found-libiomp5-dylib-already- \
 # initial
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
 @dataclass(kw_only=True)
 class BaseScoreNetworkParameters:
     """Base Hyper-parameters for score networks."""
+
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
 
 
@@ -37,6 +37,7 @@ class ScoreNetwork(torch.nn.Module):
     This base class defines the interface that all score networks should have
     in order to be easily interchangeable (ie, polymorphic).
     """
+
     position_key = "noisy_relative_positions"  # unitless positions in the lattice coordinate basis
     timestep_key = "time"
 
@@ -201,6 +202,7 @@ class MLPScoreNetwork(ScoreNetwork):
 @dataclass(kw_only=True)
 class MACEScoreNetworkParameters(BaseScoreNetworkParameters):
     """Specific Hyper-parameters for MACE score networks."""
+
     r_max: float = 5.0
     num_bessel: int = 8
     num_polynomial_cutoff: int = 5
@@ -259,7 +261,7 @@ class MACEScoreNetwork(ScoreNetwork):
         self.mace_network = MACE(**mace_config)
 
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
-        self.mace_output_size = 640 # TODO check where 640 - mace features size - comes from
+        self.mace_output_size = 640  # TODO check where 640 - mace features size - comes from
         self.mlp_layers = nn.Sequential()
         input_dimensions = [self.mace_output_size] + hidden_dimensions
         output_dimensions = hidden_dimensions + [self.spatial_dimension]
