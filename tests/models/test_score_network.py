@@ -23,7 +23,9 @@ class TestScoreNetworkCheck:
         batch_size = 16
         positions = torch.rand(batch_size, 8, spatial_dimension)
         times = torch.rand(batch_size, 1)
-        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times}
+        unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
+        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times,
+                ScoreNetwork.unit_cell_key: unit_cell}
 
     @pytest.fixture()
     def bad_batch(self, good_batch, problem):
@@ -94,7 +96,9 @@ class TestMLPScoreNetwork:
     def good_batch(self, batch_size, number_of_atoms, spatial_dimension):
         positions = torch.rand(batch_size, number_of_atoms, spatial_dimension)
         times = torch.rand(batch_size, 1)
-        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times}
+        unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
+        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times,
+                ScoreNetwork.unit_cell_key: unit_cell}
 
     @pytest.fixture()
     def bad_batch(self, batch_size, number_of_atoms, spatial_dimension):
