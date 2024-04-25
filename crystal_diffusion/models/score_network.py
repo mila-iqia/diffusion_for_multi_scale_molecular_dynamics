@@ -6,15 +6,17 @@ periodic unit cell.
 """
 import ast
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import AnyStr, Dict
 
 import numpy as np
 import torch
 from e3nn import o3  # e3nn is packaged with mace-torch
+from mace.data import AtomicData, Configuration
 from mace.modules import gate_dict, interaction_classes
 from mace.modules.models import MACE
-from mace.tools import AtomicNumberTable
+from mace.tools import get_atomic_number_table_from_zs
+from mace.tools.torch_geometric.dataloader import Collater
 from torch import nn
 
 # mac super fun time party mania happy place
@@ -40,6 +42,7 @@ class ScoreNetwork(torch.nn.Module):
 
     position_key = "noisy_relative_positions"  # unitless positions in the lattice coordinate basis
     timestep_key = "time"
+    unit_cell_key = "unit_cell"  # unit cell definition in Angstrom
 
     def __init__(self, hyper_params: BaseScoreNetworkParameters):
         """__init__.
@@ -102,6 +105,20 @@ class ScoreNetwork(torch.nn.Module):
         assert torch.logical_and(
             times >= 0.0, times <= 1.0
         ).all(), "The times are expected to be normalized between 0 and 1."
+
+        assert(
+            self.unit_cell_key in batch
+        ), f"The unit cell should be present in the batch dictionary with key '{self.unit_cell_key}'"
+
+        unit_cell = batch[self.unit_cell_key]
+        unit_cell_shape = unit_cell.shape
+        assert (
+            unit_cell_shape[0] == batch_size
+        ), "the batch size dimension is inconsistent between positions and unit cell."
+        assert (
+            len(unit_cell_shape) == 3 and unit_cell_shape[1] == self.spatial_dimension and
+            unit_cell_shape[2] == self.spatial_dimension
+        ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension]"
 
     def forward(self, batch: Dict[AnyStr, torch.Tensor]) -> torch.Tensor:
         """Model forward.
@@ -203,6 +220,7 @@ class MLPScoreNetwork(ScoreNetwork):
 class MACEScoreNetworkParameters(BaseScoreNetworkParameters):
     """Specific Hyper-parameters for MACE score networks."""
 
+    number_of_atoms: int  # the number of atoms in a configuration.
     r_max: float = 5.0
     num_bessel: int = 8
     num_polynomial_cutoff: int = 5
@@ -212,7 +230,7 @@ class MACEScoreNetworkParameters(BaseScoreNetworkParameters):
     num_interactions: int = 2
     hidden_irreps: str = "128x0e + 128x1o"  # irreps for hidden node states
     MLP_irreps: str = "16x0e"  # from mace.tools.arg_parser
-    atomic_energies: np.array = np.zeros((1,))
+    atomic_energies: np.ndarray = field(default_factory=lambda: np.zeros((1,)))
     avg_num_neighbors: int = 1  # normalization factor for the message
     correlation: int = 3
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
@@ -228,13 +246,17 @@ class MACEScoreNetwork(ScoreNetwork):
     Inherits from the given framework's model class.
     """
 
-    def __init__(self, hyper_params: MACEScoreNetworkParameters, z_table: AtomicNumberTable):
+    def __init__(self, hyper_params: MACEScoreNetworkParameters):
         """__init__.
 
         Args:
             hyper_params (dict): hyper parameters from the config file.
         """
         super(MACEScoreNetwork, self).__init__(hyper_params)
+
+        self.z_table = get_atomic_number_table_from_zs([14])  # TODO more than 1 type & duplicate from dataloader
+        self.r_max = hyper_params.r_max
+        self.collate_fn = Collater(follow_batch=[None], exclude_keys=[None])
 
         mace_config = dict(
             r_max=hyper_params.r_max,
@@ -244,12 +266,12 @@ class MACEScoreNetwork(ScoreNetwork):
             interaction_cls=interaction_classes[hyper_params.interaction_cls],
             interaction_cls_first=interaction_classes[hyper_params.interaction_cls_first],
             num_interactions=hyper_params.num_interactions,
-            num_elements=len(z_table),
+            num_elements=len(self.z_table),
             hidden_irreps=o3.Irreps(hyper_params.hidden_irreps),
             MLP_irreps=o3.Irreps(hyper_params.MLP_irreps),
             atomic_energies=hyper_params.atomic_energies,
             avg_num_neighbors=hyper_params.avg_num_neighbors,
-            atomic_numbers=z_table.zs,
+            atomic_numbers=self.z_table.zs,
             correlation=hyper_params.correlation,
             gate=gate_dict[hyper_params.gate],
             radial_MLP=ast.literal_eval(hyper_params.radial_MLP),
@@ -269,6 +291,7 @@ class MACEScoreNetwork(ScoreNetwork):
         add_relus[-1] = False
 
         for input_dimension, output_dimension, add_relu in zip(input_dimensions, output_dimensions, add_relus):
+            print(input_dimension, output_dimension)
             self.mlp_layers.append(nn.Linear(input_dimension, output_dimension))
             if add_relu:
                 self.mlp_layers.append(nn.ReLU())
@@ -280,6 +303,46 @@ class MACEScoreNetwork(ScoreNetwork):
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
 
+    def input_to_graph(self, x: Dict[AnyStr, torch.Tensor], batch_index: str) -> AtomicData:
+        """Convert a single input to a graph.
+
+        Args:
+            x: batch information from the dataloader
+            batch_index: index in the batch
+
+        Returns:
+            one torch_geometric graph compatible with MACE
+        """
+        unit_cell = x[self.unit_cell_key][batch_index].cpu().numpy()  # box as a 3x3 array
+        positions = x['abs_positions'][batch_index].cpu().numpy()
+        atom_type = 14 * np.ones(self._natoms)  # TODO we need a atom_type dict to convert to atomic number for MACE
+        # TODO how to handle missing atoms?
+        pbc = np.array([True] * self.spatial_dimension)  # periodic boundary conditions
+        graph_config = Configuration(atomic_numbers=atom_type,
+                                     positions=positions,
+                                     cell=unit_cell,
+                                     pbc=pbc)
+        # TODO nan in positions freeze up AtomicData.from_config so padding will not work
+        # review this approach later
+        graph_data = AtomicData.from_config(graph_config, z_table=self.z_table, cutoff=self.r_max)
+        return graph_data
+
+    def _make_graph_from_batch(self, batch: Dict[AnyStr, torch.Tensor]) -> AtomicData:
+        """Construct graphs from a batch from the dataloader (i.e. atomic positions).
+
+        Args:
+            batch: data from the dataloader. Should contains positions and unit cell information
+
+        Returns:
+            torch_geometric minibatch compatible with MACE model
+        """
+        # get the positions in Angstrom with batch matrix multiplication
+        batch['abs_positions'] = torch.bmm(batch[self.position_key], batch[self.unit_cell_key])
+        batch_size = batch['abs_positions'].size(0)
+        graphs = [self.input_to_graph(batch, b) for b in range(batch_size)]
+        # merge the graphs with torch_geometric using mace tools and move back to gpu
+        return self.collate_fn(graphs).to(batch[self.position_key].device)
+
     def _forward_unchecked(self, batch: Dict[AnyStr, torch.Tensor]) -> torch.Tensor:
         """Forward unchecked.
 
@@ -290,10 +353,13 @@ class MACEScoreNetwork(ScoreNetwork):
             batch : dictionary containing the data to be processed by the model.
 
         Returns:
-            computed_scores : the scores computed by the model.
+            output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
-        mace_output = self.mace_network(batch)
-        mace_output = mace_output['node_features'].view(-1, self._natoms, self.mace_output_size)
-
+        graph_input = self._make_graph_from_batch(batch)
+        mace_output = self.mace_network(graph_input, compute_force=False, training=True)
+        # we want the node features but they are organized as (batchsize * natoms, output_size) because
+        # torch_geometric puts all the graphs in a batch in a single large graph
+        mace_output = mace_output['node_feats'].view(-1, self._natoms, self.mace_output_size)
+        # pass through the final MLP layers
         output = self.mlp_layers(mace_output)
         return output
