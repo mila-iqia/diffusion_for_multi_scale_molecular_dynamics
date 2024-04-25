@@ -128,8 +128,6 @@ class TestMLPScoreNetwork:
         assert scores.shape == expected_score_shape
 
 
-
-
 @pytest.mark.parametrize("spatial_dimension", [3])
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
@@ -181,4 +179,3 @@ class TestMACEScoreNetwork:
         # TODO test fails on computer - check what is going on and fix
         scores = score_network(good_batch)
         assert scores.shape == expected_score_shape
-
