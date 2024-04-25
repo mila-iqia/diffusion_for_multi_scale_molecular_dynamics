@@ -149,14 +149,14 @@ class DiffusionSamplingCallback(Callback):
         ax1 = fig.add_subplot(111)
 
         ax1.hist(sample_energies, **common_params,
-                 label=f'Samples (total count = {len(sample_energies)}, in range = {number_of_samples_in_range})',
+                 label=f'Samples \n(total count = {len(sample_energies)}, in range = {number_of_samples_in_range})',
                  color='red')
         ax1.hist(validation_dataset_energies, **common_params,
-                 label=f'Validation Data (count = {len(validation_dataset_energies)})', color='green')
+                 label=f'Validation Data \n(count = {len(validation_dataset_energies)})', color='green')
 
         ax1.set_xlabel('Energy (eV)')
         ax1.set_ylabel('Density')
-        ax1.legend(loc=0)
+        ax1.legend(loc='upper right', fancybox=True, shadow=True, ncol=1, fontsize=6)
         fig.tight_layout()
         return fig
 
@@ -185,7 +185,7 @@ class DiffusionSamplingCallback(Callback):
         """On validation batch start, accumulate the validation dataset energies for further processing."""
         if not self._compute_results_at_this_epoch(trainer.current_epoch):
             return
-        self.validation_energies = np.append(self.validation_energies, batch['energy'].cpu().numpy())
+        self.validation_energies = np.append(self.validation_energies, batch['potential_energy'].cpu().numpy())
 
     def on_validation_epoch_end(self, trainer: Trainer, pl_model: LightningModule) -> None:
         """On validation epoch end."""

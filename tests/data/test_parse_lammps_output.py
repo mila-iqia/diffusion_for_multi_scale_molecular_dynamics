@@ -6,7 +6,11 @@ import pytest
 import yaml
 
 from crystal_diffusion.data.parse_lammps_outputs import (
-    parse_lammps_output, parse_lammps_thermo_log)
+    parse_lammps_dump, parse_lammps_output, parse_lammps_thermo_log)
+from tests.fake_data_utils import (create_dump_yaml_documents,
+                                   generate_fake_configuration,
+                                   generate_parse_dump_output_dataframe,
+                                   write_to_yaml)
 
 
 def generate_fake_yaml(filename, documents, multiple_docs=True):
@@ -18,25 +22,33 @@ def generate_fake_yaml(filename, documents, multiple_docs=True):
             yaml.dump(documents, yaml_file)
 
 
-@pytest.fixture
-def fake_lammps_yaml(tmpdir):
+@pytest.fixture()
+def fake_yaml_content():
     # fake LAMMPS output file with 4 MD steps in 1D for 3 atoms
-    yaml_content = [
-        {'keywords': ['id', 'type', 'x', 'fx'],
-         'data': [[0, 1, 0.1, 0.01], [1, 2, 0.2, 0.02], [2, 1, 0.3, 0.03]],
-         'box': [[0, 0.6], [0, 1.6], [0, 2.6]]},
-        {'keywords': ['id', 'type', 'x', 'fx'],
-         'data': [[0, 1, 1.1, 1.01], [1, 2, 1.2, 1.02], [2, 1, 1.3, 1.03]],
-         'box': [[0, 0.6], [0, 1.6], [0, 2.6]]},
-        {'keywords': ['id', 'type', 'x', 'fx'],
-         'data': [[0, 1, 2.1, 2.01], [1, 2, 2.2, 2.02], [2, 1, 2.3, 2.03]],
-         'box': [[0, 0.6], [0, 1.6], [0, 2.6]]},
-        {'keywords': ['id', 'type', 'x', 'fx'],
-         'data': [[0, 1, 3.1, 3.01], [1, 2, 3.2, 3.02], [2, 1, 3.3, 3.03]],
-         'box': [[0, 0.6], [0, 1.6], [0, 2.6]]},
-    ]
+    np.random.seed(23423)
+    box = [[0, 0.6], [0, 1.6], [0, 2.6]]
+    keywords = ['id', 'type', 'x', 'y', 'z', 'fx', 'fy', 'fz']
+
+    number_of_documents = 4
+    list_atom_types = [1, 2, 1]
+
+    yaml_content = []
+    for doc_idx in range(number_of_documents):
+
+        data = []
+        for id, atom_type in enumerate(list_atom_types):
+            row = [id, atom_type] + list(np.random.rand(6))
+            data.append(row)
+
+        doc = dict(keywords=keywords, box=box, data=data)
+        yaml_content.append(doc)
+    return yaml_content
+
+
+@pytest.fixture
+def fake_lammps_yaml(tmpdir, fake_yaml_content):
     file = os.path.join(tmpdir, 'fake_lammps_dump.yaml')
-    generate_fake_yaml(file, yaml_content)
+    generate_fake_yaml(file, fake_yaml_content)
     return file
 
 
@@ -91,20 +103,6 @@ def test_parse_lammps_outputs(fake_lammps_yaml, fake_thermo_yaml, expected_proce
 
     pd.testing.assert_frame_equal(expected_processed_thermo_dataframe, df[expected_processed_thermo_dataframe.columns])
 
-    for i, v in enumerate(['id', 'type', 'x', 'fx', 'box']):
-        assert v in df.keys()
-        for x in range(4):
-            if v == 'id':
-                assert np.array_equal(df[v][x], [0, 1, 2])
-            elif v == 'type':
-                assert np.array_equal(df[v][x], [1, 2, 1])
-            elif v == 'x':
-                assert np.allclose(df[v][x], [x + 0.1 * y for y in range(1, 4)])
-            elif v == 'fx':
-                assert np.allclose(df[v][x], [x + 0.01 * y for y in range(1, 4)])
-            else:  # v == 'box'
-                assert np.allclose(df[v][x], [x + 0.6 for x in range(3)])
-
 
 @pytest.mark.parametrize("pressure", [True, False])
 @pytest.mark.parametrize("temperature", [True, False])
@@ -115,3 +113,55 @@ def test_parse_lammps_thermo_log(expected_processed_thermo_dataframe, fake_therm
         expected_values = expected_processed_thermo_dataframe[key].values
         computed_values = parsed_data[key]
         np.testing.assert_almost_equal(computed_values, expected_values)
+
+
+@pytest.fixture()
+def spatial_dimension():
+    return 3
+
+
+@pytest.fixture()
+def number_of_atoms():
+    return 64
+
+
+@pytest.fixture()
+def number_of_configurations():
+    return 16
+
+
+@pytest.fixture
+def configurations(number_of_configurations, spatial_dimension, number_of_atoms):
+    """Generate multiple fake configurations."""
+    np.random.seed(23423423)
+    configurations = [generate_fake_configuration(spatial_dimension=spatial_dimension,
+                                                  number_of_atoms=number_of_atoms)
+                      for _ in range(number_of_configurations)]
+    return configurations
+
+
+@pytest.fixture
+def lammps_dump_path(configurations, tmp_path):
+    lammps_dump = str(tmp_path / "test_dump.yaml")
+    dump_docs = create_dump_yaml_documents(configurations)
+    write_to_yaml(dump_docs, lammps_dump)
+    return lammps_dump
+
+
+@pytest.fixture()
+def expected_lammps_dump_dataframe(configurations):
+    return generate_parse_dump_output_dataframe(configurations)
+
+
+def test_parse_lammps_dump(lammps_dump_path, expected_lammps_dump_dataframe):
+
+    data_dict = parse_lammps_dump(lammps_dump_path)
+
+    computed_lammps_dump_dataframe = pd.DataFrame(data_dict)
+
+    assert set(computed_lammps_dump_dataframe.columns) == set(expected_lammps_dump_dataframe)
+
+    for colname in computed_lammps_dump_dataframe.columns:
+        computed_values = np.array([list_values for list_values in computed_lammps_dump_dataframe[colname].values])
+        expected_values = np.array([list_values for list_values in expected_lammps_dump_dataframe[colname].values])
+        np.testing.assert_array_equal(computed_values, expected_values)

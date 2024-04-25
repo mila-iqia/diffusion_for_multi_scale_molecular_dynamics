@@ -56,7 +56,7 @@ def get_configuration_runs(number_of_runs, spatial_dimension, number_of_atoms):
     return list_configurations
 
 
-def generate_parse_lammps_output(configurations: List[Configuration]) -> pd.DataFrame:
+def generate_parse_dump_output_dataframe(configurations: List[Configuration]) -> pd.DataFrame:
     """Generate parse lammps run
 
     Args:
@@ -67,8 +67,8 @@ def generate_parse_lammps_output(configurations: List[Configuration]) -> pd.Data
     """
     rows = []
     for configuration in configurations:
-        row = dict(id=list(configuration.ids), type=list(configuration.types))
-        for coordinates, name in zip(configuration.relative_coordinates.transpose(), ['x', 'y', 'z']):
+        row = dict(box=configuration.cell_dimensions, id=list(configuration.ids), type=list(configuration.types))
+        for coordinates, name in zip(configuration.positions.transpose(), ['x', 'y', 'z']):
             row[name] = list(coordinates)
 
         for coordinate_forces, name in zip(configuration.forces.transpose(), ['fx', 'fy', 'fz']):
@@ -151,7 +151,7 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
         # There are two possible flattening orders; C-style (c) and fortran-style (f). For an array of the form
         #   A = [ v1, v2] --> A.flatten(order=c) = [v1, v2, v3, v4],   A.flatten(order=f) = [v1, v3, v2, v4].
         #       [ v3, v4]
-        # C-style flattening is the correct convention to interoperate wity pytorch reshaping operations.
+        # C-style flattening is the correct convention to interoperate with pytorch reshaping operations.
         relative_positions = configuration.relative_coordinates.flatten(order='c')
         positions = configuration.positions.flatten(order='c')
         number_of_atoms = len(configuration.ids)
@@ -161,7 +161,7 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
                    type=configuration.types,
                    position=positions,
                    relative_positions=relative_positions,
-                   energy=configuration.energy)
+                   potential_energy=configuration.potential_energy)
 
         rows.append(row)
     return pd.DataFrame(rows)

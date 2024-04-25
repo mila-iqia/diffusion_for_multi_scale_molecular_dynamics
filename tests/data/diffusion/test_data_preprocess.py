@@ -41,7 +41,7 @@ class TestDataProcess(TestDiffusionDataBase):
             pd.testing.assert_frame_equal(computed_df, expected_df)
 
     def test_parse_lammps_run(self, processor, paths, train_configuration_runs, valid_configuration_runs):
-        expected_columns = ['natom', 'box', 'type', 'position', 'relative_positions', 'energy']
+        expected_columns = ['natom', 'box', 'type', 'position', 'relative_positions', 'potential_energy']
 
         for mode, configuration_runs in zip(['train', 'valid'], [train_configuration_runs, valid_configuration_runs]):
 

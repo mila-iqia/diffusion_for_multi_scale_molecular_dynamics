@@ -1,10 +1,12 @@
 import argparse
 import os
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 import yaml
+from yaml import CLoader
 
 
 def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: Optional[str] = None) -> pd.DataFrame:
@@ -26,27 +28,7 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: O
         raise ValueError(f'{lammps_thermo_log} does not exist. Please provide a valid LAMMPS thermo log file as yaml.')
 
     # get the atom information (positions and forces) from the LAMMPS 'dump' file
-    with open(lammps_dump, 'r') as f:
-        dump_yaml = yaml.safe_load_all(f)
-        # every MD iteration is saved as a separate document in the yaml file
-        # prepare a dataframe to get all the data
-        pd_data = defaultdict(list)
-        for doc in dump_yaml:  # loop over MD steps
-            if 'id' not in doc['keywords']:  # sanity check
-                raise ValueError('id should be in LAMMPS dump file')
-            atoms_info = defaultdict(list)  # store information on atoms positions and forces here
-            # get periodic box information
-            box_lim = [l_vec[1] for l_vec in doc['box']]
-            pd_data['box'].append(box_lim)  # add to dataframe
-            for data in doc['data']:  # loop over the atoms to get their positions and forces
-                for key, v in zip(doc['keywords'], data):
-                    if key not in ['id', 'type', 'x', 'y', 'z', 'fx', 'fy', 'fz']:
-                        continue
-                    else:
-                        atoms_info[key].append(v)  # get positions or forces
-            # add the information about that MD step to the dataframe
-            for k, v in atoms_info.items():  # k should be id, type, x, y, z, fx, fy, fz
-                pd_data[k].append(v)
+    pd_data = parse_lammps_dump(lammps_dump)
 
     # get the total energy from the LAMMPS second output
     thermo_log_data_dictionary = parse_lammps_thermo_log(lammps_thermo_log)
@@ -61,6 +43,34 @@ def parse_lammps_output(lammps_dump: str, lammps_thermo_log: str, output_name: O
         df.to_parquet(output_name, engine='pyarrow', index=False)
 
     return df
+
+
+def parse_lammps_dump(lammps_dump: str) -> Dict[str, Any]:
+    """Parse lammps dump.
+
+    We make the assumption that the content of the dump file is for 3D data.
+
+    Args:
+        lammps_dump : path to lammps dump file, in yaml format.
+
+    Returns:
+        data: a dictionary with all the relevant data.
+    """
+    expected_keywords = ['id', 'type', 'x', 'y', 'z', 'fx', 'fy', 'fz']
+    datatypes = 2 * [np.int64] + 6 * [np.float64]
+
+    pd_data = defaultdict(list)
+    with open(lammps_dump, 'r') as stream:
+        dump_yaml = yaml.load_all(stream, Loader=CLoader)
+
+        for doc in dump_yaml:  # loop over MD steps
+            pd_data['box'].append(np.array(doc['box'])[:, 1])
+
+            assert doc['keywords'] == expected_keywords
+            data = np.array(doc['data']).transpose()  # convert to numpy so that we can easily slice
+            for keyword, datatype, data_row in zip(expected_keywords, datatypes, data):
+                pd_data[keyword].append(data_row.astype(datatype))
+    return pd_data
 
 
 def parse_lammps_thermo_log(lammps_thermo_log: str) -> Dict[str, List[float]]:

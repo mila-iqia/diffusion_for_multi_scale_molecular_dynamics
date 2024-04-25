@@ -1,10 +1,14 @@
 """Read and crop LAMMPS outputs."""
 import argparse
+import logging
 import os
 
 import yaml
 
 from crystal_diffusion.data.utils import crop_lammps_yaml
+from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -19,16 +23,20 @@ def main():
     lammps_yaml = args.lammps_yaml
     lammps_thermo_yaml = args.lammps_thermo
 
+    logger.info(f"Cropping LAMMPS files {lammps_yaml} and {lammps_thermo_yaml}...")
     lammps_yaml, lammps_thermo_yaml = crop_lammps_yaml(lammps_yaml, lammps_thermo_yaml, args.crop, inplace=False)
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
+    logger.info("Dumping cropped dump data to file...")
     with open(os.path.join(args.output_dir, 'lammps_dump.yaml'), 'w') as f:
         yaml.dump_all(lammps_yaml, f, explicit_start=True, sort_keys=False, default_flow_style=None, width=1000)
+    logger.info("Dumping cropped thermo data to file...")
     with open(os.path.join(args.output_dir, 'lammps_thermo.yaml'), 'w') as f:
         yaml.dump(lammps_thermo_yaml, f, sort_keys=False, default_flow_style=None, width=1000)
 
 
+setup_analysis_logger()
 if __name__ == '__main__':
     main()

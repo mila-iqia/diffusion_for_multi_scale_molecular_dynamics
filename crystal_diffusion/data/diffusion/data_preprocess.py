@@ -86,7 +86,8 @@ class LammpsProcessorForDiffusion:
         df['relative_positions'] = df.apply(lambda x: self._convert_coords_to_relative(x), axis=1)
         return df
 
-    def get_dump_and_thermo_files(self, run_dir: str) -> Tuple[Union[str, None], Union[str, None]]:
+    @staticmethod
+    def get_dump_and_thermo_files(run_dir: str) -> Tuple[Union[str, None], Union[str, None]]:
         """Get dump and thermo files.
 
         Args:
@@ -148,11 +149,11 @@ class LammpsProcessorForDiffusion:
 
         # the dataframe contains the following columns: id (list of atom indices), type (list of int representing
         # atom type, x (list of x cartesian coordinates for each atom), y, z, fx (list forces in direction x for each
-        # atom), energy (1 float).
+        # atom), potential_energy (1 float).
         # Each row is a different MD step / usable example for diffusion model
         # TODO consider filtering out samples with large forces and MD steps that are too similar
         # TODO large force and similar are to be defined
-        df = df[['type', 'x', 'y', 'z', 'box', 'energy']]
+        df = df[['type', 'x', 'y', 'z', 'box', 'potential_energy']]
         df = self.get_x_relative(df)  # add relative coordinates
         df['natom'] = df['type'].apply(lambda x: len(x))  # count number of atoms in a structure
 
@@ -160,7 +161,7 @@ class LammpsProcessorForDiffusion:
         df['position'] = df.apply(self._flatten_positions_in_row, axis=1)
         # position is natom * 3 array
         # TODO: position (singular) and relative_positions (plural) are not consistent.
-        return df[['natom', 'box', 'type', 'position', 'relative_positions', 'energy']]
+        return df[['natom', 'box', 'type', 'position', 'relative_positions', 'potential_energy']]
 
     @staticmethod
     def _flatten_positions_in_row(row: pd.Series) -> List[float]:
