@@ -9,9 +9,6 @@ import datasets
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-import torch_geometric
-from mace.data import AtomicData, Configuration
-from mace.tools import get_atomic_number_table_from_zs, AtomicNumberTable
 from torch.utils.data import DataLoader
 
 from crystal_diffusion.data.diffusion.data_preprocess import \
@@ -28,7 +25,6 @@ class LammpsLoaderParameters:
     num_workers: int = 0
     max_atom: int = 64
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
-    cutoff: float = 5.0  # radial cutoff in Angstrom for the graph version of the dataset
 
 
 class LammpsForDiffusionDataModule(pl.LightningDataModule):
@@ -39,8 +35,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             lammps_run_dir: str,
             processed_dataset_dir: str,
             hyper_params: LammpsLoaderParameters,
-            working_cache_dir: Optional[str] = None,
-            torch_geometric_dataset: bool = False
+            working_cache_dir: Optional[str] = None
     ):
         """Initialize a dataset of LAMMPS structures for training a diffusion model.
 
@@ -51,8 +46,6 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             working_cache_dir (optional): temporary working directory for the Datasets library. If None, the library
                 uses the default folder in ~/.cache/. The default path is not cleaned up after a run and can occupy a
                 lot of disk space. Defaults to None.
-            torch_geometric_dataset (optional): if True, use a torch-geometric datasets of graphs in memory. If false,
-                 use a tensor datasets with HuggingFace datasets library. Defaults to False.
         """
         super().__init__()
         # check_and_log_hp(["batch_size", "num_workers"], hyper_params)  # validate the hyperparameters
@@ -64,9 +57,6 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         self.num_workers = hyper_params.num_workers
         self.max_atom = hyper_params.max_atom  # number of atoms to pad tensors
         self.spatial_dim = hyper_params.spatial_dimension
-        self.torch_geometric_dataset = torch_geometric_dataset
-        self.z_table = get_atomic_number_table_from_zs([14])  # TODO only Si for now - need fix to handle more types
-        self.cutoff = hyper_params.cutoff
 
     @staticmethod
     def dataset_transform(x: Dict[typing.AnyStr, typing.Any], spatial_dim: int = 3) -> Dict[str, torch.Tensor]:
@@ -115,21 +105,6 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
                            torch.nan)
         return x
 
-    @staticmethod
-    def parquet_to_graph(x: Dict[typing.AnyStr, typing.Any], z_table: AtomicNumberTable, cutoff: float, spatial_dim: int = 3
-                 ) -> AtomicData:
-        cell = np.diag(x['box'])  # box as a 3x3 array
-        positions = x['position'].reshape((-1, spatial_dim))
-        atom_type = 14 * x['type']  # TODO we need a atom_type dict to convert to atomic number for MACE
-        pbc = np.array([True] * spatial_dim)  # periodic boundary conditions
-        graph_config = Configuration(atomic_numbers=atom_type,
-                                     positions=positions,
-                                     cell=cell,
-                                     pbc=pbc)
-
-        graph_data = AtomicData.from_config(graph_config, z_table=z_table, cutoff=cutoff)
-        return graph_data
-
     def setup(self, stage: Optional[str] = None):
         """Parse and split all samples across the train/valid/test parsers."""
         # here, we will actually assign train/val datasets for use in dataloaders
@@ -149,33 +124,22 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         # padding needs to be done here OR in the preprocessor
         # check if the max number of atoms matches at least the max in the training set
         if max(self.train_dataset['natom']) > self.max_atom:
-            raise ValueError(f"Hyper-parameter max_atom {self.max_atom} is smaller than the largest structure in the"
+            raise ValueError(f"Hyper-paramater max_atom {self.max_atom} is smaller than the largest structure in the"
                              + f"dataset which has {max(self.train_dataset['natom'])} atoms.")
-        if not self.torch_geometric_data:
-            # map() are applied once, not in-place.
-            # The keyword argument "batched" can accelerate by working with batches, not useful for padding
-            self.train_dataset = self.train_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
-                                                                spatial_dim=self.spatial_dim), batched=False)
-            self.valid_dataset = self.valid_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
-                                                                spatial_dim=self.spatial_dim), batched=False)
-            # set_transform is applied on-the-fly and is less costly upfront. Works with batches, so we can't use it for
-            # padding
-            self.train_dataset.set_transform(partial(self.dataset_transform, spatial_dim=self.spatial_dim))
-            self.valid_dataset.set_transform(partial(self.dataset_transform, spatial_dim=self.spatial_dim))
-
-        else:  # make a dataset of graphs with torch-geometric for MACE or other graph-based models
-            self.train_dataset = self.train_dataset.map(partial(self.parquet_to_graph, z_table=self.z_table,
-                                                                cutoff=self.cutoff, spatial_dim=self.spatial_dim),
-                                                        batched=False)
-            self.valid_dataset = self.valid_dataset.map(partial(self.parquet_to_graph, z_table=self.z_table,
-                                                                cutoff=self.cutoff, spatial_dim=self.spatial_dim),
-                                                        batched=False)
-
+        # map() are applied once, not in-place.
+        # The keyword argument "batched" can accelerate by working with batches, not useful for padding
+        self.train_dataset = self.train_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
+                                                            spatial_dim=self.spatial_dim), batched=False)
+        self.valid_dataset = self.valid_dataset.map(partial(self.pad_samples, max_atom=self.max_atom,
+                                                            spatial_dim=self.spatial_dim), batched=False)
+        # set_transform is applied on-the-fly and is less costly upfront. Works with batches, so we can't use it for
+        # padding
+        self.train_dataset.set_transform(partial(self.dataset_transform, spatial_dim=self.spatial_dim))
+        self.valid_dataset.set_transform(partial(self.dataset_transform, spatial_dim=self.spatial_dim))
 
     def train_dataloader(self) -> DataLoader:
         """Create the training dataloader using the training data parser."""
-        dataloader_class = DataLoader if not self.torch_geometric_dataset else torch_geometric.data.DataLoader
-        return dataloader_class(
+        return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
@@ -184,11 +148,10 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         """Create the validation dataloader using the validation data parser."""
-        dataloader_class = DataLoader if not self.torch_geometric_dataset else torch_geometric.data.DataLoader
-        return dataloader_class(
+        return DataLoader(
             self.valid_dataset,
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=False,
             num_workers=self.num_workers,
         )
 
