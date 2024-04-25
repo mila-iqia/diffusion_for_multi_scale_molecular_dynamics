@@ -152,8 +152,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         # The target is nabla log p_{t|0} (xt | x0): it is NOT the "score", but rather a "conditional" (on x0) score.
         target_normalized_conditional_scores = self._get_target_normalized_score(xt, x0, sigmas)
 
+        unit_cell = torch.diag_embed(batch["box"])  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
+
         predicted_normalized_scores = self._get_predicted_normalized_score(
-            xt, noise_sample.time
+            xt, noise_sample.time, unit_cell
         )
 
         loss = torch.nn.functional.mse_loss(
@@ -199,7 +201,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         return target_normalized_scores
 
     def _get_predicted_normalized_score(
-        self, noisy_relative_positions: torch.Tensor, time: torch.Tensor
+        self, noisy_relative_positions: torch.Tensor, time: torch.Tensor, unit_cell: torch.Tensor
     ) -> torch.Tensor:
         """Get predicted normalized score.
 
@@ -209,6 +211,8 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             time : Noise times for the noisy relative positions. It is assumed that the inputs are consistent, ie,
                 the time values in this array correspond to the noise times used to create the noisy relative positions.
                 Tensor of dimensions [batch_size].
+            unit_cell: unit cell definition in Angstrom.
+                Tensor of dimensions [batch_size, spatial_dimension, spatial_dimension
 
         Returns:
             predicted normalized score: sigma times predicted score, ie, sigma times S_theta(xt, t).
@@ -216,9 +220,11 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """
         pos_key = self.sigma_normalized_score_network.position_key
         time_key = self.sigma_normalized_score_network.timestep_key
+        unit_cell_key = self.sigma_normalized_score_network.unit_cell_key
         augmented_batch = {
             pos_key: noisy_relative_positions,
             time_key: time.reshape(-1, 1),
+            unit_cell_key: unit_cell
         }
         predicted_normalized_scores = self.sigma_normalized_score_network(
             augmented_batch
