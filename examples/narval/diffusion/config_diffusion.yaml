@@ -1,6 +1,7 @@
 # general
-exp_name: example_experiment
-max_epoch: 2
+exp_name: example_narval
+run_name: run1
+max_epoch: 3
 log_every_n_steps: 1
 # fast_dev_run: True
 # set to null to avoid setting a seed (can speed up GPU computation, but
@@ -10,8 +11,8 @@ seed: 1234
 # data
 data:
   batch_size: 128
-  num_workers: 4
-  max_atom: 64
+  num_workers: 0
+  max_atom: 8
 
 # architecture
 spatial_dimension: 3
@@ -40,5 +41,5 @@ model_checkpoint:
   mode: min
 
 logging:
-  - tensorboard
+  - csv
   - comet
