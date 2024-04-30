@@ -87,7 +87,7 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
     #
     # As stated in the KeOps documentation :
     #   https://www.kernel-operations.io/keops/_auto_tutorials/a_LazyTensors/plot_lazytensors_a.html
-    #   Everything works just fine, with two major caveats:
+    #   Everything works just fine, with (...) major caveats:
     #
     #   - The structure of KeOps computations is still a little bit rigid: LazyTensors should only be used in
     #     situations where the large dimensions M and N over which the main reduction is performed are
