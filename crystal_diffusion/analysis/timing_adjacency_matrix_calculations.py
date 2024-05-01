@@ -27,7 +27,7 @@ def create_basis_vectors(batch_size, min_dimension, max_dimension):
 
 
 batch_size = 64
-powers = np.arange(3, 15)
+powers = np.arange(3, 13)
 
 min_dimension = 5
 max_dimension = 8
