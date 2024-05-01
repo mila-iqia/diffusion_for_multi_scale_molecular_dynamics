@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 from crystal_diffusion.utils.neighbors import \
@@ -26,7 +27,7 @@ def create_basis_vectors(batch_size, min_dimension, max_dimension):
 
 
 batch_size = 64
-powers = np.arange(3, 12)
+powers = np.arange(3, 15)
 
 min_dimension = 5
 max_dimension = 8
@@ -36,6 +37,12 @@ dimension_increasing_factor = 2**(1. / 3.)  # this keeps the mean volume per ato
 cutoff = 4.
 if __name__ == '__main__':
     setup_analysis_logger()
+
+    if torch.cuda.is_available():
+        device = 'GPU'
+    else:
+        device = 'CPU'
+
     for _ in range(2):
         # A first pass for KeOps compilation
         torch.manual_seed(1234)
@@ -62,10 +69,12 @@ if __name__ == '__main__':
         list_relative_timing = np.array(list_timing) / batch_size
 
     fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    fig.suptitle(f"Adjacency Computation Time per Structure\n Random Coordinates, Batch Size of {batch_size}")
+    fig.suptitle(f"Adjacency Computation Time on {device} per Structure\n"
+                 f"Random Coordinates, Batch Size of {batch_size}")
     ax = fig.add_subplot(111)
     ax.set_xlabel("Number of Atoms")
     ax.set_ylabel("Time")
     ax.loglog(list_natoms, list_relative_timing, 'y-o', alpha=0.5, label='A Calculation Times')
     ax.legend(loc=0)
-    plt.show()
+    fig.tight_layout()
+    fig.savefig(ANALYSIS_RESULTS_DIR.joinpath(f"timing_tests_{device}_adjacency_matrix.png"))
