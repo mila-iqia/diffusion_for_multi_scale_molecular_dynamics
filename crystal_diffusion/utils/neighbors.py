@@ -260,9 +260,9 @@ def _get_shortest_distance_that_crosses_unit_cell(basis_vectors: torch.Tensor) -
     a2 = basis_vectors[:, 1, :]
     a3 = basis_vectors[:, 2, :]
 
-    cross_product_12 = torch.cross(a1, a2)
-    cross_product_13 = torch.cross(a1, a3)
-    cross_product_23 = torch.cross(a2, a3)
+    cross_product_12 = torch.linalg.cross(a1, a2, dim=1)
+    cross_product_13 = torch.linalg.cross(a1, a3, dim=1)
+    cross_product_23 = torch.linalg.cross(a2, a3, dim=1)
 
     cell_volume = torch.abs((cross_product_12 * a3).sum(dim=1))
 
