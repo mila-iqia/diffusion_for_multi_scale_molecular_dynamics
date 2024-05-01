@@ -33,10 +33,9 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
     of data to a different device (e.g., GPU to CPU).
 
     Limitations:
-        - It is assumed that the radial cutoff is not so large that neighbors could be beyond the first
+        - It is assumed (but verified) that the radial cutoff is not so large that neighbors could be beyond the first
           shell of neighboring unit cells.
         - It is assumed that all structures have the same number of atoms.
-
 
     Args:
         relative_coordinates : atomic coordinates within the unit cell.
@@ -64,15 +63,13 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
 
     assert radial_cutoff > 0., "The radial cutoff should be greater than zero"
 
-    # TODO: check that the radial cutoff does not lead to possible neighbors beyond the first shell.
-
     device = relative_coordinates.device
 
     radial_cutoff = torch.tensor(radial_cutoff).to(device)
     zero = torch.tensor(0.0).to(device)
 
+    # Check that the radial cutoff does not lead to possible neighbors beyond the first shell.
     shortest_cell_crossing_distances = _get_shortest_distance_that_crosses_unit_cell(basis_vectors)
-
     assert torch.all(shortest_cell_crossing_distances > radial_cutoff), \
         ("The radial cutoff is so large that neighbors could be located "
          "beyond the first shell of periodic unit cell images.")
