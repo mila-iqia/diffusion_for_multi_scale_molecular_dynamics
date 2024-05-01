@@ -9,6 +9,7 @@ from crystal_diffusion.utils.neighbors import (
     INDEX_PADDING_VALUE, POSITION_PADDING_VALUE,
     _get_relative_coordinates_lattice_vectors,
     _get_shifted_relative_coordinates,
+    _get_shortest_distance_that_crosses_unit_cell,
     get_periodic_neighbor_indices_and_displacements)
 from tests.fake_data_utils import find_aligning_permutation
 
@@ -34,7 +35,10 @@ def number_of_atoms():
 @pytest.fixture
 def basis_vectors(batch_size):
     # orthogonal boxes with dimensions between 5 and 10.
-    return torch.stack([torch.diag(5. + 5. * torch.rand(3)) for _ in range(batch_size)])
+    orthogonal_boxes = torch.stack([torch.diag(5. + 5. * torch.rand(3)) for _ in range(batch_size)])
+    # add a bit of noise to make the vectors not quite orthogonal
+    basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, 3, 3)
+    return basis_vectors
 
 
 @pytest.fixture
@@ -47,7 +51,8 @@ def structures(basis_vectors, relative_coordinates):
     list_structures = []
     for basis, coordinates in zip(basis_vectors, relative_coordinates):
         number_of_atoms = coordinates.shape[0]
-        species = number_of_atoms * ["Si"]  # this is a dummy variable. It doesn't matter what atome types..
+        species = number_of_atoms * ["Si"]  # this is a dummy variable. It doesn't matter what the atom types are...
+        # TODO
         lattice = Lattice(matrix=basis.cpu().numpy(), pbc=(True, True, True))
 
         structure = Structure(lattice=lattice,
@@ -118,7 +123,8 @@ def expected_neighbor_indices_and_displacements(expected_neighbors):
     return expected_source_indices, expected_destination_indices, expected_displacements
 
 
-@pytest.mark.parametrize("radial_cutoff", [2.0])
+# This test might be slow because KeOps needs to compile some stuff...
+@pytest.mark.parametrize("radial_cutoff", [3.3])
 def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, relative_coordinates, radial_cutoff,
                                                           expected_neighbor_indices_and_displacements):
     expected_src_idx, expected_dst_idx, expected_displacements = expected_neighbor_indices_and_displacements
@@ -161,6 +167,21 @@ def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, relativ
         torch.testing.assert_allclose(batch_computed_dst_idx[permutation_indices], batch_expected_dst_idx)
 
 
+def test_get_periodic_neighbour_indices_and_displacements_large_cutoff(basis_vectors, relative_coordinates):
+    # Check that the code crashes if the radial cutoff is too big!
+    shortest_cell_crossing_distances = _get_shortest_distance_that_crosses_unit_cell(basis_vectors).min()
+
+    large_radial_cutoff = shortest_cell_crossing_distances + 0.1
+    small_radial_cutoff = shortest_cell_crossing_distances - 0.1
+
+    # Should run
+    get_periodic_neighbor_indices_and_displacements(relative_coordinates, basis_vectors, small_radial_cutoff)
+
+    with pytest.raises(AssertionError):
+        # Should crash
+        get_periodic_neighbor_indices_and_displacements(relative_coordinates, basis_vectors, large_radial_cutoff)
+
+
 @pytest.mark.parametrize("number_of_shells", [1, 2, 3])
 def test_get_relative_coordinates_lattice_vectors(number_of_shells):
 
@@ -191,3 +212,24 @@ def test_get_shifted_relative_coordinates(relative_coordinates, number_of_shells
         computed_cell_shift_coordinates = computed_shifted_coordinates[:, cell_idx, :, :]
 
         torch.testing.assert_allclose(expected_cell_shift_coordinates, computed_cell_shift_coordinates)
+
+
+def test_get_shortest_distance_that_crosses_unit_cell(basis_vectors):
+    expected_shortest_distances = []
+    for matrix in basis_vectors.numpy():
+        a1, a2, a3 = matrix
+
+        cross_product_12 = np.cross(a1, a2)
+        cross_product_13 = np.cross(a1, a3)
+        cross_product_23 = np.cross(a2, a3)
+
+        d1 = np.abs(np.dot(cross_product_23, a1)) / np.linalg.norm(cross_product_23)
+        d2 = np.abs(np.dot(cross_product_13, a2)) / np.linalg.norm(cross_product_13)
+        d3 = np.abs(np.dot(cross_product_12, a3)) / np.linalg.norm(cross_product_12)
+
+        expected_shortest_distances.append(np.min([d1, d2, d3]))
+
+    expected_shortest_distances = torch.Tensor(expected_shortest_distances)
+    computed_shortest_distances = _get_shortest_distance_that_crosses_unit_cell(basis_vectors)
+
+    torch.testing.assert_allclose(expected_shortest_distances, computed_shortest_distances)
