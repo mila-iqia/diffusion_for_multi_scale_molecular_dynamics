@@ -39,9 +39,11 @@ if __name__ == '__main__':
     setup_analysis_logger()
 
     if torch.cuda.is_available():
-        device = 'GPU'
+        device_type = 'GPU'
+        device = torch.device(type='cuda')
     else:
-        device = 'CPU'
+        device_type = 'CPU'
+        device = torch.device(type='cpu')
 
     for _ in range(2):
         # A first pass for KeOps compilation
@@ -52,11 +54,11 @@ if __name__ == '__main__':
             natom = 2 ** power
             list_natoms.append(natom)
             logging.info(f"Doing {natom} atoms ...")
-            basis_vectors = create_basis_vectors(batch_size, min_dimension, max_dimension)
+            basis_vectors = create_basis_vectors(batch_size, min_dimension, max_dimension).to(device)
             min_dimension = dimension_increasing_factor * min_dimension
             max_dimension = dimension_increasing_factor * max_dimension
 
-            relative_coordinates = torch.rand(batch_size, natom, 3)
+            relative_coordinates = torch.rand(batch_size, natom, 3).to(device)
 
             t1 = time.time()
             _ = get_periodic_neighbor_indices_and_displacements(relative_coordinates, basis_vectors, cutoff)
@@ -69,7 +71,7 @@ if __name__ == '__main__':
         list_relative_timing = np.array(list_timing) / batch_size
 
     fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    fig.suptitle(f"Adjacency Computation Time on {device} per Structure\n"
+    fig.suptitle(f"Adjacency Computation Time on {device_type} per Structure\n"
                  f"Random Coordinates, Batch Size of {batch_size}")
     ax = fig.add_subplot(111)
     ax.set_xlabel("Number of Atoms")
@@ -77,4 +79,4 @@ if __name__ == '__main__':
     ax.loglog(list_natoms, list_relative_timing, 'y-o', alpha=0.5, label='A Calculation Times')
     ax.legend(loc=0)
     fig.tight_layout()
-    fig.savefig(ANALYSIS_RESULTS_DIR.joinpath(f"timing_tests_{device}_adjacency_matrix.png"))
+    fig.savefig(ANALYSIS_RESULTS_DIR.joinpath(f"timing_tests_{device_type}_adjacency_matrix.png"))
