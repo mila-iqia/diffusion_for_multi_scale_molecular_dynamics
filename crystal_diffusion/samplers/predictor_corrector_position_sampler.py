@@ -136,7 +136,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         number_of_samples = x.shape[0]
 
         time_tensor = time * torch.ones(number_of_samples, 1).to(x)
-        augmented_batch = {pos_key: x, time_key: time_tensor,  unit_cell_key: unit_cell}
+        augmented_batch = {pos_key: x, time_key: time_tensor, unit_cell_key: unit_cell}
         with torch.no_grad():
             predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
 
