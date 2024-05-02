@@ -34,8 +34,9 @@ class FakePositionsDataModule(LightningDataModule):
         super().__init__()
         self.batch_size = batch_size
         all_positions = torch.rand(dataset_size, number_of_atoms, spatial_dimension)
+        box = torch.rand(spatial_dimension)
         self.data = [
-            dict(relative_positions=configuration) for configuration in all_positions
+            dict(relative_positions=configuration, box=box) for configuration in all_positions
         ]
         self.train_data, self.val_data, self.test_data = None, None, None
 
@@ -67,6 +68,10 @@ class TestPositionDiffusionLightningModel:
     @pytest.fixture()
     def number_of_atoms(self):
         return 8
+
+    @pytest.fixture()
+    def unit_cell_size(self):
+        return 10
 
     @pytest.fixture()
     def optimizer_name(self):
@@ -182,6 +187,10 @@ class TestPositionDiffusionLightningModel:
         ), "The brute force algorithm produced NaN scores. Review input."
         return expected_scores
 
+    @pytest.fixture()
+    def unit_cell_sample(self, unit_cell_size, spatial_dimension, batch_size):
+        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(batch_size, 1, 1)
+
     def test_get_target_normalized_score(
         self,
         lightning_model,
@@ -189,6 +198,7 @@ class TestPositionDiffusionLightningModel:
         real_relative_positions,
         sigmas,
         brute_force_target_normalized_score,
+        unit_cell_sample
     ):
         computed_target_normalized_scores = (
             lightning_model._get_target_normalized_score(
@@ -202,12 +212,12 @@ class TestPositionDiffusionLightningModel:
                                       rtol=1e-4)
 
     def test_get_predicted_normalized_score(
-        self, mocker, lightning_model, noisy_relative_positions, times
+        self, mocker, lightning_model, noisy_relative_positions, times, unit_cell_sample
     ):
         mocker.patch.object(MLPScoreNetwork, "_forward_unchecked")
 
         _ = lightning_model._get_predicted_normalized_score(
-            noisy_relative_positions, times
+            noisy_relative_positions, times, unit_cell_sample
         )
 
         list_calls = MLPScoreNetwork._forward_unchecked.mock_calls

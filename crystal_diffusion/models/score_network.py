@@ -25,6 +25,7 @@ class ScoreNetwork(torch.nn.Module):
     """
     position_key = "noisy_relative_positions"  # unitless positions in the lattice coordinate basis
     timestep_key = "time"
+    unit_cell_key = "unit_cell"  # unit cell definition in Angstrom
 
     def __init__(self, hyper_params: BaseScoreNetworkParameters):
         """__init__.
@@ -87,6 +88,20 @@ class ScoreNetwork(torch.nn.Module):
         assert torch.logical_and(
             times >= 0.0, times <= 1.0
         ).all(), "The times are expected to be normalized between 0 and 1."
+
+        assert (
+                self.unit_cell_key in batch
+        ), f"The unit cell should be present in the batch dictionary with key '{self.unit_cell_key}'"
+
+        unit_cell = batch[self.unit_cell_key]
+        unit_cell_shape = unit_cell.shape
+        assert (
+                unit_cell_shape[0] == batch_size
+        ), "the batch size dimension is inconsistent between positions and unit cell."
+        assert (
+                len(unit_cell_shape) == 3 and unit_cell_shape[1] == self.spatial_dimension
+                and unit_cell_shape[2] == self.spatial_dimension
+        ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension]."
 
     def forward(self, batch: Dict[AnyStr, torch.Tensor]) -> torch.Tensor:
         """Model forward.
