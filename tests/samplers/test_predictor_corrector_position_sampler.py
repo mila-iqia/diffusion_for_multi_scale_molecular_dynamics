@@ -18,9 +18,10 @@ class FakePCSampler(PredictorCorrectorPositionSampler):
         self,
         number_of_discretization_steps: int,
         number_of_corrector_steps: int,
+        spatial_dimension: int,
         initial_sample: torch.Tensor,
     ):
-        super().__init__(number_of_discretization_steps, number_of_corrector_steps)
+        super().__init__(number_of_discretization_steps, number_of_corrector_steps, spatial_dimension)
         self.initial_sample = initial_sample
 
     def initialize(self, number_of_samples: int):
@@ -53,7 +54,7 @@ class TestPredictorCorrectorPositionSampler:
         self, number_of_discretization_steps, number_of_corrector_steps, initial_sample
     ):
         sampler = FakePCSampler(
-            number_of_discretization_steps, number_of_corrector_steps, initial_sample
+            number_of_discretization_steps, number_of_corrector_steps, spatial_dimension, initial_sample
         )
         return sampler
 
