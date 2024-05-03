@@ -78,18 +78,16 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
     relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells=1).to(device)
     number_of_relative_lattice_vectors = len(relative_lattice_vectors)
 
-    # The shifted_relative_coordinates are composed of the relative coordinates, which are located
-    # within the unit cell, shifted by the various relative lattice vectors.
-    #   Dimension [batch_size, max_number_of_atoms, number_of_relative_lattice_vectors, spatial_dimension].
-    shifted_relative_coordinates = _get_shifted_relative_coordinates(relative_coordinates, relative_lattice_vectors)
+    # Repeat the relative lattice vectors along the batch dimension; the basis vectors could potentially be
+    # different for every batch element.
+    batched_relative_lattice_vectors = relative_lattice_vectors.repeat(batch_size, 1, 1)
+    lattice_vectors = _get_positions_from_coordinates(batched_relative_lattice_vectors, basis_vectors)
 
-    # Compute the positions in Euclidean space.
-    #   The positions are defined as p = c1 a1 + c2 a2 + c3 a3, which can be expressed as
-    #   (p_x, p_y, p_z) = [c1, c2, c3] [  - a1 - ]
-    #                                  [  - a2 - ]
-    #                                  [  - a3 - ]
-    positions = torch.matmul(relative_coordinates, basis_vectors)
-    shifted_positions = torch.matmul(shifted_relative_coordinates, basis_vectors[:, None, :, :])
+    positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
+    # The shifted_positions are composed of the positions, which are located within the unit cell, shifted by
+    # the various lattice vectors.
+    #  Dimension [batch_size, number of relative lattice vectors, max_number_of_atoms, spatial_dimension].
+    shifted_positions = _get_shifted_positions(positions, lattice_vectors)
 
     # KeOps will be used to compute the distance matrix, |p_i - p_j |^2, without overflowing memory.
     #
@@ -136,14 +134,44 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
     # The 'dst_indices' array corresponds to KeOps first 'virtual' dimension (the "i" dimension). This goes from
     # 0 to max_atom - 1 and correspond to atom indices (specifically, destination indices!).
 
+    # Identify neighbors within the radial_cutoff, but avoiding self.
+    valid_neighbor_mask = torch.logical_and(zero < squared_distances, squared_distances <= radial_cutoff**2)
+    # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
+
+    # Combine all the non-batch dimensions to obtain the maximum number of edges per batch element
+    max_edge_per_structure_in_batch = valid_neighbor_mask.view(batch_size, -1).sum(dim=1)
+
+    # Each positive entry in the valid_neighbor_mask boolean array represents a valid edge. The indices of
+    # this positive entry are also the indices of the corresponding edge components.
+    valid_indices = valid_neighbor_mask.nonzero()
+    # Dimension : [total number of edges, 4].
+    # The columns correspond to (batch index, lattice vector, source atom, neighbor index)
+
+    # Extract all the relevant components
+    flat_destination_indices = dst_indices[valid_neighbor_mask]
+    flat_source_indices = valid_indices[:, 2]
+    flat_batch_indices = valid_indices[:, 0]
+    flat_lattice_vector_indices = valid_indices[:, 1]
+
+    source_positions = _get_vectors_from_multiple_indices(positions,
+                                                          flat_batch_indices,
+                                                          flat_source_indices)
+    destination_positions = _get_vectors_from_multiple_indices(positions,
+                                                               flat_batch_indices,
+                                                               flat_destination_indices)
+    lattice_vector_shifts = _get_vectors_from_multiple_indices(lattice_vectors,
+                                                               flat_batch_indices,
+                                                               flat_lattice_vector_indices)
+
+    flat_displacements = destination_positions + lattice_vector_shifts - source_positions
+
+    ################################################################################
+
+    """
     # Build the source indices to have the same dimensions as dst_indices.
     shape = (batch_size, number_of_relative_lattice_vectors, max_number_of_neighbors, 1)
     src_indices = torch.arange(max_natom).repeat(shape).transpose(-2, -1)
     # src_indices  is constant along all dimensions except the "i" dimension, where it goes from 0 to max_atom - 1.
-    # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
-
-    # Identify neighbors within the radial_cutoff, but avoiding self.
-    valid_neighbor_mask = torch.logical_and(zero < squared_distances, squared_distances <= radial_cutoff**2)
     # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
 
     # Combine all the non-batch dimensions.
@@ -166,16 +194,20 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
 
     # Only compute what is needed!
     flat_displacements = flat_destinations - flat_origins
+    """
 
     # Chop back into one item per batch entry, and then pad.
     split_points = torch.cumsum(max_edge_per_structure_in_batch, dim=0)[:-1]
 
-    list_src_indices = torch.tensor_split(flat_src_indices, split_points)
+    # list_src_indices = torch.tensor_split(flat_src_indices, split_points)
+    list_src_indices = torch.tensor_split(flat_source_indices, split_points)
+
     source_indices = torch.nn.utils.rnn.pad_sequence(list_src_indices,
                                                      batch_first=True,
                                                      padding_value=INDEX_PADDING_VALUE)
 
-    list_dst_indices = torch.tensor_split(flat_dst_indices, split_points)
+    # list_dst_indices = torch.tensor_split(flat_dst_indices, split_points)
+    list_dst_indices = torch.tensor_split(flat_destination_indices, split_points)
     destination_indices = torch.nn.utils.rnn.pad_sequence(list_dst_indices,
                                                           batch_first=True,
                                                           padding_value=INDEX_PADDING_VALUE)
@@ -202,27 +234,48 @@ def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1) -> torc
     """
     spatial_dimension = 3
     shifts = range(-number_of_shells, number_of_shells + 1)
-    list_relative_lattice_vectors = torch.tensor(list(itertools.product(shifts, repeat=spatial_dimension)))
+    list_relative_lattice_vectors = torch.tensor(list(itertools.product(shifts, repeat=spatial_dimension)),
+                                                 dtype=torch.float)
     return list_relative_lattice_vectors
 
 
-def _get_shifted_relative_coordinates(relative_coordinates: torch.Tensor,
-                                      relative_lattice_vectors: torch.Tensor) -> torch.Tensor:
-    """Get shifted relative coordinates.
+def _get_positions_from_coordinates(relative_coordinates: torch.Tensor, basis_vectors: torch.Tensor) -> torch.Tensor:
+    """Get positions from coordinates.
+
+    This method computes the positions in Euclidean space given the unitless coordinates and the basis vectors
+    that define the unit cell.
+
+    The positions are defined as p = c1 a1 + c2 a2 + c3 a3, which can be expressed as
+        (p_x, p_y, p_z) = [c1, c2, c3] [  - a1 - ]
+                                       [  - a2 - ]
+                                       [  - a3 - ]
 
     Args:
-        relative_coordinates : relative coordinates within the unit cell.
-            Dimension [batch_size, max_number_of_atoms, 3].
-        relative_lattice_vectors : relative coordinates lattice vectors (ie, array of integer triplets).
-            Dimension [number of relative lattice vectors, 3].
+        relative_coordinates : Unitless coordinates. Dimension [batch_size, number of vectors, spatial_dimension].
+        basis_vectors : Vectors that define the unit cell. Dimension [batch_size, spatial_dimension, spatial_dimension].
 
     Returns:
-        shifted_relative_coordinates: the unit cell relative coordinates, shifted by the lattice vectors.
+        positions: the point positions in Euclidean space. Dimension [batch_size, number of vectors, spatial_dimension].
+    """
+    positions = torch.matmul(relative_coordinates, basis_vectors)
+    return positions
+
+
+def _get_shifted_positions(positions: torch.Tensor, lattice_vectors: torch.Tensor) -> torch.Tensor:
+    """Get shifted positions.
+
+    Args:
+        positions : atomic positions within the unit cell.
+            Dimension [batch_size, max_number_of_atoms, 3].
+        lattice_vectors : Bravais lattice vectors connecting the unit cell to its neighbors (and to itself!).
+            Dimension [batch_size, number of relative lattice vectors, 3].
+
+    Returns:
+        shifted_positions:  the positions within the unit cell, shifted by the lattice vectors.
             Dimension [batch_size, number of relative lattice vectors, max_number_of_atoms, 3].
     """
-    shifted_coordinates = relative_coordinates[:, :, None, :] + relative_lattice_vectors[None, None, :, :]
-    shifted_coordinates = shifted_coordinates.transpose(2, 1)
-    return shifted_coordinates
+    shifted_positions = positions[:, None, :, :] + lattice_vectors[:, :, None, :]
+    return shifted_positions
 
 
 def _get_shortest_distance_that_crosses_unit_cell(basis_vectors: torch.Tensor) -> torch.Tensor:
@@ -273,3 +326,30 @@ def _get_shortest_distance_that_crosses_unit_cell(basis_vectors: torch.Tensor) -
     distances = torch.stack([distances_12, distances_13, distances_23], dim=1).min(dim=1).values
 
     return distances
+
+
+def _get_vectors_from_multiple_indices(vectors: torch.Tensor,
+                                       batch_indices: torch.Tensor,
+                                       vector_indices: torch.Tensor) -> torch.Tensor:
+    """Get vectors from multiple indices.
+
+    Extract vectors in higher dimensional tensor from multiple indices array.
+
+    This functionality is sufficiently arcane in pytorch to warrant its own function that we can
+    test robustly.
+
+    Args:
+        vectors : Tensor with multiple 'batch-like' indices that contain vectors.
+                    Dimensions : [batch_size, number_of_vectors, spatial_dimension].
+        batch_indices : Array of indices for the batch dimension. All values should be between 0 and batch_size - 1.
+                    Dimensions : [number_of_indices]
+        vector_indices : Array of indices for the 'number of vectors' dimension. All values should be between
+                        0 and number_of_vectors - 1.
+                    Dimensions : [number_of_indices]
+
+    Returns:
+        indexed_vectors: the vectors properly indexed by batch_indices and vector_indices.
+                         Dimensions : [number_of_indices, spatial_dimension]
+    """
+    # Yes, the answer looks trivial, but it's quite confusing to know if if gather or select_index should be used!
+    return vectors[batch_indices, vector_indices]

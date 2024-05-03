@@ -7,9 +7,9 @@ from pymatgen.core import Lattice, Structure
 
 from crystal_diffusion.utils.neighbors import (
     INDEX_PADDING_VALUE, POSITION_PADDING_VALUE,
-    _get_relative_coordinates_lattice_vectors,
-    _get_shifted_relative_coordinates,
-    _get_shortest_distance_that_crosses_unit_cell,
+    _get_positions_from_coordinates, _get_relative_coordinates_lattice_vectors,
+    _get_shifted_positions, _get_shortest_distance_that_crosses_unit_cell,
+    _get_vectors_from_multiple_indices,
     get_periodic_neighbor_indices_and_displacements)
 from tests.fake_data_utils import find_aligning_permutation
 
@@ -44,6 +44,21 @@ def basis_vectors(batch_size):
 @pytest.fixture
 def relative_coordinates(batch_size, number_of_atoms):
     return torch.rand(batch_size, number_of_atoms, 3)
+
+
+@pytest.fixture
+def positions(relative_coordinates, basis_vectors):
+    positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
+    return positions
+
+
+@pytest.fixture
+def lattice_vectors(batch_size, basis_vectors, number_of_shells):
+    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells)
+    batched_relative_lattice_vectors = relative_lattice_vectors.repeat(batch_size, 1, 1)
+    lattice_vectors = _get_positions_from_coordinates(batched_relative_lattice_vectors, basis_vectors)
+
+    return lattice_vectors
 
 
 @pytest.fixture
@@ -195,25 +210,45 @@ def test_get_relative_coordinates_lattice_vectors(number_of_shells):
                 lattice_vector = torch.tensor([nx, ny, nz])
                 expected_lattice_vectors.append(lattice_vector)
 
-    expected_lattice_vectors = torch.stack(expected_lattice_vectors)
+    expected_lattice_vectors = torch.stack(expected_lattice_vectors).to(dtype=torch.float32)
     computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells)
 
     torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
 
 
-@pytest.mark.parametrize("number_of_shells", [1, 2, 3])
-def test_get_shifted_relative_coordinates(relative_coordinates, number_of_shells):
+def test_get_positions_from_coordinates(batch_size, relative_coordinates, basis_vectors):
 
-    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells)
-    computed_shifted_coordinates = _get_shifted_relative_coordinates(relative_coordinates,
-                                                                     relative_lattice_vectors)
+    computed_positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
 
-    for cell_idx, relative_lattice_vector in enumerate(relative_lattice_vectors):
-        expected_cell_shift_coordinates = relative_coordinates + relative_lattice_vector
+    expected_positions = torch.empty(relative_coordinates.shape, dtype=torch.float32)
+    for batch_idx, (a1, a2, a3) in enumerate(basis_vectors):
+        for pos_idx, (x1, x2, x3) in enumerate(relative_coordinates[batch_idx]):
+            expected_positions[batch_idx, pos_idx, :] = x1 * a1 + x2 * a2 + x3 * a3
 
-        computed_cell_shift_coordinates = computed_shifted_coordinates[:, cell_idx, :, :]
+    torch.testing.assert_close(expected_positions, computed_positions)
 
-        torch.testing.assert_close(expected_cell_shift_coordinates, computed_cell_shift_coordinates)
+
+@pytest.mark.parametrize("number_of_shells", [1, 2])
+def test_get_shifted_positions(positions, lattice_vectors):
+
+    computed_shifted_positions = _get_shifted_positions(positions, lattice_vectors)
+
+    batch_size, number_of_atoms, spatial_dimension = positions.shape
+    batch_size_, number_of_lattice_vectors, spatial_dimension_ = lattice_vectors.shape
+
+    assert batch_size == batch_size_
+    assert spatial_dimension == spatial_dimension_ == 3
+
+    for batch_idx in range(batch_size):
+        for atom_idx in range(number_of_atoms):
+            position = positions[batch_idx, atom_idx, :]
+            for lat_idx in range(number_of_lattice_vectors):
+                lattice_vector = lattice_vectors[batch_idx, lat_idx, :]
+
+                expected_cell_shift_positions = position + lattice_vector
+                computed_cell_shift_positions = computed_shifted_positions[batch_idx, lat_idx, atom_idx, :]
+
+                torch.testing.assert_close(expected_cell_shift_positions, computed_cell_shift_positions)
 
 
 def test_get_shortest_distance_that_crosses_unit_cell(basis_vectors):
@@ -235,3 +270,23 @@ def test_get_shortest_distance_that_crosses_unit_cell(basis_vectors):
     computed_shortest_distances = _get_shortest_distance_that_crosses_unit_cell(basis_vectors)
 
     torch.testing.assert_close(expected_shortest_distances, computed_shortest_distances)
+
+
+def test_get_vectors_from_multiple_indices(batch_size, number_of_atoms):
+
+    spatial_dimension = 3
+    vectors = torch.rand(batch_size, number_of_atoms, spatial_dimension)
+
+    number_of_indices = 100
+
+    batch_indices = torch.randint(0, batch_size, (number_of_indices,))
+    vector_indices = torch.randint(0, number_of_atoms, (number_of_indices,))
+
+    expected_vectors = torch.empty(number_of_indices, spatial_dimension, dtype=torch.float32)
+
+    for idx, (batch_idx, vector_idx) in enumerate(zip(batch_indices, vector_indices)):
+        expected_vectors[idx] = vectors[batch_idx, vector_idx]
+
+    computed_vectors = _get_vectors_from_multiple_indices(vectors, batch_indices, vector_indices)
+
+    torch.testing.assert_close(expected_vectors, computed_vectors)
