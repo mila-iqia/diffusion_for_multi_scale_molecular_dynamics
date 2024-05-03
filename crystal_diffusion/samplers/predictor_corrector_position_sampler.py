@@ -40,9 +40,6 @@ class PredictorCorrectorPositionSampler(ABC):
         """
         x_ip1 = map_positions_to_unit_cell(self.initialize(number_of_samples)).to(device)
 
-        if unit_cell.dim() == 2:  # no batchsize for unit cell, just repeat
-            unit_cell = unit_cell.unsqueeze(0).repeat(x_ip1.size(0), 1, 1)
-
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
             x_i = map_positions_to_unit_cell(self.predictor_step(x_ip1, i + 1, unit_cell))
             for _ in range(self.number_of_corrector_steps):

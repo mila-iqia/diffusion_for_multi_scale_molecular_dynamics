@@ -124,6 +124,7 @@ class DiffusionSamplingCallback(Callback):
         logger.info("Draw samples")
         # TODO we will have to sample unit cell dimensions at some points instead of working with fixed size
         unit_cell = torch.diag(torch.Tensor(self.sampling_parameters.cell_dimensions)).to(pl_model.device)
+        unit_cell = unit_cell.unsqueeze(0).repeat(self.sampling_parameters.number_of_samples, 1, 1)
 
         samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device,
                                     unit_cell=unit_cell)
