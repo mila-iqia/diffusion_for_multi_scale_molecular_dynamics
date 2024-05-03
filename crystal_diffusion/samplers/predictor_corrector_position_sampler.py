@@ -16,13 +16,15 @@ logger = logging.getLogger(__name__)
 class PredictorCorrectorPositionSampler(ABC):
     """This defines the interface for position samplers."""
 
-    def __init__(self, number_of_discretization_steps: int, number_of_corrector_steps: int, **kwargs):
+    def __init__(self, number_of_discretization_steps: int, number_of_corrector_steps: int, spatial_dimension: int,
+                 **kwargs):
         """Init method."""
         assert number_of_discretization_steps > 0, "The number of discretization steps should be larger than zero"
         assert number_of_corrector_steps >= 0, "The number of corrector steps should be non-negative"
 
         self.number_of_discretization_steps = number_of_discretization_steps
         self.number_of_corrector_steps = number_of_corrector_steps
+        self.spatial_dimension = spatial_dimension
 
     def sample(self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor) -> torch.Tensor:
         """Sample.
@@ -33,11 +35,15 @@ class PredictorCorrectorPositionSampler(ABC):
             number_of_samples : number of samples to draw.
             device: device to use (cpu, cuda, etc.). Should match the PL model location.
             unit_cell: unit cell definition in Angstrom.
-                Tensor of dimensions [batch_size, spatial_dimension, spatial_dimension]
+                Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
             position samples: position samples.
         """
+        assert unit_cell.size() == (number_of_samples, self.spatial_dimension, self.spatial_dimension), \
+            "Unit cell passed to sample should be of size (number of sample, spatial dimension, spatial dimension" \
+            + f"Got {unit_cell.size()}"
+
         x_ip1 = map_positions_to_unit_cell(self.initialize(number_of_samples)).to(device)
 
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
@@ -97,7 +103,6 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
                  noise_parameters: NoiseParameters,
                  number_of_corrector_steps: int,
                  number_of_atoms: int,
-                 spatial_dimension: int,
                  sigma_normalized_score_network: ScoreNetwork,
                  ):
         """Init method."""
@@ -107,7 +112,6 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         sampler = ExplodingVarianceSampler(noise_parameters)
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = number_of_atoms
-        self.spatial_dimension = spatial_dimension
         self.sigma_normalized_score_network = sigma_normalized_score_network
 
     def initialize(self, number_of_samples: int):
