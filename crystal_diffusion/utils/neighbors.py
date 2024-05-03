@@ -5,6 +5,7 @@ for positions in the unit cell of a periodic structure. The aim is to do this
 efficiently on the GPU without CPU-GPU communications.
 """
 import itertools
+from collections import namedtuple
 from typing import Tuple
 
 import numpy as np
@@ -15,22 +16,36 @@ INDEX_PADDING_VALUE = -1
 POSITION_PADDING_VALUE = np.NaN
 
 
-def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.Tensor,
-                                                    basis_vectors: torch.Tensor,
-                                                    radial_cutoff: float) \
-        -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Get periodic neighbor indices and displacements.
+AdjacencyInfo = namedtuple(typename="AdjacencyInfo",
+                           field_names=["adjacency_matrix",  # Adjacency matrix, in  COO format
+                                        "shifts",  # lattice vector shifts when computing neighbor distances
+                                        "batch_indices",  # original batch index of each edge.
+                                        "number_of_edges",  # number of edges in each batch element.
+                                        ])
+
+
+def get_periodic_adjacency_information(relative_coordinates: torch.Tensor,
+                                       basis_vectors: torch.Tensor,
+                                       radial_cutoff: float) -> AdjacencyInfo:
+    """Get periodic adjecency information.
 
     This method computes all the neighbors within the radial cutoff, accounting for periodicity, and returns
-    the edges' source and target indices as well as the corresponding displacements (ie, destination position minus
-    origin position). Because of periodicity, there may be multiple edges between the same two atoms.
+    various relevant data for building a geometric graph, such as all edges' source and target indices,
+    the periodic shift between neighbors (ie, the lattice vector part of 'destination position minus
+    origin position'). Because of periodicity, there may be multiple edges between the same two atoms.
 
     The algorithm assumes 3D space. The crystal structure is described by three non-collinear basis vectors,
     a1, a2 and a3, which induce a Bravais lattice. A 'relative coordinate' is given by [x1, x2, x3], where the
     real space position is "position = x1 a1 + x2 a2 + x3 a3". It is assumed that "0 <= x1, x2, x3 < 1".
 
     This method is meant to be applied to batches of structures and does not require the transfer
-    of data to a different device (e.g., GPU to CPU).
+    of data to a different device (e.g., GPU to CPU). The input arrays have a batch dimension, but the
+    output are flattened, as is typically assumed for batched graphs.
+
+    N.B.:
+        - The adjacency matrix outputs indices for the atoms in each structure, not global indices for the
+          batch. These indices may have to be shifted when using this data structure to create a single
+          disconnected graph that represents a batch of multiple connected graphs.
 
     Limitations:
         - It is assumed (but verified) that the radial cutoff is not so large that neighbors could be beyond the first
@@ -49,9 +64,11 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
         radial_cutoff : largest distance between neighbors.
 
     Returns:
-        source_indices : indices of the source positions. Dimension [batch_size, maximum_number_of_edges]
-        destination_indices : indices of the destination positions. Dimension [batch_size, maximum_number_of_edges]
-        displacements : displacement vector for each of the edges. Dimension [batch_size, maximum_number_of_edges, 3]
+        adjacency_info: a AdjacencyInfo object that contains
+            * the adjacency matrix indices in the form of [source_indices,  destination_indices]
+            * the lattice vector shifts between neighbors
+            * the batch indices for each entry in the adjacency matrix
+            * the number of edges for each structure in the batch.
     """
     spatial_dimension = 3  # We define this to avoid "magic numbers" in the code below.
     assert len(relative_coordinates.shape) == spatial_dimension, "Wrong number of dimensions for relative_coordinates"
@@ -139,7 +156,7 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
     # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
 
     # Combine all the non-batch dimensions to obtain the maximum number of edges per batch element
-    max_edge_per_structure_in_batch = valid_neighbor_mask.view(batch_size, -1).sum(dim=1)
+    number_of_edges = valid_neighbor_mask.view(batch_size, -1).sum(dim=1)
 
     # Each positive entry in the valid_neighbor_mask boolean array represents a valid edge. The indices of
     # this positive entry are also the indices of the corresponding edge components.
@@ -148,58 +165,80 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
     # The columns correspond to (batch index, lattice vector, source atom, neighbor index)
 
     # Extract all the relevant components
-    flat_destination_indices = dst_indices[valid_neighbor_mask]
-    flat_source_indices = valid_indices[:, 2]
-    flat_batch_indices = valid_indices[:, 0]
-    flat_lattice_vector_indices = valid_indices[:, 1]
+    destination_indices = dst_indices[valid_neighbor_mask]
+    source_indices = valid_indices[:, 2]
+    batch_indices = valid_indices[:, 0]
+    lattice_vector_indices = valid_indices[:, 1]
+
+    adjacency_matrix_coo_format = torch.stack([source_indices, destination_indices])
+
+    lattice_vector_shifts = _get_vectors_from_multiple_indices(lattice_vectors,
+                                                               batch_indices,
+                                                               lattice_vector_indices)
+
+    return AdjacencyInfo(adjacency_matrix=adjacency_matrix_coo_format,
+                         shifts=lattice_vector_shifts,
+                         batch_indices=batch_indices,
+                         number_of_edges=number_of_edges)
+
+
+def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: AdjacencyInfo,
+                                                        relative_coordinates: torch.Tensor,
+                                                        basis_vectors: torch.Tensor) \
+        -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Convert adjacency info into batched and padded data.
+
+    This method transforms the adjacency info data into arrays with a batch dimension,
+    adding the needed padding.
+
+    It is assumed that the inputs are consistent, ie, the adjacency_info object was
+    computed using the same relative_coordinates and basis_vectors.
+
+    Args:
+        adjacency_info : The adjacency info object.
+         relative_coordinates : atomic coordinates within the unit cell.
+                               Dimension [batch_size, max_number_of_atoms, 3]
+        basis_vectors : vectors that define the unit cell, (a1, a2, a3). The basis vectors are assumed
+                        to be vertically stacked, namely
+                                            [-- a1 --]
+                                            [-- a2 --]
+                                            [-- a3 --]
+                        Dimension [batch_size, 3, 3].
+
+    Returns:
+        source_indices : indices of the source atoms  for each neighbor pair.
+                        Dimension [batch_size, maximum_number_of_edges]
+        destination_indices : indices of the destination atoms  for each neighbor pair.
+                        Dimension [batch_size, maximum_number_of_edges]
+        displacements: displacements between destination and source atoms for each neighbor pair.
+                    displacement = destination_position - source_position
+                    in Euclidean coordinates
+                        Dimension [batch_size, maximum_number_of_edges, spatial dimension]
+        shifts: the periodic shifts between source and destination atoms for each neighbor pair.
+                        Dimension [batch_size, maximum_number_of_edges, spatial dimension]
+    """
+    adjacency_matrix = adjacency_info.adjacency_matrix
+    flat_source_indices = adjacency_matrix[0, :]
+    flat_destination_indices = adjacency_matrix[1, :]
+
+    batch_indices = adjacency_info.batch_indices
+    lattice_vector_shifts = adjacency_info.shifts
+    number_of_edges = adjacency_info.number_of_edges
+
+    positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
 
     source_positions = _get_vectors_from_multiple_indices(positions,
-                                                          flat_batch_indices,
+                                                          batch_indices,
                                                           flat_source_indices)
     destination_positions = _get_vectors_from_multiple_indices(positions,
-                                                               flat_batch_indices,
+                                                               batch_indices,
                                                                flat_destination_indices)
-    lattice_vector_shifts = _get_vectors_from_multiple_indices(lattice_vectors,
-                                                               flat_batch_indices,
-                                                               flat_lattice_vector_indices)
 
     flat_displacements = destination_positions + lattice_vector_shifts - source_positions
 
-    ################################################################################
-
-    """
-    # Build the source indices to have the same dimensions as dst_indices.
-    shape = (batch_size, number_of_relative_lattice_vectors, max_number_of_neighbors, 1)
-    src_indices = torch.arange(max_natom).repeat(shape).transpose(-2, -1)
-    # src_indices  is constant along all dimensions except the "i" dimension, where it goes from 0 to max_atom - 1.
-    # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
-
-    # Combine all the non-batch dimensions.
-    flattened_mask = valid_neighbor_mask.view(batch_size, -1)
-    max_edge_per_structure_in_batch = flattened_mask.sum(dim=1)
-
-    # Broadcast the source and destination positions to the same dimensions so that they can be
-    # treated in the same way.
-    origins = torch.take_along_dim(positions[:, None, :, None, :], src_indices[:, :, :, :, None], dim=2)
-    destinations = torch.take_along_dim(shifted_positions[:, :, :, None, :], dst_indices[:, :, :, :, None], dim=2)
-    # Dimension: [batch_size, number of lattice vectors, max_natom, max number of neighbors, spatial_dimension]
-
-    # Contract non-batch dimensions.
-    flat_src_indices = src_indices.reshape(batch_size, -1)[flattened_mask]
-    flat_dst_indices = dst_indices.reshape(batch_size, -1)[flattened_mask]
-    flat_origins = origins.reshape(batch_size, -1, spatial_dimension)[flattened_mask]
-    flat_destinations = destinations.reshape(batch_size, -1, spatial_dimension)[flattened_mask]
-    # The indices arrays have dimensions [total number of edges in batch], and the
-    # vector arrays have dimensions [total number of edges in batch, 3].
-
-    # Only compute what is needed!
-    flat_displacements = flat_destinations - flat_origins
-    """
-
     # Chop back into one item per batch entry, and then pad.
-    split_points = torch.cumsum(max_edge_per_structure_in_batch, dim=0)[:-1]
+    split_points = torch.cumsum(number_of_edges, dim=0)[:-1]
 
-    # list_src_indices = torch.tensor_split(flat_src_indices, split_points)
     list_src_indices = torch.tensor_split(flat_source_indices, split_points)
 
     source_indices = torch.nn.utils.rnn.pad_sequence(list_src_indices,
@@ -217,7 +256,12 @@ def get_periodic_neighbor_indices_and_displacements(relative_coordinates: torch.
                                                     batch_first=True,
                                                     padding_value=POSITION_PADDING_VALUE)
 
-    return source_indices, destination_indices, displacements
+    list_shifts = torch.tensor_split(lattice_vector_shifts, split_points)
+    shifts = torch.nn.utils.rnn.pad_sequence(list_shifts,
+                                             batch_first=True,
+                                             padding_value=POSITION_PADDING_VALUE)
+
+    return source_indices, destination_indices, displacements, shifts
 
 
 def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1) -> torch.Tensor:

@@ -9,7 +9,7 @@ from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 from crystal_diffusion.utils.neighbors import \
-    get_periodic_neighbor_indices_and_displacements
+    get_periodic_adjacency_information
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -61,7 +61,7 @@ if __name__ == '__main__':
             relative_coordinates = torch.rand(batch_size, natom, 3).to(device)
 
             t1 = time.time()
-            _ = get_periodic_neighbor_indices_and_displacements(relative_coordinates, basis_vectors, cutoff)
+            _ = get_periodic_adjacency_information(relative_coordinates, basis_vectors, cutoff)
             t2 = time.time()
             dt = t2 - t1
             list_timing.append(t2 - t1)

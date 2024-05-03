@@ -10,10 +10,11 @@ from crystal_diffusion.utils.neighbors import (
     _get_positions_from_coordinates, _get_relative_coordinates_lattice_vectors,
     _get_shifted_positions, _get_shortest_distance_that_crosses_unit_cell,
     _get_vectors_from_multiple_indices,
-    get_periodic_neighbor_indices_and_displacements)
+    convert_adjacency_info_into_batched_and_padded_data,
+    get_periodic_adjacency_information)
 from tests.fake_data_utils import find_aligning_permutation
 
-Neighbors = namedtuple("Neighbors", ["source_index", "destination_index", "displacement"])
+Neighbors = namedtuple("Neighbors", ["source_index", "destination_index", "displacement", "shift"])
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -98,9 +99,12 @@ def expected_neighbors(structures, radial_cutoff):
                 dst_idx = neighbor_site.index
                 displacement = neighbor_site.coords - source_site.coords
 
+                shift = np.dot(np.array(neighbor_site.image), structure.lattice.matrix)
+
                 neighbors = Neighbors(source_index=src_idx,
                                       destination_index=dst_idx,
-                                      displacement=displacement)
+                                      displacement=displacement,
+                                      shift=shift)
                 list_neighbors.append(neighbors)
 
         structure_neighbors.append(list_neighbors)
@@ -114,14 +118,19 @@ def expected_neighbor_indices_and_displacements(expected_neighbors):
     list_source_indices = []
     list_dest_indices = []
     list_displacements = []
+    list_shifts = []
     for list_neighbors in expected_neighbors:
         source_indices = torch.tensor([neigh.source_index for neigh in list_neighbors])
         list_source_indices.append(source_indices)
 
         dest_indices = torch.tensor([neigh.destination_index for neigh in list_neighbors])
         list_dest_indices.append(dest_indices)
+
         displacements = torch.stack([torch.from_numpy(neigh.displacement) for neigh in list_neighbors])
         list_displacements.append(displacements)
+
+        shifts = torch.stack([torch.from_numpy(neigh.shift) for neigh in list_neighbors])
+        list_shifts.append(shifts)
 
     expected_source_indices = torch.nn.utils.rnn.pad_sequence(list_source_indices,
                                                               batch_first=True,
@@ -135,23 +144,34 @@ def expected_neighbor_indices_and_displacements(expected_neighbors):
                                                              batch_first=True,
                                                              padding_value=POSITION_PADDING_VALUE)
 
-    return expected_source_indices, expected_destination_indices, expected_displacements
+    expected_shifts = torch.nn.utils.rnn.pad_sequence(list_shifts,
+                                                      batch_first=True,
+                                                      padding_value=POSITION_PADDING_VALUE)
+
+    return expected_source_indices, expected_destination_indices, expected_displacements, expected_shifts
 
 
 # This test might be slow because KeOps needs to compile some stuff...
 @pytest.mark.parametrize("radial_cutoff", [3.3])
 def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, relative_coordinates, radial_cutoff,
                                                           expected_neighbor_indices_and_displacements):
-    expected_src_idx, expected_dst_idx, expected_displacements = expected_neighbor_indices_and_displacements
 
-    computed_src_idx, computed_dst_idx, computed_displacements = (
-        get_periodic_neighbor_indices_and_displacements(relative_coordinates, basis_vectors, radial_cutoff))
+    # This is what we are really trying to test
+    adjacency_info = get_periodic_adjacency_information(relative_coordinates, basis_vectors, radial_cutoff)
+
+    # It is convenient to transform the data for test purposes.
+    computed_src_idx, computed_dst_idx, computed_displacements, computed_shifts = (
+        convert_adjacency_info_into_batched_and_padded_data(adjacency_info, relative_coordinates, basis_vectors))
+
+    (expected_src_idx, expected_dst_idx,
+     expected_displacements, expected_shifts) = expected_neighbor_indices_and_displacements
 
     batch_size, max_edges, spatial_dimension = expected_displacements.shape
 
     assert computed_src_idx.shape == (batch_size, max_edges)
     assert computed_dst_idx.shape == (batch_size, max_edges)
     assert computed_displacements.shape == (batch_size, max_edges, spatial_dimension)
+    assert computed_shifts.shape == (batch_size, max_edges, spatial_dimension)
 
     # Validate that the padding is the same in both computed and expected arrays
     torch.testing.assert_close(torch.isnan(computed_displacements), torch.isnan(expected_displacements))
@@ -173,12 +193,18 @@ def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, relativ
         batch_expected_displacements = expected_displacements[batch_idx][:valid_count]
         batch_computed_displacements = computed_displacements[batch_idx][:valid_count]
 
+        batch_expected_shifts = expected_shifts[batch_idx][:valid_count]
+        batch_computed_shifts = computed_shifts[batch_idx][:valid_count]
+
         permutation_indices = find_aligning_permutation(batch_expected_displacements,
                                                         batch_computed_displacements,
                                                         tol=1e-5)
 
         torch.testing.assert_close(batch_computed_displacements[permutation_indices],
                                    batch_expected_displacements,
+                                   check_dtype=False)
+        torch.testing.assert_close(batch_computed_shifts[permutation_indices],
+                                   batch_expected_shifts,
                                    check_dtype=False)
         torch.testing.assert_close(batch_computed_src_idx[permutation_indices], batch_expected_src_idx)
         torch.testing.assert_close(batch_computed_dst_idx[permutation_indices], batch_expected_dst_idx)
@@ -192,11 +218,11 @@ def test_get_periodic_neighbour_indices_and_displacements_large_cutoff(basis_vec
     small_radial_cutoff = shortest_cell_crossing_distances - 0.1
 
     # Should run
-    get_periodic_neighbor_indices_and_displacements(relative_coordinates, basis_vectors, small_radial_cutoff)
+    get_periodic_adjacency_information(relative_coordinates, basis_vectors, small_radial_cutoff)
 
     with pytest.raises(AssertionError):
         # Should crash
-        get_periodic_neighbor_indices_and_displacements(relative_coordinates, basis_vectors, large_radial_cutoff)
+        get_periodic_adjacency_information(relative_coordinates, basis_vectors, large_radial_cutoff)
 
 
 @pytest.mark.parametrize("number_of_shells", [1, 2, 3])
