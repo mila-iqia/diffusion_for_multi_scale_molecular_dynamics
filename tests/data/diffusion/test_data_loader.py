@@ -142,4 +142,4 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
             computed_values = data_module_dataset[field_name]
             expected_values = configuration_dataset[field_name][permutation_indices]
 
-            torch.testing.assert_allclose(computed_values, expected_values)
+            torch.testing.assert_close(computed_values, expected_values, check_dtype=False)

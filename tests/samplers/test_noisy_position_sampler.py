@@ -20,8 +20,8 @@ def test_map_positions_to_unit_cell_hard(shape):
 
     positive_positions_mask = positions >= 0.
     assert torch.all(positions[positive_positions_mask] == computed_positions[positive_positions_mask])
-    torch.testing.assert_allclose(computed_positions[~positive_positions_mask],
-                                  torch.zeros_like(computed_positions[~positive_positions_mask]))
+    torch.testing.assert_close(computed_positions[~positive_positions_mask],
+                               torch.zeros_like(computed_positions[~positive_positions_mask]))
 
 
 @pytest.mark.parametrize("shape", [(100, 8, 16)])
@@ -30,7 +30,7 @@ def test_map_positions_to_unit_cell_easy(shape):
     positions = 10. * (torch.rand((10,)) - 0.5)
     expected_values = torch.remainder(positions, 1.)
     computed_values = map_positions_to_unit_cell(positions)
-    torch.testing.assert_allclose(computed_values, expected_values)
+    torch.testing.assert_close(computed_values, expected_values)
 
 
 @pytest.mark.parametrize("shape", [(10, 1), (4, 5, 3), (2, 2, 2, 2)])
@@ -92,4 +92,4 @@ class TestNoisyPositionSampler:
         ):
             expected_sample = np.mod(x0 + sigma * epsilon, 1).float()
 
-            torch.testing.assert_allclose(computed_sample, expected_sample)
+            torch.testing.assert_close(computed_sample, expected_sample)

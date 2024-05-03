@@ -139,9 +139,9 @@ def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, relativ
     assert computed_displacements.shape == (batch_size, max_edges, spatial_dimension)
 
     # Validate that the padding is the same in both computed and expected arrays
-    torch.testing.assert_allclose(torch.isnan(computed_displacements), torch.isnan(expected_displacements))
-    torch.testing.assert_allclose(expected_src_idx == INDEX_PADDING_VALUE, computed_src_idx == INDEX_PADDING_VALUE)
-    torch.testing.assert_allclose(expected_dst_idx == INDEX_PADDING_VALUE, computed_dst_idx == INDEX_PADDING_VALUE)
+    torch.testing.assert_close(torch.isnan(computed_displacements), torch.isnan(expected_displacements))
+    torch.testing.assert_close(expected_src_idx == INDEX_PADDING_VALUE, computed_src_idx == INDEX_PADDING_VALUE)
+    torch.testing.assert_close(expected_dst_idx == INDEX_PADDING_VALUE, computed_dst_idx == INDEX_PADDING_VALUE)
 
     # The edges might not be in the same order. Check permutations
     for batch_idx in range(batch_size):
@@ -162,9 +162,11 @@ def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, relativ
                                                         batch_computed_displacements,
                                                         tol=1e-5)
 
-        torch.testing.assert_allclose(batch_computed_displacements[permutation_indices], batch_expected_displacements)
-        torch.testing.assert_allclose(batch_computed_src_idx[permutation_indices], batch_expected_src_idx)
-        torch.testing.assert_allclose(batch_computed_dst_idx[permutation_indices], batch_expected_dst_idx)
+        torch.testing.assert_close(batch_computed_displacements[permutation_indices],
+                                   batch_expected_displacements,
+                                   check_dtype=False)
+        torch.testing.assert_close(batch_computed_src_idx[permutation_indices], batch_expected_src_idx)
+        torch.testing.assert_close(batch_computed_dst_idx[permutation_indices], batch_expected_dst_idx)
 
 
 def test_get_periodic_neighbour_indices_and_displacements_large_cutoff(basis_vectors, relative_coordinates):
@@ -196,7 +198,7 @@ def test_get_relative_coordinates_lattice_vectors(number_of_shells):
     expected_lattice_vectors = torch.stack(expected_lattice_vectors)
     computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells)
 
-    torch.testing.assert_allclose(expected_lattice_vectors, computed_lattice_vectors)
+    torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
 
 
 @pytest.mark.parametrize("number_of_shells", [1, 2, 3])
@@ -211,7 +213,7 @@ def test_get_shifted_relative_coordinates(relative_coordinates, number_of_shells
 
         computed_cell_shift_coordinates = computed_shifted_coordinates[:, cell_idx, :, :]
 
-        torch.testing.assert_allclose(expected_cell_shift_coordinates, computed_cell_shift_coordinates)
+        torch.testing.assert_close(expected_cell_shift_coordinates, computed_cell_shift_coordinates)
 
 
 def test_get_shortest_distance_that_crosses_unit_cell(basis_vectors):
@@ -232,4 +234,4 @@ def test_get_shortest_distance_that_crosses_unit_cell(basis_vectors):
     expected_shortest_distances = torch.Tensor(expected_shortest_distances)
     computed_shortest_distances = _get_shortest_distance_that_crosses_unit_cell(basis_vectors)
 
-    torch.testing.assert_allclose(expected_shortest_distances, computed_shortest_distances)
+    torch.testing.assert_close(expected_shortest_distances, computed_shortest_distances)

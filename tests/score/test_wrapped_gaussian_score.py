@@ -143,7 +143,7 @@ class TestExponentials:
             denominator = exponential_row.sum()
             expected_results[i] -= numerator / denominator
 
-        torch.testing.assert_allclose(expected_results, computed_results)
+        torch.testing.assert_close(expected_results, computed_results)
 
 
 @pytest.mark.parametrize("kmax", [1, 5, 10])
@@ -184,6 +184,6 @@ def test_get_sigma_normalized_score(
     sigma_normalized_score_small_sigma = get_sigma_normalized_score(
         relative_positions, sigmas, kmax
     )
-    torch.testing.assert_allclose(
-        sigma_normalized_score_small_sigma, expected_sigma_normalized_scores
+    torch.testing.assert_close(
+        sigma_normalized_score_small_sigma, expected_sigma_normalized_scores, check_dtype=False
     )

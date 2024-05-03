@@ -188,6 +188,6 @@ def find_aligning_permutation(first_2d_array: torch.Tensor, second_2d_array: tor
         assert found, "One vector of the first array cannot be found in the 2nd array."
 
     permutation_indices = torch.tensor(permutation_indices)
-    torch.testing.assert_allclose(torch.sort(permutation_indices).values, torch.arange(number_of_vectors))
+    torch.testing.assert_close(torch.sort(permutation_indices).values, torch.arange(number_of_vectors))
 
     return permutation_indices
