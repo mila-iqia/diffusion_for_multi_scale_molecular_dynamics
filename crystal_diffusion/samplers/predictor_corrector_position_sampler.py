@@ -24,7 +24,7 @@ class PredictorCorrectorPositionSampler(ABC):
         self.number_of_discretization_steps = number_of_discretization_steps
         self.number_of_corrector_steps = number_of_corrector_steps
 
-    def sample(self, number_of_samples: int, device=torch.device, unit_cell=torch.Tensor) -> torch.Tensor:
+    def sample(self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor) -> torch.Tensor:
         """Sample.
 
         This method draws a sample using the PR sampler algorithm.
@@ -39,13 +39,15 @@ class PredictorCorrectorPositionSampler(ABC):
             position samples: position samples.
         """
         x_ip1 = map_positions_to_unit_cell(self.initialize(number_of_samples)).to(device)
-        logger.info("Starting position sampling")
+
+        if unit_cell.dim() == 2:  # no batchsize for unit cell, just repeat
+            unit_cell = unit_cell.unsqueeze(0).repeat(x_ip1.size(0), 1, 1)
+
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
             x_i = map_positions_to_unit_cell(self.predictor_step(x_ip1, i + 1, unit_cell))
             for _ in range(self.number_of_corrector_steps):
                 x_i = map_positions_to_unit_cell(self.corrector_step(x_i, i, unit_cell))
             x_ip1 = x_i
-
         return x_i
 
     @abstractmethod
@@ -139,7 +141,6 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         augmented_batch = {pos_key: x, time_key: time_tensor, unit_cell_key: unit_cell}
         with torch.no_grad():
             predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
-
         return predicted_normalized_scores
 
     def predictor_step(self, x_i: torch.Tensor, index_i: int, unit_cell: torch.Tensor) -> torch.Tensor:
@@ -164,9 +165,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         g_i = self.noise.g[idx].to(x_i)
         g2_i = self.noise.g_squared[idx].to(x_i)
         sigma_i = self.noise.sigma[idx].to(x_i)
-
         sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, unit_cell)
-
         x_im1 = x_i + g2_i / sigma_i * sigma_score_i + g_i * z
 
         return x_im1
