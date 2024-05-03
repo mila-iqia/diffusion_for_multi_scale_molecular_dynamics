@@ -308,6 +308,7 @@ class MACEScoreNetwork(ScoreNetwork):
 
         This method assumes that the input data has already been checked with respect to expectations
         and computes the scores assuming that the data is in the correct format.
+
         Args:
             batch : dictionary containing the data to be processed by the model.
         Returns:
