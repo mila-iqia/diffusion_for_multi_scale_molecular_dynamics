@@ -103,11 +103,13 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
                  noise_parameters: NoiseParameters,
                  number_of_corrector_steps: int,
                  number_of_atoms: int,
+                 spatial_dimension: int,
                  sigma_normalized_score_network: ScoreNetwork,
                  ):
         """Init method."""
         super().__init__(number_of_discretization_steps=noise_parameters.total_time_steps,
-                         number_of_corrector_steps=number_of_corrector_steps)
+                         number_of_corrector_steps=number_of_corrector_steps,
+                         spatial_dimension=spatial_dimension)
         self.noise_parameters = noise_parameters
         sampler = ExplodingVarianceSampler(noise_parameters)
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
