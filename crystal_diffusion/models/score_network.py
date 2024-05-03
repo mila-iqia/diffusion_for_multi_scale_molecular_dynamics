@@ -311,6 +311,7 @@ class MACEScoreNetwork(ScoreNetwork):
 
         Args:
             batch : dictionary containing the data to be processed by the model.
+
         Returns:
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
