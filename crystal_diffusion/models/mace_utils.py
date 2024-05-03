@@ -35,7 +35,8 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str) -> Data:
     n_atom_per_graph = x['abs_positions'].size(1)
     device = x['abs_positions'].device
     # TODO placeholder
-    adj_matrix, shift_matrix = get_adj_matrix(torch.randint(2, (batchsize * n_atom_per_graph) ** 2, (1,)))
+    cell_size = x[unit_cell_key][0, 0, 0]  # placeholder
+    adj_matrix, shift_matrix = get_adj_matrix(torch.randint(2, (batchsize * n_atom_per_graph) ** 2, (1,)), cell_size)
     # node features are int corresponding to atom type
     node_attrs = torch.ones(batchsize * n_atom_per_graph, 1)  # TODO handle different type of atoms
     positions = x['abs_positions'].view(-1, x['abs_positions'].size(-1))  # [batchsize * natoms, spatial dimension]
