@@ -86,7 +86,7 @@ class TestPredictorCorrectorPositionSampler:
 
     def test_sample(self, sampler, number_of_samples, expected_samples, unit_cell_sample):
         computed_samples = sampler.sample(number_of_samples, torch.device('cpu'), unit_cell_sample)
-        torch.testing.assert_allclose(expected_samples, computed_samples)
+        torch.testing.assert_close(expected_samples, computed_samples)
 
 
 @pytest.mark.parametrize("total_time_steps", [1, 5, 10])
@@ -175,7 +175,7 @@ class TestAnnealedLangevinDynamics:
 
             expected_sample = x_i + g2 * s_i + torch.sqrt(g2) * z
 
-            torch.testing.assert_allclose(computed_sample, expected_sample)
+            torch.testing.assert_close(computed_sample, expected_sample)
 
     def test_corrector_step(self, mocker, pc_sampler, noise_parameters, x_i, total_time_steps, number_of_samples,
                             unit_cell_sample):
@@ -207,4 +207,4 @@ class TestAnnealedLangevinDynamics:
 
             expected_sample = x_i + eps_i * s_i + torch.sqrt(2. * eps_i) * z
 
-            torch.testing.assert_allclose(computed_sample, expected_sample)
+            torch.testing.assert_close(computed_sample, expected_sample)
