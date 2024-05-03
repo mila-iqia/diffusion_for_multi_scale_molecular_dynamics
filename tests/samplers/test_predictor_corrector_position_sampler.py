@@ -51,7 +51,7 @@ class TestPredictorCorrectorPositionSampler:
 
     @pytest.fixture
     def sampler(
-        self, number_of_discretization_steps, number_of_corrector_steps, initial_sample
+        self, number_of_discretization_steps, number_of_corrector_steps, spatial_dimension, initial_sample
     ):
         sampler = FakePCSampler(
             number_of_discretization_steps, number_of_corrector_steps, spatial_dimension, initial_sample
