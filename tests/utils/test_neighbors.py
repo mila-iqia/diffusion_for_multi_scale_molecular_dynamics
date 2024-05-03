@@ -11,7 +11,8 @@ from crystal_diffusion.utils.neighbors import (
     _get_shifted_positions, _get_shortest_distance_that_crosses_unit_cell,
     _get_vectors_from_multiple_indices,
     convert_adjacency_info_into_batched_and_padded_data,
-    get_periodic_adjacency_information)
+    get_periodic_adjacency_information,
+    shift_adjacency_matrix_indices_for_graph_batching)
 from tests.fake_data_utils import find_aligning_permutation
 
 Neighbors = namedtuple("Neighbors", ["source_index", "destination_index", "displacement", "shift"])
@@ -153,15 +154,15 @@ def expected_neighbor_indices_and_displacements(expected_neighbors):
 
 # This test might be slow because KeOps needs to compile some stuff...
 @pytest.mark.parametrize("radial_cutoff", [3.3])
-def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, relative_coordinates, radial_cutoff,
+def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, positions, radial_cutoff,
                                                           expected_neighbor_indices_and_displacements):
 
     # This is what we are really trying to test
-    adjacency_info = get_periodic_adjacency_information(relative_coordinates, basis_vectors, radial_cutoff)
+    adjacency_info = get_periodic_adjacency_information(positions, basis_vectors, radial_cutoff)
 
     # It is convenient to transform the data for test purposes.
     computed_src_idx, computed_dst_idx, computed_displacements, computed_shifts = (
-        convert_adjacency_info_into_batched_and_padded_data(adjacency_info, relative_coordinates, basis_vectors))
+        convert_adjacency_info_into_batched_and_padded_data(adjacency_info, positions, basis_vectors))
 
     (expected_src_idx, expected_dst_idx,
      expected_displacements, expected_shifts) = expected_neighbor_indices_and_displacements
@@ -316,3 +317,23 @@ def test_get_vectors_from_multiple_indices(batch_size, number_of_atoms):
     computed_vectors = _get_vectors_from_multiple_indices(vectors, batch_indices, vector_indices)
 
     torch.testing.assert_close(expected_vectors, computed_vectors)
+
+
+def test_shift_adjacency_matrix_indices_for_graph_batching(batch_size, number_of_atoms):
+
+    num_edges = torch.randint(10, 100, (batch_size,))
+    total_number_of_edges = num_edges.sum()
+    adjacency_matrix = torch.randint(number_of_atoms, (2, total_number_of_edges))
+    expected_shifted_adj = torch.clone(adjacency_matrix)
+
+    cumulative_edges = torch.cumsum(num_edges, dim=0)
+    index_shift = number_of_atoms
+    for bottom_idx, top_idx in zip(cumulative_edges[:-1], cumulative_edges[1:]):
+        expected_shifted_adj[:, bottom_idx:top_idx] += index_shift
+        index_shift += number_of_atoms
+
+    computed_shifted_adj = shift_adjacency_matrix_indices_for_graph_batching(adjacency_matrix,
+                                                                             num_edges,
+                                                                             number_of_atoms)
+
+    torch.testing.assert_close(expected_shifted_adj, computed_shifted_adj)

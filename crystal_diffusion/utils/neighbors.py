@@ -24,10 +24,10 @@ AdjacencyInfo = namedtuple(typename="AdjacencyInfo",
                                         ])
 
 
-def get_periodic_adjacency_information(relative_coordinates: torch.Tensor,
+def get_periodic_adjacency_information(positions: torch.Tensor,
                                        basis_vectors: torch.Tensor,
                                        radial_cutoff: float) -> AdjacencyInfo:
-    """Get periodic adjecency information.
+    """Get periodic adjacency information.
 
     This method computes all the neighbors within the radial cutoff, accounting for periodicity, and returns
     various relevant data for building a geometric graph, such as all edges' source and target indices,
@@ -53,7 +53,7 @@ def get_periodic_adjacency_information(relative_coordinates: torch.Tensor,
         - It is assumed that all structures have the same number of atoms.
 
     Args:
-        relative_coordinates : atomic coordinates within the unit cell.
+        positions : atomic positions, assumed to be within the unit cell, in Euclidean coordinates.
                                Dimension [batch_size, max_number_of_atoms, 3]
         basis_vectors : vectors that define the unit cell, (a1, a2, a3). The basis vectors are assumed
                         to be vertically stacked, namely
@@ -64,23 +64,23 @@ def get_periodic_adjacency_information(relative_coordinates: torch.Tensor,
         radial_cutoff : largest distance between neighbors.
 
     Returns:
-        adjacency_info: a AdjacencyInfo object that contains
+        adjacency_info: an AdjacencyInfo object that contains
             * the adjacency matrix indices in the form of [source_indices,  destination_indices]
             * the lattice vector shifts between neighbors
             * the batch indices for each entry in the adjacency matrix
             * the number of edges for each structure in the batch.
     """
-    spatial_dimension = 3  # We define this to avoid "magic numbers" in the code below.
-    assert len(relative_coordinates.shape) == spatial_dimension, "Wrong number of dimensions for relative_coordinates"
-    assert len(basis_vectors.shape) == spatial_dimension, "Wrong number of dimensions for basis_vectors"
+    assert len(positions.shape) == 3, "Wrong number of dimensions for relative_coordinates"
+    assert len(basis_vectors.shape) == 3, "Wrong number of dimensions for basis_vectors"
 
-    batch_size, max_natom, spatial_dimension_ = relative_coordinates.shape
+    spatial_dimension = 3  # We define this to avoid "magic numbers" in the code below.
+    batch_size, max_natom, spatial_dimension_ = positions.shape
     assert spatial_dimension_ == spatial_dimension, "Wrong spatial dimension for relative_coordinates "
     assert basis_vectors.shape == (batch_size, spatial_dimension, spatial_dimension), "Wrong shape for basis vectors"
 
     assert radial_cutoff > 0., "The radial cutoff should be greater than zero"
 
-    device = relative_coordinates.device
+    device = positions.device
 
     radial_cutoff = torch.tensor(radial_cutoff).to(device)
     zero = torch.tensor(0.0).to(device)
@@ -100,7 +100,6 @@ def get_periodic_adjacency_information(relative_coordinates: torch.Tensor,
     batched_relative_lattice_vectors = relative_lattice_vectors.repeat(batch_size, 1, 1)
     lattice_vectors = _get_positions_from_coordinates(batched_relative_lattice_vectors, basis_vectors)
 
-    positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
     # The shifted_positions are composed of the positions, which are located within the unit cell, shifted by
     # the various lattice vectors.
     #  Dimension [batch_size, number of relative lattice vectors, max_number_of_atoms, spatial_dimension].
@@ -183,7 +182,7 @@ def get_periodic_adjacency_information(relative_coordinates: torch.Tensor,
 
 
 def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: AdjacencyInfo,
-                                                        relative_coordinates: torch.Tensor,
+                                                        positions: torch.Tensor,
                                                         basis_vectors: torch.Tensor) \
         -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Convert adjacency info into batched and padded data.
@@ -196,9 +195,9 @@ def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: Adjacenc
 
     Args:
         adjacency_info : The adjacency info object.
-         relative_coordinates : atomic coordinates within the unit cell.
+        positions: Atomic positions within the unit cell, in Euclidean coordinates.
                                Dimension [batch_size, max_number_of_atoms, 3]
-        basis_vectors : vectors that define the unit cell, (a1, a2, a3). The basis vectors are assumed
+        basis_vectors : Vectors that define the unit cell, (a1, a2, a3). The basis vectors are assumed
                         to be vertically stacked, namely
                                             [-- a1 --]
                                             [-- a2 --]
@@ -224,8 +223,6 @@ def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: Adjacenc
     batch_indices = adjacency_info.batch_indices
     lattice_vector_shifts = adjacency_info.shifts
     number_of_edges = adjacency_info.number_of_edges
-
-    positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
 
     source_positions = _get_vectors_from_multiple_indices(positions,
                                                           batch_indices,
@@ -397,3 +394,13 @@ def _get_vectors_from_multiple_indices(vectors: torch.Tensor,
     """
     # Yes, the answer looks trivial, but it's quite confusing to know if if gather or select_index should be used!
     return vectors[batch_indices, vector_indices]
+
+
+def shift_adjacency_matrix_indices_for_graph_batching(adjacency_matrix: torch.Tensor,
+                                                      num_edges: torch.Tensor,
+                                                      number_of_atoms: int) -> torch.Tensor:
+    """Shift the node indices in the adjacency matrix for graph batching."""
+    index_shifts = torch.arange(len(num_edges)) * number_of_atoms
+    adj_shifts = torch.repeat_interleave(index_shifts, num_edges).repeat(2, 1)
+
+    return adjacency_matrix + adj_shifts
