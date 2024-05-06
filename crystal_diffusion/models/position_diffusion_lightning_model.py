@@ -9,8 +9,9 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
                                                 load_scheduler_dictionary)
-from crystal_diffusion.models.score_network import (MLPScoreNetwork,
-                                                    MLPScoreNetworkParameters)
+from crystal_diffusion.models.score_network import (MACEScoreNetwork,
+                                                    MLPScoreNetwork,
+                                                    ScoreNetworkParameters)
 from crystal_diffusion.samplers.noisy_position_sampler import (
     NoisyPositionSampler, map_positions_to_unit_cell)
 from crystal_diffusion.samplers.variance_sampler import (
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 class PositionDiffusionParameters:
     """Position Diffusion parameters."""
 
-    score_network_parameters: MLPScoreNetworkParameters
+    score_network_parameters: ScoreNetworkParameters
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: typing.Union[SchedulerParameters, None] = None
     noise_parameters: NoiseParameters
@@ -42,7 +43,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
     This lightning model can train a score network predict the noise for relative positions.
     """
 
-    def __init__(self, hyper_params: PositionDiffusionParameters):
+    def __init__(self, hyper_params: PositionDiffusionParameters, score_network_architecture: str = 'mlp'):
         """Init method.
 
         This initializes the class.
@@ -53,7 +54,14 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.save_hyperparameters(logger=False)  # It is not the responsibility of this class to log its parameters.
 
         # we will model sigma x score
-        self.sigma_normalized_score_network = MLPScoreNetwork(
+        if score_network_architecture == 'mlp':
+            score_network = MLPScoreNetwork
+        elif score_network_architecture == 'mace':
+            score_network = MACEScoreNetwork
+        else:
+            raise NotImplementedError(f'Architecture {score_network_architecture} is not implemented.')
+
+        self.sigma_normalized_score_network = score_network(
             hyper_params.score_network_parameters
         )
 
