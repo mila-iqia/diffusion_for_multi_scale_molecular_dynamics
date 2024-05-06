@@ -169,25 +169,23 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
 
 
 def find_aligning_permutation(first_2d_array: torch.Tensor, second_2d_array: torch.Tensor, tol=1e-6) -> torch.Tensor:
-    """Find aligning permutation, assuming the input two arrays contain the same information."""
+    """Find aligning permutation, assuming the input two arrays contain the same information.
+
+    This function computes and stores all distances. This scales quadratically, which is not good, but it should
+    be ok for testing purposes.
+    """
     assert first_2d_array.shape == second_2d_array.shape, "Incompatible shapes."
     assert len(first_2d_array.shape) == 2, "Unexpected shapes."
 
     number_of_vectors = first_2d_array.shape[0]
 
-    permutation_indices = []
+    distances = torch.sum((first_2d_array[:, None, :] - second_2d_array[None, :, :])**2, dim=-1)
 
-    for v1 in first_2d_array:
-        found = False
-        for i, v2 in enumerate(second_2d_array):
-            if torch.linalg.norm(v1 - v2) < tol:
-                assert not found, "More than one vector in the 2nd array is identical to the first array."
-                found = True
-                permutation_indices.append(i)
+    matching_indices = (distances < tol).nonzero()
 
-        assert found, "One vector of the first array cannot be found in the 2nd array."
+    assert torch.allclose(matching_indices[:, 0], torch.arange(number_of_vectors)), \
+        "There isn't exactly a one-to-one match between the two arrays"
 
-    permutation_indices = torch.tensor(permutation_indices)
-    torch.testing.assert_close(torch.sort(permutation_indices).values, torch.arange(number_of_vectors))
+    permutation_indices = matching_indices[:, 1]
 
     return permutation_indices
