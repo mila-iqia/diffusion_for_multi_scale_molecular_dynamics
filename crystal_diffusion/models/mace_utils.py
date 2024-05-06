@@ -61,7 +61,6 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
     cell = x[unit_cell_key]  # batch, spatial_dimension, spatial_dimension
     n_atom_per_graph = x['abs_positions'].size(1)
     device = x['abs_positions'].device
-    # TODO : make the radial cut-off available here
     adj_matrix, shift_matrix, batch_tensor = get_adj_matrix(positions=x['abs_positions'],
                                                             basis_vectors=cell,
                                                             radial_cutoff=radial_cutoff)
