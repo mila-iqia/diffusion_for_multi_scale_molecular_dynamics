@@ -31,4 +31,4 @@ def test_broadcast_batch_tensor_to_all_dimensions(batch_size, batch_values, fina
 
     for expected_value, computed_values in zip(batch_values, value_arrays):
         expected_values = torch.ones_like(computed_values) * expected_value
-        torch.testing.assert_allclose(expected_values, computed_values)
+        torch.testing.assert_close(expected_values, computed_values)
