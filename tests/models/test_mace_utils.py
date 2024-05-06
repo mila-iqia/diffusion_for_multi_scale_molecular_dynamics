@@ -81,11 +81,14 @@ def mocked_shift_matrix(n_atoms, batchsize, spatial_dim):
 
 
 def test_input_to_mace(mocker, batchsize, cell_size, spatial_dim, atomic_positions, mace_graph,
-                       mocked_adjacency_matrix, mocked_shift_matrix):
+                       mocked_adjacency_matrix, mocked_shift_matrix, n_atoms):
     score_network_input = {}
     score_network_input['abs_positions'] = atomic_positions.unsqueeze(0).repeat(batchsize, 1, 1)
+
+    batch_tensor = torch.repeat_interleave(torch.arange(0, batchsize), n_atoms)
+
     mocker.patch("crystal_diffusion.models.mace_utils.get_adj_matrix",
-                 return_value=(mocked_adjacency_matrix, mocked_shift_matrix))
+                 return_value=(mocked_adjacency_matrix, mocked_shift_matrix, batch_tensor))
     repeat_size = [batchsize] + [1] * spatial_dim
     score_network_input['cell'] = torch.eye(spatial_dim).repeat(*repeat_size) * cell_size
     crystal_diffusion_graph = input_to_mace(score_network_input, unit_cell_key='cell')

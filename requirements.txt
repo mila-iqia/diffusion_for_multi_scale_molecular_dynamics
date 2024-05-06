@@ -32,4 +32,5 @@ torch_geometric==2.5.3
 matplotlib==3.8.3
 rich==13.7.1
 deepdiff==7.0.1
+pykeops==2.2.3
 comet_ml

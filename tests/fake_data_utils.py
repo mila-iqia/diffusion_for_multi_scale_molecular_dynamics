@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
+import torch
 import yaml
 
 Configuration = namedtuple("Configuration",
@@ -165,3 +166,26 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
 
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def find_aligning_permutation(first_2d_array: torch.Tensor, second_2d_array: torch.Tensor, tol=1e-6) -> torch.Tensor:
+    """Find aligning permutation, assuming the input two arrays contain the same information.
+
+    This function computes and stores all distances. This scales quadratically, which is not good, but it should
+    be ok for testing purposes.
+    """
+    assert first_2d_array.shape == second_2d_array.shape, "Incompatible shapes."
+    assert len(first_2d_array.shape) == 2, "Unexpected shapes."
+
+    number_of_vectors = first_2d_array.shape[0]
+
+    distances = torch.sum((first_2d_array[:, None, :] - second_2d_array[None, :, :])**2, dim=-1)
+
+    matching_indices = (distances < tol).nonzero()
+
+    assert torch.allclose(matching_indices[:, 0], torch.arange(number_of_vectors)), \
+        "There isn't exactly a one-to-one match between the two arrays"
+
+    permutation_indices = matching_indices[:, 1]
+
+    return permutation_indices
