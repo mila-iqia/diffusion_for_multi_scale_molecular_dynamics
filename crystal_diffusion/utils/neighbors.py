@@ -242,7 +242,6 @@ def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: Adjacenc
                                                      batch_first=True,
                                                      padding_value=INDEX_PADDING_VALUE)
 
-    # list_dst_indices = torch.tensor_split(flat_dst_indices, split_points)
     list_dst_indices = torch.tensor_split(flat_destination_indices, split_points)
     destination_indices = torch.nn.utils.rnn.pad_sequence(list_dst_indices,
                                                           batch_first=True,
