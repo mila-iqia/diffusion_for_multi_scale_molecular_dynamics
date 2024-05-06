@@ -4,10 +4,9 @@ This module implements score networks for positions in relative coordinates.
 Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 """
-import ast
 import os
 from dataclasses import dataclass, field
-from typing import AnyStr, Dict
+from typing import AnyStr, Dict, List
 
 import numpy as np
 import torch
@@ -235,7 +234,7 @@ class MACEScoreNetworkParameters(ScoreNetworkParameters):
     avg_num_neighbors: int = 1  # normalization factor for the message
     correlation: int = 3
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
-    radial_MLP: str = "[64, 64, 64]"  # "width of the radial MLP"
+    radial_MLP: List[int] = field(default_factory=lambda: [64, 64, 64])  # "width of the radial MLP"
     radial_type: str = "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
     n_hidden_dimensions: int  # the number of hidden layers for the final MLP - should be small
     hidden_dimensions_size: int  # the dimensions of the hidden layers - should be small
@@ -275,7 +274,7 @@ class MACEScoreNetwork(ScoreNetwork):
             atomic_numbers=self.z_table.zs,
             correlation=hyper_params.correlation,
             gate=gate_dict[hyper_params.gate],
-            radial_MLP=ast.literal_eval(hyper_params.radial_MLP),
+            radial_MLP=hyper_params.radial_MLP,
             radial_type=hyper_params.radial_type
         )
 
