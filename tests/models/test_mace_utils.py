@@ -33,12 +33,12 @@ def cell_size(n_atoms):
 
 
 @pytest.fixture()
-def batchsize():
+def batch_size():
     return 8
 
 
 @pytest.fixture()
-def mace_graph(cell_size, spatial_dim, atomic_positions, n_atoms, batchsize):
+def mace_graph(cell_size, spatial_dim, atomic_positions, n_atoms, batch_size):
     unit_cell = np.eye(spatial_dim) * cell_size  # box as a spatial_dim x spatial_dim array
     atom_type = np.ones(n_atoms)
     pbc = np.array([True] * spatial_dim)  # periodic boundary conditions
@@ -50,12 +50,12 @@ def mace_graph(cell_size, spatial_dim, atomic_positions, n_atoms, batchsize):
     # set the cutoff at 1.1 so the atoms form a simple chain 0 - 1 - 2 - 3
     graph_data = AtomicData.from_config(graph_config, z_table=z_table, cutoff=1.1)
     collate_fn = Collater(follow_batch=[None], exclude_keys=[None])
-    mace_batch = collate_fn([graph_data] * batchsize)
+    mace_batch = collate_fn([graph_data] * batch_size)
     return mace_batch
 
 
 @pytest.fixture()
-def mocked_adjacency_matrix(n_atoms, batchsize):
+def mocked_adjacency_matrix(n_atoms, batch_size):
     # adjacency should be a (2, n_edge)
     # we have a simple chain 0-1-2-3... in 1D, we can ignore complexities from periodicity and 3D
     adj = torch.zeros(n_atoms, n_atoms)
@@ -64,7 +64,7 @@ def mocked_adjacency_matrix(n_atoms, batchsize):
             adj[i, i + 1] = 1  # 0 to 1, ... n-1 to n ; but not n to n+1
         if i > 0:
             adj[i, i - 1] = 1  # 1 to 0, 2 to 1... but not 0 to -1
-    adj = adj.unsqueeze(0).repeat(batchsize, 1, 1)
+    adj = adj.unsqueeze(0).repeat(batch_size, 1, 1)
     adj = adj.to_sparse().indices()
     # adj contains (batch index, node index 1, node index 2)
     # the batch index will create problems, so we need to remove it by reindexing the node
@@ -74,22 +74,22 @@ def mocked_adjacency_matrix(n_atoms, batchsize):
 
 
 @pytest.fixture()
-def mocked_shift_matrix(n_atoms, batchsize, spatial_dim):
+def mocked_shift_matrix(n_atoms, batch_size, spatial_dim):
     # chain structure: there are n_atoms - 1 links - which means 2 * (n_atoms - 1) edges from bidirectionality
     # times batchsize to account for batching
-    return torch.zeros(2 * (n_atoms - 1) * batchsize, spatial_dim)
+    return torch.zeros(2 * (n_atoms - 1) * batch_size, spatial_dim)
 
 
-def test_input_to_mace(mocker, batchsize, cell_size, spatial_dim, atomic_positions, mace_graph,
+def test_input_to_mace(mocker, batch_size, cell_size, spatial_dim, atomic_positions, mace_graph,
                        mocked_adjacency_matrix, mocked_shift_matrix, n_atoms):
     score_network_input = {}
-    score_network_input['abs_positions'] = atomic_positions.unsqueeze(0).repeat(batchsize, 1, 1)
+    score_network_input['abs_positions'] = atomic_positions.unsqueeze(0).repeat(batch_size, 1, 1)
 
-    batch_tensor = torch.repeat_interleave(torch.arange(0, batchsize), n_atoms)
+    batch_tensor = torch.repeat_interleave(torch.arange(0, batch_size), n_atoms)
 
     mocker.patch("crystal_diffusion.models.mace_utils.get_adj_matrix",
                  return_value=(mocked_adjacency_matrix, mocked_shift_matrix, batch_tensor))
-    repeat_size = [batchsize] + [1] * spatial_dim
+    repeat_size = [batch_size] + [1] * spatial_dim
     score_network_input['cell'] = torch.eye(spatial_dim).repeat(*repeat_size) * cell_size
     crystal_diffusion_graph = input_to_mace(score_network_input, unit_cell_key='cell')
 
