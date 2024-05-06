@@ -6,7 +6,7 @@ periodic unit cell.
 """
 import os
 from dataclasses import dataclass, field
-from typing import AnyStr, Dict
+from typing import AnyStr, Dict, List
 
 import numpy as np
 import torch
@@ -234,7 +234,7 @@ class MACEScoreNetworkParameters(ScoreNetworkParameters):
     avg_num_neighbors: int = 1  # normalization factor for the message
     correlation: int = 3
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
-    radial_MLP: str = "[64, 64, 64]"  # "width of the radial MLP"
+    radial_MLP: List[int] = field(default_factory=lambda: [64, 64, 64])  # "width of the radial MLP"
     radial_type: str = "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
     n_hidden_dimensions: int  # the number of hidden layers for the final MLP - should be small
     hidden_dimensions_size: int  # the dimensions of the hidden layers - should be small
