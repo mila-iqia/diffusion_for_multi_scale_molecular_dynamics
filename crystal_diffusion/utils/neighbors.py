@@ -6,7 +6,6 @@ efficiently on the GPU without CPU-GPU communications.
 """
 import itertools
 from collections import namedtuple
-from typing import Tuple
 
 import numpy as np
 import torch
@@ -19,7 +18,8 @@ POSITION_PADDING_VALUE = np.NaN
 AdjacencyInfo = namedtuple(typename="AdjacencyInfo",
                            field_names=["adjacency_matrix",  # Adjacency matrix, in  COO format
                                         "shifts",  # lattice vector shifts when computing neighbor distances
-                                        "batch_indices",  # original batch index of each edge.
+                                        "edge_batch_indices",  # original batch index of each edge.
+                                        "node_batch_indices",  # original batch index of each node.
                                         "number_of_edges",  # number of edges in each batch element.
                                         ])
 
@@ -68,6 +68,7 @@ def get_periodic_adjacency_information(positions: torch.Tensor,
             * the adjacency matrix indices in the form of [source_indices,  destination_indices]
             * the lattice vector shifts between neighbors
             * the batch indices for each entry in the adjacency matrix
+            * the batch indices for each node
             * the number of edges for each structure in the batch.
     """
     assert len(positions.shape) == 3, "Wrong number of dimensions for relative_coordinates"
@@ -166,91 +167,20 @@ def get_periodic_adjacency_information(positions: torch.Tensor,
     # Extract all the relevant components
     destination_indices = dst_indices[valid_neighbor_mask]
     source_indices = valid_indices[:, 2]
-    batch_indices = valid_indices[:, 0]
+    edge_batch_indices = valid_indices[:, 0]
     lattice_vector_indices = valid_indices[:, 1]
 
     adjacency_matrix_coo_format = torch.stack([source_indices, destination_indices])
 
     lattice_vector_shifts = _get_vectors_from_multiple_indices(lattice_vectors,
-                                                               batch_indices,
+                                                               edge_batch_indices,
                                                                lattice_vector_indices)
 
     return AdjacencyInfo(adjacency_matrix=adjacency_matrix_coo_format,
                          shifts=lattice_vector_shifts,
-                         batch_indices=batch_indices,
+                         edge_batch_indices=edge_batch_indices,
+                         node_batch_indices=torch.repeat_interleave(torch.arange(batch_size), max_natom),
                          number_of_edges=number_of_edges)
-
-
-def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: AdjacencyInfo,
-                                                        positions: torch.Tensor) \
-        -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Convert adjacency info into batched and padded data.
-
-    This method transforms the adjacency info data into arrays with a batch dimension,
-    adding the needed padding.
-
-    It is assumed that the inputs are consistent, ie, the adjacency_info object was
-    computed using the same relative_coordinates and basis_vectors.
-
-    Args:
-        adjacency_info : The adjacency info object.
-        positions: Atomic positions within the unit cell, in Euclidean coordinates.
-                               Dimension [batch_size, max_number_of_atoms, 3]
-
-    Returns:
-        source_indices : indices of the source atoms  for each neighbor pair.
-                        Dimension [batch_size, maximum_number_of_edges]
-        destination_indices : indices of the destination atoms  for each neighbor pair.
-                        Dimension [batch_size, maximum_number_of_edges]
-        displacements: displacements between destination and source atoms for each neighbor pair.
-                    displacement = destination_position - source_position
-                    in Euclidean coordinates
-                        Dimension [batch_size, maximum_number_of_edges, spatial dimension]
-        shifts: the periodic shifts between source and destination atoms for each neighbor pair.
-                        Dimension [batch_size, maximum_number_of_edges, spatial dimension]
-    """
-    adjacency_matrix = adjacency_info.adjacency_matrix
-    flat_source_indices = adjacency_matrix[0, :]
-    flat_destination_indices = adjacency_matrix[1, :]
-
-    batch_indices = adjacency_info.batch_indices
-    lattice_vector_shifts = adjacency_info.shifts
-    number_of_edges = adjacency_info.number_of_edges
-
-    source_positions = _get_vectors_from_multiple_indices(positions,
-                                                          batch_indices,
-                                                          flat_source_indices)
-    destination_positions = _get_vectors_from_multiple_indices(positions,
-                                                               batch_indices,
-                                                               flat_destination_indices)
-
-    flat_displacements = destination_positions + lattice_vector_shifts - source_positions
-
-    # Chop back into one item per batch entry, and then pad.
-    split_points = torch.cumsum(number_of_edges, dim=0)[:-1]
-
-    list_src_indices = torch.tensor_split(flat_source_indices, split_points)
-
-    source_indices = torch.nn.utils.rnn.pad_sequence(list_src_indices,
-                                                     batch_first=True,
-                                                     padding_value=INDEX_PADDING_VALUE)
-
-    list_dst_indices = torch.tensor_split(flat_destination_indices, split_points)
-    destination_indices = torch.nn.utils.rnn.pad_sequence(list_dst_indices,
-                                                          batch_first=True,
-                                                          padding_value=INDEX_PADDING_VALUE)
-
-    list_displacements = torch.tensor_split(flat_displacements, split_points)
-    displacements = torch.nn.utils.rnn.pad_sequence(list_displacements,
-                                                    batch_first=True,
-                                                    padding_value=POSITION_PADDING_VALUE)
-
-    list_shifts = torch.tensor_split(lattice_vector_shifts, split_points)
-    shifts = torch.nn.utils.rnn.pad_sequence(list_shifts,
-                                             batch_first=True,
-                                             padding_value=POSITION_PADDING_VALUE)
-
-    return source_indices, destination_indices, displacements, shifts
 
 
 def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1) -> torch.Tensor:

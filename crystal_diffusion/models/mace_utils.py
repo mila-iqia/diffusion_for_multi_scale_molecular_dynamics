@@ -41,32 +41,34 @@ def get_adj_matrix(positions: torch.Tensor,
                                                                                  number_of_edges,
                                                                                  number_of_atoms)
     shifts = adjacency_info.shifts
-    batch_indices = adjacency_info.batch_indices
+    batch_indices = adjacency_info.node_batch_indices
 
     return shifted_adjacency_matrix, shifts, batch_indices
 
 
-def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str) -> Data:
+def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cutoff: float) -> Data:
     """Convert score network input to MACE input.
 
     Args:
         x: score network input dictionary
         unit_cell_key: keyword argument to find the cell definition
+        radial_cutoff : largest distance between neighbors.
 
     Returns:
         pytorch-geometric graph data compatible with MACE forward
     """
-    batchsize = x['abs_positions'].size(0)
+    batch_size = x['abs_positions'].size(0)
     cell = x[unit_cell_key]  # batch, spatial_dimension, spatial_dimension
     n_atom_per_graph = x['abs_positions'].size(1)
     device = x['abs_positions'].device
-    # TODO : make the radial cut-off available here
-    adj_matrix, shift_matrix, batch_tensor = get_adj_matrix(positions=x['abs_positions'], basis_vectors=cell)
+    adj_matrix, shift_matrix, batch_tensor = get_adj_matrix(positions=x['abs_positions'],
+                                                            basis_vectors=cell,
+                                                            radial_cutoff=radial_cutoff)
     # node features are int corresponding to atom type
-    node_attrs = torch.ones(batchsize * n_atom_per_graph, 1)  # TODO handle different type of atoms
+    node_attrs = torch.ones(batch_size * n_atom_per_graph, 1)  # TODO handle different type of atoms
     positions = x['abs_positions'].view(-1, x['abs_positions'].size(-1))  # [batchsize * natoms, spatial dimension]
     # pointer tensor that yields the first node index for each batch - this is a fixed tensor in our case
-    ptr = torch.arange(0, n_atom_per_graph * batchsize + 1, step=n_atom_per_graph)  # 0, natoms, 2 * natoms, ...
+    ptr = torch.arange(0, n_atom_per_graph * batch_size + 1, step=n_atom_per_graph)  # 0, natoms, 2 * natoms, ...
 
     cell = cell.view(-1, cell.size(-1))  # batch * spatial_dimension, spatial_dimension
     # create the pytorch-geometric graph
