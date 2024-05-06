@@ -28,7 +28,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
 @dataclass(kw_only=True)
-class BaseScoreNetworkParameters:
+class ScoreNetworkParameters:
     """Base Hyper-parameters for score networks."""
 
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
@@ -45,7 +45,7 @@ class ScoreNetwork(torch.nn.Module):
     timestep_key = "time"
     unit_cell_key = "unit_cell"  # unit cell definition in Angstrom
 
-    def __init__(self, hyper_params: BaseScoreNetworkParameters):
+    def __init__(self, hyper_params: ScoreNetworkParameters):
         """__init__.
 
         Args:
@@ -151,7 +151,7 @@ class ScoreNetwork(torch.nn.Module):
 
 
 @dataclass(kw_only=True)
-class MLPScoreNetworkParameters(BaseScoreNetworkParameters):
+class MLPScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for MLP score networks."""
 
     number_of_atoms: int  # the number of atoms in a configuration.
@@ -169,7 +169,7 @@ class MLPScoreNetwork(ScoreNetwork):
         """__init__.
 
         Args:
-            hyper_params (dict): hyper parameters from the config file.
+            hyper_params : hyper parameters from the config file.
         """
         super(MLPScoreNetwork, self).__init__(hyper_params)
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
@@ -218,7 +218,7 @@ class MLPScoreNetwork(ScoreNetwork):
 
 
 @dataclass(kw_only=True)
-class MACEScoreNetworkParameters(BaseScoreNetworkParameters):
+class MACEScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for MACE score networks."""
 
     number_of_atoms: int  # the number of atoms in a configuration.
@@ -251,7 +251,7 @@ class MACEScoreNetwork(ScoreNetwork):
         """__init__.
 
         Args:
-            hyper_params (dict): hyper parameters from the config file.
+            hyper_params : hyper parameters from the config file.
         """
         super(MACEScoreNetwork, self).__init__(hyper_params)
 
@@ -286,7 +286,8 @@ class MACEScoreNetwork(ScoreNetwork):
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
         self.mace_output_size = 640  # TODO check where 640 - mace features size - comes from
         self.mlp_layers = nn.Sequential()
-        input_dimensions = [self.mace_output_size] + hidden_dimensions
+        # TODO we could add a linear layer to the times before concat with mace_output
+        input_dimensions = [self.mace_output_size + 1] + hidden_dimensions  # add 1 for the times
         output_dimensions = hidden_dimensions + [self.spatial_dimension]
         add_relus = len(input_dimensions) * [True]
         add_relus[-1] = False
@@ -315,12 +316,16 @@ class MACEScoreNetwork(ScoreNetwork):
         Returns:
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
-        batch['abs_positions'] = torch.bmm(batch[self.position_key], batch[self.unit_cell_key])  # positions in Angstrom
+        positions = batch[self.position_key]
+        batch['abs_positions'] = torch.bmm(positions, batch[self.unit_cell_key])  # positions in Angstrom
         graph_input = input_to_mace(batch, self.unit_cell_key)
         mace_output = self.mace_network(graph_input, compute_force=False, training=self.training)
         # we want the node features but they are organized as (batchsize * natoms, output_size) because
         # torch_geometric puts all the graphs in a batch in a single large graph
         mace_output = mace_output['node_feats'].view(-1, self._natoms, self.mace_output_size)
+        times = batch[self.timestep_key].to(positions.device)  # shape [batch_size, 1]
+        times = times.unsqueeze(1).repeat(1, self._natoms, 1)  # shape [batch_size, natoms, 1]
+        mlp_input = torch.cat([mace_output, times], dim=-1)
         # pass through the final MLP layers
-        output = self.mlp_layers(mace_output)
+        output = self.mlp_layers(mlp_input)
         return output

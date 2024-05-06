@@ -1,12 +1,12 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.score_network import (BaseScoreNetworkParameters,
-                                                    MACEScoreNetwork,
+from crystal_diffusion.models.score_network import (MACEScoreNetwork,
                                                     MACEScoreNetworkParameters,
                                                     MLPScoreNetwork,
                                                     MLPScoreNetworkParameters,
-                                                    ScoreNetwork)
+                                                    ScoreNetwork,
+                                                    ScoreNetworkParameters)
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
@@ -18,7 +18,7 @@ class TestScoreNetworkCheck:
 
     @pytest.fixture()
     def base_score_network(self, spatial_dimension):
-        return ScoreNetwork(BaseScoreNetworkParameters(spatial_dimension=spatial_dimension))
+        return ScoreNetwork(ScoreNetworkParameters(spatial_dimension=spatial_dimension))
 
     @pytest.fixture()
     def good_batch(self, spatial_dimension):

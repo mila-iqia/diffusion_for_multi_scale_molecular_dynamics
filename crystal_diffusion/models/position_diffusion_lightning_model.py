@@ -10,9 +10,8 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
                                                 load_scheduler_dictionary)
 from crystal_diffusion.models.score_network import (MACEScoreNetwork,
-                                                    MACEScoreNetworkParameters,
                                                     MLPScoreNetwork,
-                                                    MLPScoreNetworkParameters)
+                                                    ScoreNetworkParameters)
 from crystal_diffusion.samplers.noisy_position_sampler import (
     NoisyPositionSampler, map_positions_to_unit_cell)
 from crystal_diffusion.samplers.variance_sampler import (
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 class PositionDiffusionParameters:
     """Position Diffusion parameters."""
 
-    score_network_parameters: typing.Union[MLPScoreNetworkParameters, MACEScoreNetworkParameters]
+    score_network_parameters: ScoreNetworkParameters
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: typing.Union[SchedulerParameters, None] = None
     noise_parameters: NoiseParameters
