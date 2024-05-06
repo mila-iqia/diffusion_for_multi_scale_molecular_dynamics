@@ -162,7 +162,7 @@ def test_get_periodic_neighbour_indices_and_displacements(basis_vectors, positio
 
     # It is convenient to transform the data for test purposes.
     computed_src_idx, computed_dst_idx, computed_displacements, computed_shifts = (
-        convert_adjacency_info_into_batched_and_padded_data(adjacency_info, positions, basis_vectors))
+        convert_adjacency_info_into_batched_and_padded_data(adjacency_info, positions))
 
     (expected_src_idx, expected_dst_idx,
      expected_displacements, expected_shifts) = expected_neighbor_indices_and_displacements

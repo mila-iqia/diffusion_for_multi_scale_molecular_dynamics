@@ -33,7 +33,8 @@ def get_adj_matrix(positions: torch.Tensor,
 
     adjacency_info = get_periodic_adjacency_information(positions, basis_vectors, radial_cutoff)
 
-    # the indices in the adjacency matrix must be shifted to account for the
+    # The indices in the adjacency matrix must be shifted to account for the batching
+    # of multiple distinct structures into a single disconnected graph.
     adjacency_matrix = adjacency_info.adjacency_matrix
     number_of_edges = adjacency_info.number_of_edges
     shifted_adjacency_matrix = shift_adjacency_matrix_indices_for_graph_batching(adjacency_matrix,

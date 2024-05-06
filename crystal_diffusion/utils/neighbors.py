@@ -182,8 +182,7 @@ def get_periodic_adjacency_information(positions: torch.Tensor,
 
 
 def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: AdjacencyInfo,
-                                                        positions: torch.Tensor,
-                                                        basis_vectors: torch.Tensor) \
+                                                        positions: torch.Tensor) \
         -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Convert adjacency info into batched and padded data.
 
@@ -197,12 +196,6 @@ def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: Adjacenc
         adjacency_info : The adjacency info object.
         positions: Atomic positions within the unit cell, in Euclidean coordinates.
                                Dimension [batch_size, max_number_of_atoms, 3]
-        basis_vectors : Vectors that define the unit cell, (a1, a2, a3). The basis vectors are assumed
-                        to be vertically stacked, namely
-                                            [-- a1 --]
-                                            [-- a2 --]
-                                            [-- a3 --]
-                        Dimension [batch_size, 3, 3].
 
     Returns:
         source_indices : indices of the source atoms  for each neighbor pair.
@@ -242,7 +235,6 @@ def convert_adjacency_info_into_batched_and_padded_data(adjacency_info: Adjacenc
                                                      batch_first=True,
                                                      padding_value=INDEX_PADDING_VALUE)
 
-    # list_dst_indices = torch.tensor_split(flat_dst_indices, split_points)
     list_dst_indices = torch.tensor_split(flat_destination_indices, split_points)
     destination_indices = torch.nn.utils.rnn.pad_sequence(list_dst_indices,
                                                           batch_first=True,
