@@ -392,7 +392,7 @@ def shift_adjacency_matrix_indices_for_graph_batching(adjacency_matrix: torch.Te
                                                       num_edges: torch.Tensor,
                                                       number_of_atoms: int) -> torch.Tensor:
     """Shift the node indices in the adjacency matrix for graph batching."""
-    index_shifts = torch.arange(len(num_edges)) * number_of_atoms
+    index_shifts = torch.arange(len(num_edges)).to(adjacency_matrix.device) * number_of_atoms
     adj_shifts = torch.repeat_interleave(index_shifts, num_edges).repeat(2, 1)
 
     return adjacency_matrix + adj_shifts
