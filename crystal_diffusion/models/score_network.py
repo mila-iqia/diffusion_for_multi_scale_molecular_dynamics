@@ -317,7 +317,7 @@ class MACEScoreNetwork(ScoreNetwork):
         """
         positions = batch[self.position_key]
         batch['abs_positions'] = torch.bmm(positions, batch[self.unit_cell_key])  # positions in Angstrom
-        graph_input = input_to_mace(batch, self.unit_cell_key)
+        graph_input = input_to_mace(batch, self.unit_cell_key, radial_cutoff=self.r_max)
         mace_output = self.mace_network(graph_input, compute_force=False, training=self.training)
         # we want the node features but they are organized as (batchsize * natoms, output_size) because
         # torch_geometric puts all the graphs in a batch in a single large graph
