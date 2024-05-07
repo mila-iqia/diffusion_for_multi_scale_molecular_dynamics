@@ -283,7 +283,7 @@ class MACEScoreNetwork(ScoreNetwork):
         self.mace_network = MACE(**mace_config)
 
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
-        hidden_irreps_size = int(hyper_params.hidden_irreps.split('x')[0]) # needs to be the same for 0e as for 1o
+        hidden_irreps_size = int(hyper_params.hidden_irreps.split('x')[0])  # needs to be the same for 0e as for 1o
         hidden_irreps_dim = 1 + 3 * ('1o' in hyper_params.hidden_irreps)
         self.mace_output_size = ((hyper_params.num_interactions - 1) * hidden_irreps_dim + 1) * hidden_irreps_size
         # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
