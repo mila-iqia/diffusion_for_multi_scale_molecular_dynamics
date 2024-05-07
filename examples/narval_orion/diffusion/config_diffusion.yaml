@@ -6,6 +6,7 @@ log_every_n_steps: 1
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
 seed: 1234
+gradient_clipping: 0
 
 # data
 data:
