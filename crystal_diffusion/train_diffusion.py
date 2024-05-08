@@ -167,6 +167,7 @@ def train(model,
         accelerator=accelerator,
         devices=devices,
         logger=pl_loggers,
+        gradient_clip_val=hyper_params.get('gradient_clipping', 0),
     )
 
     # Using the keyword ckpt_path="last" tells the trainer to resume from the last
