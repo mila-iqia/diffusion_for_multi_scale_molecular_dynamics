@@ -3,6 +3,7 @@ exp_name: example_experiment
 run_name: run_debug_delete_me
 max_epoch: 10
 log_every_n_steps: 1
+gradient_clipping: 0
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
