@@ -55,7 +55,7 @@ class TestScoreNetworkCheck:
                 del bad_batch[ScoreNetwork.timestep_key]
 
             case "time_shape":
-                shape = bad_batch['time'].shape
+                shape = bad_batch[ScoreNetwork.timestep_key].shape
                 bad_batch[ScoreNetwork.timestep_key] = (
                     bad_batch[ScoreNetwork.timestep_key].reshape(shape[0] // 2, shape[1] * 2))
 
@@ -64,6 +64,15 @@ class TestScoreNetworkCheck:
             case "time_range2":
                 bad_batch[ScoreNetwork.timestep_key][0, 0] = -0.05
 
+            case "cell_name":
+                bad_batch['bad_unit_cell_key'] = bad_batch[ScoreNetwork.unit_cell_key]
+                del bad_batch[ScoreNetwork.unit_cell_key]
+
+            case "cell_shape":
+                shape = bad_batch[ScoreNetwork.unit_cell_key].shape
+                bad_batch[ScoreNetwork.unit_cell_key] = (
+                    bad_batch[ScoreNetwork.unit_cell_key].reshape(shape[0] // 2, shape[1] * 2, shape[2]))
+
         return bad_batch
 
     def test_check_batch_good(self, base_score_network, good_batch):
@@ -71,16 +80,25 @@ class TestScoreNetworkCheck:
 
     @pytest.mark.parametrize('problem', ['position_name', 'time_name', 'position_shape',
                                          'time_shape', 'position_range1', 'position_range2',
-                                         'time_range1', 'time_range2'])
+                                         'time_range1', 'time_range2', 'cell_name', 'cell_shape'])
     def test_check_batch_bad(self, base_score_network, bad_batch):
         with pytest.raises(AssertionError):
             base_score_network._check_batch(bad_batch)
 
 
-@pytest.mark.parametrize("spatial_dimension", [2, 3])
-@pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
-@pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
-class TestMLPScoreNetwork:
+class BaseTestScoreNetwork:
+    """Base Test Score Network.
+
+    Base class to run a battery of tests on a score network. To test a specific score network class, this base class
+    should be extended by implementing a 'score_network' fixture that instantiates the score network class of interest.
+    """
+    @pytest.fixture()
+    def score_network(self, *args):
+        raise NotImplementedError("This fixture must be implemented in the derived class.")
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_random_seed(self):
+        torch.manual_seed(23423423)
 
     @pytest.fixture()
     def batch_size(self):
@@ -91,22 +109,41 @@ class TestMLPScoreNetwork:
         return 8
 
     @pytest.fixture()
+    def basis_vectors(self, batch_size, spatial_dimension):
+        # orthogonal boxes with dimensions between 5 and 10.
+        orthogonal_boxes = torch.stack([torch.diag(5. + 5. * torch.rand(spatial_dimension)) for _ in range(batch_size)])
+        # add a bit of noise to make the vectors not quite orthogonal
+        basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, spatial_dimension, spatial_dimension)
+        return basis_vectors
+
+    @pytest.fixture
+    def relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension, basis_vectors):
+        relative_coordinates = torch.rand(batch_size, number_of_atoms, spatial_dimension)
+        return relative_coordinates
+
+    @pytest.fixture
+    def times(self, batch_size):
+        times = torch.rand(batch_size, 1)
+        return times
+
+    @pytest.fixture()
     def expected_score_shape(self, batch_size, number_of_atoms, spatial_dimension):
         return batch_size, number_of_atoms, spatial_dimension
 
     @pytest.fixture()
-    def good_batch(self, batch_size, number_of_atoms, spatial_dimension):
-        positions = torch.rand(batch_size, number_of_atoms, spatial_dimension)
-        times = torch.rand(batch_size, 1)
-        unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
-        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times,
-                ScoreNetwork.unit_cell_key: unit_cell}
+    def batch(self, relative_coordinates, times, basis_vectors):
+        return {ScoreNetwork.position_key: relative_coordinates, ScoreNetwork.timestep_key: times,
+                ScoreNetwork.unit_cell_key: basis_vectors}
 
-    @pytest.fixture()
-    def bad_batch(self, batch_size, number_of_atoms, spatial_dimension):
-        positions = torch.rand(batch_size, number_of_atoms // 2, spatial_dimension)
-        times = torch.rand(batch_size, 1)
-        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times}
+    def test_output_shape(self, score_network, batch, expected_score_shape):
+        scores = score_network(batch)
+        assert scores.shape == expected_score_shape
+
+
+@pytest.mark.parametrize("spatial_dimension", [2, 3])
+@pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
+@pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
+class TestMLPScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture()
     def score_network(self, number_of_atoms, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size):
@@ -116,48 +153,11 @@ class TestMLPScoreNetwork:
                                                  hidden_dimensions_size=hidden_dimensions_size)
         return MLPScoreNetwork(hyper_params)
 
-    def test_check_batch_bad(self, score_network, bad_batch):
-        with pytest.raises(AssertionError):
-            score_network._check_batch(bad_batch)
-
-    def test_check_batch_good(self, score_network, good_batch):
-        score_network._check_batch(good_batch)
-
-    def test_output_shape(self, score_network, good_batch, expected_score_shape):
-        scores = score_network(good_batch)
-        assert scores.shape == expected_score_shape
-
 
 @pytest.mark.parametrize("spatial_dimension", [3])
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
-class TestMACEScoreNetwork:
-
-    @pytest.fixture()
-    def batch_size(self):
-        return 16
-
-    @pytest.fixture()
-    def number_of_atoms(self):
-        return 8
-
-    @pytest.fixture()
-    def expected_score_shape(self, batch_size, number_of_atoms, spatial_dimension):
-        return batch_size, number_of_atoms, spatial_dimension
-
-    @pytest.fixture()
-    def good_batch(self, batch_size, number_of_atoms, spatial_dimension):
-        positions = torch.rand(batch_size, number_of_atoms, spatial_dimension)
-        times = torch.rand(batch_size, 1)
-        unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
-        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times,
-                ScoreNetwork.unit_cell_key: unit_cell}
-
-    @pytest.fixture()
-    def bad_batch(self, batch_size, number_of_atoms, spatial_dimension):
-        positions = torch.rand(batch_size, number_of_atoms // 2, spatial_dimension)
-        times = torch.rand(batch_size, 1)
-        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times}
+class TestMACEScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture()
     def score_network(self, number_of_atoms, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size):
@@ -166,16 +166,3 @@ class TestMACEScoreNetwork:
                                                   n_hidden_dimensions=n_hidden_dimensions,
                                                   hidden_dimensions_size=hidden_dimensions_size)
         return MACEScoreNetwork(hyper_params)
-
-    def test_check_batch_bad(self, score_network, bad_batch):
-        with pytest.raises(AssertionError):
-            score_network._check_batch(bad_batch)
-
-    def test_check_batch_good(self, score_network, good_batch):
-        score_network._check_batch(good_batch)
-
-    @pytest.mark.not_on_github
-    def test_output_shape(self, score_network, good_batch, expected_score_shape):
-        # TODO test fails on computer - check what is going on and fix
-        scores = score_network(good_batch)
-        assert scores.shape == expected_score_shape
