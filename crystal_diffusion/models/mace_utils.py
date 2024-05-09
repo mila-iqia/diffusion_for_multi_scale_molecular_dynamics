@@ -81,3 +81,41 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
                       cell=cell
                       )
     return graph_data
+
+
+def download_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch.nn.Module, int]:
+
+    assert model_name in ["small", "medium", "large"], f"Model name should be small, medium or large. Got {model_name}"
+
+    # from mace library code
+    urls = dict(
+        small=("https://tinyurl.com/46jrkm3v", 256),  # 2023-12-10-mace-128-L0_energy_epoch-249.model
+        medium=("https://tinyurl.com/5yyxdm76", 640),  # 2023-12-03-mace-128-L1_epoch-199.model
+        large=("https://tinyurl.com/5f5yavf3", 1280), # MACE_MPtrj_2022.9.model
+    )
+    checkpoint_url, node_feats_output_size = (
+        urls.get(model_name, urls["medium"])
+    )
+
+    # HERE!!!!
+    cache_dir = os.path.expanduser(".cache/mace")
+    checkpoint_url_name = "".join(
+        c for c in os.path.basename(checkpoint_url) if c.isalnum() or c in "_"
+    )
+    cached_model_path = f"{cache_dir}/{checkpoint_url_name}"
+    if not os.path.isfile(cached_model_path):
+        os.makedirs(cache_dir, exist_ok=True)
+        # download and save to disk
+        print(f"Downloading MACE model from {checkpoint_url!r}")
+        _, http_msg = urllib.request.urlretrieve(
+            checkpoint_url, cached_model_path
+        )
+        if "Content-Type: text/html" in http_msg:
+            raise RuntimeError(
+                f"Model download failed, please check the URL {checkpoint_url}"
+            )
+        print(f"Cached MACE model to {cached_model_path}")
+    model = cached_model_path
+    print(model)
+
+    model = torch.load(f=model)
