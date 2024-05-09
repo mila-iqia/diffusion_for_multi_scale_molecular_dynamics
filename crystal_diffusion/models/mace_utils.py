@@ -107,7 +107,7 @@ def download_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[
     urls = dict(
         small=("https://tinyurl.com/46jrkm3v", 256),  # 2023-12-10-mace-128-L0_energy_epoch-249.model
         medium=("https://tinyurl.com/5yyxdm76", 640),  # 2023-12-03-mace-128-L1_epoch-199.model
-        large=("https://tinyurl.com/5f5yavf3", 1280), # MACE_MPtrj_2022.9.model
+        large=("https://tinyurl.com/5f5yavf3", 1280),  # MACE_MPtrj_2022.9.model
     )
     checkpoint_url, node_feats_output_size = (urls.get(model_name, urls["medium"]))
 
