@@ -10,7 +10,7 @@ seed: 1234
 
 # data
 data:
-  batch_size: 1024
+  batch_size: 512
   num_workers: 0
   max_atom: 8
 
@@ -19,6 +19,8 @@ spatial_dimension: 3
 model:
   score_network:
     architecture: mace
+    use_pretrained: None
+    pretrained_weights_path: ./
     r_max: 5.0
     num_bessel: 8
     num_polynomial_cutoff: 5
