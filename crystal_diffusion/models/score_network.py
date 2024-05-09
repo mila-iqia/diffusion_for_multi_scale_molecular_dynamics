@@ -283,10 +283,14 @@ class MACEScoreNetwork(ScoreNetwork):
         self.mace_network = MACE(**mace_config)
 
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
-        hidden_irreps_size = int(hyper_params.hidden_irreps.split('x')[0])  # needs to be the same for 0e as for 1o
-        hidden_irreps_dim = 1 + 3 * ('1o' in hyper_params.hidden_irreps)
-        self.mace_output_size = ((hyper_params.num_interactions - 1) * hidden_irreps_dim + 1) * hidden_irreps_size
+
+        # The hidden representation used in the intermediate linear reading blocks
+        hidden_irrep = o3.Irreps(hyper_params.hidden_irreps)
+        # there's an assumption in the MACE code that there will always be a scalar representation (0e).
+        scalar_hidden_irrep = hidden_irrep[0]
+        self.mace_output_size = (hyper_params.num_interactions - 1) * hidden_irrep.dim + scalar_hidden_irrep.dim
         # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
+
         self.mlp_layers = nn.Sequential()
         # TODO we could add a linear layer to the times before concat with mace_output
         input_dimensions = [self.mace_output_size + 1] + hidden_dimensions  # add 1 for the times
