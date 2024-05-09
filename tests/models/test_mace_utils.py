@@ -44,13 +44,13 @@ class TestInputToMaceChain:
     @pytest.fixture()
     def mace_graph(self, cell_size, spatial_dim, atomic_positions, n_atoms, batch_size, radial_cutoff):
         unit_cell = np.eye(spatial_dim) * cell_size  # box as a spatial_dim x spatial_dim array
-        atom_type = np.ones(n_atoms)
+        atom_type = np.ones(n_atoms) * 14
         pbc = np.array([True] * spatial_dim)  # periodic boundary conditions
         graph_config = Configuration(atomic_numbers=atom_type,
                                      positions=atomic_positions.numpy(),
                                      cell=unit_cell,
                                      pbc=pbc)
-        z_table = get_atomic_number_table_from_zs([1])
+        z_table = get_atomic_number_table_from_zs(list(range(89)))
         graph_data = AtomicData.from_config(graph_config, z_table=z_table, cutoff=radial_cutoff)
         collate_fn = Collater(follow_batch=[None], exclude_keys=[None])
         mace_batch = collate_fn([graph_data] * batch_size)
@@ -101,7 +101,7 @@ class TestInputToMaceRandom(TestInputToMaceChain):
     @pytest.fixture()
     def mace_graph(self, basis_vectors, positions, spatial_dim, n_atoms, radial_cutoff):
         pbc = np.array([True] * spatial_dim)  # periodic boundary conditions
-        atom_type = np.ones(n_atoms)
+        atom_type = np.ones(n_atoms) * 14
 
         list_graphs = []
         for unit_cell, atomic_positions in zip(basis_vectors, positions):
@@ -109,7 +109,7 @@ class TestInputToMaceRandom(TestInputToMaceChain):
                                          positions=atomic_positions.numpy(),
                                          cell=unit_cell,
                                          pbc=pbc)
-            z_table = get_atomic_number_table_from_zs([1])
+            z_table = get_atomic_number_table_from_zs(list(range(89)))
             graph_data = AtomicData.from_config(graph_config, z_table=z_table, cutoff=radial_cutoff)
             list_graphs.append(graph_data)
 
