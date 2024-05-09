@@ -87,7 +87,7 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
     return graph_data
 
 
-def download_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch.nn.Module, int]:
+def get_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch.nn.Module, int]:
     """Download and load a pre-trained MACE network.
 
     Based on the mace-torch library.

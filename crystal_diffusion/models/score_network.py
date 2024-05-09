@@ -17,7 +17,7 @@ from mace.tools import get_atomic_number_table_from_zs
 from mace.tools.torch_geometric.dataloader import Collater
 from torch import nn
 
-from crystal_diffusion.models.mace_utils import (download_pretrained_mace,
+from crystal_diffusion.models.mace_utils import (get_pretrained_mace,
                                                  input_to_mace)
 
 # mac fun time
@@ -291,8 +291,8 @@ class MACEScoreNetwork(ScoreNetwork):
             self.mace_output_size = ((hyper_params.num_interactions - 1) * hidden_irreps_dim + 1) * hidden_irreps_size
             # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
         else:
-            self.mace_network, self.mace_output_size = download_pretrained_mace(hyper_params.use_pretrained,
-                                                                                hyper_params.pretrained_weights_path)
+            self.mace_network, self.mace_output_size = get_pretrained_mace(hyper_params.use_pretrained,
+                                                                           hyper_params.pretrained_weights_path)
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
         # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
         self.mlp_layers = nn.Sequential()
