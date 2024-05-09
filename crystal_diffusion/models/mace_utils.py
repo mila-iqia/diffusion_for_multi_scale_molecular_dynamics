@@ -1,6 +1,7 @@
 from typing import AnyStr, Dict, Tuple
 
 import torch
+from e3nn import o3
 from torch_geometric.data import Data
 
 from crystal_diffusion.utils.neighbors import (
@@ -81,3 +82,31 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
                       cell=cell
                       )
     return graph_data
+
+
+def get_normalized_irreps_permutation_indices(irreps: o3.Irreps) -> Tuple[o3.Irreps, torch.Tensor]:
+    """Get normalized irreps and permutation indices.
+
+    Args:
+        irreps : Irreducible representation corresponding to the entries in data.
+
+    Returns:
+        normalized_irreps : sorted and simplified irreps.
+        column_permutation_indices: indices that can rearrange the columns of a data tensor to go from irreps to
+            normalized_irreps.
+    """
+    sorted_output = irreps.sort()
+    irreps_permutation_indices = sorted_output.inv
+
+    column_permutation_indices = []
+
+    for idx in irreps_permutation_indices:
+        slc = irreps.slices()[idx]
+        irrep_indices = list(range(slc.start, slc.stop))
+        column_permutation_indices.extend(irrep_indices)
+
+    column_permutation_indices = torch.tensor(column_permutation_indices)
+
+    sorted_irreps = sorted_output.irreps.simplify()
+
+    return sorted_irreps, column_permutation_indices
