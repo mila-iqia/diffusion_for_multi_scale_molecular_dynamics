@@ -1,3 +1,6 @@
+import unittest.mock
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 import torch
@@ -5,7 +8,8 @@ from mace.data import AtomicData, Configuration
 from mace.tools import get_atomic_number_table_from_zs
 from mace.tools.torch_geometric.dataloader import Collater
 
-from crystal_diffusion.models.mace_utils import input_to_mace
+from crystal_diffusion.models.mace_utils import (get_pretrained_mace,
+                                                 input_to_mace)
 from crystal_diffusion.utils.neighbors import _get_positions_from_coordinates
 from tests.fake_data_utils import find_aligning_permutation
 
@@ -150,3 +154,32 @@ class TestInputToMaceRandom(TestInputToMaceChain):
         torch.testing.assert_close(computed_mace_graph['shifts'][edge_permutation_indices], mace_graph['shifts'])
         torch.testing.assert_close(computed_mace_graph['edge_index'][:, edge_permutation_indices],
                                    mace_graph['edge_index'])
+
+
+class TestPretrainedMace:
+    @pytest.fixture
+    def mock_model_savedir(self, tmp_path):
+        return str(tmp_path)
+
+    # Test correctly downloading a small model
+    @patch("os.makedirs")
+    @patch("os.path.isfile", return_value=False)
+    @patch("urllib.request.urlretrieve", return_value=(None, 'abc'))
+    @patch("torch.load")
+    def test_download_pretrained_mace_small(self, mock_load, mock_urlretrieve, mock_isfile, mock_makedirs,
+                                            mock_model_savedir):
+        mock_model = MagicMock(spec=torch.nn.Module)
+        mock_model.float.return_value = mock_model
+        mock_load.return_value = mock_model
+        model, node_feats_output_size = get_pretrained_mace("small", mock_model_savedir)
+
+        mock_urlretrieve.assert_called()
+        mock_load.assert_called_with(f=unittest.mock.ANY)
+        assert model is mock_model
+        assert node_feats_output_size == 256  # assuming 256 is the small model's size
+
+    # Test handling invalid model name
+    def test_download_pretrained_mace_invalid_model_name(self, mock_model_savedir):
+        with pytest.raises(AssertionError) as e:
+            get_pretrained_mace("invalid_name", mock_model_savedir)
+        assert "Model name should be small, medium or large. Got invalid_name" in str(e.value)
