@@ -1,8 +1,8 @@
 import os
+import urllib
 from typing import AnyStr, Dict, Tuple
 
 import torch
-import urllib
 from torch_geometric.data import Data
 
 from crystal_diffusion.utils.neighbors import (
