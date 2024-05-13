@@ -19,6 +19,7 @@ spatial_dimension: 3
 model:
   score_network:
     architecture: mace
+    number_of_atoms: 8  
     r_max: 5.0
     num_bessel: 8
     num_polynomial_cutoff: 5
@@ -26,18 +27,16 @@ model:
     interaction_cls: RealAgnosticResidualInteractionBlock
     interaction_cls_first: RealAgnosticInteractionBlock
     num_interactions: 2
-    hidden_irreps: 128x0e + 128x1o
-    MLP_irreps: 16x0e
+    hidden_irreps: 8x0e + 8x1o
+    MLP_irreps: 8x0e
     avg_num_neighbors: 1
     correlation: 3
     gate: silu
-    radial_MLP: [64, 64, 64]
+    radial_MLP: [8, 8, 8]
     radial_type: bessel
-    n_hidden_dimensions: 2
-    hidden_dimensions_size: 64
     prediction_head_parameters:
       name: mlp
-      hidden_dimensions_size: 64
+      hidden_dimensions_size: 8
       n_hidden_dimensions: 3
   noise:
     total_time_steps: 100
@@ -47,7 +46,7 @@ model:
 # optimizer and scheduler
 optimizer:
   name: adamw
-  learning_rate: 0.01
+  learning_rate: 0.001
   weight_decay: 1.0e-6
 
 scheduler:

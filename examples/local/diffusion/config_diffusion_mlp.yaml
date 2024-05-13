@@ -19,6 +19,8 @@ data:
 spatial_dimension: 3
 model:
   score_network:
+    architecture: mlp
+    number_of_atoms: 8
     n_hidden_dimensions: 2
     hidden_dimensions_size: 64
   noise:
@@ -29,7 +31,7 @@ model:
 # optimizer and scheduler
 optimizer:
   name: adamw
-  learning_rate: 0.01
+  learning_rate: 0.001
   weight_decay: 1.0e-6
 
 scheduler:
