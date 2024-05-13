@@ -18,8 +18,9 @@ from mace.tools.torch_geometric.dataloader import Collater
 from torch import nn
 
 from crystal_diffusion.models.mace_utils import input_to_mace
-from crystal_diffusion.models.score_prediction_head import \
-    MaceMLPScorePredictionHead
+from crystal_diffusion.models.score_prediction_head import (
+    MaceEquivariantScorePredictionHead, MaceMLPScorePredictionHead,
+    MaceScorePredictionHeadParameters)
 
 # mac fun time
 # for mace, conflict with mac
@@ -238,8 +239,7 @@ class MACEScoreNetworkParameters(ScoreNetworkParameters):
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
     radial_MLP: List[int] = field(default_factory=lambda: [64, 64, 64])  # "width of the radial MLP"
     radial_type: str = "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
-    n_hidden_dimensions: int  # the number of hidden layers for the final MLP - should be small
-    hidden_dimensions_size: int  # the dimensions of the hidden layers - should be small
+    prediction_head_parameters: MaceScorePredictionHeadParameters
 
 
 class MACEScoreNetwork(ScoreNetwork):
@@ -283,17 +283,54 @@ class MACEScoreNetwork(ScoreNetwork):
         self._natoms = hyper_params.number_of_atoms
 
         self.mace_network = MACE(**mace_config)
-        # The hidden representation used in the intermediate linear reading blocks
-        hidden_irrep = o3.Irreps(hyper_params.hidden_irreps)
-        # there's an assumption in the MACE code that there will always be a scalar representation (0e).
-        scalar_hidden_irrep = hidden_irrep[0]
-        self.mace_output_size = (hyper_params.num_interactions - 1) * hidden_irrep.dim + scalar_hidden_irrep.dim
-        # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
 
-        self.prediction_head = MaceMLPScorePredictionHead(mace_output_size=self.mace_output_size,
-                                                          hidden_dimensions_size=hyper_params.hidden_dimensions_size,
-                                                          n_hidden_dimensions=hyper_params.n_hidden_dimensions,
-                                                          spatial_dimension=self.spatial_dimension)
+        # The default hidden irreps is "128x0e + 128x1o" with 2 interraction blocks, leading to
+        # a default output_node_features irrep of  "128x0e + 128x1o + 128x0e", with a dimension
+        # 128 * (1 + 3 +1) = 640.
+        output_node_features_irreps = (
+            self._build_mace_output_nodes_irreducible_representation(hyper_params.hidden_irreps,
+                                                                     hyper_params.num_interactions))
+        self.mace_output_size = output_node_features_irreps.dim
+
+        # TODO: there must be a cleaner way of doing this...
+        if hyper_params.prediction_head_parameters.name == 'mlp':
+            self.prediction_head = MaceMLPScorePredictionHead(output_node_features_irreps,
+                                                              hyper_params.prediction_head_parameters)
+        elif hyper_params.prediction_head_parameters.name == 'equivariant':
+            self.prediction_head = MaceEquivariantScorePredictionHead(output_node_features_irreps,
+                                                                      hyper_params.prediction_head_parameters)
+
+        else:
+            raise NotImplementedError(f"Prediction head {hyper_params.prediction_head_parameters.name} "
+                                      f"is not implemented")
+
+    @staticmethod
+    def _build_mace_output_nodes_irreducible_representation(hidden_irreps_string: str,
+                                                            num_interactions: int) -> o3.Irreps:
+        """Build the mace output node irreps.
+
+        Args:
+            hidden_irreps_string : the hidden representation irreducible string.
+
+        Returns:
+            output_node_irreps: the irreducible representation of the output node features.
+        """
+        # By inspection of the MACE code, ie mace.modules.models.MACE, we can see that:
+        #   - in the __init__ method, the irrep of the output is the 'number of interactions' times
+        #     the hidden_irrep, except for the last which is just the scalar part.
+        #   - there's an assumption in the MACE code that there will always be a scalar representation (0e).
+        hidden_irreps = o3.Irreps(hidden_irreps_string)
+
+        # E3NN irreps gymnastics is a bit fragile. We have to build the scalar representation explicitly
+        scalar_hidden_irreps = o3.Irreps(f"{hidden_irreps[0].mul}x{hidden_irreps[0].ir}")
+
+        total_irreps = o3.Irreps('')  # An empty irrep to start the "sum", which is really a concatenation
+        for _ in range(num_interactions - 1):
+            total_irreps += hidden_irreps
+
+        total_irreps += scalar_hidden_irreps
+
+        return total_irreps
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MACEScoreNetwork, self)._check_batch(batch)
@@ -318,13 +355,18 @@ class MACEScoreNetwork(ScoreNetwork):
         batch['abs_positions'] = torch.bmm(positions, batch[self.unit_cell_key])  # positions in Angstrom
         graph_input = input_to_mace(batch, self.unit_cell_key, radial_cutoff=self.r_max)
         mace_output = self.mace_network(graph_input, compute_force=False, training=self.training)
-        # we want the node features but they are organized as (batchsize * natoms, output_size) because
+
+        # The node features are organized as (batchsize * natoms, output_size) in the mace output because
         # torch_geometric puts all the graphs in a batch in a single large graph.
-        node_features = mace_output['node_feats'].view(-1, self._natoms, self.mace_output_size)
-        # shape [batch_size, natoms, mace_number_of_features]
+        flat_node_features = mace_output['node_feats']
 
+        # The times have a single value per batch element; we repeat the array so that there is one value per atom,
+        # with this value the same for all atoms belonging to the same graph.
         times = batch[self.timestep_key].to(positions.device)  # shape [batch_size, 1]
-        times = times.unsqueeze(1).repeat(1, self._natoms, 1)  # shape [batch_size, natoms, 1]
+        flat_times = times[graph_input.batch]  # shape [batch_size * natoms, 1]
+        flat_scores = self.prediction_head(flat_node_features, flat_times)  # shape [batch_size * natoms, spatial_dim]
 
-        scores = self.prediction_head(node_features, times)
+        # Reshape the scores to have an explicit batch dimension
+        scores = flat_scores.reshape(-1, self._natoms, self.spatial_dimension)
+
         return scores
