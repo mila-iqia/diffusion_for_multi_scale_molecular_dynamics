@@ -25,7 +25,7 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
 
     relative_coordinates = np.random.rand(number_of_atoms, spatial_dimension)
 
-    cell_dimensions = np.random.rand(spatial_dimension)
+    cell_dimensions = 5. + 5. * np.random.rand(spatial_dimension)  # make sure the cell is big.
     unit_cell_vectors = np.diag(cell_dimensions)
     positions = np.dot(relative_coordinates, unit_cell_vectors)
     potential_energy = np.random.rand()
