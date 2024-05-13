@@ -148,7 +148,7 @@ def instantiate_mace_prediction_head(output_node_features_irreps: o3.Irreps,
 
     Args:
         output_node_features_irreps : irreps of the node features.
-        prediction_head_parameters : the hyper-parameters defining the prediction head.
+        prediction_head_parameters : the hyperparameters defining the prediction head.
 
     Returns:
         prediction_head: torch module to predict the scores from the output of MACE.
