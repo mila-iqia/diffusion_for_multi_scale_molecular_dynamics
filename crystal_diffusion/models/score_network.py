@@ -19,8 +19,7 @@ from torch import nn
 
 from crystal_diffusion.models.mace_utils import input_to_mace
 from crystal_diffusion.models.score_prediction_head import (
-    MaceEquivariantScorePredictionHead, MaceMLPScorePredictionHead,
-    MaceScorePredictionHeadParameters)
+    MaceScorePredictionHeadParameters, instantiate_mace_prediction_head)
 
 # mac fun time
 # for mace, conflict with mac
@@ -292,17 +291,8 @@ class MACEScoreNetwork(ScoreNetwork):
                                                                     hyper_params.num_interactions))
         self.mace_output_size = output_node_features_irreps.dim
 
-        # TODO: there must be a cleaner way of doing this...
-        if hyper_params.prediction_head_parameters.name == 'mlp':
-            self.prediction_head = MaceMLPScorePredictionHead(output_node_features_irreps,
-                                                              hyper_params.prediction_head_parameters)
-        elif hyper_params.prediction_head_parameters.name == 'equivariant':
-            self.prediction_head = MaceEquivariantScorePredictionHead(output_node_features_irreps,
-                                                                      hyper_params.prediction_head_parameters)
-
-        else:
-            raise NotImplementedError(f"Prediction head {hyper_params.prediction_head_parameters.name} "
-                                      f"is not implemented")
+        self.prediction_head = instantiate_mace_prediction_head(output_node_features_irreps,
+                                                                hyper_params.prediction_head_parameters)
 
     @staticmethod
     def build_mace_output_nodes_irreducible_representation(hidden_irreps_string: str,

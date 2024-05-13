@@ -135,3 +135,27 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         flat_scores = self.head(head_input)
 
         return flat_scores
+
+
+# Register the possible MACE prediction heads as  key:  model class
+MACE_PREDICTION_HEADS = dict(mlp=MaceMLPScorePredictionHead, equivariant=MaceEquivariantScorePredictionHead)
+
+
+def instantiate_mace_prediction_head(output_node_features_irreps: o3.Irreps,
+                                     prediction_head_parameters: MaceScorePredictionHeadParameters) \
+        -> MaceScorePredictionHead:
+    """Instantiate MACE prediction head.
+
+    Args:
+        output_node_features_irreps : irreps of the node features.
+        prediction_head_parameters : the hyper-parameters defining the prediction head.
+
+    Returns:
+        prediction_head: torch module to predict the scores from the output of MACE.
+    """
+    head_name = prediction_head_parameters.name
+    assert head_name in MACE_PREDICTION_HEADS, f"MACE prediction head '{head_name}' is not implemented"
+
+    head_class = MACE_PREDICTION_HEADS[head_name]
+    prediction_head = head_class(output_node_features_irreps, prediction_head_parameters)
+    return prediction_head
