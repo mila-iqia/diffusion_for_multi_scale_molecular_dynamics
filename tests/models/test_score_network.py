@@ -135,7 +135,6 @@ class BaseTestScoreNetwork:
         return {ScoreNetwork.position_key: relative_coordinates, ScoreNetwork.timestep_key: times,
                 ScoreNetwork.unit_cell_key: basis_vectors}
 
-
     def test_output_shape(self, score_network, batch, expected_score_shape):
         scores = score_network(batch)
         assert scores.shape == expected_score_shape
