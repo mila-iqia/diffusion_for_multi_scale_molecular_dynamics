@@ -54,7 +54,7 @@ class MaceMLPScorePredictionHead(MaceScorePredictionHead):
         """Init method."""
         super().__init__(output_node_features_irreps, hyper_params)
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
-        self.mlp_layers = nn.Sequential()
+        self.mlp_layers = torch.nn.Sequential()
         # TODO we could add a linear layer to the times before concat with mace_output
         input_dimensions = [output_node_features_irreps.dim + 1] + hidden_dimensions  # add 1 for the times
         output_dimensions = hidden_dimensions + [hyper_params.spatial_dimension]
@@ -104,21 +104,19 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         sorted_irreps, self.column_permutation_indices = (
             get_normalized_irreps_permutation_indices(head_input_irreps))
 
-        self.linear_1 = o3.Linear(irreps_in=sorted_irreps,
-                                  irreps_out=sorted_irreps)
+        linear_1 = o3.Linear(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
 
         # Some sort of tensor product is necessary to mix the scalar time with the vector output.
-        self.product_layer = o3.TensorSquare(irreps_in=sorted_irreps,
-                                             irreps_out=sorted_irreps)
+        product_layer = o3.TensorSquare(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
 
         gate = gate_dict[hyper_params.gate]
         # There must be one activation per L-channel, and that activation must be 'None'  for l !=0.
         # The first channel is l = 0.
         number_of_l_channels = len(sorted_irreps)
         activations = [gate] + (number_of_l_channels - 1) * [None]
-        self.non_linearity = Activation(irreps_in=sorted_irreps, acts=activations)
-        self.linear_2 = o3.Linear(irreps_in=sorted_irreps,
-                                  irreps_out=o3.Irreps("1x1o"))  # the output is a single vector.
+        non_linearity = Activation(irreps_in=sorted_irreps, acts=activations)
+        linear_2 = o3.Linear(irreps_in=sorted_irreps, irreps_out=o3.Irreps("1x1o"))  # the output is a single vector.
+        self.head = torch.nn.Sequential(linear_1, product_layer, non_linearity, linear_2)
 
     def forward(self, flat_node_features: torch.Tensor, flat_times: torch.Tensor) -> torch.Tensor:
         """Forward method.
@@ -134,10 +132,6 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         """
         embedded_times = self.time_embedding_linear_layer(flat_times)
         head_input = torch.cat([embedded_times, flat_node_features], dim=1)[:, self.column_permutation_indices]
-
-        x = self.linear_1(head_input)
-        x = self.product_layer(x)
-        x = self.non_linearity(x)
-        flat_scores = self.linear_2(x)
+        flat_scores = self.head(head_input)
 
         return flat_scores
