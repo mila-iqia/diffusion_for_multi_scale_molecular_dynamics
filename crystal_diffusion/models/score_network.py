@@ -288,8 +288,8 @@ class MACEScoreNetwork(ScoreNetwork):
         # a default output_node_features irrep of  "128x0e + 128x1o + 128x0e", with a dimension
         # 128 * (1 + 3 +1) = 640.
         output_node_features_irreps = (
-            self._build_mace_output_nodes_irreducible_representation(hyper_params.hidden_irreps,
-                                                                     hyper_params.num_interactions))
+            self.build_mace_output_nodes_irreducible_representation(hyper_params.hidden_irreps,
+                                                                    hyper_params.num_interactions))
         self.mace_output_size = output_node_features_irreps.dim
 
         # TODO: there must be a cleaner way of doing this...
@@ -305,8 +305,8 @@ class MACEScoreNetwork(ScoreNetwork):
                                       f"is not implemented")
 
     @staticmethod
-    def _build_mace_output_nodes_irreducible_representation(hidden_irreps_string: str,
-                                                            num_interactions: int) -> o3.Irreps:
+    def build_mace_output_nodes_irreducible_representation(hidden_irreps_string: str,
+                                                           num_interactions: int) -> o3.Irreps:
         """Build the mace output node irreps.
 
         Args:
