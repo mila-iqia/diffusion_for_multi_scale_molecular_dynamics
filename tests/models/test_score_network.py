@@ -21,7 +21,8 @@ class TestScoreNetworkCheck:
 
     @pytest.fixture()
     def base_score_network(self, spatial_dimension):
-        return ScoreNetwork(ScoreNetworkParameters(spatial_dimension=spatial_dimension))
+        return ScoreNetwork(ScoreNetworkParameters(architecture='dummy',
+                                                   spatial_dimension=spatial_dimension))
 
     @pytest.fixture()
     def good_batch(self, spatial_dimension):
