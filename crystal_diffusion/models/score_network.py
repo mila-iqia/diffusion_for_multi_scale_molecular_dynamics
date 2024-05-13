@@ -31,7 +31,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 @dataclass(kw_only=True)
 class ScoreNetworkParameters:
     """Base Hyper-parameters for score networks."""
-
+    architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
 
 
@@ -154,7 +154,7 @@ class ScoreNetwork(torch.nn.Module):
 @dataclass(kw_only=True)
 class MLPScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for MLP score networks."""
-
+    architecture: str = 'mlp'
     number_of_atoms: int  # the number of atoms in a configuration.
     n_hidden_dimensions: int  # the number of hidden layers.
     hidden_dimensions_size: int  # the dimensions of the hidden layers.
@@ -221,7 +221,7 @@ class MLPScoreNetwork(ScoreNetwork):
 @dataclass(kw_only=True)
 class MACEScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for MACE score networks."""
-
+    architecture: str = 'mace'
     number_of_atoms: int  # the number of atoms in a configuration.
     r_max: float = 5.0
     num_bessel: int = 8
