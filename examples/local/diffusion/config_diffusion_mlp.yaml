@@ -52,6 +52,7 @@ model_checkpoint:
 # A callback to check the loss vs. sigma
 loss_monitoring: 
   number_of_bins: 20
+  sample_every_n_epochs: 2
 
 # Sampling from the generative model
 diffusion_sampling:

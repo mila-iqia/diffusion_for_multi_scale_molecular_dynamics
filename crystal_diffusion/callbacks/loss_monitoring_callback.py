@@ -15,22 +15,35 @@ def instantiate_loss_monitoring_callback(callback_params: Dict[AnyStr, Any],
                                          output_directory: str, verbose: bool) -> Dict[str, Callback]:
     """Instantiate the Loss monitoring callback."""
     number_of_bins = callback_params['number_of_bins']
-    loss_monitoring_callback = LossMonitoringCallback(number_of_bins=number_of_bins)
+    sample_every_n_epochs = callback_params['sample_every_n_epochs']
+    loss_monitoring_callback = LossMonitoringCallback(number_of_bins=number_of_bins,
+                                                      sample_every_n_epochs=sample_every_n_epochs)
     return dict(loss_monitoring_callback=loss_monitoring_callback)
 
 
 class LossMonitoringCallback(Callback):
     """Callback class to monitor the loss vs. time (or sigma) relationship."""
 
-    def __init__(self, number_of_bins: int, spatial_dimension: int = 3):
+    def __init__(self, number_of_bins: int, sample_every_n_epochs: int, spatial_dimension: int = 3):
         """Init method."""
         self.number_of_bins = number_of_bins
+        self.sample_every_n_epochs = sample_every_n_epochs
         self.spatial_dimension = spatial_dimension
         self.all_sigmas = []
         self.all_squared_errors = []
 
+    def _compute_results_at_this_epoch(self, current_epoch: int) -> bool:
+        """Check if results should be computed at this epoch."""
+        # Do not produce results at epoch 0; it would be meaningless.
+        if current_epoch % self.sample_every_n_epochs == 0 and current_epoch > 0:
+            return True
+        else:
+            return False
+
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         """Action to perform at the end of a validation batch."""
+        if not self._compute_results_at_this_epoch(trainer.current_epoch):
+            return
         batch_sigmas = outputs['sigmas'][:, :, 0]  # the sigmas are the same for all atoms and space directions
         self.all_sigmas.append(batch_sigmas.flatten())
 
@@ -41,7 +54,8 @@ class LossMonitoringCallback(Callback):
 
     def on_validation_epoch_end(self, trainer, pl_module):
         """Action to perform at the end of a training epoch."""
-        # free up the memory
+        if not self._compute_results_at_this_epoch(trainer.current_epoch):
+            return
 
         sigmas = torch.cat(self.all_sigmas).detach().cpu().numpy()
         squared_errors = torch.cat(self.all_squared_errors).detach().cpu().numpy()
