@@ -50,7 +50,8 @@ model_checkpoint:
   mode: min
 
 # A callback to check the loss vs. sigma
-loss_monitoring: True
+loss_monitoring: 
+  number_of_bins: 20
 
 # Sampling from the generative model
 diffusion_sampling:
@@ -67,6 +68,6 @@ diffusion_sampling:
     cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:
+  - comet
   - tensorboard
 #- csv
-#- comet
