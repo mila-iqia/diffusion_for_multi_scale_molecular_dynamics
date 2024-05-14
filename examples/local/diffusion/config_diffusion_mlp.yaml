@@ -49,11 +49,14 @@ model_checkpoint:
   monitor: validation_epoch_loss
   mode: min
 
+# A callback to check the loss vs. sigma
+loss_monitoring: True
+
 # Sampling from the generative model
 diffusion_sampling:
   noise:
     total_time_steps: 100
-    sigma_min: 0.005  # default value
+    sigma_min: 0.001  # default value
     sigma_max: 0.5  # default value
   sampling:
     spatial_dimension: 3
@@ -64,6 +67,6 @@ diffusion_sampling:
     cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:
-  - csv
   - tensorboard
-  - comet
+#- csv
+#- comet

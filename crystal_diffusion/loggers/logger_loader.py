@@ -135,13 +135,16 @@ def read_and_validate_comet_experiment_key(full_run_name: str, output_directory:
     return experiment_key
 
 
-def log_figure(figure: plt.figure, global_step: int, pl_logger: Logger) -> None:
+def log_figure(figure: plt.figure, global_step: int, pl_logger: Logger,
+               dataset: str = "train", name: str = "samples") -> None:
     """Log figure.
 
     Args:
         figure : a matplotlib figure.
-        global_step: current step index.
+        global_step : current step index.
         pl_logger : a pytorch lightning Logger.
+        dataset : which dataset is considered
+        name : name for the figure.
 
     Returns:
         No return
@@ -149,12 +152,12 @@ def log_figure(figure: plt.figure, global_step: int, pl_logger: Logger) -> None:
     if type(pl_logger) is CometLogger:
         pl_logger.experiment.log_figure(figure)
     elif type(pl_logger) is TensorBoardLogger:
-        pl_logger.experiment.add_figure("train/samples", figure, global_step=global_step)
+        pl_logger.experiment.add_figure(f"{dataset}/{name}", figure, global_step=global_step)
     elif type(pl_logger) is CSVLogger:
         # perform a deepcopy to prevent blanking the figure after writing to disk
         fig = deepcopy(figure)
         figure_directory = os.path.join(pl_logger.root_dir, 'figures')
         os.makedirs(figure_directory, exist_ok=True)
-        figure_path = os.path.join(figure_directory, f"train_samples_step={global_step}.png")
+        figure_path = os.path.join(figure_directory, f"{dataset}_{name}_step={global_step}.png")
         fig.savefig(figure_path)
         del fig

@@ -101,6 +101,7 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
                   scheduler=scheduler_config,
                   early_stopping=early_stopping_config,
                   model_checkpoint=model_checkpoint_config,
+                  loss_monitoring=True,
                   diffusion_sampling=diffusion_sampling_config,
                   logging=['csv', 'tensorboard'])
     return config
