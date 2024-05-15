@@ -239,6 +239,7 @@ class MACEScoreNetworkParameters(ScoreNetworkParameters):
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
     radial_MLP: List[int] = field(default_factory=lambda: [64, 64, 64])  # "width of the radial MLP"
     radial_type: str = "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
+    use_batchnorm: bool = False
     n_hidden_dimensions: int  # the number of hidden layers for the final MLP - should be small
     hidden_dimensions_size: int  # the dimensions of the hidden layers - should be small
 
@@ -295,6 +296,7 @@ class MACEScoreNetwork(ScoreNetwork):
                                                                            hyper_params.pretrained_weights_path)
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
         # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
+        self.mace_batchnorm = nn.BatchNorm1d(self.mace_output_size) if hyper_params.use_batchnorm else None
         self.mlp_layers = nn.Sequential()
         # TODO we could add a linear layer to the times before concat with mace_output
         input_dimensions = [self.mace_output_size + 1] + hidden_dimensions  # add 1 for the times
@@ -332,6 +334,8 @@ class MACEScoreNetwork(ScoreNetwork):
         mace_output = self.mace_network(graph_input, compute_force=False, training=self.training)
         # we want the node features but they are organized as (batchsize * natoms, output_size) because
         # torch_geometric puts all the graphs in a batch in a single large graph
+        if self.mace_batchnorm is not None:
+            mace_output['node_feats'] = self.mace_batchnorm(mace_output['node_feats'])
         mace_output = mace_output['node_feats'].view(-1, self._natoms, self.mace_output_size)
         times = batch[self.timestep_key].to(positions.device)  # shape [batch_size, 1]
         times = times.unsqueeze(1).repeat(1, self._natoms, 1)  # shape [batch_size, natoms, 1]

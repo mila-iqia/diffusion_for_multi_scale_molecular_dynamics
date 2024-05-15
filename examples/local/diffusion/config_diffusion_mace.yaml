@@ -35,6 +35,7 @@ model:
     gate: silu
     radial_MLP: [64, 64, 64]
     radial_type: bessel
+    use_batchnorm: False
     n_hidden_dimensions: 2
     hidden_dimensions_size: 64
   noise:
