@@ -60,7 +60,7 @@ class LossMonitoringCallback(Callback):
         sigmas = torch.cat(self.all_sigmas).detach().cpu().numpy()
         squared_errors = torch.cat(self.all_squared_errors).detach().cpu().numpy()
 
-        fig = self._plot_loss_scatter(sigmas, squared_errors)
+        fig = self._plot_loss_scatter(sigmas, squared_errors, trainer.current_epoch)
 
         for pl_logger in trainer.loggers:
             log_figure(figure=fig,
@@ -72,18 +72,19 @@ class LossMonitoringCallback(Callback):
         self.all_sigmas.clear()
         self.all_squared_errors.clear()
 
-    def _plot_loss_scatter(self, sigmas: np.ndarray, squared_errors: np.array) -> plt.figure:
+    def _plot_loss_scatter(self, sigmas: np.ndarray, squared_errors: np.array, epoch: int) -> plt.figure:
         """Generate a scatter plot of the squared errors vs. the values of noise."""
         loss = np.mean(squared_errors) / self.spatial_dimension
         fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
-        fig.suptitle(f'Loss vs. Sigma\n Loss = {loss:5.3e}')
+        fig.suptitle(f'Loss vs. Sigma\nEpoch {epoch}, Loss = {loss:5.3e}')
 
         bins = np.linspace(0., np.max(sigmas), self.number_of_bins)
         bin_indices = np.digitize(sigmas, bins)
 
         list_mean_sigmas = []
         list_mean_squared_errors = []
-        list_std_squared_errors = []
+        list_min_squared_errors = []
+        list_max_squared_errors = []
         for index in np.unique(bin_indices):
             mask = bin_indices == index
             bin_sigmas = sigmas[mask]
@@ -91,20 +92,21 @@ class LossMonitoringCallback(Callback):
 
             list_mean_sigmas.append(np.mean(bin_sigmas))
             list_mean_squared_errors.append(np.mean(bin_squared_errors))
-            list_std_squared_errors.append(np.std(bin_squared_errors))
+            list_min_squared_errors.append(np.quantile(bin_squared_errors, q=0.05))
+            list_max_squared_errors.append(np.quantile(bin_squared_errors, q=0.95))
 
         list_mean_sigmas = np.array(list_mean_sigmas)
         list_mean_squared_errors = np.array(list_mean_squared_errors)
-        list_std_squared_errors = np.array(list_std_squared_errors)
+        list_min_squared_errors = np.array(list_min_squared_errors)
+        list_max_squared_errors = np.array(list_max_squared_errors)
 
         ax1 = fig.add_subplot(111)
 
-        ax1.semilogy(sigmas, squared_errors, 'bo', alpha=0.25, label='Raw Data')
         ax1.semilogy(list_mean_sigmas, list_mean_squared_errors, 'g-o', label='Binned Mean')
         ax1.fill_between(list_mean_sigmas,
-                         list_mean_squared_errors - list_std_squared_errors,
-                         list_mean_squared_errors + list_std_squared_errors,
-                         color='g', alpha=0.25, label='$\\pm$ Standard Deviation')
+                         list_min_squared_errors,
+                         list_max_squared_errors,
+                         color='g', alpha=0.25, label="5% to 95% Quantile")
 
         ax1.set_xlim([-0.01, np.max(sigmas) + 0.01])
         ax1.legend(loc='best')

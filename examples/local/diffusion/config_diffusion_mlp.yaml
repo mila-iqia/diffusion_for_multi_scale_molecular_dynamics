@@ -51,7 +51,7 @@ model_checkpoint:
 
 # A callback to check the loss vs. sigma
 loss_monitoring: 
-  number_of_bins: 20
+  number_of_bins: 50
   sample_every_n_epochs: 2
 
 # Sampling from the generative model
@@ -65,10 +65,10 @@ diffusion_sampling:
     number_of_corrector_steps: 1
     number_of_atoms: 8
     number_of_samples: 16
-    sample_every_n_epochs: 1
+    sample_every_n_epochs: 2
     cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:
   - comet
-  - tensorboard
+#- tensorboard
 #- csv

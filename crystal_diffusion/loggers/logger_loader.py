@@ -150,7 +150,7 @@ def log_figure(figure: plt.figure, global_step: int, pl_logger: Logger,
         No return
     """
     if type(pl_logger) is CometLogger:
-        pl_logger.experiment.log_figure(figure)
+        pl_logger.experiment.log_figure(figure_name=f"{dataset}/{name}", figure=figure, step=global_step)
     elif type(pl_logger) is TensorBoardLogger:
         pl_logger.experiment.add_figure(f"{dataset}/{name}", figure, global_step=global_step)
     elif type(pl_logger) is CSVLogger:
