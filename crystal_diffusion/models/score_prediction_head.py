@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import e3nn
 import torch
 from e3nn import o3
 from e3nn.nn import Activation
@@ -110,6 +111,9 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         for _ in range(hyper_params.number_of_layers):
             linear = o3.Linear(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
             self.head.append(linear)
+
+            batch_norm = e3nn.nn.BatchNorm(irreps=sorted_irreps)
+            self.head.append(batch_norm)
 
             # Some sort of tensor product is necessary to mix the scalar time with the vector output.
             product_layer = o3.TensorSquare(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
