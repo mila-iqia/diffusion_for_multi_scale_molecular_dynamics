@@ -181,7 +181,6 @@ class TestMACEScoreNetworkMLPHead(BaseTestScoreNetwork):
 
 @pytest.mark.parametrize("spatial_dimension", [3])
 class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
-
     @pytest.fixture()
     def prediction_head_parameters(self, spatial_dimension):
         prediction_head_parameters = MaceEquivariantScorePredictionHeadParameters(spatial_dimension=spatial_dimension)

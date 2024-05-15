@@ -1,3 +1,5 @@
+import os
+import urllib
 from typing import AnyStr, Dict, Tuple
 
 import torch
@@ -66,7 +68,9 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
                                                             basis_vectors=cell,
                                                             radial_cutoff=radial_cutoff)
     # node features are int corresponding to atom type
-    node_attrs = torch.ones(batch_size * n_atom_per_graph, 1)  # TODO handle different type of atoms
+    # TODO handle different atom types
+    node_attrs = torch.nn.functional.one_hot((torch.ones(batch_size * n_atom_per_graph) * 14).long(),
+                                             num_classes=89).float()
     positions = x['abs_positions'].view(-1, x['abs_positions'].size(-1))  # [batchsize * natoms, spatial dimension]
     # pointer tensor that yields the first node index for each batch - this is a fixed tensor in our case
     ptr = torch.arange(0, n_atom_per_graph * batch_size + 1, step=n_atom_per_graph)  # 0, natoms, 2 * natoms, ...
@@ -82,6 +86,99 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
                       cell=cell
                       )
     return graph_data
+
+
+def build_mace_output_nodes_irreducible_representation(hidden_irreps_string: str, num_interactions: int) -> o3.Irreps:
+    """Build the mace output node irreps.
+
+    Args:
+        hidden_irreps_string : the hidden representation irreducible string.
+
+    Returns:
+        output_node_irreps: the irreducible representation of the output node features.
+    """
+    # By inspection of the MACE code, ie mace.modules.models.MACE, we can see that:
+    #   - in the __init__ method, the irrep of the output is the 'number of interactions' times
+    #     the hidden_irrep, except for the last which is just the scalar part.
+    #   - there's an assumption in the MACE code that there will always be a scalar representation (0e).
+    hidden_irreps = o3.Irreps(hidden_irreps_string)
+
+    # E3NN irreps gymnastics is a bit fragile. We have to build the scalar representation explicitly
+    scalar_hidden_irreps = o3.Irreps(f"{hidden_irreps[0].mul}x{hidden_irreps[0].ir}")
+
+    total_irreps = o3.Irreps('')  # An empty irrep to start the "sum", which is really a concatenation
+    for _ in range(num_interactions - 1):
+        total_irreps += hidden_irreps
+
+    total_irreps += scalar_hidden_irreps
+
+    return total_irreps
+
+
+def get_pretrained_mace_output_node_features_irreps(model_name: str) -> o3.Irreps:
+    """Get pretrained MACE output node features irreps.
+
+    Args:
+        model_name : name of the pretrained model.
+
+    Returns:
+        Irreps: the irreducible representation of the concatenated output nodes.
+    """
+    match model_name:
+        case "small":
+            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e",
+                                                                        num_interactions=2)
+        case "medium":
+            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e + 128x1o",
+                                                                        num_interactions=2)
+        case "large":
+            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e + 128x1o + 128x2e",
+                                                                        num_interactions=2)
+        case _:
+            raise ValueError(f"Model name should be small, medium or large. Got {model_name}")
+
+    return irreps
+
+
+def get_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch.nn.Module, int]:
+    """Download and load a pre-trained MACE network.
+
+    Based on the mace-torch library.
+    https://github.com/ACEsuit/mace/blob/main/mace/calculators/foundations_models.py
+
+    Args:
+        model_name: which model to load. Should be small, medium or large.
+        model_savedir_path: path where to save the pretrained model
+
+    Returns:
+        model: the pre-trained MACE model as a torch.nn.Module
+        node_feats_output_size: size of the node features embedding in the model's output
+    """
+    assert model_name in ["small", "medium", "large"], f"Model name should be small, medium or large. Got {model_name}"
+
+    # from mace library code
+    urls = dict(
+        small=("https://tinyurl.com/46jrkm3v", 256),  # 2023-12-10-mace-128-L0_energy_epoch-249.model
+        medium=("https://tinyurl.com/5yyxdm76", 640),  # 2023-12-03-mace-128-L1_epoch-199.model
+        large=("https://tinyurl.com/5f5yavf3", 1280),  # MACE_MPtrj_2022.9.model
+    )
+    checkpoint_url, node_feats_output_size = (urls.get(model_name, urls["medium"]))
+
+    checkpoint_url_name = "".join(
+        c for c in os.path.basename(checkpoint_url) if c.isalnum() or c in "_"
+    )
+    cached_model_path = os.path.join(model_savedir_path, checkpoint_url_name)
+
+    if not os.path.isfile(cached_model_path):
+        os.makedirs(model_savedir_path, exist_ok=True)
+        # download and save to disk
+        _, http_msg = urllib.request.urlretrieve(checkpoint_url, cached_model_path)
+        if "Content-Type: text/html" in http_msg:
+            raise RuntimeError(f"Model download failed, please check the URL {checkpoint_url}")
+
+    model = torch.load(f=cached_model_path).float()
+
+    return model, node_feats_output_size
 
 
 def get_normalized_irreps_permutation_indices(irreps: o3.Irreps) -> Tuple[o3.Irreps, torch.Tensor]:

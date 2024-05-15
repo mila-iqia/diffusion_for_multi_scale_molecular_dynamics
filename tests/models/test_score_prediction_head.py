@@ -2,7 +2,8 @@ import pytest
 import torch
 from e3nn import o3
 
-from crystal_diffusion.models.score_network import MACEScoreNetwork
+from crystal_diffusion.models.mace_utils import \
+    build_mace_output_nodes_irreducible_representation
 from crystal_diffusion.models.score_prediction_head import (
     MaceEquivariantScorePredictionHead,
     MaceEquivariantScorePredictionHeadParameters)
@@ -33,7 +34,7 @@ class TestMaceEquivariantScorePredictionHead:
     @pytest.fixture()
     def output_node_features_irreps(self, hidden_irreps_string, num_interactions):
         output_node_features_irreps = (
-            MACEScoreNetwork.build_mace_output_nodes_irreducible_representation(hidden_irreps_string, num_interactions))
+            build_mace_output_nodes_irreducible_representation(hidden_irreps_string, num_interactions))
         return output_node_features_irreps
 
     @pytest.fixture()
