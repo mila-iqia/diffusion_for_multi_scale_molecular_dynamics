@@ -39,7 +39,7 @@ class TestMaceEquivariantScorePredictionHead:
 
     @pytest.fixture()
     def parameters(self):
-        return MaceEquivariantScorePredictionHeadParameters(time_embedding_irreps="4x0e")
+        return MaceEquivariantScorePredictionHeadParameters(time_embedding_irreps="4x0e", number_of_layers=2)
 
     @pytest.fixture()
     def prediction_head(self, output_node_features_irreps, parameters):

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import e3nn
 import torch
 from e3nn import o3
 from e3nn.nn import Activation
@@ -80,6 +81,7 @@ class MaceEquivariantScorePredictionHeadParameters(MaceScorePredictionHeadParame
     name: str = 'equivariant'
     time_embedding_irreps: str = "16x0e"
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
+    number_of_layers: int
 
 
 class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
@@ -104,19 +106,30 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         sorted_irreps, self.column_permutation_indices = (
             get_normalized_irreps_permutation_indices(head_input_irreps))
 
-        linear_1 = o3.Linear(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
+        self.head = torch.nn.Sequential()
 
-        # Some sort of tensor product is necessary to mix the scalar time with the vector output.
-        product_layer = o3.TensorSquare(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
+        for _ in range(hyper_params.number_of_layers):
+            linear = o3.Linear(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
+            self.head.append(linear)
 
-        gate = gate_dict[hyper_params.gate]
-        # There must be one activation per L-channel, and that activation must be 'None'  for l !=0.
-        # The first channel is l = 0.
-        number_of_l_channels = len(sorted_irreps)
-        activations = [gate] + (number_of_l_channels - 1) * [None]
-        non_linearity = Activation(irreps_in=sorted_irreps, acts=activations)
-        linear_2 = o3.Linear(irreps_in=sorted_irreps, irreps_out=o3.Irreps("1x1o"))  # the output is a single vector.
-        self.head = torch.nn.Sequential(linear_1, product_layer, non_linearity, linear_2)
+            batch_norm = e3nn.nn.BatchNorm(irreps=sorted_irreps)
+            self.head.append(batch_norm)
+
+            # Some sort of tensor product is necessary to mix the scalar time with the vector output.
+            product_layer = o3.TensorSquare(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
+            self.head.append(product_layer)
+
+            gate = gate_dict[hyper_params.gate]
+            # There must be one activation per L-channel, and that activation must be 'None'  for l !=0.
+            # The first channel is l = 0.
+            number_of_l_channels = len(sorted_irreps)
+            activations = [gate] + (number_of_l_channels - 1) * [None]
+            non_linearity = Activation(irreps_in=sorted_irreps, acts=activations)
+            self.head.append(non_linearity)
+
+        # the output is a single vector.
+        linear_readout = o3.Linear(irreps_in=sorted_irreps, irreps_out=o3.Irreps("1x1o"))
+        self.head.append(linear_readout)
 
     def forward(self, flat_node_features: torch.Tensor, flat_times: torch.Tensor) -> torch.Tensor:
         """Forward method.
