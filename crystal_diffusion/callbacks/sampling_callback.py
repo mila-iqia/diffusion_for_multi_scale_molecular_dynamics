@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 plt.style.use(PLOT_STYLE_PATH)
-LOGGER_FIGSIZE = (0.65 * PLEASANT_FIG_SIZE[0], 0.65 * PLEASANT_FIG_SIZE[1])
 
 
 @dataclass(kw_only=True)
@@ -133,9 +132,10 @@ class DiffusionSamplingCallback(Callback):
         return batch_relative_positions
 
     @staticmethod
-    def _plot_energy_histogram(sample_energies: np.ndarray, validation_dataset_energies: np.array) -> plt.figure:
+    def _plot_energy_histogram(sample_energies: np.ndarray, validation_dataset_energies: np.array,
+                               epoch: int) -> plt.figure:
         """Generate a plot of the energy samples."""
-        fig = plt.figure(figsize=LOGGER_FIGSIZE)
+        fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
 
         minimum_energy = validation_dataset_energies.min()
         maximum_energy = validation_dataset_energies.max()
@@ -147,7 +147,7 @@ class DiffusionSamplingCallback(Callback):
 
         number_of_samples_in_range = np.logical_and(sample_energies >= emin, sample_energies <= emax).sum()
 
-        fig.suptitle('Sampling Energy Distributions')
+        fig.suptitle(f'Sampling Energy Distributions\nEpoch {epoch}')
 
         common_params = dict(density=True, bins=bins, histtype="stepfilled", alpha=0.25)
 
@@ -203,7 +203,7 @@ class DiffusionSamplingCallback(Callback):
         output_path = os.path.join(self.output_directory, f"energies_sample_epoch={trainer.current_epoch}.pt")
         torch.save(torch.from_numpy(sample_energies), output_path)
 
-        fig = self._plot_energy_histogram(sample_energies, self.validation_energies)
+        fig = self._plot_energy_histogram(sample_energies, self.validation_energies, trainer.current_epoch)
 
         ks_distance, p_value = self.compute_kolmogorov_smirnov_distance_and_pvalue(sample_energies,
                                                                                    self.validation_energies)
