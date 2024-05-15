@@ -157,12 +157,14 @@ class TestMLPScoreNetwork(BaseTestScoreNetwork):
 @pytest.mark.parametrize("spatial_dimension", [3])
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
+@pytest.mark.parametrize("r_max", [2.0])
 class TestMACEScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture()
-    def score_network(self, number_of_atoms, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size):
+    def score_network(self, number_of_atoms, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size, r_max):
         hyper_params = MACEScoreNetworkParameters(spatial_dimension=spatial_dimension,
                                                   number_of_atoms=number_of_atoms,
                                                   n_hidden_dimensions=n_hidden_dimensions,
-                                                  hidden_dimensions_size=hidden_dimensions_size)
+                                                  hidden_dimensions_size=hidden_dimensions_size,
+                                                  r_max=r_max)
         return MACEScoreNetwork(hyper_params)

@@ -1,3 +1,5 @@
+import os
+import urllib
 from typing import AnyStr, Dict, Tuple
 
 import torch
@@ -65,7 +67,9 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
                                                             basis_vectors=cell,
                                                             radial_cutoff=radial_cutoff)
     # node features are int corresponding to atom type
-    node_attrs = torch.ones(batch_size * n_atom_per_graph, 1)  # TODO handle different type of atoms
+    # TODO handle different atom types
+    node_attrs = torch.nn.functional.one_hot((torch.ones(batch_size * n_atom_per_graph) * 14).long(),
+                                             num_classes=89).float()
     positions = x['abs_positions'].view(-1, x['abs_positions'].size(-1))  # [batchsize * natoms, spatial dimension]
     # pointer tensor that yields the first node index for each batch - this is a fixed tensor in our case
     ptr = torch.arange(0, n_atom_per_graph * batch_size + 1, step=n_atom_per_graph)  # 0, natoms, 2 * natoms, ...
@@ -81,3 +85,44 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
                       cell=cell
                       )
     return graph_data
+
+
+def get_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch.nn.Module, int]:
+    """Download and load a pre-trained MACE network.
+
+    Based on the mace-torch library.
+    https://github.com/ACEsuit/mace/blob/main/mace/calculators/foundations_models.py
+
+    Args:
+        model_name: which model to load. Should be small, medium or large.
+        model_savedir_path: path where to save the pretrained model
+
+    Returns:
+        model: the pre-trained MACE model as a torch.nn.Module
+        node_feats_output_size: size of the node features embedding in the model's output
+    """
+    assert model_name in ["small", "medium", "large"], f"Model name should be small, medium or large. Got {model_name}"
+
+    # from mace library code
+    urls = dict(
+        small=("https://tinyurl.com/46jrkm3v", 256),  # 2023-12-10-mace-128-L0_energy_epoch-249.model
+        medium=("https://tinyurl.com/5yyxdm76", 640),  # 2023-12-03-mace-128-L1_epoch-199.model
+        large=("https://tinyurl.com/5f5yavf3", 1280),  # MACE_MPtrj_2022.9.model
+    )
+    checkpoint_url, node_feats_output_size = (urls.get(model_name, urls["medium"]))
+
+    checkpoint_url_name = "".join(
+        c for c in os.path.basename(checkpoint_url) if c.isalnum() or c in "_"
+    )
+    cached_model_path = os.path.join(model_savedir_path, checkpoint_url_name)
+
+    if not os.path.isfile(cached_model_path):
+        os.makedirs(model_savedir_path, exist_ok=True)
+        # download and save to disk
+        _, http_msg = urllib.request.urlretrieve(checkpoint_url, cached_model_path)
+        if "Content-Type: text/html" in http_msg:
+            raise RuntimeError(f"Model download failed, please check the URL {checkpoint_url}")
+
+    model = torch.load(f=cached_model_path).float()
+
+    return model, node_feats_output_size

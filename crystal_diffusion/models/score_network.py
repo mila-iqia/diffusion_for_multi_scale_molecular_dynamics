@@ -6,7 +6,7 @@ periodic unit cell.
 """
 import os
 from dataclasses import dataclass, field
-from typing import AnyStr, Dict, List
+from typing import AnyStr, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -17,7 +17,8 @@ from mace.tools import get_atomic_number_table_from_zs
 from mace.tools.torch_geometric.dataloader import Collater
 from torch import nn
 
-from crystal_diffusion.models.mace_utils import input_to_mace
+from crystal_diffusion.models.mace_utils import (get_pretrained_mace,
+                                                 input_to_mace)
 
 # mac fun time
 # for mace, conflict with mac
@@ -221,6 +222,8 @@ class MACEScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for MACE score networks."""
 
     number_of_atoms: int  # the number of atoms in a configuration.
+    use_pretrained: Optional[str] = None  # if None, do not use pre-trained ; else, should be in small, medium or large
+    pretrained_weights_path: str = './'  # path to pre-trained model weights
     r_max: float = 5.0
     num_bessel: int = 8
     num_polynomial_cutoff: int = 5
@@ -230,7 +233,7 @@ class MACEScoreNetworkParameters(ScoreNetworkParameters):
     num_interactions: int = 2
     hidden_irreps: str = "128x0e + 128x1o"  # irreps for hidden node states
     MLP_irreps: str = "16x0e"  # from mace.tools.arg_parser
-    atomic_energies: np.ndarray = field(default_factory=lambda: np.zeros((1,)))
+    atomic_energies: np.ndarray = field(default_factory=lambda: np.zeros((89,)))
     avg_num_neighbors: int = 1  # normalization factor for the message
     correlation: int = 3
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
@@ -254,7 +257,8 @@ class MACEScoreNetwork(ScoreNetwork):
         """
         super(MACEScoreNetwork, self).__init__(hyper_params)
 
-        self.z_table = get_atomic_number_table_from_zs([14])  # TODO more than 1 type & duplicate from dataloader
+        self.z_table = get_atomic_number_table_from_zs(list(range(89)))  # need 89 for pre-trained model
+        # dataloader
         self.r_max = hyper_params.r_max
         self.collate_fn = Collater(follow_batch=[None], exclude_keys=[None])
 
@@ -280,12 +284,16 @@ class MACEScoreNetwork(ScoreNetwork):
 
         self._natoms = hyper_params.number_of_atoms
 
-        self.mace_network = MACE(**mace_config)
-
+        if hyper_params.use_pretrained is None or hyper_params.use_pretrained == 'None':
+            self.mace_network = MACE(**mace_config)
+            hidden_irreps_size = int(hyper_params.hidden_irreps.split('x')[0])  # needs to be the same for 0e as for 1o
+            hidden_irreps_dim = 1 + 3 * ('1o' in hyper_params.hidden_irreps)
+            self.mace_output_size = ((hyper_params.num_interactions - 1) * hidden_irreps_dim + 1) * hidden_irreps_size
+            # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
+        else:
+            self.mace_network, self.mace_output_size = get_pretrained_mace(hyper_params.use_pretrained,
+                                                                           hyper_params.pretrained_weights_path)
         hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
-        hidden_irreps_size = int(hyper_params.hidden_irreps.split('x')[0])  # needs to be the same for 0e as for 1o
-        hidden_irreps_dim = 1 + 3 * ('1o' in hyper_params.hidden_irreps)
-        self.mace_output_size = ((hyper_params.num_interactions - 1) * hidden_irreps_dim + 1) * hidden_irreps_size
         # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
         self.mlp_layers = nn.Sequential()
         # TODO we could add a linear layer to the times before concat with mace_output
