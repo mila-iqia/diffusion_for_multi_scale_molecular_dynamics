@@ -39,11 +39,14 @@ class TestMaceEquivariantScorePredictionHead:
 
     @pytest.fixture()
     def parameters(self):
-        return MaceEquivariantScorePredictionHeadParameters(time_embedding_irreps="4x0e", number_of_layers=2)
+        return MaceEquivariantScorePredictionHeadParameters(time_embedding_irreps="4x0e",
+                                                            number_of_layers=2)
 
     @pytest.fixture()
     def prediction_head(self, output_node_features_irreps, parameters):
-        return MaceEquivariantScorePredictionHead(output_node_features_irreps, parameters)
+        head = MaceEquivariantScorePredictionHead(output_node_features_irreps, parameters)
+        head.eval()
+        return head
 
     @pytest.fixture()
     def times(self, batch_size):
