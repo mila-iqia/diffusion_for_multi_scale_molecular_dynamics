@@ -44,6 +44,7 @@ def get_prediction_head_parameters(name: str):
     elif name == 'equivariant':
         head_parameters = dict(name='equivariant',
                                time_embedding_irreps="16x0e",
+                               number_of_layers=2,
                                gate="silu")
     else:
         raise NotImplementedError("This score network is not implemented")
@@ -101,12 +102,13 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
                   scheduler=scheduler_config,
                   early_stopping=early_stopping_config,
                   model_checkpoint=model_checkpoint_config,
+                  loss_monitoring=dict(number_of_bins=10, sample_every_n_epochs=3),
                   diffusion_sampling=diffusion_sampling_config,
                   logging=['csv', 'tensorboard'])
     return config
 
 
-@pytest.mark.parametrize("architecture, head_name", [('mlp', None), ('mace', 'mlp'), ('mace', 'equivariant')])
+@pytest.mark.parametrize("architecture, head_name", [('mace', 'equivariant'), ('mlp', None), ('mace', 'mlp')])
 class TestTrainDiffusion(TestDiffusionDataBase):
     @pytest.fixture()
     def max_epoch(self):

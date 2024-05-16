@@ -183,7 +183,8 @@ class TestMACEScoreNetworkMLPHead(BaseTestScoreNetwork):
 class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
     @pytest.fixture()
     def prediction_head_parameters(self, spatial_dimension):
-        prediction_head_parameters = MaceEquivariantScorePredictionHeadParameters(spatial_dimension=spatial_dimension)
+        prediction_head_parameters = MaceEquivariantScorePredictionHeadParameters(spatial_dimension=spatial_dimension,
+                                                                                  number_of_layers=2)
         return prediction_head_parameters
 
     @pytest.fixture()

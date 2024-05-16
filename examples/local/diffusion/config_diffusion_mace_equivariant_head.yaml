@@ -38,6 +38,7 @@ model:
       name: equivariant
       time_embedding_irreps: "8x0e"
       gate: "silu"
+      number_of_layers: 3
   noise:
     total_time_steps: 100
     sigma_min: 0.005  # default value
