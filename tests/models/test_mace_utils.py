@@ -4,12 +4,14 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 import torch
+from e3nn import o3
 from mace.data import AtomicData, Configuration
 from mace.tools import get_atomic_number_table_from_zs
 from mace.tools.torch_geometric.dataloader import Collater
 
-from crystal_diffusion.models.mace_utils import (get_pretrained_mace,
-                                                 input_to_mace)
+from crystal_diffusion.models.mace_utils import (
+    get_normalized_irreps_permutation_indices, get_pretrained_mace,
+    input_to_mace)
 from crystal_diffusion.utils.neighbors import _get_positions_from_coordinates
 from tests.fake_data_utils import find_aligning_permutation
 
@@ -154,6 +156,66 @@ class TestInputToMaceRandom(TestInputToMaceChain):
         torch.testing.assert_close(computed_mace_graph['shifts'][edge_permutation_indices], mace_graph['shifts'])
         torch.testing.assert_close(computed_mace_graph['edge_index'][:, edge_permutation_indices],
                                    mace_graph['edge_index'])
+
+
+@pytest.fixture()
+def scrampled_and_expected_irreps(seed):
+
+    torch.manual_seed(seed)
+
+    list_irrep_strings = []
+    for ell in range(4):
+        for parity in ['o', 'e']:
+            list_irrep_strings.append(f'{ell}{parity}')
+
+    n_irreps = len(list_irrep_strings)
+    list_repetitions = torch.randint(0, 4, (n_irreps,))
+
+    list_irreps = []
+    expected_irreps = o3.Irreps('')
+    for irrep_string, repetitions in zip(list_irrep_strings, list_repetitions):
+        if repetitions == 0:
+            continue
+        multiplicities = torch.randint(1, 8, (repetitions,))
+        list_irreps.extend([o3.Irreps(f'{multiplicity}x{irrep_string}') for multiplicity in multiplicities])
+
+        total_multiplicity = int(multiplicities.sum())
+
+        expected_irreps += o3.Irreps(f'{total_multiplicity}x{irrep_string}')
+
+    scrambled_indices = torch.randperm(len(list_irreps))
+    scrambled_irreps = o3.Irreps('')
+    for index in scrambled_indices:
+        scrambled_irreps += list_irreps[index]
+
+    return scrambled_irreps, expected_irreps
+
+
+@pytest.mark.parametrize("seed", [123, 999, 1234234234])
+def test_get_normalized_irreps_permutation_indices(scrampled_and_expected_irreps):
+    scrambled_irreps, expected_irreps = scrampled_and_expected_irreps
+
+    normalized_irreps, column_permutation_indices = get_normalized_irreps_permutation_indices(scrambled_irreps)
+
+    assert expected_irreps == normalized_irreps
+
+    # It is very difficult to determine the column_permutation_indices because there is more than
+    # one valid possibility. Let's check instead that data transforms as it should.
+
+    batch_size = 16
+    scrambled_data = scrambled_irreps.randn(batch_size, -1)
+
+    rot = o3.rand_matrix()
+
+    scrambled_d_matrix = scrambled_irreps.D_from_matrix(rot)
+    scrambled_rotated_data = scrambled_data @ scrambled_d_matrix.T
+    rotate_then_normalize_data = scrambled_rotated_data[:, column_permutation_indices]
+
+    normalized_d_matrix = normalized_irreps.D_from_matrix(rot)
+    normalized_data = scrambled_data[:, column_permutation_indices]
+    normalize_then_rotate_data = normalized_data @ normalized_d_matrix.T
+
+    torch.testing.assert_close(rotate_then_normalize_data, normalize_then_rotate_data)
 
 
 class TestPretrainedMace:

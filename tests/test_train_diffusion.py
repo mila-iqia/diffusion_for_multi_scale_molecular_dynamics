@@ -7,6 +7,7 @@ that the results are correct.
 import glob
 import os
 import re
+from typing import Union
 
 import numpy as np
 import pytest
@@ -34,11 +35,46 @@ class DelayedInterrupt:
             raise KeyboardInterrupt
 
 
-def get_config(number_of_atoms: int, max_epoch: int):
+def get_prediction_head_parameters(name: str):
+    if name == 'mlp':
+        head_parameters = dict(name='mlp',
+                               hidden_dimensions_size=16,
+                               n_hidden_dimensions=3)
+
+    elif name == 'equivariant':
+        head_parameters = dict(name='equivariant',
+                               time_embedding_irreps="16x0e",
+                               gate="silu")
+    else:
+        raise NotImplementedError("This score network is not implemented")
+
+    return head_parameters
+
+
+def get_score_network(architecture: str, head_name: Union[str, None], number_of_atoms: int):
+    if architecture == 'mlp':
+        assert head_name is None, "There are no head options for a MLP score network."
+        score_network = dict(architecture='mlp',
+                             number_of_atoms=number_of_atoms,
+                             n_hidden_dimensions=2,
+                             hidden_dimensions_size=16)
+    elif architecture == 'mace':
+        score_network = dict(architecture='mace',
+                             r_max=3.0,
+                             num_bessel=4,
+                             hidden_irreps="8x0e + 8x1o",
+                             number_of_atoms=number_of_atoms,
+                             radial_MLP=[4, 4, 4],
+                             prediction_head_parameters=get_prediction_head_parameters(head_name))
+    else:
+        raise NotImplementedError("This score network is not implemented")
+    return score_network
+
+
+def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_name: Union[str, None]):
     data_config = dict(batch_size=4, num_workers=0, max_atom=number_of_atoms)
 
-    model_config = dict(score_network={'n_hidden_dimensions': 2,
-                                       'hidden_dimensions_size': 16},
+    model_config = dict(score_network=get_score_network(architecture, head_name, number_of_atoms),
                         noise={'total_time_steps': 10})
 
     optimizer_config = dict(name='adam', learning_rate=0.001)
@@ -49,7 +85,7 @@ def get_config(number_of_atoms: int, max_epoch: int):
                      'number_of_atoms': number_of_atoms,
                      'number_of_samples': 4,
                      'sample_every_n_epochs': 1,
-                     'cell_dimensions': [1.23, 4.56, 7.89]}
+                     'cell_dimensions': [10., 10., 10.]}
 
     early_stopping_config = dict(metric='validation_epoch_loss', mode='min', patience=max_epoch)
     model_checkpoint_config = dict(monitor='validation_epoch_loss', mode='min')
@@ -70,14 +106,15 @@ def get_config(number_of_atoms: int, max_epoch: int):
     return config
 
 
+@pytest.mark.parametrize("architecture, head_name", [('mlp', None), ('mace', 'mlp'), ('mace', 'equivariant')])
 class TestTrainDiffusion(TestDiffusionDataBase):
     @pytest.fixture()
     def max_epoch(self):
         return 5
 
     @pytest.fixture()
-    def config(self, number_of_atoms, max_epoch):
-        return get_config(number_of_atoms, max_epoch=max_epoch)
+    def config(self, number_of_atoms, max_epoch, architecture, head_name):
+        return get_config(number_of_atoms, max_epoch=max_epoch, architecture=architecture, head_name=head_name)
 
     @pytest.fixture()
     def all_paths(self, paths, tmpdir, config):

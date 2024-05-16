@@ -10,15 +10,18 @@ from typing import AnyStr, Dict, List, Optional
 
 import numpy as np
 import torch
-from e3nn import o3  # e3nn is packaged with mace-torch
+from e3nn import o3
 from mace.modules import gate_dict, interaction_classes
 from mace.modules.models import MACE
 from mace.tools import get_atomic_number_table_from_zs
 from mace.tools.torch_geometric.dataloader import Collater
 from torch import nn
 
-from crystal_diffusion.models.mace_utils import (get_pretrained_mace,
-                                                 input_to_mace)
+from crystal_diffusion.models.mace_utils import (
+    build_mace_output_nodes_irreducible_representation, get_pretrained_mace,
+    get_pretrained_mace_output_node_features_irreps, input_to_mace)
+from crystal_diffusion.models.score_prediction_head import (
+    MaceScorePredictionHeadParameters, instantiate_mace_prediction_head)
 
 # mac fun time
 # for mace, conflict with mac
@@ -30,7 +33,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 @dataclass(kw_only=True)
 class ScoreNetworkParameters:
     """Base Hyper-parameters for score networks."""
-
+    architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
 
 
@@ -153,7 +156,7 @@ class ScoreNetwork(torch.nn.Module):
 @dataclass(kw_only=True)
 class MLPScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for MLP score networks."""
-
+    architecture: str = 'mlp'
     number_of_atoms: int  # the number of atoms in a configuration.
     n_hidden_dimensions: int  # the number of hidden layers.
     hidden_dimensions_size: int  # the dimensions of the hidden layers.
@@ -220,7 +223,7 @@ class MLPScoreNetwork(ScoreNetwork):
 @dataclass(kw_only=True)
 class MACEScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for MACE score networks."""
-
+    architecture: str = 'mace'
     number_of_atoms: int  # the number of atoms in a configuration.
     use_pretrained: Optional[str] = None  # if None, do not use pre-trained ; else, should be in small, medium or large
     pretrained_weights_path: str = './'  # path to pre-trained model weights
@@ -239,8 +242,7 @@ class MACEScoreNetworkParameters(ScoreNetworkParameters):
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
     radial_MLP: List[int] = field(default_factory=lambda: [64, 64, 64])  # "width of the radial MLP"
     radial_type: str = "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
-    n_hidden_dimensions: int  # the number of hidden layers for the final MLP - should be small
-    hidden_dimensions_size: int  # the dimensions of the hidden layers - should be small
+    prediction_head_parameters: MaceScorePredictionHeadParameters
 
 
 class MACEScoreNetwork(ScoreNetwork):
@@ -286,26 +288,18 @@ class MACEScoreNetwork(ScoreNetwork):
 
         if hyper_params.use_pretrained is None or hyper_params.use_pretrained == 'None':
             self.mace_network = MACE(**mace_config)
-            hidden_irreps_size = int(hyper_params.hidden_irreps.split('x')[0])  # needs to be the same for 0e as for 1o
-            hidden_irreps_dim = 1 + 3 * ('1o' in hyper_params.hidden_irreps)
-            self.mace_output_size = ((hyper_params.num_interactions - 1) * hidden_irreps_dim + 1) * hidden_irreps_size
-            # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
+            output_node_features_irreps = (
+                build_mace_output_nodes_irreducible_representation(hyper_params.hidden_irreps,
+                                                                   hyper_params.num_interactions))
         else:
-            self.mace_network, self.mace_output_size = get_pretrained_mace(hyper_params.use_pretrained,
-                                                                           hyper_params.pretrained_weights_path)
-        hidden_dimensions = [hyper_params.hidden_dimensions_size] * hyper_params.n_hidden_dimensions
-        # mace_output_size is 640 by default: ((2 - 1) * 4 + 1) * 128 = 5 * 128 = 640
-        self.mlp_layers = nn.Sequential()
-        # TODO we could add a linear layer to the times before concat with mace_output
-        input_dimensions = [self.mace_output_size + 1] + hidden_dimensions  # add 1 for the times
-        output_dimensions = hidden_dimensions + [self.spatial_dimension]
-        add_relus = len(input_dimensions) * [True]
-        add_relus[-1] = False
+            output_node_features_irreps = get_pretrained_mace_output_node_features_irreps(hyper_params.use_pretrained)
+            self.mace_network, mace_output_size = get_pretrained_mace(hyper_params.use_pretrained,
+                                                                      hyper_params.pretrained_weights_path)
+            assert output_node_features_irreps.dim == mace_output_size, "Something is wrong with pretrained dimensions."
 
-        for input_dimension, output_dimension, add_relu in zip(input_dimensions, output_dimensions, add_relus):
-            self.mlp_layers.append(nn.Linear(input_dimension, output_dimension))
-            if add_relu:
-                self.mlp_layers.append(nn.ReLU())
+        self.mace_output_size = output_node_features_irreps.dim
+        self.prediction_head = instantiate_mace_prediction_head(output_node_features_irreps,
+                                                                hyper_params.prediction_head_parameters)
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MACEScoreNetwork, self)._check_batch(batch)
@@ -330,12 +324,18 @@ class MACEScoreNetwork(ScoreNetwork):
         batch['abs_positions'] = torch.bmm(positions, batch[self.unit_cell_key])  # positions in Angstrom
         graph_input = input_to_mace(batch, self.unit_cell_key, radial_cutoff=self.r_max)
         mace_output = self.mace_network(graph_input, compute_force=False, training=self.training)
-        # we want the node features but they are organized as (batchsize * natoms, output_size) because
-        # torch_geometric puts all the graphs in a batch in a single large graph
-        mace_output = mace_output['node_feats'].view(-1, self._natoms, self.mace_output_size)
+
+        # The node features are organized as (batchsize * natoms, output_size) in the mace output because
+        # torch_geometric puts all the graphs in a batch in a single large graph.
+        flat_node_features = mace_output['node_feats']
+
+        # The times have a single value per batch element; we repeat the array so that there is one value per atom,
+        # with this value the same for all atoms belonging to the same graph.
         times = batch[self.timestep_key].to(positions.device)  # shape [batch_size, 1]
-        times = times.unsqueeze(1).repeat(1, self._natoms, 1)  # shape [batch_size, natoms, 1]
-        mlp_input = torch.cat([mace_output, times], dim=-1)
-        # pass through the final MLP layers
-        output = self.mlp_layers(mlp_input)
-        return output
+        flat_times = times[graph_input.batch]  # shape [batch_size * natoms, 1]
+        flat_scores = self.prediction_head(flat_node_features, flat_times)  # shape [batch_size * natoms, spatial_dim]
+
+        # Reshape the scores to have an explicit batch dimension
+        scores = flat_scores.reshape(-1, self._natoms, self.spatial_dimension)
+
+        return scores

@@ -3,6 +3,7 @@ import urllib
 from typing import AnyStr, Dict, Tuple
 
 import torch
+from e3nn import o3
 from torch_geometric.data import Data
 
 from crystal_diffusion.utils.neighbors import (
@@ -87,6 +88,58 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
     return graph_data
 
 
+def build_mace_output_nodes_irreducible_representation(hidden_irreps_string: str, num_interactions: int) -> o3.Irreps:
+    """Build the mace output node irreps.
+
+    Args:
+        hidden_irreps_string : the hidden representation irreducible string.
+
+    Returns:
+        output_node_irreps: the irreducible representation of the output node features.
+    """
+    # By inspection of the MACE code, ie mace.modules.models.MACE, we can see that:
+    #   - in the __init__ method, the irrep of the output is the 'number of interactions' times
+    #     the hidden_irrep, except for the last which is just the scalar part.
+    #   - there's an assumption in the MACE code that there will always be a scalar representation (0e).
+    hidden_irreps = o3.Irreps(hidden_irreps_string)
+
+    # E3NN irreps gymnastics is a bit fragile. We have to build the scalar representation explicitly
+    scalar_hidden_irreps = o3.Irreps(f"{hidden_irreps[0].mul}x{hidden_irreps[0].ir}")
+
+    total_irreps = o3.Irreps('')  # An empty irrep to start the "sum", which is really a concatenation
+    for _ in range(num_interactions - 1):
+        total_irreps += hidden_irreps
+
+    total_irreps += scalar_hidden_irreps
+
+    return total_irreps
+
+
+def get_pretrained_mace_output_node_features_irreps(model_name: str) -> o3.Irreps:
+    """Get pretrained MACE output node features irreps.
+
+    Args:
+        model_name : name of the pretrained model.
+
+    Returns:
+        Irreps: the irreducible representation of the concatenated output nodes.
+    """
+    match model_name:
+        case "small":
+            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e",
+                                                                        num_interactions=2)
+        case "medium":
+            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e + 128x1o",
+                                                                        num_interactions=2)
+        case "large":
+            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e + 128x1o + 128x2e",
+                                                                        num_interactions=2)
+        case _:
+            raise ValueError(f"Model name should be small, medium or large. Got {model_name}")
+
+    return irreps
+
+
 def get_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch.nn.Module, int]:
     """Download and load a pre-trained MACE network.
 
@@ -126,3 +179,31 @@ def get_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch
     model = torch.load(f=cached_model_path).float()
 
     return model, node_feats_output_size
+
+
+def get_normalized_irreps_permutation_indices(irreps: o3.Irreps) -> Tuple[o3.Irreps, torch.Tensor]:
+    """Get normalized irreps and permutation indices.
+
+    Args:
+        irreps : Irreducible representation corresponding to the entries in data.
+
+    Returns:
+        normalized_irreps : sorted and simplified irreps.
+        column_permutation_indices: indices that can rearrange the columns of a data tensor to go from irreps to
+            normalized_irreps.
+    """
+    sorted_output = irreps.sort()
+    irreps_permutation_indices = sorted_output.inv
+
+    column_permutation_indices = []
+
+    for idx in irreps_permutation_indices:
+        slc = irreps.slices()[idx]
+        irrep_indices = list(range(slc.start, slc.stop))
+        column_permutation_indices.extend(irrep_indices)
+
+    column_permutation_indices = torch.tensor(column_permutation_indices)
+
+    sorted_irreps = sorted_output.irreps.simplify()
+
+    return sorted_irreps, column_permutation_indices

@@ -43,7 +43,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
     This lightning model can train a score network predict the noise for relative positions.
     """
 
-    def __init__(self, hyper_params: PositionDiffusionParameters, score_network_architecture: str = 'mlp'):
+    def __init__(self, hyper_params: PositionDiffusionParameters):
         """Init method.
 
         This initializes the class.
@@ -54,12 +54,13 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.save_hyperparameters(logger=False)  # It is not the responsibility of this class to log its parameters.
 
         # we will model sigma x score
-        if score_network_architecture == 'mlp':
+        architecture = hyper_params.score_network_parameters.architecture
+        if architecture == 'mlp':
             score_network = MLPScoreNetwork
-        elif score_network_architecture == 'mace':
+        elif architecture == 'mace':
             score_network = MACEScoreNetwork
         else:
-            raise NotImplementedError(f'Architecture {score_network_architecture} is not implemented.')
+            raise NotImplementedError(f'Architecture {architecture} is not implemented.')
 
         self.sigma_normalized_score_network = score_network(
             hyper_params.score_network_parameters

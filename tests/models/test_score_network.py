@@ -7,6 +7,9 @@ from crystal_diffusion.models.score_network import (MACEScoreNetwork,
                                                     MLPScoreNetworkParameters,
                                                     ScoreNetwork,
                                                     ScoreNetworkParameters)
+from crystal_diffusion.models.score_prediction_head import (
+    MaceEquivariantScorePredictionHeadParameters,
+    MaceMLPScorePredictionHeadParameters)
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
@@ -18,7 +21,8 @@ class TestScoreNetworkCheck:
 
     @pytest.fixture()
     def base_score_network(self, spatial_dimension):
-        return ScoreNetwork(ScoreNetworkParameters(spatial_dimension=spatial_dimension))
+        return ScoreNetwork(ScoreNetworkParameters(architecture='dummy',
+                                                   spatial_dimension=spatial_dimension))
 
     @pytest.fixture()
     def good_batch(self, spatial_dimension):
@@ -157,14 +161,35 @@ class TestMLPScoreNetwork(BaseTestScoreNetwork):
 @pytest.mark.parametrize("spatial_dimension", [3])
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
-@pytest.mark.parametrize("r_max", [2.0])
-class TestMACEScoreNetwork(BaseTestScoreNetwork):
+class TestMACEScoreNetworkMLPHead(BaseTestScoreNetwork):
 
     @pytest.fixture()
-    def score_network(self, number_of_atoms, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size, r_max):
+    def prediction_head_parameters(self, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size):
+        prediction_head_parameters = MaceMLPScorePredictionHeadParameters(spatial_dimension=spatial_dimension,
+                                                                          hidden_dimensions_size=hidden_dimensions_size,
+                                                                          n_hidden_dimensions=n_hidden_dimensions)
+        return prediction_head_parameters
+
+    @pytest.fixture()
+    def score_network(self, number_of_atoms, spatial_dimension, prediction_head_parameters):
         hyper_params = MACEScoreNetworkParameters(spatial_dimension=spatial_dimension,
                                                   number_of_atoms=number_of_atoms,
-                                                  n_hidden_dimensions=n_hidden_dimensions,
-                                                  hidden_dimensions_size=hidden_dimensions_size,
-                                                  r_max=r_max)
+                                                  r_max=3.0,
+                                                  prediction_head_parameters=prediction_head_parameters)
+        return MACEScoreNetwork(hyper_params)
+
+
+@pytest.mark.parametrize("spatial_dimension", [3])
+class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
+    @pytest.fixture()
+    def prediction_head_parameters(self, spatial_dimension):
+        prediction_head_parameters = MaceEquivariantScorePredictionHeadParameters(spatial_dimension=spatial_dimension)
+        return prediction_head_parameters
+
+    @pytest.fixture()
+    def score_network(self, number_of_atoms, spatial_dimension, prediction_head_parameters):
+        hyper_params = MACEScoreNetworkParameters(spatial_dimension=spatial_dimension,
+                                                  number_of_atoms=number_of_atoms,
+                                                  r_max=3.0,
+                                                  prediction_head_parameters=prediction_head_parameters)
         return MACEScoreNetwork(hyper_params)
