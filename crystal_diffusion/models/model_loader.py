@@ -60,7 +60,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
 
 def extract_score_network_parameters(score_network_dictionary: Dict[AnyStr, Any],
                                      global_parameters: Dict[AnyStr, Any]) -> ScoreNetworkParameters:
-    """Extract teh score network parameters.
+    """Extract the score network parameters.
 
     Args:
         score_network_dictionary : input parameters that describe the score network.
