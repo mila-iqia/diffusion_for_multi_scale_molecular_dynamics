@@ -54,3 +54,25 @@ class SampleTrajectory:
             sample_trajectory = SampleTrajectory()
             sample_trajectory.data = torch.load(fd)
         return sample_trajectory
+
+
+class NoOpSampleTrajectory(SampleTrajectory):
+    """A sample trajectory object that performs no operation."""
+
+    def record_unit_cell(self, unit_cell: torch.Tensor):
+        """No Op."""
+        return
+
+    def record_predictor_step(self, i_index: int, time: float, sigma: float,
+                              x_i: torch.Tensor, x_im1: torch.Tensor, scores: torch.Tensor):
+        """No Op."""
+        return
+
+    def record_corrector_step(self, i_index: int, time: float, sigma: float,
+                              x_i: torch.Tensor, corrected_x_i: torch.Tensor, scores: torch.Tensor):
+        """No Op."""
+        return
+
+    def write_to_pickle(self, path_to_pickle: str):
+        """No Op."""
+        return
