@@ -121,7 +121,8 @@ class DiffusionSamplingCallback(Callback):
         sampler_parameters = dict(noise_parameters=self.noise_parameters,
                                   number_of_corrector_steps=self.sampling_parameters.number_of_corrector_steps,
                                   number_of_atoms=self.sampling_parameters.number_of_atoms,
-                                  spatial_dimension=self.sampling_parameters.spatial_dimension)
+                                  spatial_dimension=self.sampling_parameters.spatial_dimension,
+                                  record_samples=self.sampling_parameters.record_samples)
 
         pc_sampler = AnnealedLangevinDynamicsSampler(sigma_normalized_score_network=sigma_normalized_score_network,
                                                      **sampler_parameters)
@@ -212,7 +213,7 @@ class DiffusionSamplingCallback(Callback):
         torch.save(torch.from_numpy(sample_energies), energy_output_path)
 
         if self.sampling_parameters.record_samples:
-            sample_output_path = os.path.join(self.energy_sample_output_directory,
+            sample_output_path = os.path.join(self.position_sample_output_directory,
                                               f"diffusion_position_sample_epoch={trainer.current_epoch}.pt")
             pc_sampler.sample_trajectory_recorder.write_to_pickle(sample_output_path)
 
