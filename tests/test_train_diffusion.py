@@ -81,12 +81,13 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
     optimizer_config = dict(name='adam', learning_rate=0.001)
     scheduler_config = dict(name='ReduceLROnPlateau', factor=0.6, patience=2)
 
-    sampling_dict = {'spatial_dimension': 3,
-                     'number_of_corrector_steps': 1,
-                     'number_of_atoms': number_of_atoms,
-                     'number_of_samples': 4,
-                     'sample_every_n_epochs': 1,
-                     'cell_dimensions': [10., 10., 10.]}
+    sampling_dict = dict(spatial_dimension=3,
+                         number_of_corrector_steps=1,
+                         number_of_atoms=number_of_atoms,
+                         number_of_samples=4,
+                         sample_every_n_epochs=1,
+                         record_samples=True,
+                         cell_dimensions=[10., 10., 10.])
 
     early_stopping_config = dict(metric='validation_epoch_loss', mode='min', patience=max_epoch)
     model_checkpoint_config = dict(monitor='validation_epoch_loss', mode='min')
