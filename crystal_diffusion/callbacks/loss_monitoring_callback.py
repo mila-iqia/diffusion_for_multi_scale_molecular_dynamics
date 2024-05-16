@@ -16,8 +16,10 @@ def instantiate_loss_monitoring_callback(callback_params: Dict[AnyStr, Any],
     """Instantiate the Loss monitoring callback."""
     number_of_bins = callback_params['number_of_bins']
     sample_every_n_epochs = callback_params['sample_every_n_epochs']
+    spatial_dimension = callback_params.get('spatial_dimension', 3)
     loss_monitoring_callback = LossMonitoringCallback(number_of_bins=number_of_bins,
-                                                      sample_every_n_epochs=sample_every_n_epochs)
+                                                      sample_every_n_epochs=sample_every_n_epochs,
+                                                      spatial_dimension=spatial_dimension)
     return dict(loss_monitoring_callback=loss_monitoring_callback)
 
 
