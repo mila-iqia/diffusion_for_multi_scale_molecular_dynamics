@@ -9,6 +9,8 @@ from crystal_diffusion.samplers.noisy_position_sampler import \
     map_positions_to_unit_cell
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+from crystal_diffusion.utils.sample_trajectory import (NoOpSampleTrajectory,
+                                                       SampleTrajectory)
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +107,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
                  number_of_atoms: int,
                  spatial_dimension: int,
                  sigma_normalized_score_network: ScoreNetwork,
+                 record_samples: bool = False
                  ):
         """Init method."""
         super().__init__(number_of_discretization_steps=noise_parameters.total_time_steps,
@@ -115,6 +118,11 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = number_of_atoms
         self.sigma_normalized_score_network = sigma_normalized_score_network
+
+        if record_samples:
+            self.sample_trajectory_recorder = SampleTrajectory()
+        else:
+            self.sample_trajectory_recorder = NoOpSampleTrajectory()
 
     def initialize(self, number_of_samples: int):
         """This method must initialize the samples from the fully noised distribution."""
@@ -171,6 +179,10 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, unit_cell)
         x_im1 = x_i + g2_i / sigma_i * sigma_score_i + g_i * z
 
+        self.sample_trajectory_recorder.record_unit_cell(unit_cell=unit_cell)
+        self.sample_trajectory_recorder.record_predictor_step(i_index=index_i, time=t_i, sigma=sigma_i,
+                                                              x_i=x_i, x_im1=x_im1, scores=sigma_score_i)
+
         return x_im1
 
     def corrector_step(self, x_i: torch.Tensor, index_i: int, unit_cell: torch.Tensor) -> torch.Tensor:
@@ -207,5 +219,9 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, unit_cell)
 
         corrected_x_i = x_i + eps_i / sigma_i * sigma_score_i + sqrt_2eps_i * z
+
+        self.sample_trajectory_recorder.record_corrector_step(i_index=index_i, time=t_i,
+                                                              sigma=sigma_i, x_i=x_i, corrected_x_i=corrected_x_i,
+                                                              scores=sigma_score_i)
 
         return corrected_x_i

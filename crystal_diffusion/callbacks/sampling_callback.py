@@ -33,6 +33,7 @@ class SamplingParameters:
     number_of_samples: int
     sample_every_n_epochs: int = 1  # Sampling is expensive; control frequency
     cell_dimensions: List[float]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
+    record_samples: bool = False  # should the predictor and corrector steps be recorded to a file
 
 
 def instantiate_diffusion_sampling_callback(callback_params: Dict[AnyStr, Any],
@@ -42,12 +43,9 @@ def instantiate_diffusion_sampling_callback(callback_params: Dict[AnyStr, Any],
     noise_parameters = NoiseParameters(**callback_params['noise'])
     sampling_parameters = SamplingParameters(**callback_params['sampling'])
 
-    sample_output_directory = os.path.join(output_directory, 'energy_samples')
-    Path(sample_output_directory).mkdir(parents=True, exist_ok=True)
-
     diffusion_sampling_callback = DiffusionSamplingCallback(noise_parameters=noise_parameters,
                                                             sampling_parameters=sampling_parameters,
-                                                            output_directory=sample_output_directory)
+                                                            output_directory=output_directory)
 
     return dict(diffusion_sampling=diffusion_sampling_callback)
 
@@ -62,6 +60,13 @@ class DiffusionSamplingCallback(Callback):
         self.noise_parameters = noise_parameters
         self.sampling_parameters = sampling_parameters
         self.output_directory = output_directory
+
+        self.energy_sample_output_directory = os.path.join(output_directory, 'energy_samples')
+        Path(self.energy_sample_output_directory).mkdir(parents=True, exist_ok=True)
+
+        if self.sampling_parameters.record_samples:
+            self.position_sample_output_directory = os.path.join(output_directory, 'diffusion_position_samples')
+            Path(self.position_sample_output_directory).mkdir(parents=True, exist_ok=True)
 
         self._initialize_validation_energies_array()
 
@@ -108,7 +113,7 @@ class DiffusionSamplingCallback(Callback):
         # data does not change, we will avoid having this in memory at all times.
         self.validation_energies = np.array([])
 
-    def _draw_sample_of_relative_positions(self, pl_model: LightningModule) -> np.ndarray:
+    def _create_sampler(self, pl_model: LightningModule) -> Tuple[AnnealedLangevinDynamicsSampler, torch.Tensor]:
         """Draw a sample from the generative model."""
         logger.info("Creating sampler")
         sigma_normalized_score_network = pl_model.sigma_normalized_score_network
@@ -116,20 +121,16 @@ class DiffusionSamplingCallback(Callback):
         sampler_parameters = dict(noise_parameters=self.noise_parameters,
                                   number_of_corrector_steps=self.sampling_parameters.number_of_corrector_steps,
                                   number_of_atoms=self.sampling_parameters.number_of_atoms,
-                                  spatial_dimension=self.sampling_parameters.spatial_dimension)
+                                  spatial_dimension=self.sampling_parameters.spatial_dimension,
+                                  record_samples=self.sampling_parameters.record_samples)
 
         pc_sampler = AnnealedLangevinDynamicsSampler(sigma_normalized_score_network=sigma_normalized_score_network,
                                                      **sampler_parameters)
-        logger.info("Draw samples")
         # TODO we will have to sample unit cell dimensions at some points instead of working with fixed size
         unit_cell = torch.diag(torch.Tensor(self.sampling_parameters.cell_dimensions)).to(pl_model.device)
         unit_cell = unit_cell.unsqueeze(0).repeat(self.sampling_parameters.number_of_samples, 1, 1)
 
-        samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device,
-                                    unit_cell=unit_cell)
-
-        batch_relative_positions = samples.cpu().numpy()
-        return batch_relative_positions
+        return pc_sampler, unit_cell
 
     @staticmethod
     def _plot_energy_histogram(sample_energies: np.ndarray, validation_dataset_energies: np.array,
@@ -197,14 +198,26 @@ class DiffusionSamplingCallback(Callback):
         if not self._compute_results_at_this_epoch(trainer.current_epoch):
             return
 
-        batch_relative_positions = self._draw_sample_of_relative_positions(pl_model)
+        pc_sampler, unit_cell = self._create_sampler(pl_model)
+
+        logger.info("Draw samples")
+        samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device,
+                                    unit_cell=unit_cell)
+
+        batch_relative_positions = samples.cpu().numpy()
+
         sample_energies = self._compute_lammps_energies(batch_relative_positions)
 
-        output_path = os.path.join(self.output_directory, f"energies_sample_epoch={trainer.current_epoch}.pt")
-        torch.save(torch.from_numpy(sample_energies), output_path)
+        energy_output_path = os.path.join(self.energy_sample_output_directory,
+                                          f"energies_sample_epoch={trainer.current_epoch}.pt")
+        torch.save(torch.from_numpy(sample_energies), energy_output_path)
+
+        if self.sampling_parameters.record_samples:
+            sample_output_path = os.path.join(self.position_sample_output_directory,
+                                              f"diffusion_position_sample_epoch={trainer.current_epoch}.pt")
+            pc_sampler.sample_trajectory_recorder.write_to_pickle(sample_output_path)
 
         fig = self._plot_energy_histogram(sample_energies, self.validation_energies, trainer.current_epoch)
-
         ks_distance, p_value = self.compute_kolmogorov_smirnov_distance_and_pvalue(sample_energies,
                                                                                    self.validation_energies)
 
