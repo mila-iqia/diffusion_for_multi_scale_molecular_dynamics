@@ -14,4 +14,6 @@ CARTESIAN_POSITIONS = "cartesian_positions"   # position in real cartesian space
 RELATIVE_COORDINATES = "relative_coordinates"   # coordinates in the unit cell basis
 
 NOISY_RELATIVE_COORDINATES = "noisy_relative_coordinates"   # relative coordinates perturbed by diffusion noise
+NOISY_CARTESIAN_POSITIONS = "noisy_cartesian_positions"   # cartesian positions perturbed by diffusion noise
 TIME = "time"  # diffusion time
+UNIT_CELL = "unit_cell"  # unit cell definition

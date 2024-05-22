@@ -12,7 +12,8 @@ from crystal_diffusion.models.scheduler import (SchedulerParameters,
 from crystal_diffusion.models.score_network import (MACEScoreNetwork,
                                                     MLPScoreNetwork,
                                                     ScoreNetworkParameters)
-from crystal_diffusion.namespace import RELATIVE_COORDINATES
+from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES,
+                                         RELATIVE_COORDINATES, TIME, UNIT_CELL)
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 from crystal_diffusion.samplers.variance_sampler import (
@@ -233,17 +234,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             predicted normalized score: sigma times predicted score, ie, sigma times S_theta(xt, t).
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
         """
-        pos_key = self.sigma_normalized_score_network.position_key
-        time_key = self.sigma_normalized_score_network.timestep_key
-        unit_cell_key = self.sigma_normalized_score_network.unit_cell_key
-        augmented_batch = {
-            pos_key: noisy_relative_coordinates,
-            time_key: time.reshape(-1, 1),
-            unit_cell_key: unit_cell,
-        }
-        predicted_normalized_scores = self.sigma_normalized_score_network(
-            augmented_batch
-        )
+        augmented_batch = {NOISY_RELATIVE_COORDINATES: noisy_relative_coordinates,
+                           TIME: time.reshape(-1, 1),
+                           UNIT_CELL: unit_cell}
+        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
         return predicted_normalized_scores
 
     def training_step(self, batch, batch_idx):

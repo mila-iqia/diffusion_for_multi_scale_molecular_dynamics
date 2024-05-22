@@ -22,6 +22,9 @@ from crystal_diffusion.models.mace_utils import (
     get_pretrained_mace_output_node_features_irreps, input_to_mace)
 from crystal_diffusion.models.score_prediction_head import (
     MaceScorePredictionHeadParameters, instantiate_mace_prediction_head)
+from crystal_diffusion.namespace import (NOISY_CARTESIAN_POSITIONS,
+                                         NOISY_RELATIVE_COORDINATES, TIME,
+                                         UNIT_CELL)
 
 # mac fun time
 # for mace, conflict with mac
@@ -44,10 +47,6 @@ class ScoreNetwork(torch.nn.Module):
     in order to be easily interchangeable (ie, polymorphic).
     """
 
-    position_key = "noisy_relative_positions"  # unitless positions in the lattice coordinate basis
-    timestep_key = "time"
-    unit_cell_key = "unit_cell"  # unit cell definition in Angstrom
-
     def __init__(self, hyper_params: ScoreNetworkParameters):
         """__init__.
 
@@ -65,8 +64,8 @@ class ScoreNetwork(torch.nn.Module):
         those inputs have the expected dimensions.
 
         It is expected that:
-            - the positions are present and of shape [batch_size, number of atoms, spatial_dimension]
-            - all the components of positions  will be in [0, 1)
+            - the relative coordinates are present and of shape [batch_size, number of atoms, spatial_dimension]
+            - all the components of relative coordinates will be in [0, 1)
             - the time steps are present and of shape [batch_size, 1]
             - the time steps are in range [0, 1].
 
@@ -78,26 +77,24 @@ class ScoreNetwork(torch.nn.Module):
         Returns:
             None.
         """
-        assert (
-            self.position_key in batch
-        ), f"The positions should be present in the batch dictionary with key '{self.position_key}'"
+        assert NOISY_RELATIVE_COORDINATES in batch, \
+            (f"The relative coordinates should be present in "
+             f"the batch dictionary with key '{NOISY_RELATIVE_COORDINATES}'")
 
-        positions = batch[self.position_key]
-        position_shape = positions.shape
-        batch_size = position_shape[0]
+        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates_shape = relative_coordinates.shape
+        batch_size = relative_coordinates_shape[0]
         assert (
-            len(position_shape) == 3 and position_shape[2] == self.spatial_dimension
-        ), "The positions are expected to be in a tensor of shape [batch_size, number_of_atoms, 3]"
+            len(relative_coordinates_shape) == 3 and relative_coordinates_shape[2] == self.spatial_dimension
+        ), "The relative coordinates are expected to be in a tensor of shape [batch_size, number_of_atoms, 3]"
 
         assert torch.logical_and(
-            positions >= 0.0, positions < 1.0
-        ).all(), "All components of the positions are expected to be in [0,1)."
+            relative_coordinates >= 0.0, relative_coordinates < 1.0
+        ).all(), "All components of the relative coordinates are expected to be in [0,1)."
 
-        assert (
-            self.timestep_key in batch
-        ), f"The time step should be present in the batch dictionary with key '{self.timestep_key}'"
+        assert TIME in batch, f"The time step should be present in the batch dictionary with key '{TIME}'"
 
-        times = batch[self.timestep_key]
+        times = batch[TIME]
         time_shape = times.shape
         assert (
             time_shape[0] == batch_size
@@ -110,11 +107,9 @@ class ScoreNetwork(torch.nn.Module):
             times >= 0.0, times <= 1.0
         ).all(), "The times are expected to be normalized between 0 and 1."
 
-        assert (
-            self.unit_cell_key in batch
-        ), f"The unit cell should be present in the batch dictionary with key '{self.unit_cell_key}'"
+        assert UNIT_CELL in batch, f"The unit cell should be present in the batch dictionary with key '{UNIT_CELL}'"
 
-        unit_cell = batch[self.unit_cell_key]
+        unit_cell = batch[UNIT_CELL]
         unit_cell_shape = unit_cell.shape
         assert (
             unit_cell_shape[0] == batch_size
@@ -195,7 +190,7 @@ class MLPScoreNetwork(ScoreNetwork):
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MLPScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[self.position_key].shape[1]
+        number_of_atoms = batch[NOISY_RELATIVE_COORDINATES].shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
@@ -212,11 +207,13 @@ class MLPScoreNetwork(ScoreNetwork):
         Returns:
             computed_scores : the scores computed by the model.
         """
-        positions = batch[self.position_key]  # shape [batch_size, number_of_atoms, spatial_dimension]
-        times = batch[self.timestep_key].to(positions.device)  # shape [batch_size, 1]
-        input = torch.cat([self.flatten(positions), times], dim=1)
+        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        # shape [batch_size, number_of_atoms, spatial_dimension]
 
-        output = self.mlp_layers(input).reshape(positions.shape)
+        times = batch[TIME].to(relative_coordinates.device)  # shape [batch_size, 1]
+        input = torch.cat([self.flatten(relative_coordinates), times], dim=1)
+
+        output = self.mlp_layers(input).reshape(relative_coordinates.shape)
         return output
 
 
@@ -303,7 +300,7 @@ class MACEScoreNetwork(ScoreNetwork):
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MACEScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[self.position_key].shape[1]
+        number_of_atoms = batch[NOISY_RELATIVE_COORDINATES].shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
@@ -320,9 +317,9 @@ class MACEScoreNetwork(ScoreNetwork):
         Returns:
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
-        positions = batch[self.position_key]
-        batch['abs_positions'] = torch.bmm(positions, batch[self.unit_cell_key])  # positions in Angstrom
-        graph_input = input_to_mace(batch, self.unit_cell_key, radial_cutoff=self.r_max)
+        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        batch[NOISY_CARTESIAN_POSITIONS] = torch.bmm(relative_coordinates, batch[UNIT_CELL])  # positions in Angstrom
+        graph_input = input_to_mace(batch, radial_cutoff=self.r_max)
         mace_output = self.mace_network(graph_input, compute_force=False, training=self.training)
 
         # The node features are organized as (batchsize * natoms, output_size) in the mace output because
@@ -331,7 +328,7 @@ class MACEScoreNetwork(ScoreNetwork):
 
         # The times have a single value per batch element; we repeat the array so that there is one value per atom,
         # with this value the same for all atoms belonging to the same graph.
-        times = batch[self.timestep_key].to(positions.device)  # shape [batch_size, 1]
+        times = batch[TIME].to(relative_coordinates.device)  # shape [batch_size, 1]
         flat_times = times[graph_input.batch]  # shape [batch_size * natoms, 1]
         flat_scores = self.prediction_head(flat_node_features, flat_times)  # shape [batch_size * natoms, spatial_dim]
 

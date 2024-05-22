@@ -5,6 +5,8 @@ import torch
 from tqdm import tqdm
 
 from crystal_diffusion.models.score_network import ScoreNetwork
+from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES, TIME,
+                                         UNIT_CELL)
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
@@ -142,14 +144,10 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         Returns:
             sigma normalized score: sigma x Score(x, t).
         """
-        pos_key = self.sigma_normalized_score_network.position_key
-        time_key = self.sigma_normalized_score_network.timestep_key
-        unit_cell_key = self.sigma_normalized_score_network.unit_cell_key
-
         number_of_samples = x.shape[0]
 
         time_tensor = time * torch.ones(number_of_samples, 1).to(x)
-        augmented_batch = {pos_key: x, time_key: time_tensor, unit_cell_key: unit_cell}
+        augmented_batch = {NOISY_RELATIVE_COORDINATES: x, TIME: time_tensor, UNIT_CELL: unit_cell}
         with torch.no_grad():
             predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
         return predicted_normalized_scores

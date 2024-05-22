@@ -6,6 +6,7 @@ import torch
 from e3nn import o3
 from torch_geometric.data import Data
 
+from crystal_diffusion.namespace import NOISY_CARTESIAN_POSITIONS, UNIT_CELL
 from crystal_diffusion.utils.neighbors import (
     get_periodic_adjacency_information,
     shift_adjacency_matrix_indices_for_graph_batching)
@@ -49,29 +50,29 @@ def get_adj_matrix(positions: torch.Tensor,
     return shifted_adjacency_matrix, shifts, batch_indices
 
 
-def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cutoff: float) -> Data:
+def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
     """Convert score network input to MACE input.
 
     Args:
         x: score network input dictionary
-        unit_cell_key: keyword argument to find the cell definition
         radial_cutoff : largest distance between neighbors.
 
     Returns:
         pytorch-geometric graph data compatible with MACE forward
     """
-    batch_size = x['abs_positions'].size(0)
-    cell = x[unit_cell_key]  # batch, spatial_dimension, spatial_dimension
-    n_atom_per_graph = x['abs_positions'].size(1)
-    device = x['abs_positions'].device
-    adj_matrix, shift_matrix, batch_tensor = get_adj_matrix(positions=x['abs_positions'],
+    noisy_cartesian_positions = x[NOISY_CARTESIAN_POSITIONS]
+    cell = x[UNIT_CELL]  # batch, spatial_dimension, spatial_dimension
+
+    batch_size, n_atom_per_graph, spatial_dimension = noisy_cartesian_positions.shape
+    device = noisy_cartesian_positions.device
+    adj_matrix, shift_matrix, batch_tensor = get_adj_matrix(positions=noisy_cartesian_positions,
                                                             basis_vectors=cell,
                                                             radial_cutoff=radial_cutoff)
     # node features are int corresponding to atom type
     # TODO handle different atom types
     node_attrs = torch.nn.functional.one_hot((torch.ones(batch_size * n_atom_per_graph) * 14).long(),
                                              num_classes=89).float()
-    positions = x['abs_positions'].view(-1, x['abs_positions'].size(-1))  # [batchsize * natoms, spatial dimension]
+    flat_positions = noisy_cartesian_positions.view(-1, spatial_dimension)  # [batchsize * natoms, spatial dimension]
     # pointer tensor that yields the first node index for each batch - this is a fixed tensor in our case
     ptr = torch.arange(0, n_atom_per_graph * batch_size + 1, step=n_atom_per_graph)  # 0, natoms, 2 * natoms, ...
 
@@ -79,7 +80,7 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], unit_cell_key: str, radial_cuto
     # create the pytorch-geometric graph
     graph_data = Data(edge_index=adj_matrix,
                       node_attrs=node_attrs.to(device),
-                      positions=positions,
+                      positions=flat_positions,
                       ptr=ptr.to(device),
                       batch=batch_tensor.to(device),
                       shifts=shift_matrix,

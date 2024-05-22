@@ -12,7 +12,8 @@ from crystal_diffusion.models.scheduler import (
     ValidSchedulerName)
 from crystal_diffusion.models.score_network import (MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
-from crystal_diffusion.namespace import RELATIVE_COORDINATES
+from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES,
+                                         RELATIVE_COORDINATES, TIME)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
@@ -221,11 +222,11 @@ class TestPositionDiffusionLightningModel:
         assert len(list_calls) == 1
         input_batch = list_calls[0][1][0]
 
-        assert MLPScoreNetwork.position_key in input_batch
-        torch.testing.assert_close(input_batch[MLPScoreNetwork.position_key], noisy_relative_coordinates)
+        assert NOISY_RELATIVE_COORDINATES in input_batch
+        torch.testing.assert_close(input_batch[NOISY_RELATIVE_COORDINATES], noisy_relative_coordinates)
 
-        assert MLPScoreNetwork.timestep_key in input_batch
-        torch.testing.assert_close(input_batch[MLPScoreNetwork.timestep_key], times.reshape(-1, 1))
+        assert TIME in input_batch
+        torch.testing.assert_close(input_batch[TIME], times.reshape(-1, 1))
 
     @pytest.mark.parametrize("accelerator", available_accelerators)
     @pytest.mark.parametrize("optimizer_name", ['adam', 'adamw'])
