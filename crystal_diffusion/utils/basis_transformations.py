@@ -38,7 +38,8 @@ def get_positions_from_coordinates(relative_coordinates: torch.Tensor, basis_vec
                                        [  - a3 - ]
 
     Args:
-        relative_coordinates : Unitless coordinates. Dimension [batch_size, number of vectors, spatial_dimension].
+        relative_coordinates : Unitless relative coordinates.
+            Dimension [batch_size, number of vectors, spatial_dimension].
         basis_vectors : Vectors that define the unit cell. Dimension [batch_size, spatial_dimension, spatial_dimension].
 
     Returns:
@@ -47,6 +48,40 @@ def get_positions_from_coordinates(relative_coordinates: torch.Tensor, basis_vec
     """
     cartesian_positions = torch.matmul(relative_coordinates, basis_vectors)
     return cartesian_positions
+
+
+def get_relative_coordinates_from_cartesian_positions(cartesian_positions: torch.Tensor,
+                                                      reciprocal_basis_vectors: torch.Tensor) -> torch.Tensor:
+    """Get relative coordinates from cartesian positions.
+
+    This method computes the relative coordinates from the positions in Euclidean space and the reciprocal
+    basis vectors.
+
+    The positions are defined as p = c1 a1 + c2 a2 + c3 a3, which can be expressed as
+        (p_x, p_y, p_z) = [c1, c2, c3] [  - a1 - ]
+                                       [  - a2 - ]
+                                       [  - a3 - ]
+
+    The reciprocal basis vectors can be represented as
+         [ |  |  | ]
+     B = [ b1 b2 b3]
+         [ |  |  | ]
+
+    such that
+        (p_x, p_y, p_z) . B = [c1, c2, c3].
+
+    Args:
+        cartesian_positions: positions in Euclidean space, with units of Angstrom.
+            Dimension [batch_size, number of vectors, spatial_dimension].
+        reciprocal_basis_vectors : Vectors that define the reciprocal unit cell.
+        Dimension [batch_size, spatial_dimension, spatial_dimension].
+
+    Returns:
+        relative_coordinates : Unitless relative coordinates.
+            Dimension [batch_size, number of vectors, spatial_dimension].
+    """
+    relative_coordinates = torch.matmul(cartesian_positions, reciprocal_basis_vectors)
+    return relative_coordinates
 
 
 def map_relative_coordinates_to_unit_cell(relative_coordinates: torch.Tensor) -> torch.Tensor:

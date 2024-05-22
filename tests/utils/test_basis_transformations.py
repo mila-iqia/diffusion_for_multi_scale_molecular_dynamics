@@ -3,6 +3,7 @@ import torch
 
 from crystal_diffusion.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
+    get_relative_coordinates_from_cartesian_positions,
     map_relative_coordinates_to_unit_cell)
 
 
@@ -42,6 +43,16 @@ def test_get_positions_from_coordinates(batch_size, relative_coordinates, basis_
             expected_positions[batch_idx, pos_idx, :] = x1 * a1 + x2 * a2 + x3 * a3
 
     torch.testing.assert_close(expected_positions, computed_positions)
+
+
+def test_get_relative_coordinates_from_cartesian_positions(relative_coordinates, basis_vectors):
+    cartesian_positions = get_positions_from_coordinates(relative_coordinates, basis_vectors)
+    reciprocal_basis_vectors = get_reciprocal_basis_vectors(basis_vectors)
+
+    computed_relative_coordinates = get_relative_coordinates_from_cartesian_positions(cartesian_positions,
+                                                                                      reciprocal_basis_vectors)
+
+    torch.testing.assert_close(computed_relative_coordinates, relative_coordinates)
 
 
 def test_remainder_failure():
