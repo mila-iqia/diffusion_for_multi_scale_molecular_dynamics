@@ -83,6 +83,9 @@ class DiffusionMACE(torch.nn.Module):
         radial_type: Optional[str] = "bessel",
     ):
         """Init method."""
+        assert num_elements == 1, "only a single element can be used at this time. Set 'num_elements' to 1."
+        assert len(atomic_numbers) == 1, \
+            "only a single element can be used at this time. Set 'atomic_numbers' to length 1."
         super().__init__()
         self.register_buffer(
             "atomic_numbers", torch.tensor(atomic_numbers, dtype=torch.int64)

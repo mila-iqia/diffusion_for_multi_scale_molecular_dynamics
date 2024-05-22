@@ -1,12 +1,10 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.score_network import (MACEScoreNetwork,
-                                                    MACEScoreNetworkParameters,
-                                                    MLPScoreNetwork,
-                                                    MLPScoreNetworkParameters,
-                                                    ScoreNetwork,
-                                                    ScoreNetworkParameters)
+from crystal_diffusion.models.score_network import (
+    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters,
+    MACEScoreNetwork, MACEScoreNetworkParameters, MLPScoreNetwork,
+    MLPScoreNetworkParameters, ScoreNetwork, ScoreNetworkParameters)
 from crystal_diffusion.models.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
@@ -192,3 +190,13 @@ class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
                                                   r_max=3.0,
                                                   prediction_head_parameters=prediction_head_parameters)
         return MACEScoreNetwork(hyper_params)
+
+
+@pytest.mark.parametrize("spatial_dimension", [3])
+class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
+    @pytest.fixture()
+    def score_network(self, number_of_atoms, spatial_dimension):
+        hyper_params = DiffusionMACEScoreNetworkParameters(spatial_dimension=spatial_dimension,
+                                                           number_of_atoms=number_of_atoms,
+                                                           r_max=3.0)
+        return DiffusionMACEScoreNetwork(hyper_params)
