@@ -102,6 +102,10 @@ class TestDiffusionMace:
         return o3.rand_matrix(batch_size)
 
     @pytest.fixture(scope='class')
+    def permutations(self, batch_size, number_of_atoms):
+        return torch.stack([torch.randperm(number_of_atoms) for _ in range(batch_size)])
+
+    @pytest.fixture(scope='class')
     def cartesian_translations(self, batch_size, number_of_atoms, spatial_dimension, basis_vectors):
         batch_relative_coordinates_translations = torch.rand(batch_size, spatial_dimension)
 
@@ -213,6 +217,25 @@ class TestDiffusionMace:
                                                        training=False, compute_force=True)['forces']
         return flat_rotated_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
+    @pytest.fixture()
+    def permuted_graph_input(self, batch_size, batch, r_max, permutations):
+        permuted_batch = dict(batch)
+
+        for position_key in [NOISY_CARTESIAN_POSITIONS, NOISY_RELATIVE_COORDINATES]:
+            pos = permuted_batch[position_key]
+            permuted_pos = torch.stack([pos[batch_idx, permutations[batch_idx], :]
+                                        for batch_idx in range(batch_size)])
+            permuted_batch[position_key] = permuted_pos
+
+        return input_to_diffusion_mace(permuted_batch, radial_cutoff=r_max)
+
+    @pytest.fixture()
+    def permuted_cartesian_scores(self, diffusion_mace, batch_size, number_of_atoms,
+                                  spatial_dimension, permuted_graph_input):
+        flat_permuted_cartesian_scores = diffusion_mace(permuted_graph_input,
+                                                        training=False, compute_force=True)['forces']
+        return flat_permuted_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
+
     def test_translation_invariance(self, cartesian_scores, translated_cartesian_scores):
         torch.testing.assert_close(translated_cartesian_scores, cartesian_scores)
 
@@ -222,3 +245,10 @@ class TestDiffusionMace:
 
         expected_rotated_cartesian_scores = torch.matmul(cartesian_scores, d_matrices.transpose(2, 1))
         torch.testing.assert_close(expected_rotated_cartesian_scores, rotated_cartesian_scores)
+
+    def test_permutation_equivariance(self, cartesian_scores, permuted_cartesian_scores, batch_size, permutations):
+
+        expected_permuted_cartesian_scores = torch.stack([cartesian_scores[batch_idx, permutations[batch_idx], :]
+                                                          for batch_idx in range(batch_size)])
+
+        torch.testing.assert_close(expected_permuted_cartesian_scores, permuted_cartesian_scores)
