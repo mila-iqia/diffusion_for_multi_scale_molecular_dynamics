@@ -12,7 +12,7 @@ from pymatgen.core import Element
 from crystal_diffusion import DATA_DIR
 
 
-def get_energy_and_forces_from_lammps(positions: np.ndarray,
+def get_energy_and_forces_from_lammps(cartesian_positions: np.ndarray,
                                       box: np.ndarray,
                                       atom_types: np.ndarray,
                                       atom_type_map: Dict[int, str] = {1: 'Si'},
@@ -21,7 +21,7 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
     """Call LAMMPS to compute the forces on all atoms in a configuration.
 
     Args:
-        positions: atomic positions as a n_atom x spatial dimension array
+        cartesian_positions: atomic positions in Euclidean space as a n_atom x spatial dimension array
         box: spatial dimension x spatial dimension array representing the periodic box. Assumed to be orthogonal.
         atom_types: n_atom array with an index representing the type of each atom
         atom_type_map (optional): map from index representing an atom type to a description of the atom.
@@ -33,7 +33,7 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
         energy
         dataframe with x, y, z coordinates and fx, fy, fz information in a dataframe.
     """
-    n_atom = positions.shape[0]
+    n_atom = cartesian_positions.shape[0]
     assert atom_types.shape == (n_atom, ), f"Atom types should match the number of atoms. Got {atom_types.shape}."
 
     # create a lammps run, turning off logging
@@ -52,7 +52,7 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
         lmp.command(f"group {v} type {k}")
         lmp.command(f"pair_coeff * * {os.path.join(pair_coeff_dir, f'{v.lower()}.sw')} {v}")
     for i in range(n_atom):
-        lmp.command(f"create_atoms {atom_types[i]} single {' '.join(map(str, positions[i, :]))}")
+        lmp.command(f"create_atoms {atom_types[i]} single {' '.join(map(str, cartesian_positions[i, :]))}")
     lmp.command("fix 1 all nvt temp 300 300 0.01")  # selections here do not matter because we only do 1 step
     # TODO not good in 2D
     lmp.command(f"dump 1 all yaml 1 {os.path.join(tmp_work_dir, 'dump.yaml')} id type x y z fx fy fz")

@@ -5,10 +5,10 @@ import torch
 from tqdm import tqdm
 
 from crystal_diffusion.models.score_network import ScoreNetwork
-from crystal_diffusion.samplers.noisy_position_sampler import \
-    map_positions_to_unit_cell
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+from crystal_diffusion.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
 from crystal_diffusion.utils.sample_trajectory import (NoOpSampleTrajectory,
                                                        SampleTrajectory)
 
@@ -40,18 +40,18 @@ class PredictorCorrectorPositionSampler(ABC):
                 Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
-            position samples: position samples.
+            samples: relative coordinates samples.
         """
         assert unit_cell.size() == (number_of_samples, self.spatial_dimension, self.spatial_dimension), \
             "Unit cell passed to sample should be of size (number of sample, spatial dimension, spatial dimension" \
             + f"Got {unit_cell.size()}"
 
-        x_ip1 = map_positions_to_unit_cell(self.initialize(number_of_samples)).to(device)
+        x_ip1 = map_relative_coordinates_to_unit_cell(self.initialize(number_of_samples)).to(device)
 
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
-            x_i = map_positions_to_unit_cell(self.predictor_step(x_ip1, i + 1, unit_cell))
+            x_i = map_relative_coordinates_to_unit_cell(self.predictor_step(x_ip1, i + 1, unit_cell))
             for _ in range(self.number_of_corrector_steps):
-                x_i = map_positions_to_unit_cell(self.corrector_step(x_i, i, unit_cell))
+                x_i = map_relative_coordinates_to_unit_cell(self.corrector_step(x_i, i, unit_cell))
             x_ip1 = x_i
         return x_i
 
@@ -67,12 +67,12 @@ class PredictorCorrectorPositionSampler(ABC):
         It is assumed that there are N predictor steps, with index "i" running from N-1 to 0.
 
         Args:
-            x_ip1 : sampled relative positions at step "i + 1".
+            x_ip1 : sampled relative coordinates at step "i + 1".
             ip1 : index "i + 1"
             unit_cell: sampled unit cell at time step "i + 1".
 
         Returns:
-            x_i : sampled relative positions after the predictor step.
+            x_i : sampled relative coordinates after the predictor step.
         """
         pass
 
@@ -83,12 +83,12 @@ class PredictorCorrectorPositionSampler(ABC):
         It is assumed that there are N predictor steps, with index "i" running from N-1 to 0.
         For each value of "i", there are M corrector steps.
         Args:
-            x_i : sampled relative positions at step "i".
+            x_i : sampled relative coordinates at step "i".
             i : index "i" OF THE PREDICTOR STEP.
             unit_cell: sampled unit cell at time step i.
 
         Returns:
-            x_i_out : sampled relative positions after the corrector step.
+            x_i_out : sampled relative coordinates after the corrector step.
         """
         pass
 
@@ -135,7 +135,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         """Get sigma normalized scores.
 
         Args:
-            x : relative positions, of shape [number_of_samples, number_of_atoms, spatial_dimension]
+            x : relative coordinates, of shape [number_of_samples, number_of_atoms, spatial_dimension]
             time : time at which to evaluate the score
             unit_cell: unit cell definition in Angstrom of shape [batch_size, spatial_dimension, spatial_dimension]
 
@@ -158,12 +158,12 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         """Predictor step.
 
         Args:
-            x_i : sampled relative positions, at time step i.
+            x_i : sampled relative coordinates, at time step i.
             index_i : index of the time step.
             unit_cell: sampled unit cell at time step i.
 
         Returns:
-            x_im1 : sampled relative positions, at time step i - 1.
+            x_im1 : sampled relative coordinates, at time step i - 1.
         """
         assert 1 <= index_i <= self.number_of_discretization_steps, \
             "The predictor step can only be invoked for index_i between 1 and the total number of discretization steps."
@@ -189,12 +189,12 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         """Corrector Step.
 
         Args:
-            x_i : sampled relative positions, at time step i.
+            x_i : sampled relative coordinates, at time step i.
             index_i : index of the time step.
             unit_cell: sampled unit cell at time step i.
 
         Returns:
-            corrected x_i : sampled relative positions, after corrector step.
+            corrected x_i : sampled relative coordinates, after corrector step.
         """
         assert 0 <= index_i <= self.number_of_discretization_steps - 1, \
             ("The corrector step can only be invoked for index_i between 0 and "

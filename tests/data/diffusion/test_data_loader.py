@@ -6,6 +6,8 @@ import torch
 
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
+from crystal_diffusion.namespace import (CARTESIAN_POSITIONS,
+                                         RELATIVE_COORDINATES)
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import Configuration, find_aligning_permutation
 
@@ -17,8 +19,8 @@ def convert_configurations_to_dataset(configurations: List[Configuration]) -> Di
     for configuration in configurations:
         data['natom'].append(len(configuration.ids))
         data['box'].append(configuration.cell_dimensions)
-        data['position'].append(configuration.positions)
-        data['relative_positions'].append(configuration.relative_coordinates)
+        data[CARTESIAN_POSITIONS].append(configuration.positions)
+        data[RELATIVE_COORDINATES].append(configuration.relative_coordinates)
         data['type'].append(configuration.types)
         data['potential_energy'].append(configuration.potential_energy)
 
@@ -44,18 +46,19 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
     def test_dataset_transform(self, input_data_to_transform):
         result = LammpsForDiffusionDataModule.dataset_transform(input_data_to_transform)
         # Check keys in result
-        assert set(result.keys()) == {'natom', 'position', 'relative_positions', 'box', 'type', 'potential_energy'}
+        assert set(result.keys()) == {'natom', CARTESIAN_POSITIONS, RELATIVE_COORDINATES,
+                                      'box', 'type', 'potential_energy'}
 
         # Check tensor types and shapes
         assert torch.equal(result['natom'], torch.tensor(input_data_to_transform['natom']).long())
-        assert result['position'].shape == (1, 2, 3)  # (batchsize, natom, 3 [since it's 3D])
+        assert result[CARTESIAN_POSITIONS].shape == (1, 2, 3)  # (batchsize, natom, 3 [since it's 3D])
         assert result['box'].shape == (1, 3)
         assert torch.equal(result['type'], torch.tensor(input_data_to_transform['type']).long())
         assert torch.equal(result['potential_energy'], torch.tensor(input_data_to_transform['potential_energy']))
 
         # Check tensor types explicitly
         assert result['natom'].dtype == torch.long
-        assert result['position'].dtype == torch.float32  # default dtype for torch.as_tensor with float inputs
+        assert result[CARTESIAN_POSITIONS].dtype == torch.float32  # default dtype for torch.as_tensor with float inputs
         assert result['box'].dtype == torch.float32
         assert result['type'].dtype == torch.long
         assert result['potential_energy'].dtype == torch.float32
@@ -77,7 +80,7 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
 
         # Check if the type and position have been padded correctly
         assert len(padded_sample['type']) == max_atom
-        assert padded_sample['position'].shape == torch.Size([max_atom * 3])
+        assert padded_sample[CARTESIAN_POSITIONS].shape == torch.Size([max_atom * 3])
 
         # Check that the padding uses -1 for type
         # 2 atoms in the input_data - last 3 atoms should be type -1
@@ -85,7 +88,7 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
             assert padded_sample['type'].tolist()[-(k + 1)] == -1
 
         # Check that the padding uses nan for position
-        assert torch.isnan(padded_sample['position'][-(max_atom - 2) * 3:]).all()
+        assert torch.isnan(padded_sample[CARTESIAN_POSITIONS][-(max_atom - 2) * 3:]).all()
 
     @pytest.fixture
     def data_module_hyperparameters(self, number_of_atoms, spatial_dimension):
@@ -121,7 +124,8 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
         return data_module_dataset, configuration_dataset
 
     def test_dataset_feature_names(self, data_module):
-        expected_feature_names = {'natom', 'box', 'position', 'relative_positions', 'type', 'potential_energy'}
+        expected_feature_names = {'natom', 'box', 'position', 'relative_positions', 'type', 'potential_energy',
+                                  CARTESIAN_POSITIONS, RELATIVE_COORDINATES}
         assert set(data_module.train_dataset.features.keys()) == expected_feature_names
         assert set(data_module.valid_dataset.features.keys()) == expected_feature_names
 

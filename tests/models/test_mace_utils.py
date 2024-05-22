@@ -12,7 +12,8 @@ from mace.tools.torch_geometric.dataloader import Collater
 from crystal_diffusion.models.mace_utils import (
     get_normalized_irreps_permutation_indices, get_pretrained_mace,
     input_to_mace)
-from crystal_diffusion.utils.neighbors import _get_positions_from_coordinates
+from crystal_diffusion.utils.basis_transformations import \
+    get_positions_from_coordinates
 from tests.fake_data_utils import find_aligning_permutation
 
 
@@ -101,7 +102,7 @@ class TestInputToMaceRandom(TestInputToMaceChain):
     @pytest.fixture
     def positions(self, batch_size, n_atoms, spatial_dim, basis_vectors):
         relative_coordinates = torch.rand(batch_size, n_atoms, spatial_dim)
-        positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
+        positions = get_positions_from_coordinates(relative_coordinates, basis_vectors)
         return positions
 
     @pytest.fixture()

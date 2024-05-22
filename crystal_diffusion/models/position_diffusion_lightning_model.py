@@ -12,12 +12,15 @@ from crystal_diffusion.models.scheduler import (SchedulerParameters,
 from crystal_diffusion.models.score_network import (MACEScoreNetwork,
                                                     MLPScoreNetwork,
                                                     ScoreNetworkParameters)
-from crystal_diffusion.samplers.noisy_position_sampler import (
-    NoisyPositionSampler, map_positions_to_unit_cell)
+from crystal_diffusion.namespace import RELATIVE_COORDINATES
+from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
+    NoisyRelativeCoordinatesSampler
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
+from crystal_diffusion.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
@@ -40,7 +43,7 @@ class PositionDiffusionParameters:
 class PositionDiffusionLightningModel(pl.LightningModule):
     """Position Diffusion Lightning Model.
 
-    This lightning model can train a score network predict the noise for relative positions.
+    This lightning model can train a score network predict the noise for relative coordinates.
     """
 
     def __init__(self, hyper_params: PositionDiffusionParameters):
@@ -66,7 +69,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             hyper_params.score_network_parameters
         )
 
-        self.noisy_position_sampler = NoisyPositionSampler()
+        self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
 
     def configure_optimizers(self):
@@ -99,9 +102,9 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         Returns:
             batch_size: the size of the batch.
         """
-        # The relative positions have dimensions [batch_size, number_of_atoms, spatial_dimension].
-        assert "relative_positions" in batch, "The field 'relative_positions' is missing from the input."
-        batch_size = batch["relative_positions"].shape[0]
+        # The RELATIVE_COORDINATES have dimensions [batch_size, number_of_atoms, spatial_dimension].
+        assert RELATIVE_COORDINATES in batch, f"The field '{RELATIVE_COORDINATES}' is missing from the input."
+        batch_size = batch[RELATIVE_COORDINATES].shape[0]
         return batch_size
 
     def _generic_step(
@@ -128,7 +131,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         that the score network and the target scores that are used are actually "sigma normalized" versions, ie,
         pre-multiplied by sigma.
 
-        The loss that is computed is a Monte Carlo estimate of L, where we sample a mini-batch of relative position
+        The loss that is computed is a Monte Carlo estimate of L, where we sample a mini-batch of relative coordinates
         configurations {x0}; each of these configurations is noised with a random t value, with corresponding
         {sigma(t)} and {xt}.
 
@@ -139,12 +142,12 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         Returns:
             loss : the computed loss.
         """
-        # The relative positions have dimensions [batch_size, number_of_atoms, spatial_dimension].
-        assert "relative_positions" in batch, "The field 'relative_positions' is missing from the input."
-        x0 = batch["relative_positions"]
+        # The RELATIVE_COORDINATES have dimensions [batch_size, number_of_atoms, spatial_dimension].
+        assert RELATIVE_COORDINATES in batch, f"The field '{RELATIVE_COORDINATES}' is missing from the input."
+        x0 = batch[RELATIVE_COORDINATES]
         shape = x0.shape
         assert len(shape) == 3, (
-            f"the shape of the relative_positions array should be [batch_size, number_of_atoms, spatial_dimensions]. "
+            f"the shape of the RELATIVE_COORDINATES array should be [batch_size, number_of_atoms, spatial_dimensions]. "
             f"Got shape = {shape}."
         )
         batch_size = self._get_batch_size(batch)
@@ -158,7 +161,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             batch_values=noise_sample.sigma, final_shape=shape
         )
 
-        xt = self.noisy_position_sampler.get_noisy_position_sample(x0, sigmas)
+        xt = self.noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(x0, sigmas)
 
         # The target is nabla log p_{t|0} (xt | x0): it is NOT the "score", but rather a "conditional" (on x0) score.
         target_normalized_conditional_scores = self._get_target_normalized_score(xt, x0, sigmas)
@@ -183,20 +186,20 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def _get_target_normalized_score(
         self,
-        noisy_relative_positions: torch.Tensor,
-        real_relative_positions: torch.Tensor,
+        noisy_relative_coordinates: torch.Tensor,
+        real_relative_coordinates: torch.Tensor,
         sigmas: torch.Tensor,
     ) -> torch.Tensor:
         """Get target normalized score.
 
-        It is assumed that the inputs are consistent, ie, the noisy relative positions correspond
-        to the real relative positions noised with sigmas. It is also assumed that sigmas has
+        It is assumed that the inputs are consistent, ie, the noisy relative coordinates correspond
+        to the real relative coordinates noised with sigmas. It is also assumed that sigmas has
         been broadcast so that the same value sigma(t) is applied to all atoms + dimensions within a configuration.
 
         Args:
-            noisy_relative_positions : noised relative positions.
+            noisy_relative_coordinates : noised relative coordinates.
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
-            real_relative_positions : original relative positions, before the addition of noise.
+            real_relative_coordinates : original relative coordinates, before the addition of noise.
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
             sigmas :
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
@@ -205,23 +208,24 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         target normalized score: sigma times target score, ie, sigma times nabla_xt log P_{t|0}(xt| x0).
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
         """
-        delta_relative_positions = map_positions_to_unit_cell(noisy_relative_positions - real_relative_positions)
+        delta_relative_coordinates = map_relative_coordinates_to_unit_cell(noisy_relative_coordinates
+                                                                           - real_relative_coordinates)
         target_normalized_scores = get_sigma_normalized_score(
-            delta_relative_positions, sigmas, kmax=self.hyper_params.kmax_target_score
+            delta_relative_coordinates, sigmas, kmax=self.hyper_params.kmax_target_score
         )
         return target_normalized_scores
 
     def _get_predicted_normalized_score(
-        self, noisy_relative_positions: torch.Tensor, time: torch.Tensor, unit_cell: torch.Tensor
+        self, noisy_relative_coordinates: torch.Tensor, time: torch.Tensor, unit_cell: torch.Tensor
     ) -> torch.Tensor:
         """Get predicted normalized score.
 
         Args:
-            noisy_relative_positions : noised relative positions.
+            noisy_relative_coordinates : noised relative coordinates.
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
-            time : Noise times for the noisy relative positions. It is assumed that the inputs are consistent, ie,
-                the time values in this array correspond to the noise times used to create the noisy relative positions.
-                Tensor of dimensions [batch_size].
+            time : Noise times for the noisy relative coordinates. It is assumed that the inputs are consistent, ie,
+                the time values in this array correspond to the noise times used to create the noisy
+                relative coordinates. Tensor of dimensions [batch_size].
             unit_cell: unit cell definition in Angstrom.
                 Tensor of dimensions [batch_size, spatial_dimension, spatial_dimension].
 
@@ -233,7 +237,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         time_key = self.sigma_normalized_score_network.timestep_key
         unit_cell_key = self.sigma_normalized_score_network.unit_cell_key
         augmented_batch = {
-            pos_key: noisy_relative_positions,
+            pos_key: noisy_relative_coordinates,
             time_key: time.reshape(-1, 1),
             unit_cell_key: unit_cell,
         }

@@ -1,9 +1,19 @@
 import numpy as np
 import pytest
+import torch
 
 from tests.fake_data_utils import (create_dump_yaml_documents,
                                    create_thermo_yaml_documents,
                                    get_configuration_runs, write_to_yaml)
+
+
+@pytest.fixture
+def basis_vectors(batch_size):
+    # orthogonal boxes with dimensions between 5 and 10.
+    orthogonal_boxes = torch.stack([torch.diag(5. + 5. * torch.rand(3)) for _ in range(batch_size)])
+    # add a bit of noise to make the vectors not quite orthogonal
+    basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, 3, 3)
+    return basis_vectors
 
 
 class TestDiffusionDataBase:

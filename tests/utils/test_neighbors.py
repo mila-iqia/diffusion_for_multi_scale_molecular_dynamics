@@ -5,10 +5,11 @@ import pytest
 import torch
 from pymatgen.core import Lattice, Structure
 
+from crystal_diffusion.utils.basis_transformations import \
+    get_positions_from_coordinates
 from crystal_diffusion.utils.neighbors import (
-    AdjacencyInfo, _get_positions_from_coordinates,
-    _get_relative_coordinates_lattice_vectors, _get_shifted_positions,
-    _get_shortest_distance_that_crosses_unit_cell,
+    AdjacencyInfo, _get_relative_coordinates_lattice_vectors,
+    _get_shifted_positions, _get_shortest_distance_that_crosses_unit_cell,
     _get_vectors_from_multiple_indices, get_periodic_adjacency_information,
     shift_adjacency_matrix_indices_for_graph_batching)
 from tests.fake_data_utils import find_aligning_permutation
@@ -33,22 +34,13 @@ def number_of_atoms():
 
 
 @pytest.fixture
-def basis_vectors(batch_size):
-    # orthogonal boxes with dimensions between 5 and 10.
-    orthogonal_boxes = torch.stack([torch.diag(5. + 5. * torch.rand(3)) for _ in range(batch_size)])
-    # add a bit of noise to make the vectors not quite orthogonal
-    basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, 3, 3)
-    return basis_vectors
-
-
-@pytest.fixture
 def relative_coordinates(batch_size, number_of_atoms):
     return torch.rand(batch_size, number_of_atoms, 3)
 
 
 @pytest.fixture
 def positions(relative_coordinates, basis_vectors):
-    positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
+    positions = get_positions_from_coordinates(relative_coordinates, basis_vectors)
     return positions
 
 
@@ -56,7 +48,7 @@ def positions(relative_coordinates, basis_vectors):
 def lattice_vectors(batch_size, basis_vectors, number_of_shells):
     relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells)
     batched_relative_lattice_vectors = relative_lattice_vectors.repeat(batch_size, 1, 1)
-    lattice_vectors = _get_positions_from_coordinates(batched_relative_lattice_vectors, basis_vectors)
+    lattice_vectors = get_positions_from_coordinates(batched_relative_lattice_vectors, basis_vectors)
 
     return lattice_vectors
 
@@ -202,18 +194,6 @@ def test_get_relative_coordinates_lattice_vectors(number_of_shells):
     computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells)
 
     torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
-
-
-def test_get_positions_from_coordinates(batch_size, relative_coordinates, basis_vectors):
-
-    computed_positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
-
-    expected_positions = torch.empty(relative_coordinates.shape, dtype=torch.float32)
-    for batch_idx, (a1, a2, a3) in enumerate(basis_vectors):
-        for pos_idx, (x1, x2, x3) in enumerate(relative_coordinates[batch_idx]):
-            expected_positions[batch_idx, pos_idx, :] = x1 * a1 + x2 * a2 + x3 * a3
-
-    torch.testing.assert_close(expected_positions, computed_positions)
 
 
 @pytest.mark.parametrize("number_of_shells", [1, 2])

@@ -11,6 +11,9 @@ import numpy as np
 import torch
 from pykeops.torch import LazyTensor
 
+from crystal_diffusion.utils.basis_transformations import \
+    get_positions_from_coordinates
+
 INDEX_PADDING_VALUE = -1
 POSITION_PADDING_VALUE = np.NaN
 
@@ -24,7 +27,7 @@ AdjacencyInfo = namedtuple(typename="AdjacencyInfo",
                                         ])
 
 
-def get_periodic_adjacency_information(positions: torch.Tensor,
+def get_periodic_adjacency_information(cartesian_positions: torch.Tensor,
                                        basis_vectors: torch.Tensor,
                                        radial_cutoff: float) -> AdjacencyInfo:
     """Get periodic adjacency information.
@@ -53,7 +56,7 @@ def get_periodic_adjacency_information(positions: torch.Tensor,
         - It is assumed that all structures have the same number of atoms.
 
     Args:
-        positions : atomic positions, assumed to be within the unit cell, in Euclidean coordinates.
+        cartesian_positions : atomic positions, assumed to be within the unit cell, in Euclidean space, in Angstrom.
                                Dimension [batch_size, max_number_of_atoms, 3]
         basis_vectors : vectors that define the unit cell, (a1, a2, a3). The basis vectors are assumed
                         to be vertically stacked, namely
@@ -61,7 +64,7 @@ def get_periodic_adjacency_information(positions: torch.Tensor,
                                             [-- a2 --]
                                             [-- a3 --]
                         Dimension [batch_size, 3, 3].
-        radial_cutoff : largest distance between neighbors.
+        radial_cutoff : largest distance between neighbors, in Angstrom.
 
     Returns:
         adjacency_info: an AdjacencyInfo object that contains
@@ -71,17 +74,17 @@ def get_periodic_adjacency_information(positions: torch.Tensor,
             * the batch indices for each node
             * the number of edges for each structure in the batch.
     """
-    assert len(positions.shape) == 3, "Wrong number of dimensions for relative_coordinates"
+    assert len(cartesian_positions.shape) == 3, "Wrong number of dimensions for relative_coordinates"
     assert len(basis_vectors.shape) == 3, "Wrong number of dimensions for basis_vectors"
 
     spatial_dimension = 3  # We define this to avoid "magic numbers" in the code below.
-    batch_size, max_natom, spatial_dimension_ = positions.shape
+    batch_size, max_natom, spatial_dimension_ = cartesian_positions.shape
     assert spatial_dimension_ == spatial_dimension, "Wrong spatial dimension for relative_coordinates "
     assert basis_vectors.shape == (batch_size, spatial_dimension, spatial_dimension), "Wrong shape for basis vectors"
 
     assert radial_cutoff > 0., "The radial cutoff should be greater than zero"
 
-    device = positions.device
+    device = cartesian_positions.device
 
     radial_cutoff = torch.tensor(radial_cutoff).to(device)
     zero = torch.tensor(0.0).to(device)
@@ -99,12 +102,12 @@ def get_periodic_adjacency_information(positions: torch.Tensor,
     # Repeat the relative lattice vectors along the batch dimension; the basis vectors could potentially be
     # different for every batch element.
     batched_relative_lattice_vectors = relative_lattice_vectors.repeat(batch_size, 1, 1)
-    lattice_vectors = _get_positions_from_coordinates(batched_relative_lattice_vectors, basis_vectors)
+    lattice_vectors = get_positions_from_coordinates(batched_relative_lattice_vectors, basis_vectors)
 
     # The shifted_positions are composed of the positions, which are located within the unit cell, shifted by
     # the various lattice vectors.
     #  Dimension [batch_size, number of relative lattice vectors, max_number_of_atoms, spatial_dimension].
-    shifted_positions = _get_shifted_positions(positions, lattice_vectors)
+    shifted_positions = _get_shifted_positions(cartesian_positions, lattice_vectors)
 
     # KeOps will be used to compute the distance matrix, |p_i - p_j |^2, without overflowing memory.
     #
@@ -128,7 +131,7 @@ def get_periodic_adjacency_information(positions: torch.Tensor,
     #
     # From the point of view of KeOps, the first 2 dimensions are "batch dimensions". The KeOps 'virtual' dimensions
     # are dim 2 and 3, which both corresponds to 'max_natom'.
-    x_i = LazyTensor(positions.view(batch_size, 1, max_natom, 1, spatial_dimension))
+    x_i = LazyTensor(cartesian_positions.view(batch_size, 1, max_natom, 1, spatial_dimension))
     x_j = LazyTensor(shifted_positions.view(batch_size, number_of_relative_lattice_vectors, 1,
                                             max_natom, spatial_dimension))
 
@@ -202,33 +205,11 @@ def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1) -> torc
     return list_relative_lattice_vectors
 
 
-def _get_positions_from_coordinates(relative_coordinates: torch.Tensor, basis_vectors: torch.Tensor) -> torch.Tensor:
-    """Get positions from coordinates.
-
-    This method computes the positions in Euclidean space given the unitless coordinates and the basis vectors
-    that define the unit cell.
-
-    The positions are defined as p = c1 a1 + c2 a2 + c3 a3, which can be expressed as
-        (p_x, p_y, p_z) = [c1, c2, c3] [  - a1 - ]
-                                       [  - a2 - ]
-                                       [  - a3 - ]
-
-    Args:
-        relative_coordinates : Unitless coordinates. Dimension [batch_size, number of vectors, spatial_dimension].
-        basis_vectors : Vectors that define the unit cell. Dimension [batch_size, spatial_dimension, spatial_dimension].
-
-    Returns:
-        positions: the point positions in Euclidean space. Dimension [batch_size, number of vectors, spatial_dimension].
-    """
-    positions = torch.matmul(relative_coordinates, basis_vectors)
-    return positions
-
-
-def _get_shifted_positions(positions: torch.Tensor, lattice_vectors: torch.Tensor) -> torch.Tensor:
+def _get_shifted_positions(cartesian_positions: torch.Tensor, lattice_vectors: torch.Tensor) -> torch.Tensor:
     """Get shifted positions.
 
     Args:
-        positions : atomic positions within the unit cell.
+        cartesian_positions : atomic positions within the unit cell.
             Dimension [batch_size, max_number_of_atoms, 3].
         lattice_vectors : Bravais lattice vectors connecting the unit cell to its neighbors (and to itself!).
             Dimension [batch_size, number of relative lattice vectors, 3].
@@ -237,7 +218,7 @@ def _get_shifted_positions(positions: torch.Tensor, lattice_vectors: torch.Tenso
         shifted_positions:  the positions within the unit cell, shifted by the lattice vectors.
             Dimension [batch_size, number of relative lattice vectors, max_number_of_atoms, 3].
     """
-    shifted_positions = positions[:, None, :, :] + lattice_vectors[:, :, None, :]
+    shifted_positions = cartesian_positions[:, None, :, :] + lattice_vectors[:, :, None, :]
     return shifted_positions
 
 
