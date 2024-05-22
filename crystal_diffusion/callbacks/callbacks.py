@@ -5,6 +5,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
+from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES
 from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
     AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -87,7 +88,7 @@ class TensorboardSamplesLoggingCallback(TensorBoardDebuggingLoggingCallback):
         list_xt = []
         list_sigmas = []
         for output in self.training_step_outputs:
-            list_xt.append(output["noisy_relative_positions"].flatten())
+            list_xt.append(output[NOISY_RELATIVE_COORDINATES].flatten())
             list_sigmas.append(output["sigmas"].flatten())
         list_xt = torch.cat(list_xt)
         list_sigmas = torch.cat(list_sigmas)

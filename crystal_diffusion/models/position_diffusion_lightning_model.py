@@ -178,11 +178,12 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         )
 
         output = dict(loss=loss,
-                      real_relative_positions=x0,
-                      noisy_relative_positions=xt,
                       sigmas=sigmas,
                       predicted_normalized_scores=predicted_normalized_scores.detach(),
                       target_normalized_conditional_scores=target_normalized_conditional_scores)
+        output[RELATIVE_COORDINATES] = x0
+        output[NOISY_RELATIVE_COORDINATES] = xt
+
         return output
 
     def _get_target_normalized_score(
