@@ -254,7 +254,7 @@ class TestDiffusionMace:
 
         torch.testing.assert_close(expected_permuted_cartesian_scores, permuted_cartesian_scores)
 
-    def test_time_dependance(self, batch, r_max, diffusion_mace):
+    def test_time_dependence(self, batch, r_max, diffusion_mace):
 
         graph_input = input_to_diffusion_mace(batch, radial_cutoff=r_max)
         flat_cartesian_scores1 = diffusion_mace(graph_input, training=False, compute_force=True)['forces']
