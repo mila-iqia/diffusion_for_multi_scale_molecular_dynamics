@@ -109,13 +109,15 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
                  number_of_atoms: int,
                  spatial_dimension: int,
                  sigma_normalized_score_network: ScoreNetwork,
-                 record_samples: bool = False
+                 record_samples: bool = False,
+                 positions_require_grad: bool = False
                  ):
         """Init method."""
         super().__init__(number_of_discretization_steps=noise_parameters.total_time_steps,
                          number_of_corrector_steps=number_of_corrector_steps,
                          spatial_dimension=spatial_dimension)
         self.noise_parameters = noise_parameters
+        self.positions_require_grad = positions_require_grad
         sampler = ExplodingVarianceSampler(noise_parameters)
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = number_of_atoms
@@ -128,7 +130,10 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
 
     def initialize(self, number_of_samples: int):
         """This method must initialize the samples from the fully noised distribution."""
-        return torch.rand(number_of_samples, self.number_of_atoms, self.spatial_dimension)
+        relative_coordinates = torch.rand(number_of_samples, self.number_of_atoms, self.spatial_dimension)
+        if self.positions_require_grad:
+            relative_coordinates.requires_grad_(True)
+        return relative_coordinates
 
     def _draw_gaussian_sample(self, number_of_samples):
         return torch.randn(number_of_samples, self.number_of_atoms, self.spatial_dimension)
@@ -148,8 +153,8 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
 
         time_tensor = time * torch.ones(number_of_samples, 1).to(x)
         augmented_batch = {NOISY_RELATIVE_COORDINATES: x, TIME: time_tensor, UNIT_CELL: unit_cell}
-        with torch.no_grad():
-            predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
+
+        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
         return predicted_normalized_scores
 
     def predictor_step(self, x_i: torch.Tensor, index_i: int, unit_cell: torch.Tensor) -> torch.Tensor:

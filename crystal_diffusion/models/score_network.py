@@ -430,8 +430,8 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
 
         diffusion_mace_output = self.diffusion_mace_network(graph_input, compute_force=True, training=self.training)
 
-        # Diffusion MACE operates in Euclidean space. The computed "forces" are the gradient of the "energy"
-        flat_cartesian_scores = diffusion_mace_output['forces']
+        # Diffusion MACE operates in Euclidean space. The computed "forces" are the negative gradient of the "energy"
+        flat_cartesian_scores = -diffusion_mace_output['forces']
         cartesian_scores = flat_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
         # Using the chain rule, we can derive nabla_x given nabla_r, where 'x' is relative coordinates and 'r'

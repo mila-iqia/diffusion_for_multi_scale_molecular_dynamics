@@ -138,7 +138,8 @@ class DiffusionSamplingCallback(Callback):
                                   number_of_corrector_steps=self.sampling_parameters.number_of_corrector_steps,
                                   number_of_atoms=self.sampling_parameters.number_of_atoms,
                                   spatial_dimension=self.sampling_parameters.spatial_dimension,
-                                  record_samples=self.sampling_parameters.record_samples)
+                                  record_samples=self.sampling_parameters.record_samples,
+                                  positions_require_grad=pl_model.grads_are_needed_in_inference)
 
         pc_sampler = AnnealedLangevinDynamicsSampler(sigma_normalized_score_network=sigma_normalized_score_network,
                                                      **sampler_parameters)
@@ -224,7 +225,7 @@ class DiffusionSamplingCallback(Callback):
         samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device,
                                     unit_cell=unit_cell)
 
-        batch_relative_coordinates = samples.cpu()
+        batch_relative_coordinates = samples.detach().cpu()
 
         sample_energies = self._compute_lammps_energies(batch_relative_coordinates)
 

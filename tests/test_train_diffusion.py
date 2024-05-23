@@ -67,6 +67,15 @@ def get_score_network(architecture: str, head_name: Union[str, None], number_of_
                              number_of_atoms=number_of_atoms,
                              radial_MLP=[4, 4, 4],
                              prediction_head_parameters=get_prediction_head_parameters(head_name))
+
+    elif architecture == 'diffusion_mace':
+        assert head_name is None, "There are no head options for a diffusion_mace score network."
+        score_network = dict(architecture='diffusion_mace',
+                             r_max=3.0,
+                             num_bessel=4,
+                             hidden_irreps="8x0e + 8x1o",
+                             number_of_atoms=number_of_atoms,
+                             radial_MLP=[4, 4, 4])
     else:
         raise NotImplementedError("This score network is not implemented")
     return score_network
@@ -109,7 +118,8 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
     return config
 
 
-@pytest.mark.parametrize("architecture, head_name", [('mace', 'equivariant'), ('mlp', None), ('mace', 'mlp')])
+@pytest.mark.parametrize("architecture, head_name",
+                         [('diffusion_mace', None), ('mace', 'equivariant'), ('mlp', None), ('mace', 'mlp')])
 class TestTrainDiffusion(TestDiffusionDataBase):
     @pytest.fixture()
     def max_epoch(self):
