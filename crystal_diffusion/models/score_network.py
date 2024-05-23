@@ -24,7 +24,7 @@ from crystal_diffusion.models.mace_utils import (
     get_pretrained_mace_output_node_features_irreps, input_to_mace)
 from crystal_diffusion.models.score_prediction_head import (
     MaceScorePredictionHeadParameters, instantiate_mace_prediction_head)
-from crystal_diffusion.namespace import (NOISY_CARTESIAN_POSITIONS,
+from crystal_diffusion.namespace import (NOISE, NOISY_CARTESIAN_POSITIONS,
                                          NOISY_RELATIVE_COORDINATES, TIME,
                                          UNIT_CELL)
 from crystal_diffusion.utils.basis_transformations import \
@@ -72,6 +72,7 @@ class ScoreNetwork(torch.nn.Module):
             - all the components of relative coordinates will be in [0, 1)
             - the time steps are present and of shape [batch_size, 1]
             - the time steps are in range [0, 1].
+            - the 'noise' parameter is present and has the same shape as time.
 
         An assert will fail if the batch does not conform with expectation.
 
@@ -110,6 +111,9 @@ class ScoreNetwork(torch.nn.Module):
         assert torch.logical_and(
             times >= 0.0, times <= 1.0
         ).all(), "The times are expected to be normalized between 0 and 1."
+
+        assert NOISE in batch, "There should be a 'noise' parameter in the batch dictionary."
+        assert batch[NOISE].shape == times.shape, "the 'noise' parameter should have the same shape as the 'time'."
 
         assert UNIT_CELL in batch, f"The unit cell should be present in the batch dictionary with key '{UNIT_CELL}'"
 

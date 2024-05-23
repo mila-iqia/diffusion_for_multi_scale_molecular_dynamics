@@ -13,7 +13,7 @@ from crystal_diffusion.models.score_network import (DiffusionMACEScoreNetwork,
                                                     MACEScoreNetwork,
                                                     MLPScoreNetwork,
                                                     ScoreNetworkParameters)
-from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES,
+from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
                                          RELATIVE_COORDINATES, TIME, UNIT_CELL)
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
@@ -176,9 +176,11 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         unit_cell = torch.diag_embed(batch["box"])  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
 
-        predicted_normalized_scores = self._get_predicted_normalized_score(
-            xt, noise_sample.time, unit_cell
-        )
+        augmented_batch = {NOISY_RELATIVE_COORDINATES: xt,
+                           TIME: noise_sample.time.reshape(-1, 1),
+                           NOISE: noise_sample.sigma.reshape(-1, 1),
+                           UNIT_CELL: unit_cell}
+        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
 
         loss = torch.nn.functional.mse_loss(
             predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
@@ -223,30 +225,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             delta_relative_coordinates, sigmas, kmax=self.hyper_params.kmax_target_score
         )
         return target_normalized_scores
-
-    def _get_predicted_normalized_score(
-        self, noisy_relative_coordinates: torch.Tensor, time: torch.Tensor, unit_cell: torch.Tensor
-    ) -> torch.Tensor:
-        """Get predicted normalized score.
-
-        Args:
-            noisy_relative_coordinates : noised relative coordinates.
-                Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
-            time : Noise times for the noisy relative coordinates. It is assumed that the inputs are consistent, ie,
-                the time values in this array correspond to the noise times used to create the noisy
-                relative coordinates. Tensor of dimensions [batch_size].
-            unit_cell: unit cell definition in Angstrom.
-                Tensor of dimensions [batch_size, spatial_dimension, spatial_dimension].
-
-        Returns:
-            predicted normalized score: sigma times predicted score, ie, sigma times S_theta(xt, t).
-                Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
-        """
-        augmented_batch = {NOISY_RELATIVE_COORDINATES: noisy_relative_coordinates,
-                           TIME: time.reshape(-1, 1),
-                           UNIT_CELL: unit_cell}
-        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
-        return predicted_normalized_scores
 
     def training_step(self, batch, batch_idx):
         """Runs a prediction step for training, returning the loss."""

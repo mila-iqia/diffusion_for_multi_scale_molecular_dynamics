@@ -13,7 +13,7 @@ from mace.tools.scatter import scatter_sum
 from torch_geometric.data import Data
 
 from crystal_diffusion.models.mace_utils import get_adj_matrix
-from crystal_diffusion.namespace import (NOISY_CARTESIAN_POSITIONS, TIME,
+from crystal_diffusion.namespace import (NOISE, NOISY_CARTESIAN_POSITIONS,
                                          UNIT_CELL)
 
 
@@ -37,9 +37,9 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
                                                             basis_vectors=basis_vectors,
                                                             radial_cutoff=radial_cutoff)
 
-    # The node attributes will be the diffusion time, which is constant for each structure in the batch.
-    times = batch[TIME]  # [batch_size, 1]
-    node_attrs = times.repeat_interleave(n_atom_per_graph, dim=0)  # [flat_batch_size, 1]
+    # The node attributes will be the diffusion noise sigma, which is constant for each structure in the batch.
+    noises = batch[NOISE]  # [batch_size, 1]
+    node_attrs = noises.repeat_interleave(n_atom_per_graph, dim=0)  # [flat_batch_size, 1]
 
     # [batchsize * natoms, spatial dimension]
     flat_cartesian_positions = cartesian_positions.view(-1, spatial_dimension)

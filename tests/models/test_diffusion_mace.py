@@ -8,7 +8,7 @@ from mace.modules import gate_dict, interaction_classes
 
 from crystal_diffusion.models.diffusion_mace import (DiffusionMACE,
                                                      input_to_diffusion_mace)
-from crystal_diffusion.namespace import (NOISY_CARTESIAN_POSITIONS,
+from crystal_diffusion.namespace import (NOISE, NOISY_CARTESIAN_POSITIONS,
                                          NOISY_RELATIVE_COORDINATES, TIME,
                                          UNIT_CELL)
 from crystal_diffusion.utils.basis_transformations import (
@@ -86,10 +86,15 @@ class TestDiffusionMace:
         return torch.rand(batch_size, 1)
 
     @pytest.fixture(scope='class')
-    def batch(self, relative_coordinates, cartesian_positions, basis_vectors, times):
+    def noises(self, batch_size):
+        return torch.rand(batch_size, 1)
+
+    @pytest.fixture(scope='class')
+    def batch(self, relative_coordinates, cartesian_positions, basis_vectors, times, noises):
         batch = {NOISY_RELATIVE_COORDINATES: relative_coordinates,
                  NOISY_CARTESIAN_POSITIONS: cartesian_positions,
                  TIME: times,
+                 NOISE: noises,
                  UNIT_CELL: basis_vectors}
         return batch
 
@@ -248,3 +253,22 @@ class TestDiffusionMace:
                                                           for batch_idx in range(batch_size)])
 
         torch.testing.assert_close(expected_permuted_cartesian_scores, permuted_cartesian_scores)
+
+    def test_time_dependance(self, batch, r_max, diffusion_mace):
+
+        graph_input = input_to_diffusion_mace(batch, radial_cutoff=r_max)
+        flat_cartesian_scores1 = diffusion_mace(graph_input, training=False, compute_force=True)['forces']
+        flat_cartesian_scores2 = diffusion_mace(graph_input, training=False, compute_force=True)['forces']
+
+        # apply twice on the same input, get the same answer?
+        torch.testing.assert_close(flat_cartesian_scores1, flat_cartesian_scores2)
+
+        new_time_batch = dict(batch)
+        new_time_batch[TIME] = torch.rand(batch[TIME].shape)
+        new_time_batch[NOISE] = torch.rand(batch[NOISE].shape)
+        new_graph_input = input_to_diffusion_mace(new_time_batch, radial_cutoff=r_max)
+        new_flat_cartesian_scores = diffusion_mace(new_graph_input, training=False, compute_force=True)['forces']
+
+        # Different times, different results?
+        with pytest.raises(AssertionError):
+            torch.testing.assert_close(new_flat_cartesian_scores, flat_cartesian_scores1)

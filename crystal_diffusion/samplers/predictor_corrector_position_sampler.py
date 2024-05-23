@@ -5,8 +5,8 @@ import torch
 from tqdm import tqdm
 
 from crystal_diffusion.models.score_network import ScoreNetwork
-from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES, TIME,
-                                         UNIT_CELL)
+from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
+                                         TIME, UNIT_CELL)
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
@@ -138,12 +138,14 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
     def _draw_gaussian_sample(self, number_of_samples):
         return torch.randn(number_of_samples, self.number_of_atoms, self.spatial_dimension)
 
-    def _get_sigma_normalized_scores(self, x: torch.Tensor, time: float, unit_cell: torch.Tensor) -> torch.Tensor:
+    def _get_sigma_normalized_scores(self, x: torch.Tensor, time: float,
+                                     noise: float, unit_cell: torch.Tensor) -> torch.Tensor:
         """Get sigma normalized scores.
 
         Args:
             x : relative coordinates, of shape [number_of_samples, number_of_atoms, spatial_dimension]
             time : time at which to evaluate the score
+            noise: the diffusion sigma parameter corresponding to the time at which to evaluate the score
             unit_cell: unit cell definition in Angstrom of shape [batch_size, spatial_dimension, spatial_dimension]
 
         Returns:
@@ -152,7 +154,8 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         number_of_samples = x.shape[0]
 
         time_tensor = time * torch.ones(number_of_samples, 1).to(x)
-        augmented_batch = {NOISY_RELATIVE_COORDINATES: x, TIME: time_tensor, UNIT_CELL: unit_cell}
+        noise_tensor = noise * torch.ones(number_of_samples, 1).to(x)
+        augmented_batch = {NOISY_RELATIVE_COORDINATES: x, TIME: time_tensor, NOISE: noise_tensor, UNIT_CELL: unit_cell}
 
         predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
         return predicted_normalized_scores
@@ -179,7 +182,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         g_i = self.noise.g[idx].to(x_i)
         g2_i = self.noise.g_squared[idx].to(x_i)
         sigma_i = self.noise.sigma[idx].to(x_i)
-        sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, unit_cell)
+        sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell)
         x_im1 = x_i + g2_i / sigma_i * sigma_score_i + g_i * z
 
         self.sample_trajectory_recorder.record_unit_cell(unit_cell=unit_cell)
@@ -219,7 +222,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
             sigma_i = self.noise.sigma[idx].to(x_i)
             t_i = self.noise.time[idx].to(x_i)
 
-        sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, unit_cell)
+        sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell)
 
         corrected_x_i = x_i + eps_i / sigma_i * sigma_score_i + sqrt_2eps_i * z
 

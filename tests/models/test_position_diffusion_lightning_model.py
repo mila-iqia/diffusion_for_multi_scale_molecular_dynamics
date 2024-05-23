@@ -10,10 +10,8 @@ from crystal_diffusion.models.position_diffusion_lightning_model import (
 from crystal_diffusion.models.scheduler import (
     CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters,
     ValidSchedulerName)
-from crystal_diffusion.models.score_network import (MLPScoreNetwork,
-                                                    MLPScoreNetworkParameters)
-from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES,
-                                         RELATIVE_COORDINATES, TIME)
+from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
+from crystal_diffusion.namespace import RELATIVE_COORDINATES
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
@@ -208,25 +206,6 @@ class TestPositionDiffusionLightningModel:
                                    brute_force_target_normalized_score,
                                    atol=1e-7,
                                    rtol=1e-4)
-
-    def test_get_predicted_normalized_score(
-        self, mocker, lightning_model, noisy_relative_coordinates, times, unit_cell_sample
-    ):
-        mocker.patch.object(MLPScoreNetwork, "_forward_unchecked")
-
-        _ = lightning_model._get_predicted_normalized_score(
-            noisy_relative_coordinates, times, unit_cell_sample
-        )
-
-        list_calls = MLPScoreNetwork._forward_unchecked.mock_calls
-        assert len(list_calls) == 1
-        input_batch = list_calls[0][1][0]
-
-        assert NOISY_RELATIVE_COORDINATES in input_batch
-        torch.testing.assert_close(input_batch[NOISY_RELATIVE_COORDINATES], noisy_relative_coordinates)
-
-        assert TIME in input_batch
-        torch.testing.assert_close(input_batch[TIME], times.reshape(-1, 1))
 
     @pytest.mark.parametrize("accelerator", available_accelerators)
     @pytest.mark.parametrize("optimizer_name", ['adam', 'adamw'])

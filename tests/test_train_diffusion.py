@@ -119,7 +119,7 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
 
 
 @pytest.mark.parametrize("architecture, head_name",
-                         [('diffusion_mace', None), ('mace', 'equivariant'), ('mlp', None), ('mace', 'mlp')])
+                         [('diffusion_mace', None), ('mlp', None), ('mace', 'equivariant'), ('mace', 'mlp')])
 class TestTrainDiffusion(TestDiffusionDataBase):
     @pytest.fixture()
     def max_epoch(self):
