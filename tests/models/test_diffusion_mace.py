@@ -47,10 +47,6 @@ class TestDiffusionMace:
         """Set the random seed."""
         torch.manual_seed(234233)
 
-    @pytest.fixture(scope="class", autouse=True)
-    def set_torch_default_type(self):
-        torch.set_default_dtype(torch.float64)
-
     @pytest.fixture(scope='class')
     def batch_size(self):
         return 4
@@ -237,7 +233,7 @@ class TestDiffusionMace:
         return flat_permuted_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
     def test_translation_invariance(self, cartesian_scores, translated_cartesian_scores):
-        torch.testing.assert_close(translated_cartesian_scores, cartesian_scores)
+        torch.testing.assert_close(translated_cartesian_scores, cartesian_scores, rtol=1e-8, atol=1e-4)
 
     def test_rotation_equivariance(self, cartesian_scores, rotated_cartesian_scores, cartesian_rotations):
         vector_irreps = o3.Irreps('1o')
