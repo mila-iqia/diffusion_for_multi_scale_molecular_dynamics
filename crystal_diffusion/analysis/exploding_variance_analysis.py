@@ -28,11 +28,11 @@ if __name__ == '__main__':
     ax1 = fig1.add_subplot(121)
     ax2 = fig1.add_subplot(122)
 
-    ax1.plot(noise.time, noise.sigma, '-', c='b', lw=4, label='$\\sigma(t)$')
-    ax1.plot(noise.time, noise.g, '-', c='g', lw=4, label="$g(t)$")
+    ax1.plot(noise.time, noise.sigma, '-', c='b', lw=2, label='$\\sigma(t)$')
+    ax1.plot(noise.time, noise.g, '-', c='g', lw=2, label="$g(t)$")
 
     shifted_time = torch.cat([torch.tensor([0]), noise.time[:-1]])
-    ax1.plot(shifted_time, langevin_dynamics.epsilon, '-', c='r', lw=4, label="$\\epsilon(t)$")
+    ax1.plot(shifted_time, langevin_dynamics.epsilon, '-', c='r', lw=2, label="$\\epsilon(t)$")
     ax1.legend(loc=0)
 
     ax1.set_xlabel('time')

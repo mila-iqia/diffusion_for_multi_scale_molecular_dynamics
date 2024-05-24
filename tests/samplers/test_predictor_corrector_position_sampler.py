@@ -171,7 +171,7 @@ class TestAnnealedLangevinDynamics:
 
             g2 = sigma_i**2 - sigma_im1**2
 
-            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, unit_cell_sample) / sigma_i
+            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample) / sigma_i
 
             expected_sample = x_i + g2 * s_i + torch.sqrt(g2) * z
 
@@ -203,7 +203,7 @@ class TestAnnealedLangevinDynamics:
 
             eps_i = 0.5 * epsilon * sigma_i**2 / sigma_1**2
 
-            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, unit_cell_sample) / sigma_i
+            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample) / sigma_i
 
             expected_sample = x_i + eps_i * s_i + torch.sqrt(2. * eps_i) * z
 

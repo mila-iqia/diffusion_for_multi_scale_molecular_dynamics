@@ -1,17 +1,15 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.score_network import (MACEScoreNetwork,
-                                                    MACEScoreNetworkParameters,
-                                                    MLPScoreNetwork,
-                                                    MLPScoreNetworkParameters,
-                                                    ScoreNetwork,
-                                                    ScoreNetworkParameters)
+from crystal_diffusion.models.score_network import (
+    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters,
+    MACEScoreNetwork, MACEScoreNetworkParameters, MLPScoreNetwork,
+    MLPScoreNetworkParameters, ScoreNetwork, ScoreNetworkParameters)
 from crystal_diffusion.models.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
-from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES, TIME,
-                                         UNIT_CELL)
+from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
+                                         TIME, UNIT_CELL)
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
@@ -31,8 +29,9 @@ class TestScoreNetworkCheck:
         batch_size = 16
         relative_coordinates = torch.rand(batch_size, 8, spatial_dimension)
         times = torch.rand(batch_size, 1)
+        noises = torch.rand(batch_size, 1)
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
-        return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, UNIT_CELL: unit_cell}
+        return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, NOISE: noises, UNIT_CELL: unit_cell}
 
     @pytest.fixture()
     def bad_batch(self, good_batch, problem):
@@ -63,6 +62,14 @@ class TestScoreNetworkCheck:
                 shape = bad_batch[TIME].shape
                 bad_batch[TIME] = bad_batch[TIME].reshape(shape[0] // 2, shape[1] * 2)
 
+            case "noise_name":
+                bad_batch['bad_noise_name'] = bad_batch[NOISE]
+                del bad_batch[NOISE]
+
+            case "noise_shape":
+                shape = bad_batch[NOISE].shape
+                bad_batch[NOISE] = bad_batch[NOISE].reshape(shape[0] // 2, shape[1] * 2)
+
             case "time_range1":
                 bad_batch[TIME][5, 0] = 2.00
             case "time_range2":
@@ -82,8 +89,8 @@ class TestScoreNetworkCheck:
         base_score_network._check_batch(good_batch)
 
     @pytest.mark.parametrize('problem', ['position_name', 'time_name', 'position_shape',
-                                         'time_shape', 'position_range1', 'position_range2',
-                                         'time_range1', 'time_range2', 'cell_name', 'cell_shape'])
+                                         'time_shape', 'noise_name', 'noise_shape', 'position_range1',
+                                         'position_range2', 'time_range1', 'time_range2', 'cell_name', 'cell_shape'])
     def test_check_batch_bad(self, base_score_network, bad_batch):
         with pytest.raises(AssertionError):
             base_score_network._check_batch(bad_batch)
@@ -129,13 +136,17 @@ class BaseTestScoreNetwork:
         times = torch.rand(batch_size, 1)
         return times
 
+    @pytest.fixture
+    def noises(self, batch_size):
+        return torch.rand(batch_size, 1)
+
     @pytest.fixture()
     def expected_score_shape(self, batch_size, number_of_atoms, spatial_dimension):
         return batch_size, number_of_atoms, spatial_dimension
 
     @pytest.fixture()
-    def batch(self, relative_coordinates, times, basis_vectors):
-        return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, UNIT_CELL: basis_vectors}
+    def batch(self, relative_coordinates, times, noises, basis_vectors):
+        return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, UNIT_CELL: basis_vectors, NOISE: noises}
 
     def test_output_shape(self, score_network, batch, expected_score_shape):
         scores = score_network(batch)
@@ -192,3 +203,13 @@ class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
                                                   r_max=3.0,
                                                   prediction_head_parameters=prediction_head_parameters)
         return MACEScoreNetwork(hyper_params)
+
+
+@pytest.mark.parametrize("spatial_dimension", [3])
+class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
+    @pytest.fixture()
+    def score_network(self, number_of_atoms, spatial_dimension):
+        hyper_params = DiffusionMACEScoreNetworkParameters(spatial_dimension=spatial_dimension,
+                                                           number_of_atoms=number_of_atoms,
+                                                           r_max=3.0)
+        return DiffusionMACEScoreNetwork(hyper_params)

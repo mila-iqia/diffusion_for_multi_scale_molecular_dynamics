@@ -16,4 +16,5 @@ RELATIVE_COORDINATES = "relative_coordinates"   # coordinates in the unit cell b
 NOISY_RELATIVE_COORDINATES = "noisy_relative_coordinates"   # relative coordinates perturbed by diffusion noise
 NOISY_CARTESIAN_POSITIONS = "noisy_cartesian_positions"   # cartesian positions perturbed by diffusion noise
 TIME = "time"  # diffusion time
+NOISE = "noise_parameter"  # the exploding variance sigma parameter
 UNIT_CELL = "unit_cell"  # unit cell definition

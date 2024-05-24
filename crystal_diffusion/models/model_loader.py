@@ -8,10 +8,9 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.scheduler import get_scheduler_parameters
-from crystal_diffusion.models.score_network import (MACEScoreNetworkParameters,
-                                                    MLPScoreNetwork,
-                                                    MLPScoreNetworkParameters,
-                                                    ScoreNetworkParameters)
+from crystal_diffusion.models.score_network import (
+    DiffusionMACEScoreNetworkParameters, MACEScoreNetworkParameters,
+    MLPScoreNetwork, MLPScoreNetworkParameters, ScoreNetworkParameters)
 from crystal_diffusion.models.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
@@ -75,6 +74,9 @@ def extract_score_network_parameters(score_network_dictionary: Dict[AnyStr, Any]
     # TODO: this is a hot mess. Surely there is a better way.
     if score_network_architecture == 'mlp':
         score_network_parameters_class = MLPScoreNetworkParameters
+        left_over_parameters = dict(score_network_dictionary)
+    elif score_network_architecture == 'diffusion_mace':
+        score_network_parameters_class = DiffusionMACEScoreNetworkParameters
         left_over_parameters = dict(score_network_dictionary)
     elif score_network_architecture == 'mace':
         score_network_parameters_class = MACEScoreNetworkParameters

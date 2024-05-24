@@ -9,10 +9,11 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
                                                 load_scheduler_dictionary)
-from crystal_diffusion.models.score_network import (MACEScoreNetwork,
+from crystal_diffusion.models.score_network import (DiffusionMACEScoreNetwork,
+                                                    MACEScoreNetwork,
                                                     MLPScoreNetwork,
                                                     ScoreNetworkParameters)
-from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES,
+from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
                                          RELATIVE_COORDINATES, TIME, UNIT_CELL)
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
@@ -57,12 +58,18 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.hyper_params = hyper_params
         self.save_hyperparameters(logger=False)  # It is not the responsibility of this class to log its parameters.
 
+        self.grads_are_needed_in_inference = False
         # we will model sigma x score
         architecture = hyper_params.score_network_parameters.architecture
         if architecture == 'mlp':
             score_network = MLPScoreNetwork
         elif architecture == 'mace':
             score_network = MACEScoreNetwork
+        elif architecture == 'diffusion_mace':
+            score_network = DiffusionMACEScoreNetwork
+            # gradients are needed even in inference mode because the
+            # score network involves a gradient with repect to positions
+            self.grads_are_needed_in_inference = True
         else:
             raise NotImplementedError(f'Architecture {architecture} is not implemented.')
 
@@ -169,9 +176,11 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         unit_cell = torch.diag_embed(batch["box"])  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
 
-        predicted_normalized_scores = self._get_predicted_normalized_score(
-            xt, noise_sample.time, unit_cell
-        )
+        augmented_batch = {NOISY_RELATIVE_COORDINATES: xt,
+                           TIME: noise_sample.time.reshape(-1, 1),
+                           NOISE: noise_sample.sigma.reshape(-1, 1),
+                           UNIT_CELL: unit_cell}
+        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
 
         loss = torch.nn.functional.mse_loss(
             predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
@@ -217,30 +226,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         )
         return target_normalized_scores
 
-    def _get_predicted_normalized_score(
-        self, noisy_relative_coordinates: torch.Tensor, time: torch.Tensor, unit_cell: torch.Tensor
-    ) -> torch.Tensor:
-        """Get predicted normalized score.
-
-        Args:
-            noisy_relative_coordinates : noised relative coordinates.
-                Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
-            time : Noise times for the noisy relative coordinates. It is assumed that the inputs are consistent, ie,
-                the time values in this array correspond to the noise times used to create the noisy
-                relative coordinates. Tensor of dimensions [batch_size].
-            unit_cell: unit cell definition in Angstrom.
-                Tensor of dimensions [batch_size, spatial_dimension, spatial_dimension].
-
-        Returns:
-            predicted normalized score: sigma times predicted score, ie, sigma times S_theta(xt, t).
-                Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
-        """
-        augmented_batch = {NOISY_RELATIVE_COORDINATES: noisy_relative_coordinates,
-                           TIME: time.reshape(-1, 1),
-                           UNIT_CELL: unit_cell}
-        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
-        return predicted_normalized_scores
-
     def training_step(self, batch, batch_idx):
         """Runs a prediction step for training, returning the loss."""
         output = self._generic_step(batch, batch_idx)
@@ -274,3 +259,18 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         # The 'test_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
         self.log("test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True)
         return output
+
+    def on_validation_start(self) -> None:
+        """On validation start."""
+        if self.grads_are_needed_in_inference:
+            torch.set_grad_enabled(True)
+
+    def on_test_start(self) -> None:
+        """On test start."""
+        if self.grads_are_needed_in_inference:
+            torch.set_grad_enabled(True)
+
+    def on_predict_start(self) -> None:
+        """On predict start."""
+        if self.grads_are_needed_in_inference:
+            torch.set_grad_enabled(True)

@@ -200,8 +200,8 @@ def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1) -> torc
     """
     spatial_dimension = 3
     shifts = range(-number_of_shells, number_of_shells + 1)
-    list_relative_lattice_vectors = torch.tensor(list(itertools.product(shifts, repeat=spatial_dimension)),
-                                                 dtype=torch.float)
+    list_relative_lattice_vectors = 1.0 * torch.tensor(list(itertools.product(shifts, repeat=spatial_dimension)))
+
     return list_relative_lattice_vectors
 
 
