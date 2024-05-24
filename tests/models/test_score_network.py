@@ -10,6 +10,8 @@ from crystal_diffusion.models.score_network import (MACEScoreNetwork,
 from crystal_diffusion.models.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
+from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES, TIME,
+                                         UNIT_CELL)
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
@@ -27,11 +29,10 @@ class TestScoreNetworkCheck:
     @pytest.fixture()
     def good_batch(self, spatial_dimension):
         batch_size = 16
-        positions = torch.rand(batch_size, 8, spatial_dimension)
+        relative_coordinates = torch.rand(batch_size, 8, spatial_dimension)
         times = torch.rand(batch_size, 1)
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
-        return {ScoreNetwork.position_key: positions, ScoreNetwork.timestep_key: times,
-                ScoreNetwork.unit_cell_key: unit_cell}
+        return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, UNIT_CELL: unit_cell}
 
     @pytest.fixture()
     def bad_batch(self, good_batch, problem):
@@ -40,42 +41,40 @@ class TestScoreNetworkCheck:
 
         match problem:
             case "position_name":
-                bad_batch['bad_position_name'] = bad_batch[ScoreNetwork.position_key]
-                del bad_batch[ScoreNetwork.position_key]
+                bad_batch['bad_position_name'] = bad_batch[NOISY_RELATIVE_COORDINATES]
+                del bad_batch[NOISY_RELATIVE_COORDINATES]
 
             case "position_shape":
-                shape = bad_batch[ScoreNetwork.position_key].shape
-                bad_batch[ScoreNetwork.position_key] = \
-                    bad_batch[ScoreNetwork.position_key].reshape(shape[0], shape[1] // 2, shape[2] * 2)
+                shape = bad_batch[NOISY_RELATIVE_COORDINATES].shape
+                bad_batch[NOISY_RELATIVE_COORDINATES] = \
+                    bad_batch[NOISY_RELATIVE_COORDINATES].reshape(shape[0], shape[1] // 2, shape[2] * 2)
 
             case "position_range1":
-                bad_batch[ScoreNetwork.position_key][0, 0, 0] = 1.01
+                bad_batch[NOISY_RELATIVE_COORDINATES][0, 0, 0] = 1.01
 
             case "position_range2":
-                bad_batch[ScoreNetwork.position_key][1, 0, 0] = -0.01
+                bad_batch[NOISY_RELATIVE_COORDINATES][1, 0, 0] = -0.01
 
             case "time_name":
-                bad_batch['bad_time_name'] = bad_batch[ScoreNetwork.timestep_key]
-                del bad_batch[ScoreNetwork.timestep_key]
+                bad_batch['bad_time_name'] = bad_batch[TIME]
+                del bad_batch[TIME]
 
             case "time_shape":
-                shape = bad_batch[ScoreNetwork.timestep_key].shape
-                bad_batch[ScoreNetwork.timestep_key] = (
-                    bad_batch[ScoreNetwork.timestep_key].reshape(shape[0] // 2, shape[1] * 2))
+                shape = bad_batch[TIME].shape
+                bad_batch[TIME] = bad_batch[TIME].reshape(shape[0] // 2, shape[1] * 2)
 
             case "time_range1":
-                bad_batch[ScoreNetwork.timestep_key][5, 0] = 2.00
+                bad_batch[TIME][5, 0] = 2.00
             case "time_range2":
-                bad_batch[ScoreNetwork.timestep_key][0, 0] = -0.05
+                bad_batch[TIME][0, 0] = -0.05
 
             case "cell_name":
-                bad_batch['bad_unit_cell_key'] = bad_batch[ScoreNetwork.unit_cell_key]
-                del bad_batch[ScoreNetwork.unit_cell_key]
+                bad_batch['bad_unit_cell_key'] = bad_batch[UNIT_CELL]
+                del bad_batch[UNIT_CELL]
 
             case "cell_shape":
-                shape = bad_batch[ScoreNetwork.unit_cell_key].shape
-                bad_batch[ScoreNetwork.unit_cell_key] = (
-                    bad_batch[ScoreNetwork.unit_cell_key].reshape(shape[0] // 2, shape[1] * 2, shape[2]))
+                shape = bad_batch[UNIT_CELL].shape
+                bad_batch[UNIT_CELL] = bad_batch[UNIT_CELL].reshape(shape[0] // 2, shape[1] * 2, shape[2])
 
         return bad_batch
 
@@ -136,8 +135,7 @@ class BaseTestScoreNetwork:
 
     @pytest.fixture()
     def batch(self, relative_coordinates, times, basis_vectors):
-        return {ScoreNetwork.position_key: relative_coordinates, ScoreNetwork.timestep_key: times,
-                ScoreNetwork.unit_cell_key: basis_vectors}
+        return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, UNIT_CELL: basis_vectors}
 
     def test_output_shape(self, score_network, batch, expected_score_shape):
         scores = score_network(batch)

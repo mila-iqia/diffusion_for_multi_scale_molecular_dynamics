@@ -12,7 +12,9 @@ from mace.tools.torch_geometric.dataloader import Collater
 from crystal_diffusion.models.mace_utils import (
     get_normalized_irreps_permutation_indices, get_pretrained_mace,
     input_to_mace)
-from crystal_diffusion.utils.neighbors import _get_positions_from_coordinates
+from crystal_diffusion.namespace import NOISY_CARTESIAN_POSITIONS, UNIT_CELL
+from crystal_diffusion.utils.basis_transformations import \
+    get_positions_from_coordinates
 from tests.fake_data_utils import find_aligning_permutation
 
 
@@ -64,13 +66,13 @@ class TestInputToMaceChain:
 
     @pytest.fixture()
     def score_network_input(self, batch_size, spatial_dim, cell_size, atomic_positions):
-        score_network_input = dict(abs_positions=atomic_positions.unsqueeze(0).repeat(batch_size, 1, 1),
-                                   cell=torch.eye(spatial_dim).repeat(batch_size, 1, 1) * cell_size)
+        score_network_input = {NOISY_CARTESIAN_POSITIONS: atomic_positions.unsqueeze(0).repeat(batch_size, 1, 1),
+                               UNIT_CELL: torch.eye(spatial_dim).repeat(batch_size, 1, 1) * cell_size}
+
         return score_network_input
 
     def test_input_to_mace(self, score_network_input, radial_cutoff, mace_graph):
         crystal_diffusion_graph = input_to_mace(score_network_input,
-                                                unit_cell_key='cell',
                                                 radial_cutoff=radial_cutoff)
 
         # check the features used in MACE as the same in both our homemade graph and the one native to mace library
@@ -99,18 +101,18 @@ class TestInputToMaceRandom(TestInputToMaceChain):
         return basis_vectors
 
     @pytest.fixture
-    def positions(self, batch_size, n_atoms, spatial_dim, basis_vectors):
+    def cartesian_positions(self, batch_size, n_atoms, spatial_dim, basis_vectors):
         relative_coordinates = torch.rand(batch_size, n_atoms, spatial_dim)
-        positions = _get_positions_from_coordinates(relative_coordinates, basis_vectors)
+        positions = get_positions_from_coordinates(relative_coordinates, basis_vectors)
         return positions
 
     @pytest.fixture()
-    def mace_graph(self, basis_vectors, positions, spatial_dim, n_atoms, radial_cutoff):
+    def mace_graph(self, basis_vectors, cartesian_positions, spatial_dim, n_atoms, radial_cutoff):
         pbc = np.array([True] * spatial_dim)  # periodic boundary conditions
         atom_type = np.ones(n_atoms) * 14
 
         list_graphs = []
-        for unit_cell, atomic_positions in zip(basis_vectors, positions):
+        for unit_cell, atomic_positions in zip(basis_vectors, cartesian_positions):
             graph_config = Configuration(atomic_numbers=atom_type,
                                          positions=atomic_positions.numpy(),
                                          cell=unit_cell,
@@ -124,14 +126,13 @@ class TestInputToMaceRandom(TestInputToMaceChain):
         return mace_batch
 
     @pytest.fixture()
-    def score_network_input(self, positions, basis_vectors):
-        score_network_input = dict(abs_positions=positions, cell=basis_vectors)
+    def score_network_input(self, cartesian_positions, basis_vectors):
+        score_network_input = {NOISY_CARTESIAN_POSITIONS: cartesian_positions, UNIT_CELL: basis_vectors}
         return score_network_input
 
     @pytest.mark.parametrize("radial_cutoff", [1.1, 2.2, 4.4])
     def test_input_to_mace(self, score_network_input, radial_cutoff, mace_graph):
         computed_mace_graph = input_to_mace(score_network_input,
-                                            unit_cell_key='cell',
                                             radial_cutoff=radial_cutoff)
 
         for feature_name in ['node_attrs', 'positions', 'ptr', 'batch', 'cell']:

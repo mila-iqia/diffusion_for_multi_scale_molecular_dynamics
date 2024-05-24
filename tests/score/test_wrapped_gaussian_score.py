@@ -16,7 +16,7 @@ def set_random_seed():
 
 
 @pytest.fixture
-def relative_positions(shape):
+def relative_coordinates(shape):
     return torch.rand(shape)
 
 
@@ -26,8 +26,8 @@ def sigmas(shape):
 
 
 @pytest.fixture()
-def list_u(relative_positions):
-    return relative_positions.flatten()
+def list_u(relative_coordinates):
+    return relative_coordinates.flatten()
 
 
 @pytest.fixture()
@@ -41,11 +41,11 @@ def list_k(kmax):
 
 
 @pytest.fixture
-def expected_sigma_normalized_scores(relative_positions, sigmas):
-    shape = relative_positions.shape
+def expected_sigma_normalized_scores(relative_coordinates, sigmas):
+    shape = relative_coordinates.shape
 
     list_sigma_normalized_scores = []
-    for u, sigma in zip(relative_positions.numpy().flatten(), sigmas.numpy().flatten()):
+    for u, sigma in zip(relative_coordinates.numpy().flatten(), sigmas.numpy().flatten()):
         s = get_sigma_normalized_score_brute_force(u, sigma)
         list_sigma_normalized_scores.append(s)
 
@@ -179,10 +179,10 @@ def test_get_sigma_normalized_s2(list_u, list_sigma, list_k, numerical_type):
 @pytest.mark.parametrize("kmax", [4])
 @pytest.mark.parametrize("shape", test_shapes)
 def test_get_sigma_normalized_score(
-    relative_positions, sigmas, kmax, expected_sigma_normalized_scores
+        relative_coordinates, sigmas, kmax, expected_sigma_normalized_scores
 ):
     sigma_normalized_score_small_sigma = get_sigma_normalized_score(
-        relative_positions, sigmas, kmax
+        relative_coordinates, sigmas, kmax
     )
     torch.testing.assert_close(
         sigma_normalized_score_small_sigma, expected_sigma_normalized_scores, check_dtype=False

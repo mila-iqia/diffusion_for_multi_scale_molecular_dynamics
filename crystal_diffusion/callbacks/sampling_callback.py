@@ -17,6 +17,8 @@ from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
     AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from crystal_diffusion.utils.basis_transformations import \
+    get_positions_from_coordinates
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,20 @@ class DiffusionSamplingCallback(Callback):
             Path(self.position_sample_output_directory).mkdir(parents=True, exist_ok=True)
 
         self._initialize_validation_energies_array()
+
+    @staticmethod
+    def _get_orthogonal_unit_cell(batch_size: int, cell_dimensions: List[float]) -> torch.Tensor:
+        """Get orthogonal unit cell.
+
+        Args:
+            batch_size: number of required repetitions of the unit cell.
+            cell_dimensions : list of dimensions that correspond to the sides of the unit cell.
+
+        Returns:
+            unit_cell: a diagonal matrix with the dimensions along the diagonal.
+        """
+        unit_cell = torch.diag(torch.Tensor(cell_dimensions)).unsqueeze(0).repeat(batch_size, 1, 1)
+        return unit_cell
 
     @staticmethod
     def compute_kolmogorov_smirnov_distance_and_pvalue(sampling_energies: np.ndarray,
@@ -127,8 +143,9 @@ class DiffusionSamplingCallback(Callback):
         pc_sampler = AnnealedLangevinDynamicsSampler(sigma_normalized_score_network=sigma_normalized_score_network,
                                                      **sampler_parameters)
         # TODO we will have to sample unit cell dimensions at some points instead of working with fixed size
-        unit_cell = torch.diag(torch.Tensor(self.sampling_parameters.cell_dimensions)).to(pl_model.device)
-        unit_cell = unit_cell.unsqueeze(0).repeat(self.sampling_parameters.number_of_samples, 1, 1)
+        unit_cell = (self._get_orthogonal_unit_cell(batch_size=self.sampling_parameters.number_of_samples,
+                                                    cell_dimensions=self.sampling_parameters.cell_dimensions)
+                     .to(pl_model.device))
 
         return pc_sampler, unit_cell
 
@@ -166,10 +183,13 @@ class DiffusionSamplingCallback(Callback):
         fig.tight_layout()
         return fig
 
-    def _compute_lammps_energies(self, batch_relative_positions: np.ndarray) -> np.ndarray:
+    def _compute_lammps_energies(self, batch_relative_coordinates: torch.Tensor) -> np.ndarray:
         """Compute energies from samples."""
-        box = np.diag(self.sampling_parameters.cell_dimensions)
-        batch_positions = np.dot(batch_relative_positions, box)
+        batch_size = batch_relative_coordinates.shape[0]
+        cell_dimensions = self.sampling_parameters.cell_dimensions
+        basis_vectors = self._get_orthogonal_unit_cell(batch_size, cell_dimensions)
+        batch_cartesian_positions = get_positions_from_coordinates(batch_relative_coordinates, basis_vectors)
+
         atom_types = np.ones(self.sampling_parameters.number_of_atoms, dtype=int)
 
         list_energy = []
@@ -177,7 +197,7 @@ class DiffusionSamplingCallback(Callback):
         logger.info("Compute energy from Oracle")
 
         with tempfile.TemporaryDirectory() as tmp_work_dir:
-            for idx, positions in enumerate(batch_positions):
+            for positions, box in zip(batch_cartesian_positions.numpy(), basis_vectors.numpy()):
                 energy, forces = get_energy_and_forces_from_lammps(positions,
                                                                    box,
                                                                    atom_types,
@@ -204,9 +224,9 @@ class DiffusionSamplingCallback(Callback):
         samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device,
                                     unit_cell=unit_cell)
 
-        batch_relative_positions = samples.cpu().numpy()
+        batch_relative_coordinates = samples.cpu()
 
-        sample_energies = self._compute_lammps_energies(batch_relative_positions)
+        sample_energies = self._compute_lammps_energies(batch_relative_coordinates)
 
         energy_output_path = os.path.join(self.energy_sample_output_directory,
                                           f"energies_sample_epoch={trainer.current_epoch}.pt")

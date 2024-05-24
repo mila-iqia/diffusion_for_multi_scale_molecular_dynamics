@@ -5,13 +5,14 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
-from crystal_diffusion.samplers.noisy_position_sampler import \
-    map_positions_to_unit_cell
+from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES
 from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
     AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
+from crystal_diffusion.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
 
 plt.style.use(PLOT_STYLE_PATH)
 TENSORBOARD_FIGSIZE = (0.65 * PLEASANT_FIG_SIZE[0], 0.65 * PLEASANT_FIG_SIZE[1])
@@ -87,7 +88,7 @@ class TensorboardSamplesLoggingCallback(TensorBoardDebuggingLoggingCallback):
         list_xt = []
         list_sigmas = []
         for output in self.training_step_outputs:
-            list_xt.append(output["noisy_relative_positions"].flatten())
+            list_xt.append(output[NOISY_RELATIVE_COORDINATES].flatten())
             list_sigmas.append(output["sigmas"].flatten())
         list_xt = torch.cat(list_xt)
         list_sigmas = torch.cat(list_sigmas)
@@ -168,7 +169,8 @@ class TensorboardScoreAndErrorLoggingCallback(TensorBoardDebuggingLoggingCallbac
             for time, sigma in zip(times, sigmas):
                 times = time * torch.ones(1000).reshape(-1, 1)
 
-                sigma_normalized_kernel = get_sigma_normalized_score(map_positions_to_unit_cell(list_x - self.x0),
+                sigma_normalized_kernel = get_sigma_normalized_score(map_relative_coordinates_to_unit_cell(list_x
+                                                                                                           - self.x0),
                                                                      sigma * torch.ones_like(list_x),
                                                                      kmax=4)
                 predicted_normalized_scores = pl_module._get_predicted_normalized_score(list_x.reshape(-1, 1, 1),

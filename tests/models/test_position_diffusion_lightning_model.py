@@ -12,6 +12,8 @@ from crystal_diffusion.models.scheduler import (
     ValidSchedulerName)
 from crystal_diffusion.models.score_network import (MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
+from crystal_diffusion.namespace import (NOISY_RELATIVE_COORDINATES,
+                                         RELATIVE_COORDINATES, TIME)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
@@ -33,10 +35,10 @@ class FakePositionsDataModule(LightningDataModule):
     ):
         super().__init__()
         self.batch_size = batch_size
-        all_positions = torch.rand(dataset_size, number_of_atoms, spatial_dimension)
+        all_relative_coordinates = torch.rand(dataset_size, number_of_atoms, spatial_dimension)
         box = torch.rand(spatial_dimension)
         self.data = [
-            dict(relative_positions=configuration, box=box) for configuration in all_positions
+            {RELATIVE_COORDINATES: configuration, 'box': box} for configuration in all_relative_coordinates
         ]
         self.train_data, self.val_data, self.test_data = None, None, None
 
@@ -118,20 +120,16 @@ class TestPositionDiffusionLightningModel:
         return hyper_params
 
     @pytest.fixture()
-    def real_relative_positions(self, batch_size, number_of_atoms, spatial_dimension):
-        relative_positions = torch.rand(batch_size, number_of_atoms, spatial_dimension)
-        return relative_positions
+    def real_relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension):
+        relative_coordinates = torch.rand(batch_size, number_of_atoms, spatial_dimension)
+        return relative_coordinates
 
     @pytest.fixture()
-    def noisy_relative_positions(self, batch_size, number_of_atoms, spatial_dimension):
-        noisy_relative_positions = torch.rand(
+    def noisy_relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension):
+        noisy_relative_coordinates = torch.rand(
             batch_size, number_of_atoms, spatial_dimension
         )
-        return noisy_relative_positions
-
-    @pytest.fixture()
-    def batch(self, real_relative_positions):
-        return dict(relative_positions=real_relative_positions)
+        return noisy_relative_coordinates
 
     @pytest.fixture()
     def fake_datamodule(self, batch_size, number_of_atoms, spatial_dimension):
@@ -162,14 +160,14 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture()
     def brute_force_target_normalized_score(
-        self, noisy_relative_positions, real_relative_positions, sigmas
+        self, noisy_relative_coordinates, real_relative_coordinates, sigmas
     ):
-        shape = noisy_relative_positions.shape
+        shape = noisy_relative_coordinates.shape
 
         expected_scores = []
         for xt, x0, sigma in zip(
-            noisy_relative_positions.flatten(),
-            real_relative_positions.flatten(),
+            noisy_relative_coordinates.flatten(),
+            real_relative_coordinates.flatten(),
             sigmas.flatten(),
         ):
             u = torch.remainder(xt - x0, 1.0)
@@ -194,15 +192,15 @@ class TestPositionDiffusionLightningModel:
     def test_get_target_normalized_score(
         self,
         lightning_model,
-        noisy_relative_positions,
-        real_relative_positions,
+        noisy_relative_coordinates,
+        real_relative_coordinates,
         sigmas,
         brute_force_target_normalized_score,
         unit_cell_sample
     ):
         computed_target_normalized_scores = (
             lightning_model._get_target_normalized_score(
-                noisy_relative_positions, real_relative_positions, sigmas
+                noisy_relative_coordinates, real_relative_coordinates, sigmas
             )
         )
 
@@ -212,23 +210,23 @@ class TestPositionDiffusionLightningModel:
                                    rtol=1e-4)
 
     def test_get_predicted_normalized_score(
-        self, mocker, lightning_model, noisy_relative_positions, times, unit_cell_sample
+        self, mocker, lightning_model, noisy_relative_coordinates, times, unit_cell_sample
     ):
         mocker.patch.object(MLPScoreNetwork, "_forward_unchecked")
 
         _ = lightning_model._get_predicted_normalized_score(
-            noisy_relative_positions, times, unit_cell_sample
+            noisy_relative_coordinates, times, unit_cell_sample
         )
 
         list_calls = MLPScoreNetwork._forward_unchecked.mock_calls
         assert len(list_calls) == 1
         input_batch = list_calls[0][1][0]
 
-        assert MLPScoreNetwork.position_key in input_batch
-        torch.testing.assert_close(input_batch[MLPScoreNetwork.position_key], noisy_relative_positions)
+        assert NOISY_RELATIVE_COORDINATES in input_batch
+        torch.testing.assert_close(input_batch[NOISY_RELATIVE_COORDINATES], noisy_relative_coordinates)
 
-        assert MLPScoreNetwork.timestep_key in input_batch
-        torch.testing.assert_close(input_batch[MLPScoreNetwork.timestep_key], times.reshape(-1, 1))
+        assert TIME in input_batch
+        torch.testing.assert_close(input_batch[TIME], times.reshape(-1, 1))
 
     @pytest.mark.parametrize("accelerator", available_accelerators)
     @pytest.mark.parametrize("optimizer_name", ['adam', 'adamw'])

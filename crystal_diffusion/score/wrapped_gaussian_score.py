@@ -43,7 +43,7 @@ def get_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Optiona
     This is only useful if summed to convergence, which is expensive for large sigma!
 
     Args:
-        u : the relative position at which the wrapped Gaussian is evaluated. Assumed between 0 and 1.
+        u : the relative coordinates at which the wrapped Gaussian is evaluated. Assumed between 0 and 1.
         sigma : the variance in the definition of the wrapped Gaussian.
         kmax : if provided, the sum will be from -kmax to kmax. If not provided, a large
             default value will be used.
@@ -71,34 +71,33 @@ def get_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Optiona
 
 
 def get_sigma_normalized_score(
-    relative_positions: torch.Tensor, sigmas: torch.Tensor, kmax: int
+    relative_coordinates: torch.Tensor, sigmas: torch.Tensor, kmax: int
 ) -> torch.Tensor:
     """Get the sigma normalized score.
 
-    This method branches to different formulas depending on the values of sigma and relative position
+    This method branches to different formulas depending on the values of sigma and relative coordinates
     to insures rapid convergence and numerical stability.
 
     Args:
-        relative_positions : input relative coordinates: should be between 0 and 1.
-            relative_positions is assumed to have an arbitrary shape.
-        sigmas : the values of sigma. Should have the same dimension as relative positions.
+        relative_coordinates : input relative coordinates: should be between 0 and 1.
+            relative_coordinates is assumed to have an arbitrary shape.
+        sigmas : the values of sigma. Should have the same dimension as relative coordinates.
         kmax : largest positive integer in the sum. The sum is from -kmax to +kmax.
 
     Returns:
         list_sigma_normalized_score : the sigma_normalized_scores, in the same shape as
-            relative_positions.
+            relative_coordinates.
     """
     assert kmax >= 0, "kmax must be a non negative integer"
     assert (sigmas > 0).all(), "All values of sigma should be larger than zero."
     assert torch.logical_and(
-        relative_positions >= 0, relative_positions < 1
-    ).all(), "the relative positions should all be in [0, 1)"
-    assert (
-        sigmas.shape == relative_positions.shape
-    ), "The relative_positions and sigmas inputs should have the same shape"
+        relative_coordinates >= 0, relative_coordinates < 1
+    ).all(), "the relative coordinates should all be in [0, 1)"
+    assert sigmas.shape == relative_coordinates.shape, \
+        "The relative_coordinates and sigmas inputs should have the same shape"
 
-    total_number_of_elements = relative_positions.nelement()
-    list_u = relative_positions.view(total_number_of_elements)
+    total_number_of_elements = relative_coordinates.nelement()
+    list_u = relative_coordinates.view(total_number_of_elements)
     list_sigma = sigmas.reshape(total_number_of_elements)
 
     # The dimension of list_k is [2 kmax + 1].
@@ -107,7 +106,7 @@ def get_sigma_normalized_score(
     # Initialize a results array, and view it as a flat list.
     # Since "flat_view" is a view on "sigma_normalized_scores",  sigma_normalized_scores is updated
     # when we assign values in flat_view (both tensors share the same underlying data structure).
-    sigma_normalized_scores = torch.zeros_like(relative_positions)
+    sigma_normalized_scores = torch.zeros_like(relative_coordinates)
     flat_view = sigma_normalized_scores.view(total_number_of_elements)
 
     mask_calculators = [
@@ -134,7 +133,7 @@ def _get_small_sigma_small_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor
     """Get the boolean mask for small sigma and small u.
 
     Args:
-        list_u : the relative positions, with shape [Nu].
+        list_u : the relative coordinates, with shape [Nu].
         list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
 
     Returns:
@@ -148,7 +147,7 @@ def _get_small_sigma_large_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor
     """Get the boolean mask for small sigma and large u.
 
     Args:
-        list_u : the relative positions, with shape [Nu].
+        list_u : the relative coordinates, with shape [Nu].
         list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
 
     Returns:
@@ -177,7 +176,7 @@ def _get_s1a_exponential(
     """Get the exponential terms for small sigma and 0 <= u < 0.5.
 
     Args:
-        list_u : the relative positions, with shape [Nu].
+        list_u : the relative coordinates, with shape [Nu].
         list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
         list_k : the integer values that will be summed over, with shape [Nk].
 
@@ -199,7 +198,7 @@ def _get_s1b_exponential(
     """Get the exponential terms for small sigma and 0.5 <= u < 1.
 
     Args:
-        list_u : the relative positions, with shape [Nu].
+        list_u : the relative coordinates, with shape [Nu].
         list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
         list_k : the integer values that will be summed over, with shape [Nk].
 
@@ -226,7 +225,7 @@ def _get_sigma_square_times_score_1_from_exponential(
 
     Args:
         exponential : the exponential terms, with shape [Nu, Nk].
-        list_u : the relative positions, with shape [Nu].
+        list_u : the relative coordinates, with shape [Nu].
         list_k : the integer values that will be summed over, with shape [Nk].
 
     Returns:
@@ -249,7 +248,7 @@ def _get_sigma_normalized_score_1a(
     This method assumes that the inputs are appropriate.
 
     Args:
-        list_u : the relative positions, with shape [Nu].
+        list_u : the relative coordinates, with shape [Nu].
         list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
         list_k : the integer values that will be summed over, with shape [Nk].
 
@@ -270,7 +269,7 @@ def _get_sigma_normalized_score_1b(
     This method assumes that the inputs are appropriate.
 
     Args:
-        list_u : the relative positions, with shape [Nu].
+        list_u : the relative coordinates, with shape [Nu].
         list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
         list_k : the integer values that will be summed over, with shape [Nk].
 
@@ -291,7 +290,7 @@ def _get_sigma_normalized_s2(
     This method assumes that the inputs are appropriate.
 
     Args:
-        list_u : the relative positions, with shape [Nu].
+        list_u : the relative coordinates, with shape [Nu].
         list_sigma : the values of sigma, one value for each value of u, with shape [Nu].
         list_k : the integer values that will be summed over, with shape [Nk].
 

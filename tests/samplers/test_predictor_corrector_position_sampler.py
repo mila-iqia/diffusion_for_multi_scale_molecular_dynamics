@@ -3,12 +3,12 @@ import torch
 
 from crystal_diffusion.models.score_network import (MLPScoreNetwork,
                                                     MLPScoreNetworkParameters)
-from crystal_diffusion.samplers.noisy_position_sampler import \
-    map_positions_to_unit_cell
 from crystal_diffusion.samplers.predictor_corrector_position_sampler import (
     AnnealedLangevinDynamicsSampler, PredictorCorrectorPositionSampler)
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+from crystal_diffusion.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
 
 
 class FakePCSampler(PredictorCorrectorPositionSampler):
@@ -75,12 +75,12 @@ class TestPredictorCorrectorPositionSampler:
         list_i.reverse()
         list_j = list(range(number_of_corrector_steps))
 
-        noisy_sample = map_positions_to_unit_cell(initial_sample)
+        noisy_sample = map_relative_coordinates_to_unit_cell(initial_sample)
         x_ip1 = noisy_sample
         for i in list_i:
-            xi = map_positions_to_unit_cell(sampler.predictor_step(x_ip1, i + 1, unit_cell_sample))
+            xi = map_relative_coordinates_to_unit_cell(sampler.predictor_step(x_ip1, i + 1, unit_cell_sample))
             for _ in list_j:
-                xi = map_positions_to_unit_cell(sampler.corrector_step(xi, i, unit_cell_sample))
+                xi = map_relative_coordinates_to_unit_cell(sampler.corrector_step(xi, i, unit_cell_sample))
             x_ip1 = xi
         return xi
 
@@ -145,7 +145,7 @@ class TestAnnealedLangevinDynamics:
 
     @pytest.fixture()
     def x_i(self, number_of_samples, number_of_atoms, spatial_dimension):
-        return map_positions_to_unit_cell(torch.rand(number_of_samples, number_of_atoms, spatial_dimension))
+        return map_relative_coordinates_to_unit_cell(torch.rand(number_of_samples, number_of_atoms, spatial_dimension))
 
     def test_predictor_step(self, mocker, pc_sampler, noise_parameters, x_i, total_time_steps, number_of_samples,
                             unit_cell_sample):
