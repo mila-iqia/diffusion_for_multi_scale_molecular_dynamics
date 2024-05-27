@@ -34,3 +34,4 @@ rich==13.7.1
 deepdiff==7.0.1
 pykeops==2.2.3
 comet_ml
+einops==0.8.0
