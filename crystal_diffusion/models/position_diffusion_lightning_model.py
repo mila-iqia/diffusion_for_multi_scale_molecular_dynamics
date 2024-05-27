@@ -163,7 +163,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         # The target is nabla log p_{t|0} (xt | x0): it is NOT the "score", but rather a "conditional" (on x0) score.
         target_normalized_conditional_scores = self._get_target_normalized_score(xt, x0, sigmas)
 
-        unit_cell = torch.diag_embed(batch["box"])  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
+        if 'box' in batch.keys():
+            unit_cell = torch.diag_embed(batch["box"])  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
+        else:
+            unit_cell = batch["lattice"]
 
         predicted_normalized_scores = self._get_predicted_normalized_score(
             xt, noise_sample.time, unit_cell

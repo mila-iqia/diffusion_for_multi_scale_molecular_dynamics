@@ -127,7 +127,12 @@ class DiffusionSamplingCallback(Callback):
         pc_sampler = AnnealedLangevinDynamicsSampler(sigma_normalized_score_network=sigma_normalized_score_network,
                                                      **sampler_parameters)
         # TODO we will have to sample unit cell dimensions at some points instead of working with fixed size
-        unit_cell = torch.diag(torch.Tensor(self.sampling_parameters.cell_dimensions)).to(pl_model.device)
+        if len(self.sampling_parameters.cell_dimensions) == self.sampling_parameters.spatial_dimension:
+            unit_cell = torch.diag(torch.Tensor(self.sampling_parameters.cell_dimensions)).to(pl_model.device)
+        elif len(self.sampling_parameters.cell_dimensions) == self.sampling_parameters.spatial_dimension ** 2:
+            unit_cell = torch.Tensor(self.sampling_parameters.cell_dimensions).view(
+                self.sampling_parameters.spatial_dimension, self.sampling_parameters.spatial_dimension)
+            unit_cell = unit_cell.to(pl_model.device)
         unit_cell = unit_cell.unsqueeze(0).repeat(self.sampling_parameters.number_of_samples, 1, 1)
 
         return pc_sampler, unit_cell
@@ -168,7 +173,11 @@ class DiffusionSamplingCallback(Callback):
 
     def _compute_lammps_energies(self, batch_relative_positions: np.ndarray) -> np.ndarray:
         """Compute energies from samples."""
-        box = np.diag(self.sampling_parameters.cell_dimensions)
+        if len(self.sampling_parameters.cell_dimensions) == 3:
+            box = np.diag(self.sampling_parameters.cell_dimensions)
+        elif len(self.sampling_parameters.cell_dimensions) == self.sampling_parameters.spatial_dimension ** 2:
+            box = np.array(self.sampling_parameters.cell_dimensions).reshape(self.sampling_parameters.spatial_dimension,
+                                                                             self.sampling_parameters.spatial_dimension)
         batch_positions = np.dot(batch_relative_positions, box)
         atom_types = np.ones(self.sampling_parameters.number_of_atoms, dtype=int)
 

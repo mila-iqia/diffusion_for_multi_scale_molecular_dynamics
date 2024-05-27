@@ -76,7 +76,10 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         transformed_x = {}
         transformed_x['natom'] = torch.as_tensor(x['natom']).long()  # resulting tensor size: (batchsize, )
         bsize = transformed_x['natom'].size(0)
-        transformed_x['box'] = torch.as_tensor(x['box'])  # size: (batchsize, spatial dimension)
+        if 'box' in x.keys():
+            transformed_x['box'] = torch.as_tensor(x['box'])  # size: (batchsize, spatial dimension)
+        elif 'lattice' in x.keys():
+            transformed_x['lattice'] = torch.as_tensor(x['lattice']).view(-1, spatial_dim, spatial_dim)
         for pos in ['position', 'relative_positions']:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
         transformed_x['type'] = torch.as_tensor(x['type']).long()  # size: (batchsize, max atom)
@@ -109,7 +112,6 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         """Parse and split all samples across the train/valid/test parsers."""
         # here, we will actually assign train/val datasets for use in dataloaders
         processed_data = LammpsProcessorForDiffusion(self.lammps_run_dir, self.processed_dataset_dir)
-
         if stage == "fit" or stage is None:
             self.train_dataset = datasets.Dataset.from_parquet(processed_data.train_files,
                                                                cache_dir=self.working_cache_dir)

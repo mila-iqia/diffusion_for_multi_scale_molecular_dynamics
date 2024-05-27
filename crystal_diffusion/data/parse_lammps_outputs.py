@@ -64,8 +64,10 @@ def parse_lammps_dump(lammps_dump: str) -> Dict[str, Any]:
         dump_yaml = yaml.load_all(stream, Loader=CLoader)
 
         for doc in dump_yaml:  # loop over MD steps
-            pd_data['box'].append(np.array(doc['box'])[:, 1])
-
+            if 'box' in doc.keys():
+                pd_data['box'].append(np.array(doc['box'])[:, 1])
+            elif 'lattice' in doc.keys():
+                pd_data['lattice'].append(np.array(doc['lattice']))
             assert doc['keywords'] == expected_keywords
             data = np.array(doc['data']).transpose()  # convert to numpy so that we can easily slice
             for keyword, datatype, data_row in zip(expected_keywords, datatypes, data):

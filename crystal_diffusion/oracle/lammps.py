@@ -7,7 +7,8 @@ import lammps
 import numpy as np
 import pandas as pd
 import yaml
-from pymatgen.core import Element
+from pymatgen.core import Element, Lattice, Structure
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 from crystal_diffusion import DATA_DIR
 
@@ -22,7 +23,7 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
 
     Args:
         positions: atomic positions as a n_atom x spatial dimension array
-        box: spatial dimension x spatial dimension array representing the periodic box. Assumed to be orthogonal.
+        box: spatial dimension x spatial dimension array representing the periodic box.
         atom_types: n_atom array with an index representing the type of each atom
         atom_type_map (optional): map from index representing an atom type to a description of the atom.
             Defaults to {1: "Si"}
@@ -33,6 +34,9 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
         energy
         dataframe with x, y, z coordinates and fx, fy, fz information in a dataframe.
     """
+    if not np.allclose(box, np.diag(np.diag(box))):
+        positions, box, atom_types = make_supercell(positions, box, atom_types)
+
     n_atom = positions.shape[0]
     assert atom_types.shape == (n_atom, ), f"Atom types should match the number of atoms. Got {atom_types.shape}."
 
@@ -71,3 +75,38 @@ def get_energy_and_forces_from_lammps(positions: np.ndarray,
     energy = ke + pe
 
     return energy, forces
+
+
+def make_supercell(positions: np.ndarray, box: np.ndarray, atom_types: np.ndarray
+                   ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Map a non-cubic unit cell to a cubic conventional cell for LAMMPS
+
+    Args:
+        positions: atomic position in Angstrom. Shape: (natom, spatial_dimension)
+        box: unit cell definition in Angstrom. Shape: (spatial_dimension, spatial_dimension)
+        atom_types: indices defining the atom types. Shape: (natom, )
+
+    Returns:
+        positions in cubic supercell, unit cell of supercell, atom types in supercell
+    """
+    # this is the canonical method to get a conventional cell from a primitive cell using pymatgen
+    # but it doesn't work - testing with equilibrium FCC positions and unit cell vectors yield a 6 atoms non-cubic cell
+    # instead of the expected 8 atoms cubic cell
+    # lattice = Lattice(box)
+    # struct = Structure(lattice, atom_types, positions)
+    # SGA = SpacegroupAnalyzer(struct)
+    # conventional_structure = SGA.get_conventional_standard_structure(international_monoclinic=False)
+    if positions.shape[0] == 2:
+        positions = positions.repeat(1 + box.shape[0], axis=0)
+        # positions[0:1+spatial_dim] are copies of the first atom position, 1+spatial_dim ... are the 2nd atom
+        # keep position 0 and 4 unchanged, shift 1 and 5 by first lattice vector, 2 and 6 by 2nd and 3,7 by 3rd
+        for i in range(box.shape[0]):
+            positions[i + 1, :] += box[i, :]
+            positions[i + 2 + box.shape[0], :] += box[i, :]
+        atom_types = atom_types.repeat(1 + box.shape[0], axis=0)
+        # rewrite the FCC vectors as cubic box
+        # this formula is specific to FCC to cubic cell - not agnostic
+        box = np.diag(box.sum(axis=1))
+    else:
+        raise ValueError(f'Only 2 atoms in FCC structure is implemented. Got {positions.shape[0]} atoms.')
+    return positions, box, atom_types

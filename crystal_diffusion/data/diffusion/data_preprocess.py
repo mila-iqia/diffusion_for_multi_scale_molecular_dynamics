@@ -5,6 +5,7 @@ import os
 import warnings
 from typing import List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 
 from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
@@ -68,10 +69,19 @@ class LammpsProcessorForDiffusion:
         Returns:
             x, y and z in relative (reduced) coordinates
         """
-        x_lim, y_lim, z_lim = row['box']
-        # Cast the coordinates to float in case they are read in as strings
-        coord_red = [coord for triple in zip(row['x'], row['y'], row['z']) for coord in
-                     ((float(triple[0]) / x_lim) % 1, (float(triple[1]) / y_lim) % 1, (float(triple[2]) / z_lim) % 1)]
+        if 'box' in row.keys():
+            x_lim, y_lim, z_lim = row['box']
+            # Cast the coordinates to float in case they are read in as strings
+            coord_red = [coord for triple in zip(row['x'], row['y'], row['z']) for coord in
+                         ((float(triple[0]) / x_lim) % 1, (float(triple[1]) / y_lim) % 1,
+                          (float(triple[2]) / z_lim) % 1)]
+        elif 'lattice' in row.keys():
+            lattice_vec = np.array(row['lattice']).reshape(3, 3)
+            lattice_convert = np.linalg.inv(lattice_vec)
+            coord_red = [coord % 1 for triple in zip(row['x'], row['y'], row['z']) for coord in
+                         np.matmul(lattice_convert, np.array(triple))]
+        else:
+            raise ValueError('box or lattice should be in LAMMPS yaml output.')
         return coord_red
 
     def get_x_relative(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -153,7 +163,15 @@ class LammpsProcessorForDiffusion:
         # Each row is a different MD step / usable example for diffusion model
         # TODO consider filtering out samples with large forces and MD steps that are too similar
         # TODO large force and similar are to be defined
-        df = df[['type', 'x', 'y', 'z', 'box', 'potential_energy']]
+        var_kept = ['type', 'x', 'y', 'z', 'potential_energy']
+        var_returned = ['natom', 'type', 'position', 'relative_positions', 'potential_energy']
+        if 'box' in df.keys():
+            var_kept.append('box')
+            var_returned.append('box')
+        elif 'lattice' in df.keys():
+            var_kept.append('lattice')
+            var_returned.append('lattice')
+        df = df[var_kept]
         df = self.get_x_relative(df)  # add relative coordinates
         df['natom'] = df['type'].apply(lambda x: len(x))  # count number of atoms in a structure
 
@@ -161,7 +179,7 @@ class LammpsProcessorForDiffusion:
         df['position'] = df.apply(self._flatten_positions_in_row, axis=1)
         # position is natom * 3 array
         # TODO: position (singular) and relative_positions (plural) are not consistent.
-        return df[['natom', 'box', 'type', 'position', 'relative_positions', 'potential_energy']]
+        return df[var_returned]
 
     @staticmethod
     def _flatten_positions_in_row(row: pd.Series) -> List[float]:
