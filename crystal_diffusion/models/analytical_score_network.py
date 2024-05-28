@@ -65,7 +65,8 @@ class AnalyticalScoreNetwork(ScoreNetwork):
             self._get_all_equilibrium_permutations(hyper_params.equilibrium_relative_coordinates))
 
         # Shape : [natom!, flat_dim]
-        self.permutations_x0 = einops.rearrange(permuted_equilibrium_relative_coordinates, 'p a d -> p (a d)')
+        self.permutations_x0 = einops.rearrange(permuted_equilibrium_relative_coordinates,
+                                                'permutation natom d -> permutation (natom d)')
 
         # shape: [ (2 kmax + 1)^flat_dim,  flat_dim]
         self.translations_k = self._get_all_translations(self.kmax, self.flat_dim)
@@ -74,7 +75,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         self.all_offsets = self._get_all_flat_offsets(self.permutations_x0, self.translations_k)
 
         self.beta_phi_matrix = einops.rearrange(hyper_params.inverse_covariance,
-                                                "n1 d1 n2 d2 -> (n1 d1) (n2 d2)")
+                                                "natom1 d1 natom2 d2 -> (natom1 d1) (natom2 d2)")
 
         eigen = torch.linalg.eigh(self.beta_phi_matrix)
         self.spring_constants = eigen.eigenvalues
@@ -107,7 +108,8 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         assert permutations_x0.shape[1] == translations_k.shape[1]
 
         all_offsets = permutations_x0.unsqueeze(0) + translations_k.unsqueeze(1)
-        all_offsets = einops.rearrange(all_offsets, 'c1 c2 f -> (c1 c2) f')
+        all_offsets = einops.rearrange(all_offsets,
+                                       'permutation kshells flat_dim -> (permutation kshells) flat_dim')
         return all_offsets
 
     def _get_effective_inverse_covariance_matrices(self, sigmas: torch.Tensor) -> torch.Tensor:
@@ -118,7 +120,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         batch_size = sigmas.shape[0]
         u_matrix = einops.repeat(self.eigenvectors_as_columns,
-                                 'c1 c2 -> b c1 c2', b=batch_size, c1=self.flat_dim, c2=self.flat_dim)
+                                 'f1 f2 -> batch f1 f2', batch=batch_size, f1=self.flat_dim, f2=self.flat_dim)
 
         lambda_u_transpose = torch.bmm(lambda_matrix, u_matrix.transpose(2, 1))
 
@@ -146,15 +148,15 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         xt = batch[NOISY_RELATIVE_COORDINATES]
         xt.requires_grad_(True)
 
-        flat_xt = einops.rearrange(xt, 'b n d -> b (n d)')
+        flat_xt = einops.rearrange(xt, 'batch natom d -> batch (natom d)')
 
         # shape [batch size, number of offsets, flat_dim]
         all_displacements = flat_xt.unsqueeze(1) - self.all_offsets.unsqueeze(0)
 
         m_u = einops.einsum(effective_inverse_covariance_matrices, all_displacements,
-                            "batch f1 f2, batch o f2 -> batch f1 o")
+                            "batch f1 f2, batch offsets f2 -> batch f1 offsets")
 
-        u_m_u = einops.einsum(all_displacements, m_u, "batch o f, batch f o -> batch o")
+        u_m_u = einops.einsum(all_displacements, m_u, "batch offsets flat_dim, batch flat_dim offsets -> batch offsets")
 
         exponent = -0.5 * u_m_u
 

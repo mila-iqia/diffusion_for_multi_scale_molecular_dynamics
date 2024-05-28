@@ -53,11 +53,8 @@ class TestAnalyticalScoreNetwork:
 
         flat_inverse_covariance = orthogonal_matrix @ (torch.diag(spring_constants) @ orthogonal_matrix.T)
 
-        inverse_covariance = einops.rearrange(flat_inverse_covariance, '(n1 d1) (n2 d2) -> n1 d1 n2 d2',
-                                              n1=number_of_atoms, d1=spatial_dimension,
-                                              n2=number_of_atoms, d2=spatial_dimension)
-
-        return inverse_covariance
+        return einops.rearrange(flat_inverse_covariance, '(n1 d1) (n2 d2) -> n1 d1 n2 d2',
+                                n1=number_of_atoms, d1=spatial_dimension, n2=number_of_atoms, d2=spatial_dimension)
 
     @pytest.fixture()
     def batch(self, batch_size, number_of_atoms, spatial_dimension):
