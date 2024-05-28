@@ -13,12 +13,12 @@ from torch.utils.data import DataLoader
 
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
-from crystal_diffusion.namespace import (CARTESIAN_POSITIONS,
+from crystal_diffusion.namespace import (CARTESIAN_POSITIONS, FORCES,
                                          RELATIVE_COORDINATES)
 
 logger = logging.getLogger(__name__)
 
-NAME_MAPPING = dict(position=CARTESIAN_POSITIONS, relative_positions=RELATIVE_COORDINATES)
+NAME_MAPPING = dict(position=CARTESIAN_POSITIONS, relative_positions=RELATIVE_COORDINATES, forces=FORCES)
 
 
 @dataclass(kw_only=True)
@@ -81,7 +81,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         transformed_x['natom'] = torch.as_tensor(x['natom']).long()  # resulting tensor size: (batchsize, )
         bsize = transformed_x['natom'].size(0)
         transformed_x['box'] = torch.as_tensor(x['box'])  # size: (batchsize, spatial dimension)
-        for pos in ['position', 'relative_positions']:
+        for pos in ['position', 'relative_positions', 'forces']:
             transformed_x[NAME_MAPPING[pos]] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
         transformed_x['type'] = torch.as_tensor(x['type']).long()  # size: (batchsize, max atom)
         transformed_x['potential_energy'] = torch.as_tensor(x['potential_energy'])  # size: (batchsize, )
@@ -104,7 +104,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         if natom > max_atom:
             raise ValueError(f"Hyper-parameter max_atom is smaller than an example in the dataset with {natom} atoms.")
         x['type'] = F.pad(torch.as_tensor(x['type']).long(), (0, max_atom - natom), 'constant', -1)
-        for pos in ['position', 'relative_positions']:
+        for pos in ['position', 'relative_positions', 'forces']:
             x[NAME_MAPPING[pos]] = F.pad(torch.as_tensor(x[pos]).float(), (0, spatial_dim * (max_atom - natom)),
                                          'constant', torch.nan)
         return x

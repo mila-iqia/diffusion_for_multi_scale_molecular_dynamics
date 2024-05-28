@@ -3,11 +3,14 @@ import itertools
 import logging
 import os
 import warnings
+from functools import partial
 from typing import List, Optional, Tuple, Union
 
 import pandas as pd
 
 from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
+from crystal_diffusion.namespace import (CARTESIAN_POSITIONS, FORCES,
+                                         RELATIVE_COORDINATES)
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +86,7 @@ class LammpsProcessorForDiffusion:
         Returns:
             dataframe with added column of relative positions [x1, y1, z1, x2, y2, ...]
         """
-        df['relative_positions'] = df.apply(lambda x: self._convert_coords_to_relative(x), axis=1)
+        df[RELATIVE_COORDINATES] = df.apply(lambda x: self._convert_coords_to_relative(x), axis=1)
         return df
 
     @staticmethod
@@ -153,18 +156,18 @@ class LammpsProcessorForDiffusion:
         # Each row is a different MD step / usable example for diffusion model
         # TODO consider filtering out samples with large forces and MD steps that are too similar
         # TODO large force and similar are to be defined
-        df = df[['type', 'x', 'y', 'z', 'box', 'potential_energy']]
+        df = df[['type', 'x', 'y', 'z', 'box', 'potential_energy', 'fx', 'fy', 'fz']]
         df = self.get_x_relative(df)  # add relative coordinates
         df['natom'] = df['type'].apply(lambda x: len(x))  # count number of atoms in a structure
 
         # Parquet cannot handle a list of list; flattening positions.
-        df['position'] = df.apply(self._flatten_positions_in_row, axis=1)
+        df[CARTESIAN_POSITIONS] = df.apply(self._flatten_positions_in_row, axis=1)
         # position is natom * 3 array
-        # TODO: position (singular) and relative_positions (plural) are not consistent.
-        return df[['natom', 'box', 'type', 'position', 'relative_positions', 'potential_energy']]
+        df[FORCES] = df.apply(partial(self._flatten_positions_in_row, keys=['fx', 'fy', 'fz']), axis=1)
+        return df[['natom', 'box', 'type', 'potential_energy', CARTESIAN_POSITIONS, RELATIVE_COORDINATES, FORCES]]
 
     @staticmethod
-    def _flatten_positions_in_row(row: pd.Series) -> List[float]:
+    def _flatten_positions_in_row(row: pd.Series, keys=['x', 'y', 'z']) -> List[float]:
         """Function to flatten the positions in a dataframe row.
 
         Args:
@@ -173,9 +176,9 @@ class LammpsProcessorForDiffusion:
         Returns:
             flattened positions: a list of each element is the flattened coordinate for that row, in C-style.
         """
-        list_x = row['x']
-        list_y = row['y']
-        list_z = row['z']
+        list_x = row[keys[0]]
+        list_y = row[keys[1]]
+        list_z = row[keys[2]]
 
         flat_positions = list(itertools.chain.from_iterable([[x, y, z] for x, y, z in zip(list_x, list_y, list_z)]))
 
