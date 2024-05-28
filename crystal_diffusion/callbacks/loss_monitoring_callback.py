@@ -36,8 +36,7 @@ class LossMonitoringCallback(Callback):
 
     def _compute_results_at_this_epoch(self, current_epoch: int) -> bool:
         """Check if results should be computed at this epoch."""
-        # Do not produce results at epoch 0; it would be meaningless.
-        if current_epoch % self.sample_every_n_epochs == 0 and current_epoch > 0:
+        if current_epoch % self.sample_every_n_epochs == 0:
             return True
         else:
             return False
