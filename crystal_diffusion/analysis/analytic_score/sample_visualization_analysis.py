@@ -68,7 +68,7 @@ if __name__ == '__main__':
         samples = pc_sampler.sample(number_of_samples, device=device, unit_cell=unit_cell).detach()
 
         fig = plt.figure(figsize=(7.5, 7.5))
-        fig.suptitle(f'Coordinates Distributions, {number_of_atoms} atom in {spatial_dimension}D')
+        fig.suptitle(f'Coordinates Distributions, {number_of_atoms} atoms in {spatial_dimension}D')
 
         ax1 = fig.add_subplot(111, aspect='equal')
 
