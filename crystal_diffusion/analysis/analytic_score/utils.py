@@ -90,3 +90,24 @@ def get_samples_harmonic_energy(equilibrium_relative_coordinates: torch.Tensor, 
     u_m_u = einops.einsum(flat_displacements, m_u, "batch flat, batch flat-> batch")
     energies = 0.5 * u_m_u
     return energies
+
+
+def get_relative_harmonic_energy(batch_relative_coordinates: torch.Tensor,
+                                 equilibrium_relative_coordinates: torch.Tensor,
+                                 spring_constant: float):
+    """Get relative harmonic energy.
+
+    This is the harmonic energy without the center of mass term when there are only two atoms
+    and an isotropic dynamical matrix described by a spring constant.
+    """
+    assert batch_relative_coordinates.shape[1] == 2, "This method is specialized to 2 atoms only."
+    assert equilibrium_relative_coordinates.shape[0] == 2, "This method is specialized to 2 atoms only."
+
+    batch_displacements = batch_relative_coordinates[:, 1, :] - batch_relative_coordinates[:, 0, :]
+
+    equilibrium_displacement = equilibrium_relative_coordinates[0, :] - equilibrium_relative_coordinates[1, :]
+
+    energies = spring_constant * ((batch_displacements ** 2).sum(dim=1)
+                                  + batch_displacements @ equilibrium_displacement)
+
+    return energies
