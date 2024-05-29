@@ -13,12 +13,12 @@ from torch.utils.data import DataLoader
 
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
-from crystal_diffusion.namespace import (CARTESIAN_POSITIONS, FORCES,
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
                                          RELATIVE_COORDINATES)
 
 logger = logging.getLogger(__name__)
 
-NAME_MAPPING = dict(position=CARTESIAN_POSITIONS, relative_positions=RELATIVE_COORDINATES, forces=FORCES)
+NAME_MAPPING = dict(position=CARTESIAN_POSITIONS, relative_positions=RELATIVE_COORDINATES, forces=CARTESIAN_FORCES)
 
 
 @dataclass(kw_only=True)

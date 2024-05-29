@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple, Union
 import pandas as pd
 
 from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
-from crystal_diffusion.namespace import (CARTESIAN_POSITIONS, FORCES,
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
                                          RELATIVE_COORDINATES)
 
 logger = logging.getLogger(__name__)
@@ -163,8 +163,9 @@ class LammpsProcessorForDiffusion:
         # Parquet cannot handle a list of list; flattening positions.
         df[CARTESIAN_POSITIONS] = df.apply(self._flatten_positions_in_row, axis=1)
         # position is natom * 3 array
-        df[FORCES] = df.apply(partial(self._flatten_positions_in_row, keys=['fx', 'fy', 'fz']), axis=1)
-        return df[['natom', 'box', 'type', 'potential_energy', CARTESIAN_POSITIONS, RELATIVE_COORDINATES, FORCES]]
+        df[CARTESIAN_FORCES] = df.apply(partial(self._flatten_positions_in_row, keys=['fx', 'fy', 'fz']), axis=1)
+        return df[['natom', 'box', 'type', 'potential_energy', CARTESIAN_POSITIONS, RELATIVE_COORDINATES,
+                   CARTESIAN_FORCES]]
 
     @staticmethod
     def _flatten_positions_in_row(row: pd.Series, keys=['x', 'y', 'z']) -> List[float]:
