@@ -17,10 +17,6 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-from crystal_diffusion.callbacks.callbacks import (
-    TensorboardGeneratedSamplesLoggingCallback,
-    TensorboardHistogramLoggingCallback, TensorboardSamplesLoggingCallback,
-    TensorboardScoreAndErrorLoggingCallback)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
@@ -28,6 +24,10 @@ from crystal_diffusion.models.position_diffusion_lightning_model import (
 from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from sanity_checks import SANITY_CHECK_FOLDER
+from sanity_checks.sanity_check_callbacks import (
+    TensorboardGeneratedSamplesLoggingCallback,
+    TensorboardHistogramLoggingCallback, TensorboardSamplesLoggingCallback,
+    TensorboardScoreAndErrorLoggingCallback)
 
 
 class HPLoggingCallback(Callback):
