@@ -13,7 +13,8 @@ from crystal_diffusion.models.score_network import (DiffusionMACEScoreNetwork,
                                                     MACEScoreNetwork,
                                                     MLPScoreNetwork,
                                                     ScoreNetworkParameters)
-from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
+                                         NOISY_RELATIVE_COORDINATES,
                                          RELATIVE_COORDINATES, TIME, UNIT_CELL)
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
@@ -68,7 +69,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         elif architecture == 'diffusion_mace':
             score_network = DiffusionMACEScoreNetwork
             # gradients are needed even in inference mode because the
-            # score network involves a gradient with repect to positions
+            # score network involves a gradient with respect to positions
             self.grads_are_needed_in_inference = True
         else:
             raise NotImplementedError(f'Architecture {architecture} is not implemented.')
@@ -176,11 +177,15 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         unit_cell = torch.diag_embed(batch["box"])  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
 
+        forces = batch[CARTESIAN_FORCES]
+
         augmented_batch = {NOISY_RELATIVE_COORDINATES: xt,
                            TIME: noise_sample.time.reshape(-1, 1),
                            NOISE: noise_sample.sigma.reshape(-1, 1),
-                           UNIT_CELL: unit_cell}
-        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
+                           UNIT_CELL: unit_cell,
+                           CARTESIAN_FORCES: forces}
+
+        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch, conditional=None)
 
         loss = torch.nn.functional.mse_loss(
             predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
