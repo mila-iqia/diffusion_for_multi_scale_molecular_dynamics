@@ -11,7 +11,7 @@ import torch
 
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import \
-    get_samples_harmonic_energy
+    get_relative_harmonic_energy
 from crystal_diffusion.callbacks.sampling_callback import (
     DiffusionSamplingCallback, SamplingParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -38,10 +38,17 @@ class HarmonicEnergyDiffusionSamplingCallback(DiffusionSamplingCallback):
     def _compute_oracle_energies(self, batch_relative_coordinates: torch.Tensor) -> np.ndarray:
         """Compute energies from samples."""
         logger.info("Compute harmonic energy from Oracle")
-        harmonic_energies = get_samples_harmonic_energy(self.equilibrium_relative_coordinates,
-                                                        self.inverse_covariance,
-                                                        batch_relative_coordinates)
-        return harmonic_energies.cpu().detach().numpy()
+
+        spring_constant = self.inverse_covariance[0, 0, 0, 0]
+
+        energies = get_relative_harmonic_energy(batch_relative_coordinates,
+                                                self.equilibrium_relative_coordinates,
+                                                spring_constant)
+
+        # energies = get_samples_harmonic_energy(self.equilibrium_relative_coordinates,
+        #                                        self.inverse_covariance,
+        #                                        batch_relative_coordinates)
+        return energies.cpu().detach().numpy()
 
     @staticmethod
     def _plot_energy_histogram(sample_energies: np.ndarray, validation_dataset_energies: np.array,
