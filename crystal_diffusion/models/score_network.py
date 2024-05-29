@@ -43,7 +43,7 @@ class ScoreNetworkParameters:
     """Base Hyper-parameters for score networks."""
     architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
-    prob_conditional: float = 0.  # probability of making an conditional forward - else, do a unconditional forward
+    conditional_prob: float = 0.  # probability of making an conditional forward - else, do a unconditional forward
     conditional_gamma: float = 2.  # conditional score weighting - see eq. B45 in MatterGen
     # p_\gamma(x|c) = p(c|x)^\gamma p(x)
 
@@ -64,7 +64,7 @@ class ScoreNetwork(torch.nn.Module):
         super(ScoreNetwork, self).__init__()
         self._hyper_params = hyper_params
         self.spatial_dimension = hyper_params.spatial_dimension
-        self.prob_conditional = hyper_params.prob_conditional
+        self.conditional_prob = hyper_params.conditional_prob
         self.conditional_gamma = hyper_params.conditional_gamma
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
@@ -132,8 +132,8 @@ class ScoreNetwork(torch.nn.Module):
             len(unit_cell_shape) == 3 and unit_cell_shape[1] == self.spatial_dimension
             and unit_cell_shape[2] == self.spatial_dimension
         ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension]."
-
-        if self.prob_conditional > 0:
+        à
+        if self.conditional_prob > 0:
             assert CARTESIAN_FORCES in batch, \
                 (f"The cartesian forces should be present in "
                  f"the batch dictionary with key '{CARTESIAN_FORCES}'")
@@ -151,14 +151,14 @@ class ScoreNetwork(torch.nn.Module):
         Args:
             batch : dictionary containing the data to be processed by the model.
             conditional: if True, do an conditional forward, if False, do a unconditional forward. If None, choose
-                randomly with probability prob_conditional
+                randomly with probability conditional_prob
 
         Returns:
             computed_scores : the scores computed by the model.
         """
         self._check_batch(batch)
         if conditional is None:
-            conditional = torch.rand(1,) < self.prob_conditional
+            conditional = torch.rand(1,) < self.conditional_prob
         if conditional:
             return self._forward_unchecked(batch, conditional=False)
         else:

@@ -5,8 +5,9 @@ import torch
 from tqdm import tqdm
 
 from crystal_diffusion.models.score_network import ScoreNetwork
-from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
-                                         TIME, UNIT_CELL)
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
+                                         NOISY_RELATIVE_COORDINATES, TIME,
+                                         UNIT_CELL)
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
@@ -49,11 +50,12 @@ class PredictorCorrectorPositionSampler(ABC):
             + f"Got {unit_cell.size()}"
 
         x_ip1 = map_relative_coordinates_to_unit_cell(self.initialize(number_of_samples)).to(device)
+        forces = torch.zeros_lie(x_ip1)
 
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
-            x_i = map_relative_coordinates_to_unit_cell(self.predictor_step(x_ip1, i + 1, unit_cell))
+            x_i = map_relative_coordinates_to_unit_cell(self.predictor_step(x_ip1, i + 1, unit_cell, forces))
             for _ in range(self.number_of_corrector_steps):
-                x_i = map_relative_coordinates_to_unit_cell(self.corrector_step(x_i, i, unit_cell))
+                x_i = map_relative_coordinates_to_unit_cell(self.corrector_step(x_i, i, unit_cell, forces))
             x_ip1 = x_i
         return x_i
 
@@ -63,7 +65,8 @@ class PredictorCorrectorPositionSampler(ABC):
         pass
 
     @abstractmethod
-    def predictor_step(self, x_ip1: torch.Tensor, ip1: int, unit_cell: torch.Tensor) -> torch.Tensor:
+    def predictor_step(self, x_ip1: torch.Tensor, ip1: int, unit_cell: torch.Tensor, cartesian_forces: torch.Tensor
+                       ) -> torch.Tensor:
         """Predictor step.
 
         It is assumed that there are N predictor steps, with index "i" running from N-1 to 0.
@@ -72,6 +75,7 @@ class PredictorCorrectorPositionSampler(ABC):
             x_ip1 : sampled relative coordinates at step "i + 1".
             ip1 : index "i + 1"
             unit_cell: sampled unit cell at time step "i + 1".
+            cartesian_forces: forces conditioning the diffusion process
 
         Returns:
             x_i : sampled relative coordinates after the predictor step.
@@ -79,7 +83,8 @@ class PredictorCorrectorPositionSampler(ABC):
         pass
 
     @abstractmethod
-    def corrector_step(self, x_i: torch.Tensor, i: int, unit_cell: torch.Tensor) -> torch.Tensor:
+    def corrector_step(self, x_i: torch.Tensor, i: int, unit_cell: torch.Tensor, cartesian_forces: torch.Tensor
+                       ) -> torch.Tensor:
         """Corrector step.
 
         It is assumed that there are N predictor steps, with index "i" running from N-1 to 0.
@@ -88,6 +93,7 @@ class PredictorCorrectorPositionSampler(ABC):
             x_i : sampled relative coordinates at step "i".
             i : index "i" OF THE PREDICTOR STEP.
             unit_cell: sampled unit cell at time step i.
+            cartesian_forces: forces conditioning the diffusion process
 
         Returns:
             x_i_out : sampled relative coordinates after the corrector step.
@@ -139,14 +145,18 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         return torch.randn(number_of_samples, self.number_of_atoms, self.spatial_dimension)
 
     def _get_sigma_normalized_scores(self, x: torch.Tensor, time: float,
-                                     noise: float, unit_cell: torch.Tensor) -> torch.Tensor:
+                                     noise: float, unit_cell: torch.Tensor, cartesian_forces: torch.Tensor
+                                     ) -> torch.Tensor:
         """Get sigma normalized scores.
 
         Args:
             x : relative coordinates, of shape [number_of_samples, number_of_atoms, spatial_dimension]
             time : time at which to evaluate the score
             noise: the diffusion sigma parameter corresponding to the time at which to evaluate the score
-            unit_cell: unit cell definition in Angstrom of shape [batch_size, spatial_dimension, spatial_dimension]
+            unit_cell: unit cell definition in Angstrom of shape [number_of_samples, spatial_dimension,
+                spatial_dimension]
+            cartesian_forces: forces to condition the sampling from. Shape [number_of_samples, number_of_atoms,
+                spatial_dimension]
 
         Returns:
             sigma normalized score: sigma x Score(x, t).
@@ -155,18 +165,22 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
 
         time_tensor = time * torch.ones(number_of_samples, 1).to(x)
         noise_tensor = noise * torch.ones(number_of_samples, 1).to(x)
-        augmented_batch = {NOISY_RELATIVE_COORDINATES: x, TIME: time_tensor, NOISE: noise_tensor, UNIT_CELL: unit_cell}
+        augmented_batch = {NOISY_RELATIVE_COORDINATES: x, TIME: time_tensor, NOISE: noise_tensor, UNIT_CELL: unit_cell,
+                           CARTESIAN_FORCES: cartesian_forces}
 
-        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
+        # TODO do not hard-code conditional to False - need to be able to condition sampling
+        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch, conditional=False)
         return predicted_normalized_scores
 
-    def predictor_step(self, x_i: torch.Tensor, index_i: int, unit_cell: torch.Tensor) -> torch.Tensor:
+    def predictor_step(self, x_i: torch.Tensor, index_i: int, unit_cell: torch.Tensor, cartesian_forces: torch.Tensor
+                       ) -> torch.Tensor:
         """Predictor step.
 
         Args:
             x_i : sampled relative coordinates, at time step i.
             index_i : index of the time step.
             unit_cell: sampled unit cell at time step i.
+            cartesian_forces: forces conditioning the sampling process
 
         Returns:
             x_im1 : sampled relative coordinates, at time step i - 1.
@@ -182,7 +196,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         g_i = self.noise.g[idx].to(x_i)
         g2_i = self.noise.g_squared[idx].to(x_i)
         sigma_i = self.noise.sigma[idx].to(x_i)
-        sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell)
+        sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell, cartesian_forces)
         x_im1 = x_i + g2_i / sigma_i * sigma_score_i + g_i * z
 
         self.sample_trajectory_recorder.record_unit_cell(unit_cell=unit_cell)
@@ -191,13 +205,15 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
 
         return x_im1
 
-    def corrector_step(self, x_i: torch.Tensor, index_i: int, unit_cell: torch.Tensor) -> torch.Tensor:
+    def corrector_step(self, x_i: torch.Tensor, index_i: int, unit_cell: torch.Tensor, cartesian_forces: torch.Tensor
+                       ) -> torch.Tensor:
         """Corrector Step.
 
         Args:
             x_i : sampled relative coordinates, at time step i.
             index_i : index of the time step.
             unit_cell: sampled unit cell at time step i.
+            cartesian_forces: forces conditioning the sampling
 
         Returns:
             corrected x_i : sampled relative coordinates, after corrector step.
@@ -222,7 +238,7 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
             sigma_i = self.noise.sigma[idx].to(x_i)
             t_i = self.noise.time[idx].to(x_i)
 
-        sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell)
+        sigma_score_i = self._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell, cartesian_forces)
 
         corrected_x_i = x_i + eps_i / sigma_i * sigma_score_i + sqrt_2eps_i * z
 
