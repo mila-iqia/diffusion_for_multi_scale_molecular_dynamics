@@ -1,5 +1,5 @@
-import matplotlib.pyplot as plt
 import torch
+from matplotlib import pyplot as plt
 from pytorch_lightning import Callback
 from pytorch_lightning.loggers import TensorBoardLogger
 
@@ -15,7 +15,6 @@ from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
 plt.style.use(PLOT_STYLE_PATH)
-TENSORBOARD_FIGSIZE = (0.65 * PLEASANT_FIG_SIZE[0], 0.65 * PLEASANT_FIG_SIZE[1])
 
 
 class TensorBoardDebuggingLoggingCallback(Callback):
@@ -55,54 +54,6 @@ class TensorBoardDebuggingLoggingCallback(Callback):
         )
 
 
-class TensorboardHistogramLoggingCallback(TensorBoardDebuggingLoggingCallback):
-    """This callback will log histograms of the predictions on tensorboard."""
-
-    def log_artifact(self, pl_module, tbx_logger):
-        """Create artifact and log to tensorboard."""
-        targets = []
-        predictions = []
-        for output in self.training_step_outputs:
-            targets.append(output["target_normalized_conditional_scores"].flatten())
-            predictions.append(output["predicted_normalized_scores"].flatten())
-
-        targets = torch.cat(targets)
-        predictions = torch.cat(predictions)
-
-        tbx_logger.add_histogram(
-            "train/targets", targets, global_step=pl_module.global_step
-        )
-        tbx_logger.add_histogram(
-            "train/predictions", predictions, global_step=pl_module.global_step
-        )
-        tbx_logger.add_histogram(
-            "train/errors", targets - predictions, global_step=pl_module.global_step
-        )
-
-
-class TensorboardSamplesLoggingCallback(TensorBoardDebuggingLoggingCallback):
-    """This callback will log histograms of the labels, predictions and errors on tensorboard."""
-
-    def log_artifact(self, pl_module, tbx_logger):
-        """Create artifact and log to tensorboard."""
-        list_xt = []
-        list_sigmas = []
-        for output in self.training_step_outputs:
-            list_xt.append(output[NOISY_RELATIVE_COORDINATES].flatten())
-            list_sigmas.append(output["sigmas"].flatten())
-        list_xt = torch.cat(list_xt)
-        list_sigmas = torch.cat(list_sigmas)
-        fig = plt.figure(figsize=TENSORBOARD_FIGSIZE)
-        ax = fig.add_subplot(111)
-        ax.set_title(f"Position Samples: global step = {pl_module.global_step}")
-        ax.set_ylabel("$\\sigma$")
-        ax.set_xlabel("position samples $x(t)$")
-        ax.plot(list_xt, list_sigmas, "bo")
-        ax.set_xlim([-0.05, 1.05])
-        fig.tight_layout()
-        tbx_logger.add_figure("train/samples", fig, global_step=pl_module.global_step)
-
-
 class TensorboardGeneratedSamplesLoggingCallback(TensorBoardDebuggingLoggingCallback):
     """This callback will log an image of a histogram of generated samples on tensorboard."""
 
@@ -129,7 +80,7 @@ class TensorboardGeneratedSamplesLoggingCallback(TensorBoardDebuggingLoggingCall
 
         samples = pc_sampler.sample(self.number_of_samples).flatten()
 
-        fig = plt.figure(figsize=TENSORBOARD_FIGSIZE)
+        fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
         ax = fig.add_subplot(111)
         ax.set_title(f"Generated Samples: global step = {pl_module.global_step}")
         ax.set_xlabel('$x$')
@@ -151,7 +102,7 @@ class TensorboardScoreAndErrorLoggingCallback(TensorBoardDebuggingLoggingCallbac
 
     def log_artifact(self, pl_module, tbx_logger):
         """Create artifact and log to tensorboard."""
-        fig = plt.figure(figsize=TENSORBOARD_FIGSIZE)
+        fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
         fig.suptitle("Scores within 2 $\\sigma$ of Data")
         ax1 = fig.add_subplot(121)
         ax2 = fig.add_subplot(122)
@@ -204,3 +155,51 @@ class TensorboardScoreAndErrorLoggingCallback(TensorBoardDebuggingLoggingCallbac
         fig.tight_layout()
 
         tbx_logger.add_figure("train/scores", fig, global_step=pl_module.global_step)
+
+
+class TensorboardHistogramLoggingCallback(TensorBoardDebuggingLoggingCallback):
+    """This callback will log histograms of the predictions on tensorboard."""
+
+    def log_artifact(self, pl_module, tbx_logger):
+        """Create artifact and log to tensorboard."""
+        targets = []
+        predictions = []
+        for output in self.training_step_outputs:
+            targets.append(output["target_normalized_conditional_scores"].flatten())
+            predictions.append(output["predicted_normalized_scores"].flatten())
+
+        targets = torch.cat(targets)
+        predictions = torch.cat(predictions)
+
+        tbx_logger.add_histogram(
+            "train/targets", targets, global_step=pl_module.global_step
+        )
+        tbx_logger.add_histogram(
+            "train/predictions", predictions, global_step=pl_module.global_step
+        )
+        tbx_logger.add_histogram(
+            "train/errors", targets - predictions, global_step=pl_module.global_step
+        )
+
+
+class TensorboardSamplesLoggingCallback(TensorBoardDebuggingLoggingCallback):
+    """This callback will log histograms of the labels, predictions and errors on tensorboard."""
+
+    def log_artifact(self, pl_module, tbx_logger):
+        """Create artifact and log to tensorboard."""
+        list_xt = []
+        list_sigmas = []
+        for output in self.training_step_outputs:
+            list_xt.append(output[NOISY_RELATIVE_COORDINATES].flatten())
+            list_sigmas.append(output["sigmas"].flatten())
+        list_xt = torch.cat(list_xt)
+        list_sigmas = torch.cat(list_sigmas)
+        fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
+        ax = fig.add_subplot(111)
+        ax.set_title(f"Position Samples: global step = {pl_module.global_step}")
+        ax.set_ylabel("$\\sigma$")
+        ax.set_xlabel("position samples $x(t)$")
+        ax.plot(list_xt, list_sigmas, "bo")
+        ax.set_xlim([-0.05, 1.05])
+        fig.tight_layout()
+        tbx_logger.add_figure("train/samples", fig, global_step=pl_module.global_step)
