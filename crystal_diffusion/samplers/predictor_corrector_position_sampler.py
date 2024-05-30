@@ -50,7 +50,7 @@ class PredictorCorrectorPositionSampler(ABC):
             + f"Got {unit_cell.size()}"
 
         x_ip1 = map_relative_coordinates_to_unit_cell(self.initialize(number_of_samples)).to(device)
-        forces = torch.zeros_lie(x_ip1)
+        forces = torch.zeros_like(x_ip1)
 
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
             x_i = map_relative_coordinates_to_unit_cell(self.predictor_step(x_ip1, i + 1, unit_cell, forces))

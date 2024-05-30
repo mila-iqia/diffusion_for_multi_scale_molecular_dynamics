@@ -132,7 +132,7 @@ class ScoreNetwork(torch.nn.Module):
             len(unit_cell_shape) == 3 and unit_cell_shape[1] == self.spatial_dimension
             and unit_cell_shape[2] == self.spatial_dimension
         ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension]."
-        à
+
         if self.conditional_prob > 0:
             assert CARTESIAN_FORCES in batch, \
                 (f"The cartesian forces should be present in "
@@ -142,8 +142,8 @@ class ScoreNetwork(torch.nn.Module):
             cartesian_forces_shape = cartesian_forces.shape
             assert (
                     len(cartesian_forces_shape) == 3 and cartesian_forces_shape[2] == self.spatial_dimension
-            ), "The cartesian forces are expected to be in a tensor of shape [batch_size, number_of_atoms,"
-            + f"{self.spatial_dimension}]"
+            ), ("The cartesian forces are expected to be in a tensor of shape [batch_size, number_of_atoms," 
+                f"{self.spatial_dimension}]")
 
     def forward(self, batch: Dict[AnyStr, torch.Tensor], conditional: Optional[bool] = None) -> torch.Tensor:
         """Model forward.
@@ -159,7 +159,7 @@ class ScoreNetwork(torch.nn.Module):
         self._check_batch(batch)
         if conditional is None:
             conditional = torch.rand(1,) < self.conditional_prob
-        if conditional:
+        if not conditional:
             return self._forward_unchecked(batch, conditional=False)
         else:
             return (self._forward_unchecked(batch, conditional=True) * self.conditional_gamma
@@ -221,7 +221,7 @@ class MLPScoreNetwork(ScoreNetwork):
         input_dimensions = [input_dimension] + hidden_dimensions
         output_dimensions = hidden_dimensions + [output_dimension]
 
-        for input_dimension, output_dimension, add_relu in zip(input_dimensions, output_dimensions):
+        for input_dimension, output_dimension in zip(input_dimensions, output_dimensions):
             self.mlp_layers.append(nn.Linear(input_dimension, output_dimension))
             self.conditional_layers.append(nn.Linear(hyper_params.condition_embedding_size, output_dimension))
         self.non_linearity = nn.ReLU()
@@ -255,14 +255,15 @@ class MLPScoreNetwork(ScoreNetwork):
 
         forces_input = self.condition_embedding_layer(self.flatten(batch[CARTESIAN_FORCES]))
 
+        output = input
         for i, (layer, condition_layer) in enumerate(zip(self.mlp_layers, self.conditional_layers)):
             if i != 0:
-                input = self.non_linearity(input)
-            input = layer(input)
+                output = self.non_linearity(output)
+            output = layer(output)
             if conditional:
-                input += condition_layer(forces_input)
+                output += condition_layer(forces_input)
 
-        output = self.mlp_layers(input).reshape(relative_coordinates.shape)
+        output = output.reshape(relative_coordinates.shape)
         return output
 
 
