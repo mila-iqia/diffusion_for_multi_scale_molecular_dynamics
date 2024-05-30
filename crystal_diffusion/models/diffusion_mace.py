@@ -126,10 +126,6 @@ class DiffusionMACE(torch.nn.Module):
         # define the "0e" and "1p" representations as  constants to avoid "magic numbers" below.
         scalar_irrep = o3.Irrep(0, 1)
 
-        # The vector_readout module will take the node features from the last layer and return one vector (irrep 1o)
-        # per node.
-        self.vector_readout = LinearVectorReadoutBlock(irreps_in=hidden_irreps)
-
         # we assume a single 'scalar' diffusion time-like  input.
         number_of_node_scalar_dimensions = 1
 
@@ -205,15 +201,12 @@ class DiffusionMACE(torch.nn.Module):
         self.readouts = torch.nn.ModuleList()
         self.readouts.append(LinearReadoutBlock(hidden_irreps))
 
+        # The vector_readout module will take the node features from the last layer and return one vector (irrep 1o)
+        # per node.
+        self.vector_readouts = torch.nn.ModuleList()
+        self.vector_readouts.append(LinearVectorReadoutBlock(irreps_in=hidden_irreps))
+
         for i in range(num_interactions - 1):
-            """
-            if i == num_interactions - 2:
-                hidden_irreps_out = str(
-                    hidden_irreps[0]
-                )  # Select only scalars for last layer
-            else:
-                hidden_irreps_out = hidden_irreps
-            """
             hidden_irreps_out = hidden_irreps
             # Inter computes A^{(t)} from h^{(t)}, doing a sum-on-neighbors operation.
             inter = interaction_cls(
@@ -243,6 +236,8 @@ class DiffusionMACE(torch.nn.Module):
                 )
             else:
                 self.readouts.append(LinearReadoutBlock(hidden_irreps))
+
+            self.vector_readouts.append(LinearVectorReadoutBlock(irreps_in=hidden_irreps))
 
     def forward(
         self,
@@ -297,8 +292,9 @@ class DiffusionMACE(torch.nn.Module):
         energies = [e0]
         node_energies_list = [node_e0]
         node_feats_list = []
-        for interaction, product, readout in zip(
-            self.interactions, self.products, self.readouts
+        vectors_list = []
+        for interaction, product, readout, vector_readout in zip(
+            self.interactions, self.products, self.readouts, self.vector_readouts
         ):
             node_feats, sc = interaction(
                 node_attrs=data["node_attrs"],
@@ -320,6 +316,9 @@ class DiffusionMACE(torch.nn.Module):
             energies.append(energy)
             node_energies_list.append(node_energies)
 
+            vectors = vector_readout(node_feats)
+            vectors_list.append(vectors)
+
         # Concatenate node features
         node_feats_out = torch.cat(node_feats_list, dim=-1)
 
@@ -330,9 +329,7 @@ class DiffusionMACE(torch.nn.Module):
         node_energy = torch.sum(node_energy_contributions, dim=-1)  # [n_nodes, ]
 
         # Outputs
-
-        last_node_features = node_feats_list[-1]
-        vectors = self.vector_readout(last_node_features)
+        vectors_output = torch.stack(vectors_list).sum(dim=0)
 
         forces, virials, stress = get_outputs(
             energy=total_energy,
@@ -347,7 +344,7 @@ class DiffusionMACE(torch.nn.Module):
 
         return {
             "energy_gradient": forces,
-            "non_conservative": vectors,
+            "non_conservative": vectors_output,
             "energy": total_energy,
             "node_energy": node_energy,
             "contributions": contributions,
