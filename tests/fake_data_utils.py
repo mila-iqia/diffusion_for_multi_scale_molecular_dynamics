@@ -6,7 +6,8 @@ import pandas as pd
 import torch
 import yaml
 
-from crystal_diffusion.namespace import CARTESIAN_POSITIONS, CARTESIAN_FORCES, RELATIVE_COORDINATES
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
+                                         RELATIVE_COORDINATES)
 
 Configuration = namedtuple("Configuration",
                            ["spatial_dimension", CARTESIAN_POSITIONS, CARTESIAN_FORCES, RELATIVE_COORDINATES,
@@ -71,10 +72,10 @@ def generate_parse_dump_output_dataframe(configurations: List[Configuration]) ->
     rows = []
     for configuration in configurations:
         row = dict(box=configuration.cell_dimensions, id=list(configuration.ids), type=list(configuration.types))
-        for coordinates, name in zip(configuration.positions.transpose(), ['x', 'y', 'z']):
+        for coordinates, name in zip(configuration.cartesian_positions.transpose(), ['x', 'y', 'z']):
             row[name] = list(coordinates)
 
-        for coordinate_forces, name in zip(configuration.forces.transpose(), ['fx', 'fy', 'fz']):
+        for coordinate_forces, name in zip(configuration.cartesian_forces.transpose(), ['fx', 'fy', 'fz']):
             row[name] = list(coordinate_forces)
 
         rows.append(row)
