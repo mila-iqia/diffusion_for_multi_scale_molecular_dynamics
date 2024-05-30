@@ -206,10 +206,20 @@ class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
 
 
 @pytest.mark.parametrize("spatial_dimension", [3])
+@pytest.mark.parametrize("prediction_head", ["energy_gradient", "non_conservative"])
 class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
-    def score_network(self, number_of_atoms, spatial_dimension):
+    def score_network(self, number_of_atoms, spatial_dimension, prediction_head):
         hyper_params = DiffusionMACEScoreNetworkParameters(spatial_dimension=spatial_dimension,
                                                            number_of_atoms=number_of_atoms,
-                                                           r_max=3.0)
+                                                           prediction_head=prediction_head,
+                                                           r_max=3.0,
+                                                           num_bessel=4,
+                                                           num_polynomial_cutoff=3,
+                                                           hidden_irreps="8x0e + 8x1o",
+                                                           MLP_irreps="8x0e",
+                                                           correlation=2,
+                                                           radial_MLP=[8, 8, 8],
+                                                           )
+
         return DiffusionMACEScoreNetwork(hyper_params)

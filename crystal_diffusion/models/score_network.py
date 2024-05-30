@@ -27,8 +27,8 @@ from crystal_diffusion.models.score_prediction_head import (
 from crystal_diffusion.namespace import (NOISE, NOISY_CARTESIAN_POSITIONS,
                                          NOISY_RELATIVE_COORDINATES, TIME,
                                          UNIT_CELL)
-from crystal_diffusion.utils.basis_transformations import \
-    get_positions_from_coordinates
+from crystal_diffusion.utils.basis_transformations import (
+    get_positions_from_coordinates, get_reciprocal_basis_vectors)
 
 # mac fun time
 # for mace, conflict with mac
@@ -350,6 +350,7 @@ class MACEScoreNetwork(ScoreNetwork):
 class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for Diffusion MACE score networks."""
     architecture: str = 'diffusion_mace'
+    prediction_head: str = 'non_conservative'
     number_of_atoms: int  # the number of atoms in a configuration.
     r_max: float = 5.0
     num_bessel: int = 8
@@ -377,6 +378,11 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             hyper_params : hyper parameters from the config file.
         """
         super(DiffusionMACEScoreNetwork, self).__init__(hyper_params)
+
+        assert hyper_params.prediction_head in ['non_conservative', 'energy_gradient'], \
+            f"unknown prediction head '{hyper_params.prediction_head}'"
+
+        self.prediction_head = hyper_params.prediction_head
 
         # dataloader
         self.r_max = hyper_params.r_max
@@ -432,14 +438,27 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         batch[NOISY_CARTESIAN_POSITIONS] = get_positions_from_coordinates(relative_coordinates, basis_vectors)
         graph_input = input_to_diffusion_mace(batch, radial_cutoff=self.r_max)
 
-        diffusion_mace_output = self.diffusion_mace_network(graph_input, compute_force=True, training=self.training)
+        if self.prediction_head == 'energy_gradient':
+            compute_force = True
+        else:
+            compute_force = False
 
-        # Diffusion MACE operates in Euclidean space. The computed "forces" are the negative gradient of the "energy"
-        flat_cartesian_scores = -diffusion_mace_output['forces']
+        diffusion_mace_output = self.diffusion_mace_network(graph_input,
+                                                            compute_force=compute_force,
+                                                            training=self.training)
+
+        flat_cartesian_scores = diffusion_mace_output[self.prediction_head]
+
         cartesian_scores = flat_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
-        # Using the chain rule, we can derive nabla_x given nabla_r, where 'x' is relative coordinates and 'r'
-        # is cartesian space.
-        scores = torch.bmm(cartesian_scores, basis_vectors.transpose(2, 1))
+        if self.prediction_head == 'energy_gradient':
+            # Using the chain rule, we can derive nabla_x given nabla_r, where 'x' is relative coordinates and 'r'
+            # is cartesian space.
+            scores = torch.bmm(cartesian_scores, basis_vectors.transpose(2, 1))
+        elif self.prediction_head == 'non_conservative':
+            reciprocal_basis_vectors_as_columns = get_reciprocal_basis_vectors(basis_vectors)
+            scores = torch.bmm(cartesian_scores, reciprocal_basis_vectors_as_columns)
+        else:
+            raise ValueError(f"Unknown prediction head '{self.prediction_head}'")
 
         return scores
