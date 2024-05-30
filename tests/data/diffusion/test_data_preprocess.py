@@ -6,7 +6,8 @@ import pytest
 
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
-from crystal_diffusion.namespace import CARTESIAN_POSITIONS, CARTESIAN_FORCES, RELATIVE_COORDINATES
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
+                                         RELATIVE_COORDINATES)
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import generate_parquet_dataframe
 
