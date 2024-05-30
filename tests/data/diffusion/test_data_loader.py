@@ -26,7 +26,6 @@ def convert_configurations_to_dataset(configurations: List[Configuration]) -> Di
         data['type'].append(configuration.types)
         data['potential_energy'].append(configuration.potential_energy)
 
-
     configuration_dataset = dict()
     for key, array in data.items():
         configuration_dataset[key] = torch.tensor(array)
