@@ -141,8 +141,8 @@ class ScoreNetwork(torch.nn.Module):
             cartesian_forces = batch[CARTESIAN_FORCES]
             cartesian_forces_shape = cartesian_forces.shape
             assert (
-                    len(cartesian_forces_shape) == 3 and cartesian_forces_shape[2] == self.spatial_dimension
-            ), ("The cartesian forces are expected to be in a tensor of shape [batch_size, number_of_atoms," 
+                len(cartesian_forces_shape) == 3 and cartesian_forces_shape[2] == self.spatial_dimension
+            ), ("The cartesian forces are expected to be in a tensor of shape [batch_size, number_of_atoms,"
                 f"{self.spatial_dimension}]")
 
     def forward(self, batch: Dict[AnyStr, torch.Tensor], conditional: Optional[bool] = None) -> torch.Tensor:
