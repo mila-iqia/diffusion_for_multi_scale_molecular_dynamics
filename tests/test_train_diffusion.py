@@ -69,8 +69,8 @@ def get_score_network(architecture: str, head_name: Union[str, None], number_of_
                              prediction_head_parameters=get_prediction_head_parameters(head_name))
 
     elif architecture == 'diffusion_mace':
-        assert head_name is None, "There are no head options for a diffusion_mace score network."
         score_network = dict(architecture='diffusion_mace',
+                             prediction_head=head_name,
                              r_max=3.0,
                              num_bessel=4,
                              hidden_irreps="8x0e + 8x1o",
@@ -119,7 +119,11 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
 
 
 @pytest.mark.parametrize("architecture, head_name",
-                         [('diffusion_mace', None), ('mlp', None), ('mace', 'equivariant'), ('mace', 'mlp')])
+                         [('diffusion_mace', 'energy_gradient'),
+                          ('diffusion_mace', 'non_conservative'),
+                          ('mlp', None),
+                          ('mace', 'equivariant'),
+                          ('mace', 'mlp')])
 class TestTrainDiffusion(TestDiffusionDataBase):
     @pytest.fixture()
     def max_epoch(self):
