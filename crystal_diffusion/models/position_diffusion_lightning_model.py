@@ -67,7 +67,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             score_network = MACEScoreNetwork
         elif architecture == 'diffusion_mace':
             score_network = DiffusionMACEScoreNetwork
-            if hyper_params.score_network_parameters.architecture.prediction_head == 'energy_gradient':
+            if hyper_params.score_network_parameters.prediction_head == 'energy_gradient':
                 self.grads_are_needed_in_inference = True
         else:
             raise NotImplementedError(f'Architecture {architecture} is not implemented.')
