@@ -10,7 +10,7 @@ meant to generate 'production' results.
 """
 import itertools
 from dataclasses import dataclass
-from typing import AnyStr, Dict
+from typing import Any, AnyStr, Dict
 
 import einops
 import torch
@@ -128,7 +128,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         return effective_inverse_covariance_matrices
 
-    def _forward_unchecked(self, batch: Dict[AnyStr, torch.Tensor]) -> torch.Tensor:
+    def _forward_unchecked(self, batch: Dict[AnyStr, Any], conditional: bool = False) -> torch.Tensor:
         """Forward unchecked.
 
         This method assumes that the input data has already been checked with respect to expectations
@@ -136,6 +136,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         Args:
             batch : dictionary containing the data to be processed by the model.
+            conditional (optional): CURRENTLY DOES NOTHING.
 
         Returns:
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
