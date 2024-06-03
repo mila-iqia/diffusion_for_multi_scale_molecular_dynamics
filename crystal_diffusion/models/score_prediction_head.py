@@ -104,7 +104,7 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         # by the various subsequent layers.
         head_input_irreps = time_irreps_out + output_node_features_irreps
 
-        sorted_irreps, self.column_permutation_indices = (
+        sorted_irreps, _ = (
             get_normalized_irreps_permutation_indices(head_input_irreps))
 
         # mix the time embedding 0e irrep with the different components of the MACE output and avoid a dimensionality
@@ -154,7 +154,6 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         flat_scores = self.head(mixed_features)
 
         return flat_scores
-
 
 
 # Register the possible MACE prediction heads as  key:  model class
