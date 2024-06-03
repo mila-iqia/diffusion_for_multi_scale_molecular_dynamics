@@ -210,17 +210,7 @@ class DiffusionSamplingCallback(Callback):
 
         return np.array(list_energy)
 
-    def on_validation_batch_start(self, trainer: Trainer,
-                                  pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
-        """On validation batch start, accumulate the validation dataset energies for further processing."""
-        if not self._compute_results_at_this_epoch(trainer.current_epoch):
-            return
-        self.validation_energies = np.append(self.validation_energies, batch['potential_energy'].cpu().numpy())
-
-    def on_validation_epoch_end(self, trainer: Trainer, pl_model: LightningModule) -> None:
-        """On validation epoch end."""
-        if not self._compute_results_at_this_epoch(trainer.current_epoch):
-            return
+    def sample_and_evaluate_energy(self, pl_model: LightningModule) -> np.ndarray:
 
         pc_sampler, unit_cell = self._create_sampler(pl_model)
 
@@ -234,18 +224,38 @@ class DiffusionSamplingCallback(Callback):
         for n in range(0, self.sampling_parameters.number_of_samples, self.sampling_parameters.sample_batchsize):
             unit_cell_ = unit_cell[n:min(n + self.sampling_parameters.sample_batchsize,
                                          self.sampling_parameters.number_of_samples)]
-            samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device,
+            samples = pc_sampler.sample(min(self.sampling_parameters.number_of_samples - n,
+                                            self.sampling_parameters.sample_batchsize),
+                                        device=pl_model.device,
                                         unit_cell=unit_cell_)
             if self.sampling_parameters.record_samples:
                 sample_output_path = os.path.join(self.position_sample_output_directory,
                                                   f"diffusion_position_sample_epoch={trainer.current_epoch}"
                                                   + f"_steps={n}.pt")
+                # write trajectories to disk and reset to save memory
                 pc_sampler.sample_trajectory_recorder.write_to_pickle(sample_output_path)
-
+                pc_sampler.sample_trajectory_recorder.reset()
             batch_relative_coordinates = samples.detach().cpu()
             sample_energies += [self._compute_lammps_energies(batch_relative_coordinates)]
 
         sample_energies = np.concatenate(sample_energies)
+
+        return sample_energies
+
+    def on_validation_batch_start(self, trainer: Trainer,
+                                  pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
+        """On validation batch start, accumulate the validation dataset energies for further processing."""
+        if not self._compute_results_at_this_epoch(trainer.current_epoch):
+            return
+        self.validation_energies = np.append(self.validation_energies, batch['potential_energy'].cpu().numpy())
+
+    def on_validation_epoch_end(self, trainer: Trainer, pl_model: LightningModule) -> None:
+        """On validation epoch end."""
+        if not self._compute_results_at_this_epoch(trainer.current_epoch):
+            return
+
+        # generate samples and evaluate their energy with an oracle
+        sample_energies = self.sample_and_evaluate_energy(pl_model)
 
         energy_output_path = os.path.join(self.energy_sample_output_directory,
                                           f"energies_sample_epoch={trainer.current_epoch}.pt")
