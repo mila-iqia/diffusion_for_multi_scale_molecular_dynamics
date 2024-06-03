@@ -4,7 +4,7 @@ from e3nn import o3
 
 from crystal_diffusion.models.mace_utils import \
     build_mace_output_nodes_irreducible_representation
-from crystal_diffusion.models.score_prediction_head import (
+from crystal_diffusion.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHead,
     MaceEquivariantScorePredictionHeadParameters)
 

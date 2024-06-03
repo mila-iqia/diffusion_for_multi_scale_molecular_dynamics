@@ -1,11 +1,15 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.score_network import (
-    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters,
-    MACEScoreNetwork, MACEScoreNetworkParameters, MLPScoreNetwork,
-    MLPScoreNetworkParameters, ScoreNetwork, ScoreNetworkParameters)
-from crystal_diffusion.models.score_prediction_head import (
+from crystal_diffusion.models.score_networks.diffusion_mace_score_network import (
+    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.mace_score_network import (
+    MACEScoreNetwork, MACEScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.mlp_score_network import (
+    MLPScoreNetwork, MLPScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.score_network import (
+    ScoreNetwork, ScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,

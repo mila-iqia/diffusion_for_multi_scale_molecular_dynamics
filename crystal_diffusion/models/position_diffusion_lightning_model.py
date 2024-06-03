@@ -9,10 +9,14 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
                                                 load_scheduler_dictionary)
-from crystal_diffusion.models.score_network import (DiffusionMACEScoreNetwork,
-                                                    MACEScoreNetwork,
-                                                    MLPScoreNetwork,
-                                                    ScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.diffusion_mace_score_network import \
+    DiffusionMACEScoreNetwork
+from crystal_diffusion.models.score_networks.mace_score_network import \
+    MACEScoreNetwork
+from crystal_diffusion.models.score_networks.mlp_score_network import \
+    MLPScoreNetwork
+from crystal_diffusion.models.score_networks.score_network import \
+    ScoreNetworkParameters
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES,
                                          RELATIVE_COORDINATES, TIME, UNIT_CELL)

@@ -11,14 +11,14 @@ from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import get_exact_samples
 from crystal_diffusion.callbacks.loss_monitoring_callback import \
     LossMonitoringCallback
-from crystal_diffusion.models.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.scheduler import (
     CosineAnnealingLRSchedulerParameters, ValidSchedulerName)
+from crystal_diffusion.models.score_networks.analytical_score_network import (
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.namespace import RELATIVE_COORDINATES
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler

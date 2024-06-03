@@ -2,7 +2,7 @@ import einops
 import torch
 from sklearn.neighbors import KDTree
 
-from crystal_diffusion.models.analytical_score_network import \
+from crystal_diffusion.models.score_networks.analytical_score_network import \
     AnalyticalScoreNetwork
 
 

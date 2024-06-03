@@ -10,7 +10,8 @@ from crystal_diffusion.models.position_diffusion_lightning_model import (
 from crystal_diffusion.models.scheduler import (
     CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters,
     ValidSchedulerName)
-from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
+from crystal_diffusion.models.score_networks.mlp_score_network import \
+    MLPScoreNetworkParameters
 from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \

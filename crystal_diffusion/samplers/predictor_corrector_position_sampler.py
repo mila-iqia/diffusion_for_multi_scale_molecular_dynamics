@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import torch
 from tqdm import tqdm
 
-from crystal_diffusion.models.score_network import ScoreNetwork
+from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
                                          UNIT_CELL)

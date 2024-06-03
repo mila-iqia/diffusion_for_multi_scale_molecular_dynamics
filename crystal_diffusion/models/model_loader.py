@@ -8,10 +8,15 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.scheduler import get_scheduler_parameters
-from crystal_diffusion.models.score_network import (
-    DiffusionMACEScoreNetworkParameters, MACEScoreNetworkParameters,
-    MLPScoreNetwork, MLPScoreNetworkParameters, ScoreNetworkParameters)
-from crystal_diffusion.models.score_prediction_head import (
+from crystal_diffusion.models.score_networks.diffusion_mace_score_network import \
+    DiffusionMACEScoreNetworkParameters
+from crystal_diffusion.models.score_networks.mace_score_network import \
+    MACEScoreNetworkParameters
+from crystal_diffusion.models.score_networks.mlp_score_network import (
+    MLPScoreNetwork, MLPScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.score_network import \
+    ScoreNetworkParameters
+from crystal_diffusion.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
