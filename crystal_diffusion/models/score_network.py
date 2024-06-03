@@ -43,7 +43,7 @@ class ScoreNetworkParameters:
     """Base Hyper-parameters for score networks."""
     architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
-    conditional_prob: float = 0.  # probability of making an conditional forward - else, do a unconditional forward
+    conditional_prob: float = 0.  # probability of making a conditional forward - else, do a unconditional forward
     conditional_gamma: float = 2.  # conditional score weighting - see eq. B45 in MatterGen
     # p_\gamma(x|c) = p(c|x)^\gamma p(x)
 
@@ -150,7 +150,7 @@ class ScoreNetwork(torch.nn.Module):
 
         Args:
             batch : dictionary containing the data to be processed by the model.
-            conditional: if True, do an conditional forward, if False, do a unconditional forward. If None, choose
+            conditional: if True, do a conditional forward, if False, do a unconditional forward. If None, choose
                 randomly with probability conditional_prob
 
         Returns:
