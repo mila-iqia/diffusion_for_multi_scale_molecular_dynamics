@@ -6,9 +6,12 @@ import pandas as pd
 import torch
 import yaml
 
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
+                                         RELATIVE_COORDINATES)
+
 Configuration = namedtuple("Configuration",
-                           ["spatial_dimension", "relative_coordinates", "positions",
-                            "forces", "types", "ids", "cell_dimensions",
+                           ["spatial_dimension", CARTESIAN_POSITIONS, CARTESIAN_FORCES, RELATIVE_COORDINATES,
+                            "types", "ids", "cell_dimensions",
                             "potential_energy", "kinetic_energy", "energy"])
 
 
@@ -34,8 +37,8 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
 
     return Configuration(spatial_dimension=spatial_dimension,
                          relative_coordinates=relative_coordinates,
-                         positions=positions,
-                         forces=np.random.rand(number_of_atoms, spatial_dimension),
+                         cartesian_positions=positions,
+                         cartesian_forces=np.random.rand(number_of_atoms, spatial_dimension),
                          types=np.random.randint(1, 10, number_of_atoms),
                          ids=np.arange(1, number_of_atoms + 1),
                          cell_dimensions=cell_dimensions,
@@ -69,10 +72,10 @@ def generate_parse_dump_output_dataframe(configurations: List[Configuration]) ->
     rows = []
     for configuration in configurations:
         row = dict(box=configuration.cell_dimensions, id=list(configuration.ids), type=list(configuration.types))
-        for coordinates, name in zip(configuration.positions.transpose(), ['x', 'y', 'z']):
+        for coordinates, name in zip(configuration.cartesian_positions.transpose(), ['x', 'y', 'z']):
             row[name] = list(coordinates)
 
-        for coordinate_forces, name in zip(configuration.forces.transpose(), ['fx', 'fy', 'fz']):
+        for coordinate_forces, name in zip(configuration.cartesian_forces.transpose(), ['fx', 'fy', 'fz']):
             row[name] = list(coordinate_forces)
 
         rows.append(row)
@@ -98,7 +101,8 @@ def create_dump_single_record(configuration: Configuration, timestep: int) -> Di
     data = []
 
     for id, type, position, force in (
-            zip(configuration.ids, configuration.types, configuration.positions, configuration.forces)):
+            zip(configuration.ids, configuration.types, configuration.cartesian_positions,
+                configuration.cartesian_forces)):
         row = [int(id), int(type)] + [float(p) for p in position] + [float(f) for f in force]
         data.append(row)
 
@@ -154,15 +158,18 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
         #       [ v3, v4]
         # C-style flattening is the correct convention to interoperate with pytorch reshaping operations.
         relative_positions = configuration.relative_coordinates.flatten(order='c')
-        positions = configuration.positions.flatten(order='c')
+        positions = configuration.cartesian_positions.flatten(order='c')
+        forces = configuration.cartesian_forces.flatten(order='c')
         number_of_atoms = len(configuration.ids)
         box = configuration.cell_dimensions
         row = dict(natom=number_of_atoms,
                    box=box,
                    type=configuration.types,
-                   position=positions,
-                   relative_positions=relative_positions,
-                   potential_energy=configuration.potential_energy)
+                   potential_energy=configuration.potential_energy,
+                   cartesian_positions=positions,
+                   relative_coordinates=relative_positions,
+                   cartesian_forces=forces,
+                   )
 
         rows.append(row)
     return pd.DataFrame(rows)

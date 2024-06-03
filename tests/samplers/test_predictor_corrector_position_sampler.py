@@ -27,10 +27,12 @@ class FakePCSampler(PredictorCorrectorPositionSampler):
     def initialize(self, number_of_samples: int):
         return self.initial_sample
 
-    def predictor_step(self, x_ip1: torch.Tensor, ip1: int, unit_cell: torch.Tensor) -> torch.Tensor:
+    def predictor_step(self, x_ip1: torch.Tensor, ip1: int, unit_cell: torch.Tensor, forces: torch.Tensor
+                       ) -> torch.Tensor:
         return 1.2 * x_ip1 + 3.4 + ip1 / 111.0
 
-    def corrector_step(self, x_i: torch.Tensor, i: int, unit_cell: torch.Tensor) -> torch.Tensor:
+    def corrector_step(self, x_i: torch.Tensor, i: int, unit_cell: torch.Tensor, forces: torch.Tensor
+                       ) -> torch.Tensor:
         return 0.56 * x_i + 7.89 + i / 117.0
 
 
@@ -78,9 +80,11 @@ class TestPredictorCorrectorPositionSampler:
         noisy_sample = map_relative_coordinates_to_unit_cell(initial_sample)
         x_ip1 = noisy_sample
         for i in list_i:
-            xi = map_relative_coordinates_to_unit_cell(sampler.predictor_step(x_ip1, i + 1, unit_cell_sample))
+            xi = map_relative_coordinates_to_unit_cell(sampler.predictor_step(x_ip1, i + 1, unit_cell_sample,
+                                                                              torch.zeros_like(x_ip1)))
             for _ in list_j:
-                xi = map_relative_coordinates_to_unit_cell(sampler.corrector_step(xi, i, unit_cell_sample))
+                xi = map_relative_coordinates_to_unit_cell(sampler.corrector_step(xi, i, unit_cell_sample,
+                                                                                  torch.zeros_like(xi)))
             x_ip1 = xi
         return xi
 
@@ -155,12 +159,13 @@ class TestAnnealedLangevinDynamics:
         sigma_min = noise_parameters.sigma_min
         list_sigma = noise.sigma
         list_time = noise.time
+        forces = torch.zeros_like(x_i)
 
         z = pc_sampler._draw_gaussian_sample(number_of_samples)
         mocker.patch.object(pc_sampler, "_draw_gaussian_sample", return_value=z)
 
         for index_i in range(1, total_time_steps + 1):
-            computed_sample = pc_sampler.predictor_step(x_i, index_i, unit_cell_sample)
+            computed_sample = pc_sampler.predictor_step(x_i, index_i, unit_cell_sample, forces)
 
             sigma_i = list_sigma[index_i - 1]
             t_i = list_time[index_i - 1]
@@ -171,7 +176,7 @@ class TestAnnealedLangevinDynamics:
 
             g2 = sigma_i**2 - sigma_im1**2
 
-            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample) / sigma_i
+            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample, forces) / sigma_i
 
             expected_sample = x_i + g2 * s_i + torch.sqrt(g2) * z
 
@@ -187,12 +192,13 @@ class TestAnnealedLangevinDynamics:
         list_sigma = noise.sigma
         list_time = noise.time
         sigma_1 = list_sigma[0]
+        forces = torch.zeros_like(x_i)
 
         z = pc_sampler._draw_gaussian_sample(number_of_samples)
         mocker.patch.object(pc_sampler, "_draw_gaussian_sample", return_value=z)
 
         for index_i in range(0, total_time_steps):
-            computed_sample = pc_sampler.corrector_step(x_i, index_i, unit_cell_sample)
+            computed_sample = pc_sampler.corrector_step(x_i, index_i, unit_cell_sample, forces)
 
             if index_i == 0:
                 sigma_i = sigma_min
@@ -203,7 +209,7 @@ class TestAnnealedLangevinDynamics:
 
             eps_i = 0.5 * epsilon * sigma_i**2 / sigma_1**2
 
-            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample) / sigma_i
+            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample, forces) / sigma_i
 
             expected_sample = x_i + eps_i * s_i + torch.sqrt(2. * eps_i) * z
 

@@ -13,7 +13,8 @@ from crystal_diffusion.models.score_network import (DiffusionMACEScoreNetwork,
                                                     MACEScoreNetwork,
                                                     MLPScoreNetwork,
                                                     ScoreNetworkParameters)
-from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
+                                         NOISY_RELATIVE_COORDINATES,
                                          RELATIVE_COORDINATES, TIME, UNIT_CELL)
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
@@ -118,6 +119,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self,
         batch: typing.Any,
         batch_idx: int,
+        no_conditional: bool = False,
     ) -> typing.Any:
         """Generic step.
 
@@ -145,6 +147,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         Args:
             batch : a dictionary that should contain a data sample.
             batch_idx :  index of the batch
+            no_conditional (optional): if True, do not use the conditional option of the forward. Used for validation.
 
         Returns:
             loss : the computed loss.
@@ -175,11 +178,16 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         unit_cell = torch.diag_embed(batch["box"])  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
 
+        forces = batch[CARTESIAN_FORCES]
+
         augmented_batch = {NOISY_RELATIVE_COORDINATES: xt,
                            TIME: noise_sample.time.reshape(-1, 1),
                            NOISE: noise_sample.sigma.reshape(-1, 1),
-                           UNIT_CELL: unit_cell}
-        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch)
+                           UNIT_CELL: unit_cell,
+                           CARTESIAN_FORCES: forces}
+
+        use_conditional = None if no_conditional is False else False
+        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch, conditional=use_conditional)
 
         loss = torch.nn.functional.mse_loss(
             predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
@@ -241,7 +249,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         """Runs a prediction step for validation, logging the loss."""
-        output = self._generic_step(batch, batch_idx)
+        output = self._generic_step(batch, batch_idx, no_conditional=True)
         loss = output["loss"]
         batch_size = self._get_batch_size(batch)
 
