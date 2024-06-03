@@ -91,6 +91,7 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         """Init method."""
         super().__init__(output_node_features_irreps, hyper_params)
 
+        # raise the dimensionality of the time scalar
         time_irreps_in = o3.Irreps("1x0e")  # time is a scalar
         time_irreps_out = o3.Irreps(hyper_params.time_embedding_irreps)
 
@@ -106,6 +107,15 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
         sorted_irreps, self.column_permutation_indices = (
             get_normalized_irreps_permutation_indices(head_input_irreps))
 
+        # mix the time embedding 0e irrep with the different components of the MACE output and avoid a dimensionality
+        # explosion with FullyConnectedTensorProduct that only computes the specified channels in the output and applies
+        # linear layers to control the dimensionality across each irrep
+        self.time_mixing_layer = o3.FullyConnectedTensorProduct(
+            irreps_in1=time_irreps_out,
+            irreps_in2=output_node_features_irreps,
+            irreps_out=sorted_irreps
+        )
+
         self.head = torch.nn.Sequential()
 
         for _ in range(hyper_params.number_of_layers):
@@ -114,10 +124,6 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
 
             batch_norm = e3nn.nn.BatchNorm(irreps=sorted_irreps)
             self.head.append(batch_norm)
-
-            # Some sort of tensor product is necessary to mix the scalar time with the vector output.
-            product_layer = o3.TensorSquare(irreps_in=sorted_irreps, irreps_out=sorted_irreps)
-            self.head.append(product_layer)
 
             gate = gate_dict[hyper_params.gate]
             # There must be one activation per L-channel, and that activation must be 'None'  for l !=0.
@@ -144,10 +150,11 @@ class MaceEquivariantScorePredictionHead(MaceScorePredictionHead):
             flat_scores: scores computed using the head. Dimension [batch_size * number_of_atoms, spatial_dimension]
         """
         embedded_times = self.time_embedding_linear_layer(flat_times)
-        head_input = torch.cat([embedded_times, flat_node_features], dim=1)[:, self.column_permutation_indices]
-        flat_scores = self.head(head_input)
+        mixed_features = self.time_mixing_layer(embedded_times, flat_node_features)
+        flat_scores = self.head(mixed_features)
 
         return flat_scores
+
 
 
 # Register the possible MACE prediction heads as  key:  model class
