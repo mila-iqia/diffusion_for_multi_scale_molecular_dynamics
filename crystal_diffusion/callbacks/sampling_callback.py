@@ -3,7 +3,7 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AnyStr, Dict, List, Tuple
+from typing import Any, AnyStr, Dict, List, Optional, Tuple
 
 import numpy as np
 import scipy.stats as ss
@@ -33,6 +33,8 @@ class SamplingParameters:
     number_of_corrector_steps: int = 1
     number_of_atoms: int  # the number of atoms that must be generated in a sampled configuration.
     number_of_samples: int
+    sample_batchsize: Optional[int] = None  # iterate up to number_of_samples with batches of this size
+    # if None, use number_of_samples as batchsize
     sample_every_n_epochs: int = 1  # Sampling is expensive; control frequency
     cell_dimensions: List[float]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
     record_samples: bool = False  # should the predictor and corrector steps be recorded to a file
@@ -43,6 +45,7 @@ def instantiate_diffusion_sampling_callback(callback_params: Dict[AnyStr, Any],
                                             verbose: bool) -> Dict[str, Callback]:
     """Instantiate the Diffusion Sampling callback."""
     noise_parameters = NoiseParameters(**callback_params['noise'])
+
     sampling_parameters = SamplingParameters(**callback_params['sampling'])
 
     diffusion_sampling_callback = DiffusionSamplingCallback(noise_parameters=noise_parameters,
@@ -222,21 +225,31 @@ class DiffusionSamplingCallback(Callback):
         pc_sampler, unit_cell = self._create_sampler(pl_model)
 
         logger.info("Draw samples")
-        samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device,
-                                    unit_cell=unit_cell)
 
-        batch_relative_coordinates = samples.detach().cpu()
+        if self.sampling_parameters.sample_batchsize is None:
+            self.sampling_parameters.sample_batchsize = self.sampling_parameters.number_of_samples
 
-        sample_energies = self._compute_lammps_energies(batch_relative_coordinates)
+        sample_energies = []
+
+        for n in range(0, self.sampling_parameters.number_of_samples, self.sampling_parameters.sample_batchsize):
+            unit_cell_ = unit_cell[n:min(n + self.sampling_parameters.sample_batchsize,
+                                         self.sampling_parameters.number_of_samples)]
+            samples = pc_sampler.sample(self.sampling_parameters.number_of_samples, device=pl_model.device,
+                                        unit_cell=unit_cell_)
+            if self.sampling_parameters.record_samples:
+                sample_output_path = os.path.join(self.position_sample_output_directory,
+                                                  f"diffusion_position_sample_epoch={trainer.current_epoch}"
+                                                  + f"_steps={n}.pt")
+                pc_sampler.sample_trajectory_recorder.write_to_pickle(sample_output_path)
+
+            batch_relative_coordinates = samples.detach().cpu()
+            sample_energies += [self._compute_lammps_energies(batch_relative_coordinates)]
+
+        sample_energies = np.concatenate(sample_energies)
 
         energy_output_path = os.path.join(self.energy_sample_output_directory,
                                           f"energies_sample_epoch={trainer.current_epoch}.pt")
         torch.save(torch.from_numpy(sample_energies), energy_output_path)
-
-        if self.sampling_parameters.record_samples:
-            sample_output_path = os.path.join(self.position_sample_output_directory,
-                                              f"diffusion_position_sample_epoch={trainer.current_epoch}.pt")
-            pc_sampler.sample_trajectory_recorder.write_to_pickle(sample_output_path)
 
         fig = self._plot_energy_histogram(sample_energies, self.validation_energies, trainer.current_epoch)
         ks_distance, p_value = self.compute_kolmogorov_smirnov_distance_and_pvalue(sample_energies,

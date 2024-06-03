@@ -77,6 +77,7 @@ diffusion_sampling:
     number_of_corrector_steps: 1
     number_of_atoms: 8
     number_of_samples: 16
+    sample_batchsize: None
     sample_every_n_epochs: 1
     cell_dimensions: [5.43, 5.43, 5.43]
 
