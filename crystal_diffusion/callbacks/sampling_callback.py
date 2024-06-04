@@ -211,7 +211,7 @@ class DiffusionSamplingCallback(Callback):
         return np.array(list_energy)
 
     def sample_and_evaluate_energy(self, pl_model: LightningModule, current_epoch: int = 0) -> np.ndarray:
-        """Create samples and estimate their energy with an oracle (LAMMPS)
+        """Create samples and estimate their energy with an oracle (LAMMPS).
 
         Args:
             pl_model: pytorch-lightning model
