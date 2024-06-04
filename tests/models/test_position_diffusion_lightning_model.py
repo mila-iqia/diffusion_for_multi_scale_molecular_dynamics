@@ -11,7 +11,7 @@ from crystal_diffusion.models.scheduler import (
     CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters,
     ValidSchedulerName)
 from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
-from crystal_diffusion.namespace import RELATIVE_COORDINATES
+from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
@@ -36,7 +36,8 @@ class FakePositionsDataModule(LightningDataModule):
         all_relative_coordinates = torch.rand(dataset_size, number_of_atoms, spatial_dimension)
         box = torch.rand(spatial_dimension)
         self.data = [
-            {RELATIVE_COORDINATES: configuration, 'box': box} for configuration in all_relative_coordinates
+            {RELATIVE_COORDINATES: configuration, 'box': box, CARTESIAN_FORCES: torch.zeros_like(configuration)}
+            for configuration in all_relative_coordinates
         ]
         self.train_data, self.val_data, self.test_data = None, None, None
 

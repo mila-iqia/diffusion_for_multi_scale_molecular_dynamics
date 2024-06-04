@@ -187,7 +187,7 @@ class DiffusionSamplingCallback(Callback):
         fig.tight_layout()
         return fig
 
-    def _compute_lammps_energies(self, batch_relative_coordinates: torch.Tensor) -> np.ndarray:
+    def _compute_oracle_energies(self, batch_relative_coordinates: torch.Tensor) -> np.ndarray:
         """Compute energies from samples."""
         batch_size = batch_relative_coordinates.shape[0]
         cell_dimensions = self.sampling_parameters.cell_dimensions
@@ -263,7 +263,7 @@ class DiffusionSamplingCallback(Callback):
             return
 
         # generate samples and evaluate their energy with an oracle
-        sample_energies = self.sample_and_evaluate_energy(pl_model, trainer)
+        sample_energies = self.sample_and_evaluate_energy(pl_model, trainer.current_epoch)
 
         energy_output_path = os.path.join(self.energy_sample_output_directory,
                                           f"energies_sample_epoch={trainer.current_epoch}.pt")

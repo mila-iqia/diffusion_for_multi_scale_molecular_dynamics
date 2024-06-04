@@ -6,6 +6,8 @@ import pytest
 
 from crystal_diffusion.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
+                                         RELATIVE_COORDINATES)
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import generate_parquet_dataframe
 
@@ -41,7 +43,8 @@ class TestDataProcess(TestDiffusionDataBase):
             pd.testing.assert_frame_equal(computed_df, expected_df)
 
     def test_parse_lammps_run(self, processor, paths, train_configuration_runs, valid_configuration_runs):
-        expected_columns = ['natom', 'box', 'type', 'position', 'relative_positions', 'potential_energy']
+        expected_columns = ['natom', 'box', 'type', CARTESIAN_POSITIONS, CARTESIAN_FORCES, RELATIVE_COORDINATES,
+                            'potential_energy']
 
         for mode, configuration_runs in zip(['train', 'valid'], [train_configuration_runs, valid_configuration_runs]):
 
@@ -85,7 +88,7 @@ class TestDataProcess(TestDiffusionDataBase):
 
             natom = len(configuration.ids)
             expected_coordinates = configuration.relative_coordinates
-            positions = configuration.positions
+            positions = configuration.cartesian_positions
             box = configuration.cell_dimensions
 
             position_series = pd.Series({'x': positions[:, 0], 'y': positions[:, 1], 'z': positions[:, 2], 'box': box})
@@ -97,7 +100,7 @@ class TestDataProcess(TestDiffusionDataBase):
         # Call get_x_relative on the test data
         result_df = processor.get_x_relative(sample_coordinates)
         # Check if 'relative_positions' column is added
-        assert 'relative_positions' in result_df.columns
+        assert RELATIVE_COORDINATES in result_df.columns
 
     def test_flatten_positions_in_row(self):
 

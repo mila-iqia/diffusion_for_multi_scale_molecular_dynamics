@@ -8,8 +8,9 @@ from crystal_diffusion.models.score_network import (
 from crystal_diffusion.models.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
-from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
-                                         TIME, UNIT_CELL)
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
+                                         NOISY_RELATIVE_COORDINATES, TIME,
+                                         UNIT_CELL)
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
@@ -132,6 +133,11 @@ class BaseTestScoreNetwork:
         return relative_coordinates
 
     @pytest.fixture
+    def cartesian_forces(self, batch_size, number_of_atoms, spatial_dimension, basis_vectors):
+        cartesian_forces = torch.rand(batch_size, number_of_atoms, spatial_dimension)
+        return cartesian_forces
+
+    @pytest.fixture
     def times(self, batch_size):
         times = torch.rand(batch_size, 1)
         return times
@@ -145,8 +151,9 @@ class BaseTestScoreNetwork:
         return batch_size, number_of_atoms, spatial_dimension
 
     @pytest.fixture()
-    def batch(self, relative_coordinates, times, noises, basis_vectors):
-        return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, UNIT_CELL: basis_vectors, NOISE: noises}
+    def batch(self, relative_coordinates, cartesian_forces, times, noises, basis_vectors):
+        return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, UNIT_CELL: basis_vectors, NOISE: noises,
+                CARTESIAN_FORCES: cartesian_forces}
 
     def test_output_shape(self, score_network, batch, expected_score_shape):
         scores = score_network(batch)
@@ -206,10 +213,20 @@ class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
 
 
 @pytest.mark.parametrize("spatial_dimension", [3])
+@pytest.mark.parametrize("prediction_head", ["energy_gradient", "non_conservative"])
 class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
-    def score_network(self, number_of_atoms, spatial_dimension):
+    def score_network(self, number_of_atoms, spatial_dimension, prediction_head):
         hyper_params = DiffusionMACEScoreNetworkParameters(spatial_dimension=spatial_dimension,
                                                            number_of_atoms=number_of_atoms,
-                                                           r_max=3.0)
+                                                           prediction_head=prediction_head,
+                                                           r_max=3.0,
+                                                           num_bessel=4,
+                                                           num_polynomial_cutoff=3,
+                                                           hidden_irreps="8x0e + 8x1o",
+                                                           MLP_irreps="8x0e",
+                                                           correlation=2,
+                                                           radial_MLP=[8, 8, 8],
+                                                           )
+
         return DiffusionMACEScoreNetwork(hyper_params)
