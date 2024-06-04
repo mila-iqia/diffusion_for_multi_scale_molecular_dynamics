@@ -210,8 +210,16 @@ class DiffusionSamplingCallback(Callback):
 
         return np.array(list_energy)
 
-    def sample_and_evaluate_energy(self, pl_model: LightningModule) -> np.ndarray:
+    def sample_and_evaluate_energy(self, pl_model: LightningModule, current_epoch: int = 0) -> np.ndarray:
+        """Create samples and estimate their energy with an oracle (LAMMPS)
 
+        Args:
+            pl_model: pytorch-lightning model
+            current_epoch (optional): current epoch to save files. Defaults to 0.
+
+        Returns:
+            array with energy of each sample from LAMMPS
+        """
         pc_sampler, unit_cell = self._create_sampler(pl_model)
 
         logger.info("Draw samples")
@@ -230,7 +238,7 @@ class DiffusionSamplingCallback(Callback):
                                         unit_cell=unit_cell_)
             if self.sampling_parameters.record_samples:
                 sample_output_path = os.path.join(self.position_sample_output_directory,
-                                                  f"diffusion_position_sample_epoch={trainer.current_epoch}"
+                                                  f"diffusion_position_sample_epoch={current_epoch}"
                                                   + f"_steps={n}.pt")
                 # write trajectories to disk and reset to save memory
                 pc_sampler.sample_trajectory_recorder.write_to_pickle(sample_output_path)
@@ -255,7 +263,7 @@ class DiffusionSamplingCallback(Callback):
             return
 
         # generate samples and evaluate their energy with an oracle
-        sample_energies = self.sample_and_evaluate_energy(pl_model)
+        sample_energies = self.sample_and_evaluate_energy(pl_model, trainer)
 
         energy_output_path = os.path.join(self.energy_sample_output_directory,
                                           f"energies_sample_epoch={trainer.current_epoch}.pt")
