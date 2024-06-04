@@ -1,9 +1,11 @@
-import pytest
-import numpy as np
 from unittest.mock import MagicMock
+
+import numpy as np
+import pytest
 from pytorch_lightning import LightningModule
 
-from crystal_diffusion.callbacks.sampling_callback import DiffusionSamplingCallback, SamplingParameters
+from crystal_diffusion.callbacks.sampling_callback import (
+    DiffusionSamplingCallback, SamplingParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 
