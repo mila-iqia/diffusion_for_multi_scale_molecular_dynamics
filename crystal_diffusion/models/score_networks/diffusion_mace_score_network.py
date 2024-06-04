@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import AnyStr, Dict, List
 
-import numpy as np
 import torch
 from e3nn import o3
 from mace.modules import gate_dict, interaction_classes
@@ -21,8 +20,8 @@ from crystal_diffusion.utils.basis_transformations import (
 class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for Diffusion MACE score networks."""
     architecture: str = 'diffusion_mace'
-    prediction_head: str = 'non_conservative'
     number_of_atoms: int  # the number of atoms in a configuration.
+    number_of_elements: int = 1  # The number of distinct elements present
     r_max: float = 5.0
     num_bessel: int = 8
     num_polynomial_cutoff: int = 5
@@ -31,7 +30,8 @@ class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
     interaction_cls_first: str = "RealAgnosticInteractionBlock"
     num_interactions: int = 2
     hidden_irreps: str = "128x0e + 128x1o"  # irreps for hidden node states
-    MLP_irreps: str = "16x0e"  # from mace.tools.arg_parser
+    mlp_irreps: str = "16x0e"  # irreps for the embedding of the diffusion scalar features
+    number_of_mlp_layers: int = 3  # number of MLP layers for the embedding of the diffusion scalar features
     avg_num_neighbors: int = 1  # normalization factor for the message
     correlation: int = 3
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
@@ -50,11 +50,6 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         """
         super(DiffusionMACEScoreNetwork, self).__init__(hyper_params)
 
-        assert hyper_params.prediction_head in ['non_conservative', 'energy_gradient'], \
-            f"unknown prediction head '{hyper_params.prediction_head}'"
-
-        self.prediction_head = hyper_params.prediction_head
-
         # dataloader
         self.r_max = hyper_params.r_max
         self.collate_fn = Collater(follow_batch=[None], exclude_keys=[None])
@@ -67,10 +62,10 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             interaction_cls=interaction_classes[hyper_params.interaction_cls],
             interaction_cls_first=interaction_classes[hyper_params.interaction_cls_first],
             num_interactions=hyper_params.num_interactions,
-            num_elements=1,  # TODO: revisit this when we have multi-atom types
+            num_elements=hyper_params.number_of_elements,
             hidden_irreps=o3.Irreps(hyper_params.hidden_irreps),
-            MLP_irreps=o3.Irreps(hyper_params.MLP_irreps),
-            atomic_energies=np.array([0.]),
+            mlp_irreps=o3.Irreps(hyper_params.mlp_irreps),
+            number_of_mlp_layers=hyper_params.number_of_mlp_layers,
             avg_num_neighbors=hyper_params.avg_num_neighbors,
             atomic_numbers=[14],  # TODO: revisit this when we have multi-atom types
             correlation=hyper_params.correlation,
@@ -80,6 +75,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         )
 
         self._natoms = hyper_params.number_of_atoms
+        self._number_of_elements = hyper_params.number_of_elements
 
         self.diffusion_mace_network = DiffusionMACE(**diffusion_mace_config)
 
@@ -112,27 +108,10 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         batch[NOISY_CARTESIAN_POSITIONS] = get_positions_from_coordinates(relative_coordinates, basis_vectors)
         graph_input = input_to_diffusion_mace(batch, radial_cutoff=self.r_max)
 
-        if self.prediction_head == 'energy_gradient':
-            compute_force = True
-        else:
-            compute_force = False
-
-        diffusion_mace_output = self.diffusion_mace_network(graph_input,
-                                                            compute_force=compute_force,
-                                                            training=self.training)
-
-        flat_cartesian_scores = diffusion_mace_output[self.prediction_head]
-
+        flat_cartesian_scores = self.diffusion_mace_network(graph_input)
         cartesian_scores = flat_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
-        if self.prediction_head == 'energy_gradient':
-            # Using the chain rule, we can derive nabla_x given nabla_r, where 'x' is relative coordinates and 'r'
-            # is cartesian space.
-            scores = torch.bmm(cartesian_scores, basis_vectors.transpose(2, 1))
-        elif self.prediction_head == 'non_conservative':
-            reciprocal_basis_vectors_as_columns = get_reciprocal_basis_vectors(basis_vectors)
-            scores = torch.bmm(cartesian_scores, reciprocal_basis_vectors_as_columns)
-        else:
-            raise ValueError(f"Unknown prediction head '{self.prediction_head}'")
+        reciprocal_basis_vectors_as_columns = get_reciprocal_basis_vectors(basis_vectors)
+        scores = torch.bmm(cartesian_scores, reciprocal_basis_vectors_as_columns)
 
         return scores

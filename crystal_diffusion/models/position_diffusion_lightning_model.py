@@ -64,6 +64,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.save_hyperparameters(logger=False)  # It is not the responsibility of this class to log its parameters.
 
         self.grads_are_needed_in_inference = False
+
         # we will model sigma x score
         architecture = hyper_params.score_network_parameters.architecture
         if architecture == 'mlp':
@@ -72,8 +73,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             score_network = MACEScoreNetwork
         elif architecture == 'diffusion_mace':
             score_network = DiffusionMACEScoreNetwork
-            if hyper_params.score_network_parameters.prediction_head == 'energy_gradient':
-                self.grads_are_needed_in_inference = True
         else:
             raise NotImplementedError(f'Architecture {architecture} is not implemented.')
 
@@ -270,18 +269,3 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         # The 'test_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
         self.log("test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True)
         return output
-
-    def on_validation_start(self) -> None:
-        """On validation start."""
-        if self.grads_are_needed_in_inference:
-            torch.set_grad_enabled(True)
-
-    def on_test_start(self) -> None:
-        """On test start."""
-        if self.grads_are_needed_in_inference:
-            torch.set_grad_enabled(True)
-
-    def on_predict_start(self) -> None:
-        """On predict start."""
-        if self.grads_are_needed_in_inference:
-            torch.set_grad_enabled(True)

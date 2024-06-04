@@ -28,7 +28,7 @@ from crystal_diffusion.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from crystal_diffusion.models.score_networks.score_prediction_head import \
     MaceEquivariantScorePredictionHeadParameters
-from crystal_diffusion.namespace import RELATIVE_COORDINATES
+from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 logger = logging.getLogger(__name__)
@@ -37,18 +37,23 @@ logger = logging.getLogger(__name__)
 plt.style.use(PLOT_STYLE_PATH)
 
 # model = 'mlp'
-# model = 'diffusion_mace'
-model = 'mace_plus_prediction_head'
-run_id = 2
+model = 'diffusion_mace'
+# model = 'mace_plus_prediction_head'
+run_id = 1
 
 spatial_dimension = 3
 number_of_atoms = 2
 
-dataset_size = 100_000
-batch_size = 128
+dataset_size = 10_000
+batch_size = 1000
 gradient_clip_val = 0.0
 
 spring_constant = 1000.
+
+dim = 16
+num_interactions = 2
+correlation = 2
+number_of_mlp_layers = 0
 
 common_mace_parameters = dict(number_of_atoms=number_of_atoms,
                               r_max=5.0,
@@ -57,13 +62,12 @@ common_mace_parameters = dict(number_of_atoms=number_of_atoms,
                               max_ell=2,
                               interaction_cls="RealAgnosticResidualInteractionBlock",
                               interaction_cls_first="RealAgnosticInteractionBlock",
-                              num_interactions=2,
-                              hidden_irreps="32x0e + 32x1o",
-                              MLP_irreps="32x0e",
+                              num_interactions=num_interactions,
+                              hidden_irreps=f"{dim}x0e + {dim}x1o + {dim}x2e",
                               avg_num_neighbors=1,
-                              correlation=2,
+                              correlation=correlation,
                               gate="silu",
-                              radial_MLP=[64, 64, 64],
+                              radial_MLP=[dim, dim, dim],
                               radial_type="gaussian")
 
 
@@ -72,11 +76,12 @@ prediction_head_parameters = MaceEquivariantScorePredictionHeadParameters(time_e
                                                                           number_of_layers=3)
 
 mace_score_network_parameters = MACEScoreNetworkParameters(prediction_head_parameters=prediction_head_parameters,
+                                                           MLP_irreps=f"{dim}x0e",
                                                            **common_mace_parameters)
 
-diffusion_mace_score_network_parameters = DiffusionMACEScoreNetworkParameters(
-    prediction_head='non_conservative',
-    **common_mace_parameters)
+diffusion_mace_score_network_parameters = DiffusionMACEScoreNetworkParameters(mlp_irreps=f"{dim}x0e",
+                                                                              number_of_mlp_layers=number_of_mlp_layers,
+                                                                              **common_mace_parameters)
 
 mlp_score_network_parameters = MLPScoreNetworkParameters(number_of_atoms=number_of_atoms,
                                                          n_hidden_dimensions=3,
@@ -151,14 +156,14 @@ if __name__ == '__main__':
     train_samples = get_exact_samples(equilibrium_relative_coordinates, inverse_covariance, dataset_size)
     # train_energies = get_samples_harmonic_energy(equilibrium_relative_coordinates, inverse_covariance, train_samples)
     train_energies = get_relative_harmonic_energy(train_samples, equilibrium_relative_coordinates, spring_constant)
-    train_dataset = [{RELATIVE_COORDINATES: x, 'box': box, 'potential_energy': e}
+    train_dataset = [{RELATIVE_COORDINATES: x, 'box': box, 'potential_energy': e, CARTESIAN_FORCES: torch.zeros_like(x)}
                      for x, e in zip(train_samples, train_energies)]
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
 
     valid_samples = get_exact_samples(equilibrium_relative_coordinates, inverse_covariance, dataset_size)
     valid_energies = get_relative_harmonic_energy(valid_samples, equilibrium_relative_coordinates, spring_constant)
     # valid_energies = get_samples_harmonic_energy(equilibrium_relative_coordinates, inverse_covariance, valid_samples)
-    valid_dataset = [{RELATIVE_COORDINATES: x, 'box': box, 'potential_energy': e}
+    valid_dataset = [{RELATIVE_COORDINATES: x, 'box': box, 'potential_energy': e, CARTESIAN_FORCES: torch.zeros_like(x)}
                      for x, e in zip(valid_samples, valid_energies)]
     valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size)
 

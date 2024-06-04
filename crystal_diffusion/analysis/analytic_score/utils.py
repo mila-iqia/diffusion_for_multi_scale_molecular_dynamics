@@ -104,10 +104,6 @@ def get_relative_harmonic_energy(batch_relative_coordinates: torch.Tensor,
     assert equilibrium_relative_coordinates.shape[0] == 2, "This method is specialized to 2 atoms only."
 
     batch_displacements = batch_relative_coordinates[:, 1, :] - batch_relative_coordinates[:, 0, :]
-
-    equilibrium_displacement = equilibrium_relative_coordinates[0, :] - equilibrium_relative_coordinates[1, :]
-
-    energies = spring_constant * ((batch_displacements ** 2).sum(dim=1)
-                                  + batch_displacements @ equilibrium_displacement)
+    energies = spring_constant * (batch_displacements ** 2).sum(dim=1)
 
     return energies
