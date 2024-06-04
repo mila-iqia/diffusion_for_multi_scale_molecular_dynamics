@@ -226,7 +226,8 @@ class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
                                                            num_bessel=4,
                                                            num_polynomial_cutoff=3,
                                                            hidden_irreps="8x0e + 8x1o",
-                                                           MLP_irreps="8x0e",
+                                                           mlp_irreps="8x0e",
+                                                           number_of_mlp_layers=1,
                                                            correlation=2,
                                                            radial_MLP=[8, 8, 8],
                                                            )
