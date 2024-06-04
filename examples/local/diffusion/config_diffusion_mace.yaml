@@ -77,6 +77,6 @@ diffusion_sampling:
     cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:
-  - csv
+  #  - csv
   - tensorboard
-  - comet
+    #- comet
