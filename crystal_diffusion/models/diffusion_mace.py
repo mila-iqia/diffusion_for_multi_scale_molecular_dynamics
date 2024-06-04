@@ -144,17 +144,15 @@ class DiffusionMACE(torch.nn.Module):
         self.diffusion_scalar_embedding.append(linear)
         for _ in range(number_of_mlp_layers):
             non_linearity = Activation(irreps_in=diffusion_scalar_irreps_out, acts=[gate])
+            self.diffusion_scalar_embedding.append(non_linearity)
+
+            normalization = BatchNorm(diffusion_scalar_irreps_out)
+            self.diffusion_scalar_embedding.append(normalization)
+
             linear = o3.Linear(irreps_in=diffusion_scalar_irreps_out,
                                irreps_out=diffusion_scalar_irreps_out,
                                biases=True)
-            normalization = BatchNorm(diffusion_scalar_irreps_out)
             self.diffusion_scalar_embedding.append(linear)
-            self.diffusion_scalar_embedding.append(normalization)
-            self.diffusion_scalar_embedding.append(non_linearity)
-
-        for param in self.diffusion_scalar_embedding.parameters():
-            if len(param.shape) == 1:
-                torch.nn.init.trunc_normal_(param, std=0.01)
 
         # The node_attr is the one-hot version of the atom types.
         node_attr_irreps = o3.Irreps([(num_elements, scalar_irrep)])

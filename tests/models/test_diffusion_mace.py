@@ -136,7 +136,7 @@ class TestDiffusionMace:
                    num_interactions=2,
                    hidden_irreps=o3.Irreps("8x0e + 8x1o + 8x2e"),
                    mlp_irreps=o3.Irreps("8x0e"),
-                   number_of_mlp_layers=0,
+                   number_of_mlp_layers=2,
                    avg_num_neighbors=1,
                    correlation=2,
                    gate=gate_dict["silu"],
