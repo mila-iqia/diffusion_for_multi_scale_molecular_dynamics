@@ -244,7 +244,7 @@ class DiffusionSamplingCallback(Callback):
                 pc_sampler.sample_trajectory_recorder.write_to_pickle(sample_output_path)
                 pc_sampler.sample_trajectory_recorder.reset()
             batch_relative_coordinates = samples.detach().cpu()
-            sample_energies += [self._compute_lammps_energies(batch_relative_coordinates)]
+            sample_energies += [self._compute_oracle_energies(batch_relative_coordinates)]
 
         sample_energies = np.concatenate(sample_energies)
 

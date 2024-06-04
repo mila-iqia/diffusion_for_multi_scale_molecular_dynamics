@@ -64,7 +64,7 @@ class TestSamplingCallback:
             sampling_parameters=sampling_parameters,
             output_directory=tmpdir)
         mocker.patch.object(sampling_cb, "_create_sampler", return_value=mock_create_sampler)
-        mocker.patch.object(sampling_cb, "_compute_lammps_energies", return_value=mock_compute_lammps_energies)
+        mocker.patch.object(sampling_cb, "_compute_oracle_energies", return_value=mock_compute_lammps_energies)
 
         sample_energies = sampling_cb.sample_and_evaluate_energy(pl_model)
         assert isinstance(sample_energies, np.ndarray)
