@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 import torch
 from e3nn import o3
@@ -31,7 +30,6 @@ def test_linear_vector_readout_block():
     assert output_features.shape == (batch_size, vector_output_dimension)
 
 
-@pytest.mark.parametrize("output_name", ["energy_gradient", "non_conservative"])
 class TestDiffusionMace:
     @pytest.fixture(scope="class", autouse=True)
     def set_default_type_to_float64(self):
@@ -87,7 +85,7 @@ class TestDiffusionMace:
 
     @pytest.fixture(scope='class')
     def noises(self, batch_size):
-        return torch.rand(batch_size, 1)
+        return 0.5 * torch.rand(batch_size, 1)
 
     @pytest.fixture(scope='class')
     def batch(self, relative_coordinates, cartesian_positions, basis_vectors, times, noises):
@@ -137,8 +135,8 @@ class TestDiffusionMace:
                    interaction_cls_first=interaction_classes["RealAgnosticInteractionBlock"],
                    num_interactions=2,
                    hidden_irreps=o3.Irreps("8x0e + 8x1o + 8x2e"),
-                   MLP_irreps=o3.Irreps("8x0e"),
-                   atomic_energies=np.array([0.]),
+                   mlp_irreps=o3.Irreps("8x0e"),
+                   number_of_mlp_layers=2,
                    avg_num_neighbors=1,
                    correlation=2,
                    gate=gate_dict["silu"],
@@ -157,9 +155,8 @@ class TestDiffusionMace:
         return input_to_diffusion_mace(batch, radial_cutoff=r_max)
 
     @pytest.fixture()
-    def cartesian_scores(self, graph_input, diffusion_mace, output_name,
-                         batch_size, number_of_atoms, spatial_dimension):
-        flat_cartesian_scores = diffusion_mace(graph_input, training=False, compute_force=True)[output_name]
+    def cartesian_scores(self, graph_input, diffusion_mace, batch_size, number_of_atoms, spatial_dimension):
+        flat_cartesian_scores = diffusion_mace(graph_input)
         return flat_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
     @pytest.fixture()
@@ -182,10 +179,9 @@ class TestDiffusionMace:
         return input_to_diffusion_mace(translated_batch, radial_cutoff=r_max)
 
     @pytest.fixture()
-    def translated_cartesian_scores(self, diffusion_mace, output_name, batch_size, number_of_atoms,
+    def translated_cartesian_scores(self, diffusion_mace, batch_size, number_of_atoms,
                                     spatial_dimension, basis_vectors, translated_graph_input):
-        flat_translated_cartesian_scores = diffusion_mace(translated_graph_input,
-                                                          training=False, compute_force=True)[output_name]
+        flat_translated_cartesian_scores = diffusion_mace(translated_graph_input)
         return flat_translated_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
     @pytest.fixture()
@@ -213,10 +209,9 @@ class TestDiffusionMace:
         return input_to_diffusion_mace(rotated_batch, radial_cutoff=r_max)
 
     @pytest.fixture()
-    def rotated_cartesian_scores(self, diffusion_mace, output_name, batch_size, number_of_atoms,
+    def rotated_cartesian_scores(self, diffusion_mace, batch_size, number_of_atoms,
                                  spatial_dimension, rotated_graph_input):
-        flat_rotated_cartesian_scores = diffusion_mace(rotated_graph_input,
-                                                       training=False, compute_force=True)[output_name]
+        flat_rotated_cartesian_scores = diffusion_mace(rotated_graph_input)
         return flat_rotated_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
     @pytest.fixture()
@@ -232,10 +227,9 @@ class TestDiffusionMace:
         return input_to_diffusion_mace(permuted_batch, radial_cutoff=r_max)
 
     @pytest.fixture()
-    def permuted_cartesian_scores(self, diffusion_mace, output_name, batch_size, number_of_atoms,
+    def permuted_cartesian_scores(self, diffusion_mace, batch_size, number_of_atoms,
                                   spatial_dimension, permuted_graph_input):
-        flat_permuted_cartesian_scores = diffusion_mace(permuted_graph_input,
-                                                        training=False, compute_force=True)[output_name]
+        flat_permuted_cartesian_scores = diffusion_mace(permuted_graph_input)
         return flat_permuted_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
     def test_translation_invariance(self, cartesian_scores, translated_cartesian_scores):
@@ -255,11 +249,11 @@ class TestDiffusionMace:
 
         torch.testing.assert_close(expected_permuted_cartesian_scores, permuted_cartesian_scores)
 
-    def test_time_dependence(self, batch, r_max, diffusion_mace, output_name):
+    def test_time_dependence(self, batch, r_max, diffusion_mace):
 
         graph_input = input_to_diffusion_mace(batch, radial_cutoff=r_max)
-        flat_cartesian_scores1 = diffusion_mace(graph_input, training=False, compute_force=True)[output_name]
-        flat_cartesian_scores2 = diffusion_mace(graph_input, training=False, compute_force=True)[output_name]
+        flat_cartesian_scores1 = diffusion_mace(graph_input)
+        flat_cartesian_scores2 = diffusion_mace(graph_input)
 
         # apply twice on the same input, get the same answer?
         torch.testing.assert_close(flat_cartesian_scores1, flat_cartesian_scores2)
@@ -268,7 +262,7 @@ class TestDiffusionMace:
         new_time_batch[TIME] = torch.rand(batch[TIME].shape)
         new_time_batch[NOISE] = torch.rand(batch[NOISE].shape)
         new_graph_input = input_to_diffusion_mace(new_time_batch, radial_cutoff=r_max)
-        new_flat_cartesian_scores = diffusion_mace(new_graph_input, training=False, compute_force=True)[output_name]
+        new_flat_cartesian_scores = diffusion_mace(new_graph_input)
 
         # Different times, different results?
         with pytest.raises(AssertionError):

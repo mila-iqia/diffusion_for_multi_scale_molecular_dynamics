@@ -15,8 +15,8 @@ from typing import Any, AnyStr, Dict
 import einops
 import torch
 
-from crystal_diffusion.models.score_network import (ScoreNetwork,
-                                                    ScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.score_network import (
+    ScoreNetwork, ScoreNetworkParameters)
 from crystal_diffusion.namespace import NOISE, NOISY_RELATIVE_COORDINATES
 
 

@@ -30,7 +30,8 @@ model:
     interaction_cls_first: RealAgnosticInteractionBlock
     num_interactions: 2
     hidden_irreps: 8x0e + 8x1o
-    MLP_irreps: 8x0e
+    mlp_irreps: 8x0e
+    number_of_mlp_layers: 0
     avg_num_neighbors: 1
     correlation: 3
     gate: silu
@@ -77,6 +78,6 @@ diffusion_sampling:
     cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:
-  - csv
+  #  - csv
   - tensorboard
-  - comet
+    #- comet

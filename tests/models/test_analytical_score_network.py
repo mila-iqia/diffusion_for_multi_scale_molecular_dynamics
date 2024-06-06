@@ -4,7 +4,7 @@ import einops
 import pytest
 import torch
 
-from crystal_diffusion.models.analytical_score_network import (
+from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
                                          TIME, UNIT_CELL)

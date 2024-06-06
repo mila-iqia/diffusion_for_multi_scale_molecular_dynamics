@@ -1,15 +1,11 @@
 from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 
-import numpy as np
 import torch
 from e3nn import o3
-from mace.modules import (AtomicEnergiesBlock, EquivariantProductBasisBlock,
-                          InteractionBlock, LinearNodeEmbeddingBlock,
-                          LinearReadoutBlock, NonLinearReadoutBlock,
-                          RadialEmbeddingBlock)
-from mace.modules.utils import (get_edge_vectors_and_lengths, get_outputs,
-                                get_symmetric_displacement)
-from mace.tools.scatter import scatter_sum
+from e3nn.nn import Activation, BatchNorm
+from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
+                          LinearNodeEmbeddingBlock, RadialEmbeddingBlock)
+from mace.modules.utils import get_edge_vectors_and_lengths
 from torch_geometric.data import Data
 
 from crystal_diffusion.models.mace_utils import get_adj_matrix
@@ -49,9 +45,16 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
                                                             basis_vectors=basis_vectors,
                                                             radial_cutoff=radial_cutoff)
 
-    # The node attributes will be the diffusion noise sigma, which is constant for each structure in the batch.
+    # node features are int corresponding to atom type
+    # TODO handle different atom types
+    atom_types = torch.zeros(batch_size * n_atom_per_graph)
+    node_attrs = torch.nn.functional.one_hot(atom_types.long(), num_classes=1).to(atom_types)
+    # The node diffusion scalars will be the diffusion noise sigma, which is constant for each structure in the batch.
+    # We broadcast to each node to avoid complex broadcasting logic within the model itself.
+    # TODO: it might be better to define the noise as a 'global' graph attribute, and find 'the right way' of
+    #   mixing it with bona fide node features within the model.
     noises = batch[NOISE]  # [batch_size, 1]
-    node_attrs = noises.repeat_interleave(n_atom_per_graph, dim=0)  # [flat_batch_size, 1]
+    node_diffusion_scalars = noises.repeat_interleave(n_atom_per_graph, dim=0)  # [flat_batch_size, 1]
 
     # [batchsize * natoms, spatial dimension]
     flat_cartesian_positions = cartesian_positions.view(-1, spatial_dimension)
@@ -63,6 +66,7 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
     # create the pytorch-geometric graph
     graph_data = Data(edge_index=adj_matrix,
                       node_attrs=node_attrs.to(device),
+                      node_diffusion_scalars=node_diffusion_scalars.to(device),
                       positions=flat_cartesian_positions,
                       ptr=ptr.to(device),
                       batch=batch_tensor.to(device),
@@ -90,8 +94,8 @@ class DiffusionMACE(torch.nn.Module):
         num_interactions: int,
         num_elements: int,
         hidden_irreps: o3.Irreps,
-        MLP_irreps: o3.Irreps,
-        atomic_energies: np.ndarray,
+        mlp_irreps: o3.Irreps,
+        number_of_mlp_layers: int,
         avg_num_neighbors: float,
         atomic_numbers: List[int],
         correlation: Union[int, List[int]],
@@ -123,17 +127,45 @@ class DiffusionMACE(torch.nn.Module):
         # Define the spatial dimension to avoid magic numbers later
         self.spatial_dimension = 3
 
-        # define the "0e" and "1p" representations as  constants to avoid "magic numbers" below.
+        # define the "0e" representation as a constant to avoid "magic numbers" below.
         scalar_irrep = o3.Irrep(0, 1)
 
-        # we assume a single 'scalar' diffusion time-like  input.
+        # Apply an MLP with a bias on the scalar diffusion time-like  input.
         number_of_node_scalar_dimensions = 1
+        number_of_hidden_diffusion_scalar_dimensions = mlp_irreps.count(scalar_irrep)
 
-        node_attr_irreps = o3.Irreps([(number_of_node_scalar_dimensions, scalar_irrep)])
+        diffusion_scalar_irreps_in = o3.Irreps([(number_of_node_scalar_dimensions, scalar_irrep)])
+        diffusion_scalar_irreps_out = o3.Irreps([(number_of_hidden_diffusion_scalar_dimensions, scalar_irrep)])
+
+        self.diffusion_scalar_embedding = torch.nn.Sequential()
+        linear = o3.Linear(irreps_in=diffusion_scalar_irreps_in,
+                           irreps_out=diffusion_scalar_irreps_out,
+                           biases=True)
+        self.diffusion_scalar_embedding.append(linear)
+        for _ in range(number_of_mlp_layers):
+            non_linearity = Activation(irreps_in=diffusion_scalar_irreps_out, acts=[gate])
+            self.diffusion_scalar_embedding.append(non_linearity)
+
+            normalization = BatchNorm(diffusion_scalar_irreps_out)
+            self.diffusion_scalar_embedding.append(normalization)
+
+            linear = o3.Linear(irreps_in=diffusion_scalar_irreps_out,
+                               irreps_out=diffusion_scalar_irreps_out,
+                               biases=True)
+            self.diffusion_scalar_embedding.append(linear)
+
+        # The node_attr is the one-hot version of the atom types.
+        node_attr_irreps = o3.Irreps([(num_elements, scalar_irrep)])
+
+        # Perform a tensor product to mix the diffusion scalar and node attributes
+        self.attribute_mixing = o3.FullyConnectedTensorProduct(irreps_in1=diffusion_scalar_irreps_out,
+                                                               irreps_in2=node_attr_irreps,
+                                                               irreps_out=node_attr_irreps,
+                                                               irrep_normalization='norm')
+
         number_of_hidden_scalar_dimensions = hidden_irreps.count(scalar_irrep)
 
         node_feats_irreps = o3.Irreps([(number_of_hidden_scalar_dimensions, scalar_irrep)])
-
         # The "node embedding" corresponds to W^{(1)} in the definition of A^{(1)}, eq. 9 of the PAPER.
         self.node_embedding = LinearNodeEmbeddingBlock(
             irreps_in=node_attr_irreps, irreps_out=node_feats_irreps
@@ -155,8 +187,7 @@ class DiffusionMACE(torch.nn.Module):
             sh_irreps, normalize=True, normalization="component"
         )
 
-        # Interactions and readout
-        self.atomic_energies_fn = AtomicEnergiesBlock(atomic_energies)
+        # Interactions and node operations
 
         # The first 'interaction block' takes care of (1) the tensor product between W^{(1)}, Y_{lm} and R^{(1)}, and
         # (2) takes care of the sum on neighbors "j", namely 'message passing'. The output of this interaction should
@@ -196,18 +227,8 @@ class DiffusionMACE(torch.nn.Module):
         )
         self.products = torch.nn.ModuleList([prod])
 
-        # The readouts are just the simple layers that compute an energy from the node
-        # representations, as in eq. 13 in the PAPER.
-        self.readouts = torch.nn.ModuleList()
-        self.readouts.append(LinearReadoutBlock(hidden_irreps))
-
-        # The vector_readout module will take the node features from the last layer and return one vector (irrep 1o)
-        # per node.
-        self.vector_readouts = torch.nn.ModuleList()
-        self.vector_readouts.append(LinearVectorReadoutBlock(irreps_in=hidden_irreps))
-
+        hidden_irreps_out = hidden_irreps
         for i in range(num_interactions - 1):
-            hidden_irreps_out = hidden_irreps
             # Inter computes A^{(t)} from h^{(t)}, doing a sum-on-neighbors operation.
             inter = interaction_cls(
                 node_attrs_irreps=node_attr_irreps,
@@ -230,56 +251,21 @@ class DiffusionMACE(torch.nn.Module):
                 use_sc=True,
             )
             self.products.append(prod)
-            if i == num_interactions - 2:
-                self.readouts.append(
-                    NonLinearReadoutBlock(hidden_irreps_out, MLP_irreps, gate)
-                )
-            else:
-                self.readouts.append(LinearReadoutBlock(hidden_irreps))
 
-            self.vector_readouts.append(LinearVectorReadoutBlock(irreps_in=hidden_irreps))
+        # the output is a single vector.
+        self.vector_readout = LinearVectorReadoutBlock(irreps_in=hidden_irreps_out)
 
-    def forward(
-        self,
-        data: Dict[str, torch.Tensor],
-        training: bool = False,
-        compute_force: bool = True,
-        compute_virials: bool = False,
-        compute_stress: bool = False,
-        compute_displacement: bool = False,
-    ) -> Dict[str, Optional[torch.Tensor]]:
+    def forward(self, data: Dict[str, torch.Tensor]) -> torch.Tensor:
         """Forward method."""
         # Setup
-        data["node_attrs"].requires_grad_(True)
-        data["positions"].requires_grad_(True)
-        num_graphs = data["ptr"].numel() - 1
-        displacement = torch.zeros(
-            (num_graphs, self.spatial_dimension, self.spatial_dimension),
-            dtype=data["positions"].dtype,
-            device=data["positions"].device,
-        )
-        if compute_virials or compute_stress or compute_displacement:
-            (
-                data["positions"],
-                data["shifts"],
-                displacement,
-            ) = get_symmetric_displacement(
-                positions=data["positions"],
-                unit_shifts=data["unit_shifts"],
-                cell=data["cell"],
-                edge_index=data["edge_index"],
-                num_graphs=num_graphs,
-                batch=data["batch"],
-            )
 
-        # Atomic energies
-        node_e0 = self.atomic_energies_fn(data["node_attrs"])
-        e0 = scatter_sum(
-            src=node_e0, index=data["batch"], dim=-1, dim_size=num_graphs
-        )  # [n_graphs,]
+        # Augment the node attributes with information from the diffusion scalar.
+        diffusion_scalar_embeddings = self.diffusion_scalar_embedding(data["node_diffusion_scalars"])
+        raw_node_attributes = data["node_attrs"]
+        augmented_node_attributes = self.attribute_mixing(diffusion_scalar_embeddings, raw_node_attributes)
 
         # Embeddings
-        node_feats = self.node_embedding(data["node_attrs"])
+        node_feats = self.node_embedding(augmented_node_attributes)
         vectors, lengths = get_edge_vectors_and_lengths(
             positions=data["positions"],
             edge_index=data["edge_index"],
@@ -288,16 +274,9 @@ class DiffusionMACE(torch.nn.Module):
         edge_attrs = self.spherical_harmonics(vectors)
         edge_feats = self.radial_embedding(lengths)
 
-        # Interactions
-        energies = [e0]
-        node_energies_list = [node_e0]
-        node_feats_list = []
-        vectors_list = []
-        for interaction, product, readout, vector_readout in zip(
-            self.interactions, self.products, self.readouts, self.vector_readouts
-        ):
+        for interaction, product in zip(self.interactions, self.products):
             node_feats, sc = interaction(
-                node_attrs=data["node_attrs"],
+                node_attrs=augmented_node_attributes,
                 node_feats=node_feats,
                 edge_attrs=edge_attrs,
                 edge_feats=edge_feats,
@@ -306,50 +285,9 @@ class DiffusionMACE(torch.nn.Module):
             node_feats = product(
                 node_feats=node_feats,
                 sc=sc,
-                node_attrs=data["node_attrs"],
+                node_attrs=augmented_node_attributes,
             )
-            node_feats_list.append(node_feats)
-            node_energies = readout(node_feats).squeeze(-1)  # [n_nodes, ]
-            energy = scatter_sum(
-                src=node_energies, index=data["batch"], dim=-1, dim_size=num_graphs
-            )  # [n_graphs,]
-            energies.append(energy)
-            node_energies_list.append(node_energies)
-
-            vectors = vector_readout(node_feats)
-            vectors_list.append(vectors)
-
-        # Concatenate node features
-        node_feats_out = torch.cat(node_feats_list, dim=-1)
-
-        # Sum over energy contributions
-        contributions = torch.stack(energies, dim=-1)
-        total_energy = torch.sum(contributions, dim=-1)  # [n_graphs, ]
-        node_energy_contributions = torch.stack(node_energies_list, dim=-1)
-        node_energy = torch.sum(node_energy_contributions, dim=-1)  # [n_nodes, ]
 
         # Outputs
-        vectors_output = torch.stack(vectors_list).sum(dim=0)
-
-        forces, virials, stress = get_outputs(
-            energy=total_energy,
-            positions=data["positions"],
-            displacement=displacement,
-            cell=data["cell"],
-            training=training,
-            compute_force=compute_force,
-            compute_virials=compute_virials,
-            compute_stress=compute_stress,
-        )
-
-        return {
-            "energy_gradient": forces,
-            "non_conservative": vectors_output,
-            "energy": total_energy,
-            "node_energy": node_energy,
-            "contributions": contributions,
-            "virials": virials,
-            "stress": stress,
-            "displacement": displacement,
-            "node_feats": node_feats_out,
-        }
+        vectors_output = self.vector_readout(node_feats)
+        return vectors_output

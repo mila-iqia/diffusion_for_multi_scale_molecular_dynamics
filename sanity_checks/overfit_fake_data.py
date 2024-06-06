@@ -21,7 +21,8 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
-from crystal_diffusion.models.score_network import MLPScoreNetworkParameters
+from crystal_diffusion.models.score_networks.mlp_score_network import \
+    MLPScoreNetworkParameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from sanity_checks import SANITY_CHECK_FOLDER
 from sanity_checks.sanity_check_callbacks import (

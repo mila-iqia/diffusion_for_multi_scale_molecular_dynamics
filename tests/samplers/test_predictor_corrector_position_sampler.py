@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.score_network import (MLPScoreNetwork,
-                                                    MLPScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.mlp_score_network import (
+    MLPScoreNetwork, MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.predictor_corrector_position_sampler import (
     AnnealedLangevinDynamicsSampler, PredictorCorrectorPositionSampler)
 from crystal_diffusion.samplers.variance_sampler import (

@@ -1,11 +1,15 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.score_network import (
-    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters,
-    MACEScoreNetwork, MACEScoreNetworkParameters, MLPScoreNetwork,
-    MLPScoreNetworkParameters, ScoreNetwork, ScoreNetworkParameters)
-from crystal_diffusion.models.score_prediction_head import (
+from crystal_diffusion.models.score_networks.diffusion_mace_score_network import (
+    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.mace_score_network import (
+    MACEScoreNetwork, MACEScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.mlp_score_network import (
+    MLPScoreNetwork, MLPScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.score_network import (
+    ScoreNetwork, ScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
@@ -213,18 +217,17 @@ class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
 
 
 @pytest.mark.parametrize("spatial_dimension", [3])
-@pytest.mark.parametrize("prediction_head", ["energy_gradient", "non_conservative"])
 class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
-    def score_network(self, number_of_atoms, spatial_dimension, prediction_head):
+    def score_network(self, number_of_atoms, spatial_dimension):
         hyper_params = DiffusionMACEScoreNetworkParameters(spatial_dimension=spatial_dimension,
                                                            number_of_atoms=number_of_atoms,
-                                                           prediction_head=prediction_head,
                                                            r_max=3.0,
                                                            num_bessel=4,
                                                            num_polynomial_cutoff=3,
                                                            hidden_irreps="8x0e + 8x1o",
-                                                           MLP_irreps="8x0e",
+                                                           mlp_irreps="8x0e",
+                                                           number_of_mlp_layers=1,
                                                            correlation=2,
                                                            radial_MLP=[8, 8, 8],
                                                            )
