@@ -3,6 +3,7 @@ exp_name: mace_equivariant_head_example
 run_name: run_debug_delete_me
 max_epoch: 10
 log_every_n_steps: 1
+accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
