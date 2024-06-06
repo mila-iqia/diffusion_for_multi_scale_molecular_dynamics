@@ -2,7 +2,7 @@ from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 
 import torch
 from e3nn import o3
-from e3nn.nn import Activation, BatchNorm
+from e3nn.nn import Activation
 from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
                           LinearNodeEmbeddingBlock, RadialEmbeddingBlock)
 from mace.modules.utils import get_edge_vectors_and_lengths
@@ -145,9 +145,6 @@ class DiffusionMACE(torch.nn.Module):
         for _ in range(number_of_mlp_layers):
             non_linearity = Activation(irreps_in=diffusion_scalar_irreps_out, acts=[gate])
             self.diffusion_scalar_embedding.append(non_linearity)
-
-            normalization = BatchNorm(diffusion_scalar_irreps_out)
-            self.diffusion_scalar_embedding.append(normalization)
 
             linear = o3.Linear(irreps_in=diffusion_scalar_irreps_out,
                                irreps_out=diffusion_scalar_irreps_out,
