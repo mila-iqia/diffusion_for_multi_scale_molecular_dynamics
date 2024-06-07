@@ -52,7 +52,7 @@ class SampleTrajectory:
         """Read from pickle."""
         with open(path_to_pickle, 'rb') as fd:
             sample_trajectory = SampleTrajectory()
-            sample_trajectory.data = torch.load(fd)
+            sample_trajectory.data = torch.load(fd, map_location=torch.device('cpu'))
         return sample_trajectory
 
 
