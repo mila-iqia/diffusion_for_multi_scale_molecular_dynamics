@@ -35,3 +35,4 @@ deepdiff==7.0.1
 pykeops==2.2.3
 comet_ml
 einops==0.8.0
+torchode==0.2.0
