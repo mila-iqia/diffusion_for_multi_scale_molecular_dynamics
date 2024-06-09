@@ -13,8 +13,8 @@ from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from crystal_diffusion.utils.sample_trajectory import (NoOpSampleTrajectory,
-                                                       SampleTrajectory)
+from crystal_diffusion.utils.sample_trajectory import (
+    NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +126,9 @@ class AnnealedLangevinDynamicsGenerator(PredictorCorrectorPositionGenerator):
         self.sigma_normalized_score_network = sigma_normalized_score_network
 
         if record_samples:
-            self.sample_trajectory_recorder = SampleTrajectory()
+            self.sample_trajectory_recorder = PredictorCorrectorSampleTrajectory()
         else:
-            self.sample_trajectory_recorder = NoOpSampleTrajectory()
+            self.sample_trajectory_recorder = NoOpPredictorCorrectorSampleTrajectory()
 
     def initialize(self, number_of_samples: int):
         """This method must initialize the samples from the fully noised distribution."""

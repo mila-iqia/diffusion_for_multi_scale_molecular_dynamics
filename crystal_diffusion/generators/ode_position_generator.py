@@ -13,8 +13,8 @@ from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from crystal_diffusion.utils.sample_trajectory import (NoOpSampleTrajectory,
-                                                       SampleTrajectory)
+from crystal_diffusion.utils.sample_trajectory import (NoOpODESampleTrajectory,
+                                                       ODESampleTrajectory)
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +53,12 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         self.t0 = 0.0  # The "initial diffusion time", corresponding to the physical distribution.
         self.tf = 1.0  # The "final diffusion time", corresponding to the uniform distribution.
 
+        self.record_samples = record_samples
+
         if record_samples:
-            self.sample_trajectory_recorder = SampleTrajectory()
+            self.sample_trajectory_recorder = ODESampleTrajectory()
         else:
-            self.sample_trajectory_recorder = NoOpSampleTrajectory()
+            self.sample_trajectory_recorder = NoOpODESampleTrajectory()
 
     def _get_exploding_variance_sigma(self, times):
         """Get Exploding Variance Sigma.
@@ -178,6 +180,18 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         logger.info("Starting ODE solver...")
         sol = jit_solver.solve(to.InitialValueProblem(y0=y0, t_eval=t_eval))
         logger.info("ODE solver Finished.")
+
+        if self.record_samples:
+            # Only do these operations if they are required!
+            self.sample_trajectory_recorder.record_unit_cell(unit_cell)
+            record_relative_coordinates = einops.rearrange(sol.ys,
+                                                           'batch times (natom space) -> batch times natom space',
+                                                           natom=self.number_of_atoms,
+                                                           space=self.spatial_dimension)
+            self.sample_trajectory_recorder.record_ode_solution(times=sol.ts,
+                                                                relative_coordinates=record_relative_coordinates,
+                                                                stats=sol.stats,
+                                                                status=sol.status)
 
         # sol.ys has dimensions [number of samples, number of times, number of features]
         # only the final time (ie, t0) is the real sample.

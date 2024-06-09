@@ -9,7 +9,8 @@ import torch
 
 from crystal_diffusion import TOP_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.utils.sample_trajectory import SampleTrajectory
+from crystal_diffusion.utils.sample_trajectory import \
+    PredictorCorrectorSampleTrajectory
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -34,10 +35,10 @@ if __name__ == '__main__':
     energies = torch.load(energy_sample_directory / f"energies_sample_epoch={epoch}.pt")
 
     pickle_path = trajectory_data_directory / f"diffusion_position_sample_epoch={epoch}.pt"
-    sample_trajectory = SampleTrajectory.read_from_pickle(pickle_path)
+    sample_trajectory = PredictorCorrectorSampleTrajectory.read_from_pickle(pickle_path)
 
     pickle_path = trajectory_data_directory / f"diffusion_position_sample_epoch={epoch}.pt"
-    sample_trajectory = SampleTrajectory.read_from_pickle(pickle_path)
+    sample_trajectory = PredictorCorrectorSampleTrajectory.read_from_pickle(pickle_path)
 
     list_predictor_coordinates = sample_trajectory.data['predictor_x_i']
     float_datatype = list_predictor_coordinates[0].dtype

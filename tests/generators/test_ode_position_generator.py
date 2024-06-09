@@ -23,6 +23,7 @@ class FakeScoreNetwork(ScoreNetwork):
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
 @pytest.mark.parametrize("number_of_atoms", [8])
 @pytest.mark.parametrize("sigma_min", [0.15])
+@pytest.mark.parametrize("record_samples", [False, True])
 class TestExplodingVarianceODEPositionGenerator:
     @pytest.fixture()
     def sigma_normalized_score_network(self, spatial_dimension):
@@ -33,12 +34,13 @@ class TestExplodingVarianceODEPositionGenerator:
         return NoiseParameters(total_time_steps=total_time_steps, time_delta=0., sigma_min=sigma_min)
 
     @pytest.fixture()
-    def ode_generator(self, noise_parameters, number_of_atoms, spatial_dimension, sigma_normalized_score_network):
+    def ode_generator(self, noise_parameters, number_of_atoms, spatial_dimension,
+                      sigma_normalized_score_network, record_samples):
         generator = ExplodingVarianceODEPositionGenerator(noise_parameters=noise_parameters,
                                                           number_of_atoms=number_of_atoms,
                                                           spatial_dimension=spatial_dimension,
                                                           sigma_normalized_score_network=sigma_normalized_score_network,
-                                                          record_samples=False)
+                                                          record_samples=record_samples)
 
         return generator
 
