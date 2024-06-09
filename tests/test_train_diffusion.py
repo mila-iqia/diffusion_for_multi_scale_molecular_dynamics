@@ -164,6 +164,7 @@ class TestTrainDiffusion(TestDiffusionDataBase):
 
         return input_args
 
+    @pytest.mark.slow
     def test_checkpoint_callback(self, args, all_paths, max_epoch):
         train_diffusion.main(args)
         best_model_path = os.path.join(all_paths['output'], BEST_MODEL_NAME)
@@ -184,6 +185,7 @@ class TestTrainDiffusion(TestDiffusionDataBase):
                 model_epoch = int(match_object.group('epoch'))
                 assert model_epoch == max_epoch - 1  # the epoch counter starts at zero!
 
+    @pytest.mark.slow
     def test_restart(self, args, all_paths, max_epoch, mocker):
         last_model_path = os.path.join(all_paths['output'], LAST_MODEL_NAME)
 
