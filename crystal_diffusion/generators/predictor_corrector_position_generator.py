@@ -1,9 +1,10 @@
 import logging
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 import torch
 from tqdm import tqdm
 
+from crystal_diffusion.generators.position_generator import PositionGenerator
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
@@ -18,8 +19,8 @@ from crystal_diffusion.utils.sample_trajectory import (NoOpSampleTrajectory,
 logger = logging.getLogger(__name__)
 
 
-class PredictorCorrectorPositionGenerator(ABC):
-    """This defines the interface for position samplers."""
+class PredictorCorrectorPositionGenerator(PositionGenerator):
+    """This defines the interface for predictor-corrector position generators."""
 
     def __init__(self, number_of_discretization_steps: int, number_of_corrector_steps: int, spatial_dimension: int,
                  **kwargs):
@@ -58,11 +59,6 @@ class PredictorCorrectorPositionGenerator(ABC):
                 x_i = map_relative_coordinates_to_unit_cell(self.corrector_step(x_i, i, unit_cell, forces))
             x_ip1 = x_i
         return x_i
-
-    @abstractmethod
-    def initialize(self, number_of_samples: int):
-        """This method must initialize the samples from the fully noised distribution."""
-        pass
 
     @abstractmethod
     def predictor_step(self, x_ip1: torch.Tensor, ip1: int, unit_cell: torch.Tensor, cartesian_forces: torch.Tensor
