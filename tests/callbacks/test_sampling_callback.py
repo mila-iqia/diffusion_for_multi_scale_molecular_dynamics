@@ -23,10 +23,10 @@ from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 @pytest.mark.parametrize("record_samples", [True, False])
 class TestSamplingCallback:
     @pytest.fixture()
-    def mock_create_sampler(self, number_of_samples):
-        pc_sampler = MagicMock()
+    def mock_create_generator(self, number_of_samples):
+        pc_generator = MagicMock()
         unit_cell = np.arange(number_of_samples)  # Dummy unit cell
-        return pc_sampler, unit_cell
+        return pc_generator, unit_cell
 
     @pytest.fixture()
     def mock_compute_lammps_energies(self, lammps_energy):
@@ -56,14 +56,14 @@ class TestSamplingCallback:
     def pl_model(self):
         return MagicMock(spec=LightningModule)
 
-    def test_sample_and_evaluate_energy(self, mocker, mock_compute_lammps_energies, mock_create_sampler,
+    def test_sample_and_evaluate_energy(self, mocker, mock_compute_lammps_energies, mock_create_generator,
                                         noise_parameters, sampling_parameters, pl_model, sample_batchsize,
                                         number_of_samples, tmpdir):
         sampling_cb = DiffusionSamplingCallback(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
             output_directory=tmpdir)
-        mocker.patch.object(sampling_cb, "_create_sampler", return_value=mock_create_sampler)
+        mocker.patch.object(sampling_cb, "_create_generator", return_value=mock_create_generator)
         mocker.patch.object(sampling_cb, "_compute_oracle_energies", return_value=mock_compute_lammps_energies)
 
         sample_energies = sampling_cb.sample_and_evaluate_energy(pl_model)
