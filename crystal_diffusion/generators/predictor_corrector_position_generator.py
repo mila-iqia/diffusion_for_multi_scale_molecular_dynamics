@@ -34,7 +34,7 @@ class PredictorCorrectorPositionGenerator(ABC):
     def sample(self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor) -> torch.Tensor:
         """Sample.
 
-        This method draws a sample using the PR sampler algorithm.
+        This method draws a sample using the PC sampler algorithm.
 
         Args:
             number_of_samples : number of samples to draw.
