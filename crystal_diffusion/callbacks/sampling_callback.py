@@ -12,6 +12,9 @@ from matplotlib import pyplot as plt
 from pytorch_lightning import Callback, LightningModule, Trainer
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from crystal_diffusion.generators.ode_position_generator import \
+    ExplodingVarianceODEPositionGenerator
+from crystal_diffusion.generators.position_generator import PositionGenerator
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     AnnealedLangevinDynamicsGenerator
 from crystal_diffusion.loggers.logger_loader import log_figure
@@ -29,6 +32,7 @@ plt.style.use(PLOT_STYLE_PATH)
 @dataclass(kw_only=True)
 class SamplingParameters:
     """Hyper-parameters for diffusion sampling."""
+    algorithm: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
     number_of_corrector_steps: int = 1
     number_of_atoms: int  # the number of atoms that must be generated in a sampled configuration.
@@ -40,17 +44,45 @@ class SamplingParameters:
     record_samples: bool = False  # should the predictor and corrector steps be recorded to a file
 
 
+@dataclass(kw_only=True)
+class PredictorCorrectorSamplingParameters(SamplingParameters):
+    """Hyper-parameters for diffusion sampling with the predictor-corrector algorithm."""
+    algorithm: str = 'predictor_corrector'
+    number_of_corrector_steps: int = 1
+
+
+@dataclass(kw_only=True)
+class ODESamplingParameters(SamplingParameters):
+    """Hyper-parameters for diffusion sampling with the ode algorithm."""
+    algorithm: str = 'ode'
+
+
 def instantiate_diffusion_sampling_callback(callback_params: Dict[AnyStr, Any],
                                             output_directory: str,
                                             verbose: bool) -> Dict[str, Callback]:
     """Instantiate the Diffusion Sampling callback."""
     noise_parameters = NoiseParameters(**callback_params['noise'])
 
-    sampling_parameters = SamplingParameters(**callback_params['sampling'])
+    sampling_parameter_dictionary = callback_params['sampling']
+    assert 'algorithm' in sampling_parameter_dictionary, "The sampling parameters must select an algorithm."
+    algorithm = sampling_parameter_dictionary['algorithm']
 
-    diffusion_sampling_callback = DiffusionSamplingCallback(noise_parameters=noise_parameters,
-                                                            sampling_parameters=sampling_parameters,
-                                                            output_directory=output_directory)
+    assert algorithm in ['ode', 'predictor_corrector'], \
+        "Unknown algorithm. Possible choices are 'ode' and 'predictor_corrector'"
+
+    if algorithm == 'predictor_corrector':
+        sampling_parameters = PredictorCorrectorSamplingParameters(**sampling_parameter_dictionary)
+        diffusion_sampling_callback = (
+            PredictorCorrectorDiffusionSamplingCallback(noise_parameters=noise_parameters,
+                                                        sampling_parameters=sampling_parameters,
+                                                        output_directory=output_directory))
+    elif algorithm == 'ode':
+        sampling_parameters = ODESamplingParameters(**sampling_parameter_dictionary)
+        diffusion_sampling_callback = ODEDiffusionSamplingCallback(noise_parameters=noise_parameters,
+                                                                   sampling_parameters=sampling_parameters,
+                                                                   output_directory=output_directory)
+    else:
+        raise NotImplementedError("algorithm is not implemented")
 
     return dict(diffusion_sampling=diffusion_sampling_callback)
 
@@ -132,26 +164,17 @@ class DiffusionSamplingCallback(Callback):
         # data does not change, we will avoid having this in memory at all times.
         self.validation_energies = np.array([])
 
-    def _create_generator(self, pl_model: LightningModule) -> Tuple[AnnealedLangevinDynamicsGenerator, torch.Tensor]:
+    def _create_generator(self, pl_model: LightningModule) -> PositionGenerator:
         """Draw a sample from the generative model."""
-        logger.info("Creating sampler")
-        sigma_normalized_score_network = pl_model.sigma_normalized_score_network
+        raise NotImplementedError("This method must be implemented in a child class")
 
-        sampler_parameters = dict(noise_parameters=self.noise_parameters,
-                                  number_of_corrector_steps=self.sampling_parameters.number_of_corrector_steps,
-                                  number_of_atoms=self.sampling_parameters.number_of_atoms,
-                                  spatial_dimension=self.sampling_parameters.spatial_dimension,
-                                  record_samples=self.sampling_parameters.record_samples,
-                                  positions_require_grad=pl_model.grads_are_needed_in_inference)
-
-        pc_generator = AnnealedLangevinDynamicsGenerator(sigma_normalized_score_network=sigma_normalized_score_network,
-                                                         **sampler_parameters)
+    def _create_unit_cell(self, pl_model) -> torch.Tensor:
+        """Create the batch of unit cells needed by the generative model."""
         # TODO we will have to sample unit cell dimensions at some points instead of working with fixed size
         unit_cell = (self._get_orthogonal_unit_cell(batch_size=self.sampling_parameters.number_of_samples,
                                                     cell_dimensions=self.sampling_parameters.cell_dimensions)
                      .to(pl_model.device))
-
-        return pc_generator, unit_cell
+        return unit_cell
 
     @staticmethod
     def _plot_energy_histogram(sample_energies: np.ndarray, validation_dataset_energies: np.array,
@@ -220,7 +243,8 @@ class DiffusionSamplingCallback(Callback):
         Returns:
             array with energy of each sample from LAMMPS
         """
-        pc_generator, unit_cell = self._create_generator(pl_model)
+        generator = self._create_generator(pl_model)
+        unit_cell = self._create_unit_cell(pl_model)
 
         logger.info("Draw samples")
 
@@ -232,17 +256,17 @@ class DiffusionSamplingCallback(Callback):
         for n in range(0, self.sampling_parameters.number_of_samples, self.sampling_parameters.sample_batchsize):
             unit_cell_ = unit_cell[n:min(n + self.sampling_parameters.sample_batchsize,
                                          self.sampling_parameters.number_of_samples)]
-            samples = pc_generator.sample(min(self.sampling_parameters.number_of_samples - n,
-                                              self.sampling_parameters.sample_batchsize),
-                                          device=pl_model.device,
-                                          unit_cell=unit_cell_)
+            samples = generator.sample(min(self.sampling_parameters.number_of_samples - n,
+                                           self.sampling_parameters.sample_batchsize),
+                                       device=pl_model.device,
+                                       unit_cell=unit_cell_)
             if self.sampling_parameters.record_samples:
                 sample_output_path = os.path.join(self.position_sample_output_directory,
                                                   f"diffusion_position_sample_epoch={current_epoch}"
                                                   + f"_steps={n}.pt")
                 # write trajectories to disk and reset to save memory
-                pc_generator.sample_trajectory_recorder.write_to_pickle(sample_output_path)
-                pc_generator.sample_trajectory_recorder.reset()
+                generator.sample_trajectory_recorder.write_to_pickle(sample_output_path)
+                generator.sample_trajectory_recorder.reset()
             batch_relative_coordinates = samples.detach().cpu()
             sample_energies += [self._compute_oracle_energies(batch_relative_coordinates)]
 
@@ -280,3 +304,43 @@ class DiffusionSamplingCallback(Callback):
             log_figure(figure=fig, global_step=trainer.global_step, pl_logger=pl_logger)
 
         self._initialize_validation_energies_array()
+
+
+class PredictorCorrectorDiffusionSamplingCallback(DiffusionSamplingCallback):
+    """Callback class to periodically generate samples and log their energies."""
+
+    def _create_generator(self, pl_model: LightningModule) -> AnnealedLangevinDynamicsGenerator:
+        """Draw a sample from the generative model."""
+        logger.info("Creating sampler")
+        sigma_normalized_score_network = pl_model.sigma_normalized_score_network
+
+        sampler_parameters = dict(noise_parameters=self.noise_parameters,
+                                  number_of_corrector_steps=self.sampling_parameters.number_of_corrector_steps,
+                                  number_of_atoms=self.sampling_parameters.number_of_atoms,
+                                  spatial_dimension=self.sampling_parameters.spatial_dimension,
+                                  record_samples=self.sampling_parameters.record_samples,
+                                  positions_require_grad=pl_model.grads_are_needed_in_inference)
+
+        generator = AnnealedLangevinDynamicsGenerator(sigma_normalized_score_network=sigma_normalized_score_network,
+                                                      **sampler_parameters)
+
+        return generator
+
+
+class ODEDiffusionSamplingCallback(DiffusionSamplingCallback):
+    """Callback class to periodically generate samples and log their energies."""
+
+    def _create_generator(self, pl_model: LightningModule) -> ExplodingVarianceODEPositionGenerator:
+        """Draw a sample from the generative model."""
+        logger.info("Creating sampler")
+        sigma_normalized_score_network = pl_model.sigma_normalized_score_network
+
+        sampler_parameters = dict(noise_parameters=self.noise_parameters,
+                                  number_of_atoms=self.sampling_parameters.number_of_atoms,
+                                  spatial_dimension=self.sampling_parameters.spatial_dimension,
+                                  record_samples=self.sampling_parameters.record_samples)
+
+        generator = ExplodingVarianceODEPositionGenerator(sigma_normalized_score_network=sigma_normalized_score_network,
+                                                          **sampler_parameters)
+
+        return generator

@@ -5,7 +5,8 @@ import pytest
 from pytorch_lightning import LightningModule
 
 from crystal_diffusion.callbacks.sampling_callback import (
-    DiffusionSamplingCallback, SamplingParameters)
+    DiffusionSamplingCallback, ODESamplingParameters,
+    PredictorCorrectorSamplingParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 
@@ -17,16 +18,20 @@ from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 @pytest.mark.parametrize("unit_cell_size", [10])
 @pytest.mark.parametrize("lammps_energy", [2])
 @pytest.mark.parametrize("spatial_dimension", [3])
-@pytest.mark.parametrize("number_of_corrector_steps", [1])
 @pytest.mark.parametrize("number_of_atoms", [4])
 @pytest.mark.parametrize("sample_batchsize", [None, 8, 4])
 @pytest.mark.parametrize("record_samples", [True, False])
+@pytest.mark.parametrize("algorithm, number_of_corrector_steps", [('predictor_corrector', 1), ('ode', None)])
 class TestSamplingCallback:
     @pytest.fixture()
-    def mock_create_generator(self, number_of_samples):
-        pc_generator = MagicMock()
+    def mock_create_generator(self):
+        generator = MagicMock()
+        return generator
+
+    @pytest.fixture()
+    def mock_create_create_unit_cell(self, number_of_samples):
         unit_cell = np.arange(number_of_samples)  # Dummy unit cell
-        return pc_generator, unit_cell
+        return unit_cell
 
     @pytest.fixture()
     def mock_compute_lammps_energies(self, lammps_energy):
@@ -41,15 +46,29 @@ class TestSamplingCallback:
         return noise_parameters
 
     @pytest.fixture()
-    def sampling_parameters(self, spatial_dimension, number_of_corrector_steps, number_of_atoms, number_of_samples,
-                            sample_batchsize, unit_cell_size, record_samples):
-        sampling_parameters = SamplingParameters(spatial_dimension=spatial_dimension,
-                                                 number_of_corrector_steps=number_of_corrector_steps,
-                                                 number_of_atoms=number_of_atoms,
-                                                 number_of_samples=number_of_samples,
-                                                 sample_batchsize=sample_batchsize,
-                                                 cell_dimensions=[unit_cell_size for _ in range(spatial_dimension)],
-                                                 record_samples=record_samples)
+    def sampling_parameters(self, algorithm, spatial_dimension, number_of_corrector_steps,
+                            number_of_atoms, number_of_samples, sample_batchsize, unit_cell_size, record_samples):
+        if algorithm == 'predictor_corrector':
+            sampling_parameters = (
+                PredictorCorrectorSamplingParameters(spatial_dimension=spatial_dimension,
+                                                     number_of_corrector_steps=number_of_corrector_steps,
+                                                     number_of_atoms=number_of_atoms,
+                                                     number_of_samples=number_of_samples,
+                                                     sample_batchsize=sample_batchsize,
+                                                     cell_dimensions=[unit_cell_size for _ in range(spatial_dimension)],
+                                                     record_samples=record_samples))
+        elif algorithm == 'ode':
+            sampling_parameters = (
+                ODESamplingParameters(spatial_dimension=spatial_dimension,
+                                      number_of_atoms=number_of_atoms,
+                                      number_of_samples=number_of_samples,
+                                      sample_batchsize=sample_batchsize,
+                                      cell_dimensions=[unit_cell_size for _ in range(spatial_dimension)],
+                                      record_samples=record_samples))
+
+        else:
+            raise NotImplementedError
+
         return sampling_parameters
 
     @pytest.fixture()
@@ -57,13 +76,14 @@ class TestSamplingCallback:
         return MagicMock(spec=LightningModule)
 
     def test_sample_and_evaluate_energy(self, mocker, mock_compute_lammps_energies, mock_create_generator,
-                                        noise_parameters, sampling_parameters, pl_model, sample_batchsize,
-                                        number_of_samples, tmpdir):
+                                        mock_create_create_unit_cell, noise_parameters, sampling_parameters,
+                                        pl_model, sample_batchsize, number_of_samples, tmpdir):
         sampling_cb = DiffusionSamplingCallback(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
             output_directory=tmpdir)
         mocker.patch.object(sampling_cb, "_create_generator", return_value=mock_create_generator)
+        mocker.patch.object(sampling_cb, "_create_unit_cell", return_value=mock_create_create_unit_cell)
         mocker.patch.object(sampling_cb, "_compute_oracle_energies", return_value=mock_compute_lammps_energies)
 
         sample_energies = sampling_cb.sample_and_evaluate_energy(pl_model)
