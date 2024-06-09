@@ -18,7 +18,7 @@ from crystal_diffusion.utils.sample_trajectory import (NoOpSampleTrajectory,
 logger = logging.getLogger(__name__)
 
 
-class PredictorCorrectorPositionSampler(ABC):
+class PredictorCorrectorPositionGenerator(ABC):
     """This defines the interface for position samplers."""
 
     def __init__(self, number_of_discretization_steps: int, number_of_corrector_steps: int, spatial_dimension: int,
@@ -101,10 +101,10 @@ class PredictorCorrectorPositionSampler(ABC):
         pass
 
 
-class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
-    """Annealed Langevin Dynamics Sampler.
+class AnnealedLangevinDynamicsGenerator(PredictorCorrectorPositionGenerator):
+    """Annealed Langevin Dynamics Generator.
 
-    This class implements the annealed Langevin Dynamics sampling of
+    This class implements the annealed Langevin Dynamics generation of position samples, following
     Song & Ermon 2019, namely:
         "Generative Modeling by Estimating Gradients of the Data Distribution"
     """

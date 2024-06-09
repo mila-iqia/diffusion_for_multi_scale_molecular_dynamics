@@ -12,8 +12,8 @@ from matplotlib import pyplot as plt
 from pytorch_lightning import Callback, LightningModule, Trainer
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.generators.predictor_corrector_position_sampler import \
-    AnnealedLangevinDynamicsSampler
+from crystal_diffusion.generators.predictor_corrector_position_generator import \
+    AnnealedLangevinDynamicsGenerator
 from crystal_diffusion.loggers.logger_loader import log_figure
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -132,7 +132,7 @@ class DiffusionSamplingCallback(Callback):
         # data does not change, we will avoid having this in memory at all times.
         self.validation_energies = np.array([])
 
-    def _create_sampler(self, pl_model: LightningModule) -> Tuple[AnnealedLangevinDynamicsSampler, torch.Tensor]:
+    def _create_generator(self, pl_model: LightningModule) -> Tuple[AnnealedLangevinDynamicsGenerator, torch.Tensor]:
         """Draw a sample from the generative model."""
         logger.info("Creating sampler")
         sigma_normalized_score_network = pl_model.sigma_normalized_score_network
@@ -144,14 +144,14 @@ class DiffusionSamplingCallback(Callback):
                                   record_samples=self.sampling_parameters.record_samples,
                                   positions_require_grad=pl_model.grads_are_needed_in_inference)
 
-        pc_sampler = AnnealedLangevinDynamicsSampler(sigma_normalized_score_network=sigma_normalized_score_network,
-                                                     **sampler_parameters)
+        pc_generator = AnnealedLangevinDynamicsGenerator(sigma_normalized_score_network=sigma_normalized_score_network,
+                                                         **sampler_parameters)
         # TODO we will have to sample unit cell dimensions at some points instead of working with fixed size
         unit_cell = (self._get_orthogonal_unit_cell(batch_size=self.sampling_parameters.number_of_samples,
                                                     cell_dimensions=self.sampling_parameters.cell_dimensions)
                      .to(pl_model.device))
 
-        return pc_sampler, unit_cell
+        return pc_generator, unit_cell
 
     @staticmethod
     def _plot_energy_histogram(sample_energies: np.ndarray, validation_dataset_energies: np.array,
@@ -220,7 +220,7 @@ class DiffusionSamplingCallback(Callback):
         Returns:
             array with energy of each sample from LAMMPS
         """
-        pc_sampler, unit_cell = self._create_sampler(pl_model)
+        pc_generator, unit_cell = self._create_generator(pl_model)
 
         logger.info("Draw samples")
 
@@ -232,17 +232,17 @@ class DiffusionSamplingCallback(Callback):
         for n in range(0, self.sampling_parameters.number_of_samples, self.sampling_parameters.sample_batchsize):
             unit_cell_ = unit_cell[n:min(n + self.sampling_parameters.sample_batchsize,
                                          self.sampling_parameters.number_of_samples)]
-            samples = pc_sampler.sample(min(self.sampling_parameters.number_of_samples - n,
-                                            self.sampling_parameters.sample_batchsize),
-                                        device=pl_model.device,
-                                        unit_cell=unit_cell_)
+            samples = pc_generator.sample(min(self.sampling_parameters.number_of_samples - n,
+                                              self.sampling_parameters.sample_batchsize),
+                                          device=pl_model.device,
+                                          unit_cell=unit_cell_)
             if self.sampling_parameters.record_samples:
                 sample_output_path = os.path.join(self.position_sample_output_directory,
                                                   f"diffusion_position_sample_epoch={current_epoch}"
                                                   + f"_steps={n}.pt")
                 # write trajectories to disk and reset to save memory
-                pc_sampler.sample_trajectory_recorder.write_to_pickle(sample_output_path)
-                pc_sampler.sample_trajectory_recorder.reset()
+                pc_generator.sample_trajectory_recorder.write_to_pickle(sample_output_path)
+                pc_generator.sample_trajectory_recorder.reset()
             batch_relative_coordinates = samples.detach().cpu()
             sample_energies += [self._compute_oracle_energies(batch_relative_coordinates)]
 
