@@ -15,10 +15,10 @@ import yaml
 from yaml import load
 
 from crystal_diffusion import DATA_DIR, TOP_DIR
+from crystal_diffusion.generators.predictor_corrector_position_sampler import \
+    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.models.model_loader import load_diffusion_model
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
-from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
-    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 

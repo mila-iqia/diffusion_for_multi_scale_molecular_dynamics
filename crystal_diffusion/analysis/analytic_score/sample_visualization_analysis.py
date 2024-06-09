@@ -9,10 +9,10 @@ from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import (
     get_exact_samples, get_random_equilibrium_relative_coordinates,
     get_random_inverse_covariance, get_unit_cells)
+from crystal_diffusion.generators.predictor_corrector_position_sampler import \
+    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
-    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 logger = logging.getLogger(__name__)

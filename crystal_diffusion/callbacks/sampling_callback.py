@@ -12,10 +12,10 @@ from matplotlib import pyplot as plt
 from pytorch_lightning import Callback, LightningModule, Trainer
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from crystal_diffusion.generators.predictor_corrector_position_sampler import \
+    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.loggers.logger_loader import log_figure
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
-from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
-    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
     get_positions_from_coordinates
