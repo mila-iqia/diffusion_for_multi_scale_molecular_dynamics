@@ -259,11 +259,10 @@ class DiffusionMACE(torch.nn.Module):
 
         # Apply a MLP with a bias on the forces as a conditional feature. This would be a 1o irrep
         forces_irreps_in = o3.Irreps("1x1o")
-        # the l=0 irreps is there to allow a bias in the embedding
-        forces_irreps_embedding = o3.Irreps(f"{condition_embedding_size}x0e + {condition_embedding_size}x1o")
+        forces_irreps_embedding = o3.Irreps(f"{condition_embedding_size}x1o")
         self.condition_embedding_layer = o3.Linear(irreps_in=forces_irreps_in,
                                                    irreps_out=forces_irreps_embedding,
-                                                   biases=True)
+                                                   biases=False)  # can't have biases with 1o irreps
 
         # conditional layers for the forces as a conditional feature to guide the diffusion
         self.conditional_layers = torch.nn.ModuleList([])
