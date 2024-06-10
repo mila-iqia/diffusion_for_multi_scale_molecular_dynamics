@@ -23,7 +23,10 @@ logger = logging.getLogger(__name__)
 
 plt.style.use(PLOT_STYLE_PATH)
 
-device = torch.device('cpu')
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
 
 spatial_dimension = 3
 number_of_atoms = 2
