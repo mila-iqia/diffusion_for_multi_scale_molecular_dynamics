@@ -41,8 +41,8 @@ if __name__ == '__main__':
                                        sigma_max=0.5)
 
     equilibrium_relative_coordinates = torch.stack([0.25 * torch.ones(spatial_dimension),
-                                                    0.75 * torch.ones(spatial_dimension)])
-    inverse_covariance = torch.zeros(number_of_atoms, spatial_dimension, number_of_atoms, spatial_dimension)
+                                                    0.75 * torch.ones(spatial_dimension)]).to(device)
+    inverse_covariance = torch.zeros(number_of_atoms, spatial_dimension, number_of_atoms, spatial_dimension).to(device)
     for atom_i in range(number_of_atoms):
         for alpha in range(spatial_dimension):
             inverse_covariance[atom_i, alpha, atom_i, alpha] = spring_constant
