@@ -108,14 +108,14 @@ if __name__ == '__main__':
     for flat_relative_coordinates in batch_flat_relative_coordinates[::20]:
         for i in range(number_of_atoms * spatial_dimension):
             coordinate = flat_relative_coordinates[:, i]
-            ax.plot(time, coordinate, '-', color='b', alpha=0.05)
+            ax.plot(time.cpu(), coordinate.cpu(), '-', color='b', alpha=0.05)
 
     ax.set_xlim([1.01, -0.01])
     plt.show()
 
     exact_samples = get_exact_samples(equilibrium_relative_coordinates,
                                       inverse_covariance,
-                                      batch_size)
+                                      batch_size).cpu()
 
     fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig2.suptitle('Comparing ODE and Expected Marignal Distributions')
@@ -123,8 +123,8 @@ if __name__ == '__main__':
     ax2 = fig2.add_subplot(132, aspect='equal')
     ax3 = fig2.add_subplot(133, aspect='equal')
 
-    xs = einops.rearrange(relative_coordinates, 'b n d -> (b n) d')
-    zs = einops.rearrange(exact_samples, 'b n d -> (b n) d')
+    xs = einops.rearrange(relative_coordinates, 'b n d -> (b n) d').cpu()
+    zs = einops.rearrange(exact_samples, 'b n d -> (b n) d').cpu()
     ax1.set_title('XY Projection')
     ax1.plot(xs[:, 0], xs[:, 1], 'ro', alpha=0.5, mew=0, label='ODE Solver')
     ax1.plot(zs[:, 0], zs[:, 1], 'go', alpha=0.05, mew=0, label='Exact Samples')
