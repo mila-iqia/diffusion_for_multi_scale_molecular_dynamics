@@ -44,6 +44,14 @@ class ODESampleTrajectory(SampleTrajectory):
         self.data['status'].append(status)
         self.data['relative_coordinates'].append(relative_coordinates)
 
+    @staticmethod
+    def read_from_pickle(path_to_pickle: str):
+        """Read from pickle."""
+        with open(path_to_pickle, 'rb') as fd:
+            sample_trajectory = ODESampleTrajectory()
+            sample_trajectory.data = torch.load(fd, map_location=torch.device('cpu'))
+        return sample_trajectory
+
 
 class NoOpODESampleTrajectory(ODESampleTrajectory):
     """A sample trajectory object that performs no operation."""
