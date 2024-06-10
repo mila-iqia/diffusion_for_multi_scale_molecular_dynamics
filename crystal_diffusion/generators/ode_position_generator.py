@@ -166,7 +166,7 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
 
         y0 = einops.rearrange(initial_relative_coordinates, 'batch natom space -> batch (natom space)')
 
-        evaluation_times = torch.linspace(self.tf, self.t0, self.noise_parameters.total_time_steps)
+        evaluation_times = torch.linspace(self.tf, self.t0, self.noise_parameters.total_time_steps).to(device)
 
         t_eval = einops.repeat(evaluation_times, 't -> batch t', batch=number_of_samples)
 
