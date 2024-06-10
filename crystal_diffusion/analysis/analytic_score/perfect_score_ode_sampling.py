@@ -85,7 +85,7 @@ if __name__ == '__main__':
     fig0.tight_layout()
     plt.show()
 
-    unit_cell = get_unit_cells(acell=1., spatial_dimension=spatial_dimension, number_of_samples=batch_size)
+    unit_cell = get_unit_cells(acell=1., spatial_dimension=spatial_dimension, number_of_samples=batch_size).to(device)
     relative_coordinates = position_generator.sample(number_of_samples=batch_size, device=device, unit_cell=unit_cell)
 
     batch_times = position_generator.sample_trajectory_recorder.data['time'][0]
