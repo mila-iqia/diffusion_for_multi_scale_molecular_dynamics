@@ -62,8 +62,7 @@ class CosineAnnealingLRSchedulerParameters(SchedulerParameters):
     eta_min: float = 0.0
 
 
-def load_scheduler_dictionary(hyper_params: SchedulerParameters,
-                              optimizer: optim.Optimizer) -> Dict[AnyStr, Union[optim.lr_scheduler, AnyStr]]:
+def load_scheduler_dictionary(hyper_params: SchedulerParameters, optimizer: optim.Optimizer) -> Dict[AnyStr, Any]:
     """Instantiate the Scheduler.
 
     Args:
