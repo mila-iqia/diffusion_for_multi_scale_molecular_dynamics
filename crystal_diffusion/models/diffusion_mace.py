@@ -2,15 +2,15 @@ from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 
 import torch
 from e3nn import o3
-from e3nn.nn import Activation, BatchNorm
+from e3nn.nn import Activation
 from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
                           LinearNodeEmbeddingBlock, RadialEmbeddingBlock)
 from mace.modules.utils import get_edge_vectors_and_lengths
 from torch_geometric.data import Data
 
 from crystal_diffusion.models.mace_utils import get_adj_matrix
-from crystal_diffusion.namespace import (NOISE, NOISY_CARTESIAN_POSITIONS,
-                                         UNIT_CELL)
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
+                                         NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
 
 
 class LinearVectorReadoutBlock(torch.nn.Module):
@@ -64,6 +64,9 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
 
     flat_basis_vectors = basis_vectors.view(-1, spatial_dimension)  # batch * spatial_dimension, spatial_dimension
     # create the pytorch-geometric graph
+
+    forces = batch[CARTESIAN_FORCES].view(-1, spatial_dimension)  # batch * n_atom_per_graph, spatial dimension
+
     graph_data = Data(edge_index=adj_matrix,
                       node_attrs=node_attrs.to(device),
                       node_diffusion_scalars=node_diffusion_scalars.to(device),
@@ -71,7 +74,8 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
                       ptr=ptr.to(device),
                       batch=batch_tensor.to(device),
                       shifts=shift_matrix,
-                      cell=flat_basis_vectors
+                      cell=flat_basis_vectors,
+                      forces=forces,
                       )
     return graph_data
 
@@ -102,6 +106,7 @@ class DiffusionMACE(torch.nn.Module):
         gate: Optional[Callable],
         radial_MLP: List[int],
         radial_type: Optional[str] = "bessel",
+        condition_embedding_size: int = 64  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
     ):
         """Init method."""
         assert num_elements == 1, "only a single element can be used at this time. Set 'num_elements' to 1."
@@ -142,12 +147,9 @@ class DiffusionMACE(torch.nn.Module):
                            irreps_out=diffusion_scalar_irreps_out,
                            biases=True)
         self.diffusion_scalar_embedding.append(linear)
+        non_linearity = Activation(irreps_in=diffusion_scalar_irreps_out, acts=[gate])
         for _ in range(number_of_mlp_layers):
-            non_linearity = Activation(irreps_in=diffusion_scalar_irreps_out, acts=[gate])
             self.diffusion_scalar_embedding.append(non_linearity)
-
-            normalization = BatchNorm(diffusion_scalar_irreps_out)
-            self.diffusion_scalar_embedding.append(normalization)
 
             linear = o3.Linear(irreps_in=diffusion_scalar_irreps_out,
                                irreps_out=diffusion_scalar_irreps_out,
@@ -255,7 +257,25 @@ class DiffusionMACE(torch.nn.Module):
         # the output is a single vector.
         self.vector_readout = LinearVectorReadoutBlock(irreps_in=hidden_irreps_out)
 
-    def forward(self, data: Dict[str, torch.Tensor]) -> torch.Tensor:
+        # Apply a MLP with a bias on the forces as a conditional feature. This would be a 1o irrep
+        forces_irreps_in = o3.Irreps("1x1o")
+        # the l=0 irreps is there to allow a bias in the embedding
+        forces_irreps_embedding = o3.Irreps(f"{condition_embedding_size}x0e + {condition_embedding_size}x1o")
+        self.condition_embedding_layer = o3.Linear(irreps_in=forces_irreps_in,
+                                                   irreps_out=forces_irreps_embedding,
+                                                   biases=True)
+
+        # conditional layers for the forces as a conditional feature to guide the diffusion
+        self.conditional_layers = torch.nn.ModuleList([])
+        for _ in range(num_interactions):
+            cond_layer = o3.Linear(
+                irreps_in=forces_irreps_embedding,
+                irreps_out=hidden_irreps_out,
+                biases=True
+            )
+            self.conditional_layers.append(cond_layer)
+
+    def forward(self, data: Dict[str, torch.Tensor], conditional: bool = False) -> torch.Tensor:
         """Forward method."""
         # Setup
 
@@ -274,7 +294,9 @@ class DiffusionMACE(torch.nn.Module):
         edge_attrs = self.spherical_harmonics(vectors)
         edge_feats = self.radial_embedding(lengths)
 
-        for interaction, product in zip(self.interactions, self.products):
+        forces_embedding = self.condition_embedding_layer(data["forces"])  # 0e + 1o embedding
+
+        for interaction, product, cond_layer in zip(self.interactions, self.products, self.conditional_layers):
             node_feats, sc = interaction(
                 node_attrs=augmented_node_attributes,
                 node_feats=node_feats,
@@ -287,6 +309,9 @@ class DiffusionMACE(torch.nn.Module):
                 sc=sc,
                 node_attrs=augmented_node_attributes,
             )
+            if conditional:  # modify the node features to account for the conditional features i.e. forces
+                force_embed = cond_layer(forces_embedding)
+                node_feats += force_embed
 
         # Outputs
         vectors_output = self.vector_readout(node_feats)
