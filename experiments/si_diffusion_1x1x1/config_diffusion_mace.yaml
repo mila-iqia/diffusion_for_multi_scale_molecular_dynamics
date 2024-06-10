@@ -1,5 +1,5 @@
 # general
-exp_name: difface
+exp_name: difface_ode
 run_name: run1
 max_epoch: 25
 log_every_n_steps: 1
@@ -11,7 +11,7 @@ seed: 1234
 
 # data
 data:
-  batch_size: 512
+  batch_size: 1024
   num_workers: 8
   max_atom: 8
 
@@ -28,13 +28,13 @@ model:
     interaction_cls: RealAgnosticResidualInteractionBlock
     interaction_cls_first: RealAgnosticInteractionBlock
     num_interactions: 2
-    hidden_irreps: 128x0e + 128x1o + 128x2e
-    mlp_irreps: 128x0e
-    number_of_mlp_layers: 0
+    hidden_irreps: 64x0e + 64x1o + 64x2e
+    mlp_irreps: 64x0e
+    number_of_mlp_layers: 3
     avg_num_neighbors: 1
     correlation: 3
     gate: silu
-    radial_MLP: [128, 128, 128]
+    radial_MLP: [64, 64, 64]
     radial_type: bessel
   noise:
     total_time_steps: 100
@@ -69,17 +69,18 @@ diffusion_sampling:
     sigma_min: 0.001  # default value
     sigma_max: 0.5  # default value
   sampling:
+    algorithm: ode
     spatial_dimension: 3
-    number_of_corrector_steps: 1
     number_of_atoms: 8
     number_of_samples: 1000
     sample_every_n_epochs: 5
+    record_samples: True
     cell_dimensions: [5.43, 5.43, 5.43]
 
 # A callback to check the loss vs. sigma
 loss_monitoring:
   number_of_bins: 50
-  sample_every_n_epochs: 2
+  sample_every_n_epochs: 5
 
 logging:
   - comet
