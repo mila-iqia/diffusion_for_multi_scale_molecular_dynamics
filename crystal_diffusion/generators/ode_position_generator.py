@@ -173,7 +173,7 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         term = to.ODETerm(ode_term)
         step_method = to.Dopri5(term=term)
         # TODO: parameterize the tolerances
-        step_size_controller = to.IntegralController(atol=1e-6, rtol=1e-3, term=term)
+        step_size_controller = to.IntegralController(atol=1e-3, rtol=1e-3, term=term)
         solver = to.AutoDiffAdjoint(step_method, step_size_controller)
         jit_solver = torch.compile(solver)
 
