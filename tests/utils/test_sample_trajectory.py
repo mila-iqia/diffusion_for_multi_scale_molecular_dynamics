@@ -3,7 +3,8 @@ import os
 import pytest
 import torch
 
-from crystal_diffusion.utils.sample_trajectory import SampleTrajectory
+from crystal_diffusion.utils.sample_trajectory import \
+    PredictorCorrectorSampleTrajectory
 
 
 @pytest.fixture(autouse=True, scope='module')
@@ -98,7 +99,7 @@ def list_corrected_x_i(number_of_predictor_steps, number_of_corrector_steps, bat
 @pytest.fixture(scope='module')
 def sample_trajectory(number_of_corrector_steps, list_i_indices, list_times, list_sigmas, basis_vectors,
                       list_x_i, list_x_im1, predictor_scores, list_x_i_corr, list_corrected_x_i, corrector_scores):
-    sample_trajectory = SampleTrajectory()
+    sample_trajectory = PredictorCorrectorSampleTrajectory()
     sample_trajectory.record_unit_cell(basis_vectors)
 
     total_corrector_index = 0
@@ -156,7 +157,7 @@ def test_load_from_pickle(sample_trajectory, tmp_path):
     pickle_path = str(tmp_path / 'test_pickle_path_to_load.pkl')
     sample_trajectory.write_to_pickle(pickle_path)
 
-    loaded_sample_trajectory = SampleTrajectory.read_from_pickle(pickle_path)
+    loaded_sample_trajectory = PredictorCorrectorSampleTrajectory.read_from_pickle(pickle_path)
 
     assert set(sample_trajectory.data.keys()) == set(loaded_sample_trajectory.data.keys())
 
@@ -169,7 +170,7 @@ def test_load_from_pickle(sample_trajectory, tmp_path):
 def test_reset(sample_trajectory, tmp_path):
     pickle_path = str(tmp_path / 'test_pickle_path_reset.pkl')
     sample_trajectory.write_to_pickle(pickle_path)
-    loaded_sample_trajectory = SampleTrajectory.read_from_pickle(pickle_path)
+    loaded_sample_trajectory = PredictorCorrectorSampleTrajectory.read_from_pickle(pickle_path)
 
     assert len(loaded_sample_trajectory.data.keys()) != 0
     loaded_sample_trajectory.reset()

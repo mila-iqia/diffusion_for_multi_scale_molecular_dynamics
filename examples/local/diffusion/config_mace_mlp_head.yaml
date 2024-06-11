@@ -74,6 +74,7 @@ diffusion_sampling:
     sigma_min: 0.005  # default value
     sigma_max: 0.5  # default value
   sampling:
+    algorithm: predictor_corrector
     spatial_dimension: 3
     number_of_corrector_steps: 1
     number_of_atoms: 8

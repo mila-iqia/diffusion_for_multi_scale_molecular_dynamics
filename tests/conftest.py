@@ -7,6 +7,34 @@ from tests.fake_data_utils import (create_dump_yaml_documents,
                                    get_configuration_runs, write_to_yaml)
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--quick", action="store_true", default=False, help="skip slow tests"
+    )
+    parser.addoption(
+        "--slow", action="store_true", default=False, help="only perform slow tests"
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: mark test as slow to run")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--quick"):
+        # --quick given in cli: skip slow tests
+        skip = pytest.mark.skip(reason="--quick option must be absent to run")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip)
+    elif config.getoption("--slow"):
+        # --slow given in cli: only do the slow tests
+        skip = pytest.mark.skip(reason="--slow option must be present to run")
+        for item in items:
+            if "slow" not in item.keywords:
+                item.add_marker(skip)
+
+
 @pytest.fixture
 def basis_vectors(batch_size):
     # orthogonal boxes with dimensions between 5 and 10.

@@ -1,9 +1,10 @@
 import logging
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 import torch
 from tqdm import tqdm
 
+from crystal_diffusion.generators.position_generator import PositionGenerator
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
@@ -12,14 +13,14 @@ from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from crystal_diffusion.utils.sample_trajectory import (NoOpSampleTrajectory,
-                                                       SampleTrajectory)
+from crystal_diffusion.utils.sample_trajectory import (
+    NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
 
 logger = logging.getLogger(__name__)
 
 
-class PredictorCorrectorPositionSampler(ABC):
-    """This defines the interface for position samplers."""
+class PredictorCorrectorPositionGenerator(PositionGenerator):
+    """This defines the interface for predictor-corrector position generators."""
 
     def __init__(self, number_of_discretization_steps: int, number_of_corrector_steps: int, spatial_dimension: int,
                  **kwargs):
@@ -34,7 +35,7 @@ class PredictorCorrectorPositionSampler(ABC):
     def sample(self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor) -> torch.Tensor:
         """Sample.
 
-        This method draws a sample using the PR sampler algorithm.
+        This method draws a sample using the PC sampler algorithm.
 
         Args:
             number_of_samples : number of samples to draw.
@@ -58,11 +59,6 @@ class PredictorCorrectorPositionSampler(ABC):
                 x_i = map_relative_coordinates_to_unit_cell(self.corrector_step(x_i, i, unit_cell, forces))
             x_ip1 = x_i
         return x_i
-
-    @abstractmethod
-    def initialize(self, number_of_samples: int):
-        """This method must initialize the samples from the fully noised distribution."""
-        pass
 
     @abstractmethod
     def predictor_step(self, x_ip1: torch.Tensor, ip1: int, unit_cell: torch.Tensor, cartesian_forces: torch.Tensor
@@ -101,10 +97,10 @@ class PredictorCorrectorPositionSampler(ABC):
         pass
 
 
-class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
-    """Annealed Langevin Dynamics Sampler.
+class AnnealedLangevinDynamicsGenerator(PredictorCorrectorPositionGenerator):
+    """Annealed Langevin Dynamics Generator.
 
-    This class implements the annealed Langevin Dynamics sampling of
+    This class implements the annealed Langevin Dynamics generation of position samples, following
     Song & Ermon 2019, namely:
         "Generative Modeling by Estimating Gradients of the Data Distribution"
     """
@@ -130,9 +126,9 @@ class AnnealedLangevinDynamicsSampler(PredictorCorrectorPositionSampler):
         self.sigma_normalized_score_network = sigma_normalized_score_network
 
         if record_samples:
-            self.sample_trajectory_recorder = SampleTrajectory()
+            self.sample_trajectory_recorder = PredictorCorrectorSampleTrajectory()
         else:
-            self.sample_trajectory_recorder = NoOpSampleTrajectory()
+            self.sample_trajectory_recorder = NoOpPredictorCorrectorSampleTrajectory()
 
     def initialize(self, number_of_samples: int):
         """This method must initialize the samples from the fully noised distribution."""

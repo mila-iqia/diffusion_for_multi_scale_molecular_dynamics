@@ -1,18 +1,18 @@
 import pytest
 import torch
 
+from crystal_diffusion.generators.predictor_corrector_position_generator import (
+    AnnealedLangevinDynamicsGenerator, PredictorCorrectorPositionGenerator)
 from crystal_diffusion.models.score_networks.mlp_score_network import (
     MLPScoreNetwork, MLPScoreNetworkParameters)
-from crystal_diffusion.samplers.predictor_corrector_position_sampler import (
-    AnnealedLangevinDynamicsSampler, PredictorCorrectorPositionSampler)
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
 
-class FakePCSampler(PredictorCorrectorPositionSampler):
-    """A dummy PC sampler for the purpose of testing."""
+class FakePCGenerator(PredictorCorrectorPositionGenerator):
+    """A dummy PC generator for the purpose of testing."""
 
     def __init__(
         self,
@@ -42,7 +42,7 @@ class FakePCSampler(PredictorCorrectorPositionSampler):
 @pytest.mark.parametrize("number_of_discretization_steps", [1, 5, 10])
 @pytest.mark.parametrize("number_of_corrector_steps", [0, 1, 2])
 @pytest.mark.parametrize("unit_cell_size", [10])
-class TestPredictorCorrectorPositionSampler:
+class TestPredictorCorrectorPositionGenerator:
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
         torch.manual_seed(1234567)
@@ -52,13 +52,13 @@ class TestPredictorCorrectorPositionSampler:
         return torch.rand(number_of_samples, number_of_atoms, spatial_dimension)
 
     @pytest.fixture
-    def sampler(
+    def generator(
         self, number_of_discretization_steps, number_of_corrector_steps, spatial_dimension, initial_sample
     ):
-        sampler = FakePCSampler(
+        generator = FakePCGenerator(
             number_of_discretization_steps, number_of_corrector_steps, spatial_dimension, initial_sample
         )
-        return sampler
+        return generator
 
     @pytest.fixture()
     def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples):
@@ -67,7 +67,7 @@ class TestPredictorCorrectorPositionSampler:
     @pytest.fixture
     def expected_samples(
         self,
-        sampler,
+        generator,
         initial_sample,
         number_of_discretization_steps,
         number_of_corrector_steps,
@@ -80,16 +80,16 @@ class TestPredictorCorrectorPositionSampler:
         noisy_sample = map_relative_coordinates_to_unit_cell(initial_sample)
         x_ip1 = noisy_sample
         for i in list_i:
-            xi = map_relative_coordinates_to_unit_cell(sampler.predictor_step(x_ip1, i + 1, unit_cell_sample,
-                                                                              torch.zeros_like(x_ip1)))
+            xi = map_relative_coordinates_to_unit_cell(generator.predictor_step(x_ip1, i + 1, unit_cell_sample,
+                                                                                torch.zeros_like(x_ip1)))
             for _ in list_j:
-                xi = map_relative_coordinates_to_unit_cell(sampler.corrector_step(xi, i, unit_cell_sample,
-                                                                                  torch.zeros_like(xi)))
+                xi = map_relative_coordinates_to_unit_cell(generator.corrector_step(xi, i, unit_cell_sample,
+                                                                                    torch.zeros_like(xi)))
             x_ip1 = xi
         return xi
 
-    def test_sample(self, sampler, number_of_samples, expected_samples, unit_cell_sample):
-        computed_samples = sampler.sample(number_of_samples, torch.device('cpu'), unit_cell_sample)
+    def test_sample(self, generator, number_of_samples, expected_samples, unit_cell_sample):
+        computed_samples = generator.sample(number_of_samples, torch.device('cpu'), unit_cell_sample)
         torch.testing.assert_close(expected_samples, computed_samples)
 
 
@@ -126,32 +126,32 @@ class TestAnnealedLangevinDynamics:
         return noise_parameters
 
     @pytest.fixture()
-    def pc_sampler(self, noise_parameters,
-                   number_of_corrector_steps,
-                   number_of_atoms,
-                   spatial_dimension,
-                   sigma_normalized_score_network):
-        sampler = AnnealedLangevinDynamicsSampler(noise_parameters=noise_parameters,
-                                                  number_of_corrector_steps=number_of_corrector_steps,
-                                                  number_of_atoms=number_of_atoms,
-                                                  spatial_dimension=spatial_dimension,
-                                                  sigma_normalized_score_network=sigma_normalized_score_network)
+    def pc_generator(self, noise_parameters,
+                     number_of_corrector_steps,
+                     number_of_atoms,
+                     spatial_dimension,
+                     sigma_normalized_score_network):
+        generator = AnnealedLangevinDynamicsGenerator(noise_parameters=noise_parameters,
+                                                      number_of_corrector_steps=number_of_corrector_steps,
+                                                      number_of_atoms=number_of_atoms,
+                                                      spatial_dimension=spatial_dimension,
+                                                      sigma_normalized_score_network=sigma_normalized_score_network)
 
-        return sampler
+        return generator
 
     @pytest.fixture()
     def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples):
         return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(number_of_samples, 1, 1)
 
-    def test_smoke_sample(self, pc_sampler, number_of_samples, unit_cell_sample):
+    def test_smoke_sample(self, pc_generator, number_of_samples, unit_cell_sample):
         # Just a smoke test that we can sample without crashing.
-        pc_sampler.sample(number_of_samples, torch.device('cpu'), unit_cell_sample)
+        pc_generator.sample(number_of_samples, torch.device('cpu'), unit_cell_sample)
 
     @pytest.fixture()
     def x_i(self, number_of_samples, number_of_atoms, spatial_dimension):
         return map_relative_coordinates_to_unit_cell(torch.rand(number_of_samples, number_of_atoms, spatial_dimension))
 
-    def test_predictor_step(self, mocker, pc_sampler, noise_parameters, x_i, total_time_steps, number_of_samples,
+    def test_predictor_step(self, mocker, pc_generator, noise_parameters, x_i, total_time_steps, number_of_samples,
                             unit_cell_sample):
 
         sampler = ExplodingVarianceSampler(noise_parameters)
@@ -161,11 +161,11 @@ class TestAnnealedLangevinDynamics:
         list_time = noise.time
         forces = torch.zeros_like(x_i)
 
-        z = pc_sampler._draw_gaussian_sample(number_of_samples)
-        mocker.patch.object(pc_sampler, "_draw_gaussian_sample", return_value=z)
+        z = pc_generator._draw_gaussian_sample(number_of_samples)
+        mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
 
         for index_i in range(1, total_time_steps + 1):
-            computed_sample = pc_sampler.predictor_step(x_i, index_i, unit_cell_sample, forces)
+            computed_sample = pc_generator.predictor_step(x_i, index_i, unit_cell_sample, forces)
 
             sigma_i = list_sigma[index_i - 1]
             t_i = list_time[index_i - 1]
@@ -176,13 +176,13 @@ class TestAnnealedLangevinDynamics:
 
             g2 = sigma_i**2 - sigma_im1**2
 
-            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample, forces) / sigma_i
+            s_i = pc_generator._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample, forces) / sigma_i
 
             expected_sample = x_i + g2 * s_i + torch.sqrt(g2) * z
 
             torch.testing.assert_close(computed_sample, expected_sample)
 
-    def test_corrector_step(self, mocker, pc_sampler, noise_parameters, x_i, total_time_steps, number_of_samples,
+    def test_corrector_step(self, mocker, pc_generator, noise_parameters, x_i, total_time_steps, number_of_samples,
                             unit_cell_sample):
 
         sampler = ExplodingVarianceSampler(noise_parameters)
@@ -194,11 +194,11 @@ class TestAnnealedLangevinDynamics:
         sigma_1 = list_sigma[0]
         forces = torch.zeros_like(x_i)
 
-        z = pc_sampler._draw_gaussian_sample(number_of_samples)
-        mocker.patch.object(pc_sampler, "_draw_gaussian_sample", return_value=z)
+        z = pc_generator._draw_gaussian_sample(number_of_samples)
+        mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
 
         for index_i in range(0, total_time_steps):
-            computed_sample = pc_sampler.corrector_step(x_i, index_i, unit_cell_sample, forces)
+            computed_sample = pc_generator.corrector_step(x_i, index_i, unit_cell_sample, forces)
 
             if index_i == 0:
                 sigma_i = sigma_min
@@ -209,7 +209,7 @@ class TestAnnealedLangevinDynamics:
 
             eps_i = 0.5 * epsilon * sigma_i**2 / sigma_1**2
 
-            s_i = pc_sampler._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample, forces) / sigma_i
+            s_i = pc_generator._get_sigma_normalized_scores(x_i, t_i, sigma_i, unit_cell_sample, forces) / sigma_i
 
             expected_sample = x_i + eps_i * s_i + torch.sqrt(2. * eps_i) * z
 

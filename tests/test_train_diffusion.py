@@ -83,7 +83,8 @@ def get_score_network(architecture: str, head_name: Union[str, None], number_of_
     return score_network
 
 
-def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_name: Union[str, None]):
+def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_name: Union[str, None],
+               sampling_algorithm: str):
     data_config = dict(batch_size=4, num_workers=0, max_atom=number_of_atoms)
 
     model_config = dict(score_network=get_score_network(architecture, head_name, number_of_atoms),
@@ -92,13 +93,15 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
     optimizer_config = dict(name='adam', learning_rate=0.001)
     scheduler_config = dict(name='ReduceLROnPlateau', factor=0.6, patience=2)
 
-    sampling_dict = dict(spatial_dimension=3,
-                         number_of_corrector_steps=1,
+    sampling_dict = dict(algorithm=sampling_algorithm,
+                         spatial_dimension=3,
                          number_of_atoms=number_of_atoms,
                          number_of_samples=4,
                          sample_every_n_epochs=1,
                          record_samples=True,
                          cell_dimensions=[10., 10., 10.])
+    if sampling_algorithm == 'predictor_corrector':
+        sampling_dict["number_of_corrector_steps"] = 1
 
     early_stopping_config = dict(metric='validation_epoch_loss', mode='min', patience=max_epoch)
     model_checkpoint_config = dict(monitor='validation_epoch_loss', mode='min')
@@ -120,6 +123,7 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
     return config
 
 
+@pytest.mark.parametrize("sampling_algorithm", ["ode", "predictor_corrector"])
 @pytest.mark.parametrize("architecture, head_name",
                          [('diffusion_mace', None),
                           ('mlp', None),
@@ -131,8 +135,9 @@ class TestTrainDiffusion(TestDiffusionDataBase):
         return 5
 
     @pytest.fixture()
-    def config(self, number_of_atoms, max_epoch, architecture, head_name):
-        return get_config(number_of_atoms, max_epoch=max_epoch, architecture=architecture, head_name=head_name)
+    def config(self, number_of_atoms, max_epoch, architecture, head_name, sampling_algorithm):
+        return get_config(number_of_atoms, max_epoch=max_epoch,
+                          architecture=architecture, head_name=head_name, sampling_algorithm=sampling_algorithm)
 
     @pytest.fixture()
     def all_paths(self, paths, tmpdir, config):
@@ -164,6 +169,7 @@ class TestTrainDiffusion(TestDiffusionDataBase):
 
         return input_args
 
+    @pytest.mark.slow
     def test_checkpoint_callback(self, args, all_paths, max_epoch):
         train_diffusion.main(args)
         best_model_path = os.path.join(all_paths['output'], BEST_MODEL_NAME)
@@ -184,6 +190,7 @@ class TestTrainDiffusion(TestDiffusionDataBase):
                 model_epoch = int(match_object.group('epoch'))
                 assert model_epoch == max_epoch - 1  # the epoch counter starts at zero!
 
+    @pytest.mark.slow
     def test_restart(self, args, all_paths, max_epoch, mocker):
         last_model_path = os.path.join(all_paths['output'], LAST_MODEL_NAME)
 

@@ -15,10 +15,10 @@ import yaml
 from yaml import load
 
 from crystal_diffusion import DATA_DIR, TOP_DIR
+from crystal_diffusion.generators.predictor_corrector_position_generator import \
+    AnnealedLangevinDynamicsGenerator
 from crystal_diffusion.models.model_loader import load_diffusion_model
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
-from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
-    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 
@@ -72,11 +72,11 @@ if __name__ == '__main__':
     sigma_normalized_score_network = pl_model.sigma_normalized_score_network
 
     logger.info("Creating sampler")
-    pc_sampler = AnnealedLangevinDynamicsSampler(noise_parameters=noise_parameters,
-                                                 number_of_corrector_steps=number_of_corrector_steps,
-                                                 number_of_atoms=number_of_atoms,
-                                                 spatial_dimension=score_network_parameters.spatial_dimension,
-                                                 sigma_normalized_score_network=sigma_normalized_score_network)
+    pc_sampler = AnnealedLangevinDynamicsGenerator(noise_parameters=noise_parameters,
+                                                   number_of_corrector_steps=number_of_corrector_steps,
+                                                   number_of_atoms=number_of_atoms,
+                                                   spatial_dimension=score_network_parameters.spatial_dimension,
+                                                   sigma_normalized_score_network=sigma_normalized_score_network)
 
     logger.info("Draw samples")
     samples = pc_sampler.sample(number_of_samples)

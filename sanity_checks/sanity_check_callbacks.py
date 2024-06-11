@@ -4,11 +4,11 @@ from pytorch_lightning import Callback
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from crystal_diffusion.generators.predictor_corrector_position_generator import \
+    AnnealedLangevinDynamicsGenerator
 from crystal_diffusion.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES
-from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
-    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
@@ -73,13 +73,13 @@ class TensorboardGeneratedSamplesLoggingCallback(TensorBoardDebuggingLoggingCall
     def log_artifact(self, pl_module, tbx_logger):
         """Create artifact and log to tensorboard."""
         sigma_normalized_score_network = pl_module.sigma_normalized_score_network
-        pc_sampler = AnnealedLangevinDynamicsSampler(noise_parameters=self.noise_parameters,
-                                                     number_of_corrector_steps=self.number_of_corrector_steps,
-                                                     number_of_atoms=self.number_of_atoms,
-                                                     spatial_dimension=self.spatial_dimension,
-                                                     sigma_normalized_score_network=sigma_normalized_score_network)
+        pc_generator = AnnealedLangevinDynamicsGenerator(noise_parameters=self.noise_parameters,
+                                                         number_of_corrector_steps=self.number_of_corrector_steps,
+                                                         number_of_atoms=self.number_of_atoms,
+                                                         spatial_dimension=self.spatial_dimension,
+                                                         sigma_normalized_score_network=sigma_normalized_score_network)
 
-        samples = pc_sampler.sample(self.number_of_samples).flatten()
+        samples = pc_generator.sample(self.number_of_samples).flatten()
 
         fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
         ax = fig.add_subplot(111)

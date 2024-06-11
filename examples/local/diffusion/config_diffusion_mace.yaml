@@ -70,11 +70,12 @@ diffusion_sampling:
     sigma_min: 0.001  # default value
     sigma_max: 0.5  # default value
   sampling:
+    algorithm: ode
     spatial_dimension: 3
-    number_of_corrector_steps: 1
     number_of_atoms: 8
     number_of_samples: 16
-    sample_every_n_epochs: 1
+    sample_every_n_epochs: 5
+    record_samples: True
     cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:

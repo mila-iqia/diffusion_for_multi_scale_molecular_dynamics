@@ -9,10 +9,10 @@ from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import (
     get_exact_samples, get_random_equilibrium_relative_coordinates,
     get_random_inverse_covariance, get_unit_cells)
+from crystal_diffusion.generators.predictor_corrector_position_generator import \
+    AnnealedLangevinDynamicsGenerator
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from crystal_diffusion.samplers.predictor_corrector_position_sampler import \
-    AnnealedLangevinDynamicsSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 logger = logging.getLogger(__name__)
@@ -60,8 +60,8 @@ if __name__ == '__main__':
                                   record_samples=False,
                                   positions_require_grad=False)
 
-        pc_sampler = AnnealedLangevinDynamicsSampler(sigma_normalized_score_network=sigma_normalized_score_network,
-                                                     **sampler_parameters)
+        pc_sampler = AnnealedLangevinDynamicsGenerator(sigma_normalized_score_network=sigma_normalized_score_network,
+                                                       **sampler_parameters)
 
         unit_cell = get_unit_cells(acell=1., spatial_dimension=spatial_dimension, number_of_samples=number_of_samples)
 

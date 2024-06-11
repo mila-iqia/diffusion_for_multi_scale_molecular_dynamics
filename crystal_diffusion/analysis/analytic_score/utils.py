@@ -40,6 +40,7 @@ def get_random_inverse_covariance(spring_constant_scale: float, number_of_atoms:
 def get_exact_samples(equilibrium_relative_coordinates: torch.Tensor, inverse_covariance: torch.Tensor,
                       number_of_samples: int) -> torch.Tensor:
     """Sample the exact harmonic energy."""
+    device = equilibrium_relative_coordinates.device
     natom, spatial_dimension, _, _ = inverse_covariance.shape
 
     flat_dim = natom * spatial_dimension
@@ -53,7 +54,7 @@ def get_exact_samples(equilibrium_relative_coordinates: torch.Tensor, inverse_co
 
     sigmas = 1. / torch.sqrt(eigenvalues)
 
-    z_scores = torch.randn(number_of_samples, flat_dim)
+    z_scores = torch.randn(number_of_samples, flat_dim).to(device)
 
     sigma_z_scores = z_scores * sigmas.unsqueeze(0)
 

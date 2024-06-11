@@ -54,6 +54,8 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         self.flat_dim = self.natoms * self.spatial_dimension
 
+        self.device = hyper_params.equilibrium_relative_coordinates.device
+
         assert hyper_params.equilibrium_relative_coordinates.shape == (self.natoms, self.spatial_dimension), \
             "equilibrium relative coordinates have the wrong shape"
 
@@ -69,10 +71,10 @@ class AnalyticalScoreNetwork(ScoreNetwork):
                                                 'permutation natom d -> permutation (natom d)')
 
         # shape: [ (2 kmax + 1)^flat_dim,  flat_dim]
-        self.translations_k = self._get_all_translations(self.kmax, self.flat_dim)
+        self.translations_k = self._get_all_translations(self.kmax, self.flat_dim).to(self.device)
 
         # shape [ (2 kmax + 1)^flat_dim x natom!, flat_dim]
-        self.all_offsets = self._get_all_flat_offsets(self.permutations_x0, self.translations_k)
+        self.all_offsets = self._get_all_flat_offsets(self.permutations_x0, self.translations_k).to(self.device)
 
         self.beta_phi_matrix = einops.rearrange(hyper_params.inverse_covariance,
                                                 "natom1 d1 natom2 d2 -> (natom1 d1) (natom2 d2)")
