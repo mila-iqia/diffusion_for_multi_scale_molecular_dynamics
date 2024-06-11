@@ -270,7 +270,7 @@ class DiffusionMACE(torch.nn.Module):
             cond_layer = o3.Linear(
                 irreps_in=forces_irreps_embedding,
                 irreps_out=hidden_irreps_out,
-                biases=True
+                biases=False
             )
             self.conditional_layers.append(cond_layer)
 
