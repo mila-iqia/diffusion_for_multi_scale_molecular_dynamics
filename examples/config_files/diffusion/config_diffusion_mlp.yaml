@@ -1,9 +1,10 @@
 # general
-exp_name: diffusion_mace_example
-run_name: run_debug_delete_me
-max_epoch: 10
+exp_name: mlp_example
+run_name: run2
+max_epoch: 500
 log_every_n_steps: 1
-gradient_clipping: 0.1
+gradient_clipping: 0
+accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
@@ -11,7 +12,7 @@ seed: 1234
 
 # data
 data:
-  batch_size: 512
+  batch_size: 1024
   num_workers: 0
   max_atom: 8
 
@@ -19,26 +20,16 @@ data:
 spatial_dimension: 3
 model:
   score_network:
-    architecture: diffusion_mace
+    architecture: mlp
     number_of_atoms: 8
-    r_max: 5.0
-    num_bessel: 8
-    num_polynomial_cutoff: 5
-    max_ell: 2
-    interaction_cls: RealAgnosticResidualInteractionBlock
-    interaction_cls_first: RealAgnosticInteractionBlock
-    num_interactions: 2
-    hidden_irreps: 8x0e + 8x1o
-    mlp_irreps: 8x0e
-    number_of_mlp_layers: 0
-    avg_num_neighbors: 1
-    correlation: 3
-    gate: silu
-    radial_MLP: [8, 8, 8]
-    radial_type: bessel
+    n_hidden_dimensions: 2
+    hidden_dimensions_size: 64
+    conditional_prob: 0.0
+    conditional_gamma: 2
+    condition_embedding_size: 64
   noise:
     total_time_steps: 100
-    sigma_min: 0.001  # default value
+    sigma_min: 0.005  # default value
     sigma_max: 0.5  # default value'
 
 # optimizer and scheduler
@@ -62,6 +53,11 @@ model_checkpoint:
   monitor: validation_epoch_loss
   mode: min
 
+# A callback to check the loss vs. sigma
+loss_monitoring: 
+  number_of_bins: 50
+  sample_every_n_epochs: 25
+
 # Sampling from the generative model
 diffusion_sampling:
   noise:
@@ -69,14 +65,16 @@ diffusion_sampling:
     sigma_min: 0.001  # default value
     sigma_max: 0.5  # default value
   sampling:
+    algorithm: ode
     spatial_dimension: 3
-    number_of_corrector_steps: 1
     number_of_atoms: 8
     number_of_samples: 16
-    sample_every_n_epochs: 1
+    sample_batchsize: 16
+    sample_every_n_epochs: 25
+    record_samples: True
     cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:
-  - csv
-  - tensorboard
-  - comet
+#  - comet
+- tensorboard
+#- csv
