@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 plt.style.use(PLOT_STYLE_PATH)
 
 
-base_data_dir = Path("/Users/bruno/courtois/difface_ode/run1")
+# Some hardcoded paths and parameters. Change as needed!
+epoch = 30
+base_data_dir = Path("/Users/bruno/courtois/difface_ode/run7")
 position_samples_dir = base_data_dir / "diffusion_position_samples"
 energy_samples_dir = base_data_dir / "energy_samples"
 
@@ -45,8 +47,6 @@ lammps_run_dir = str(DATA_DIR / dataset_name)
 processed_dataset_dir = str(DATA_DIR / dataset_name / 'processed')
 data_params = LammpsLoaderParameters(batch_size=64, max_atom=8)
 cache_dir = str(EXPERIMENT_ANALYSIS_DIR / "cache" / dataset_name)
-
-epoch = 5
 
 
 if __name__ == '__main__':
