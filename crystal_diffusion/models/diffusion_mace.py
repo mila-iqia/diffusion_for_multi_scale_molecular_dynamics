@@ -2,7 +2,7 @@ from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 
 import torch
 from e3nn import o3
-from e3nn.nn import Activation
+from e3nn.nn import Activation, NormActivation
 from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
                           LinearNodeEmbeddingBlock, RadialEmbeddingBlock)
 from mace.modules.utils import get_edge_vectors_and_lengths
@@ -106,7 +106,8 @@ class DiffusionMACE(torch.nn.Module):
         gate: Optional[Callable],
         radial_MLP: List[int],
         radial_type: Optional[str] = "bessel",
-        condition_embedding_size: int = 64  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
+        condition_embedding_size: int = 64,  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
+        nonlinear_on_output: bool = False,
     ):
         """Init method."""
         assert num_elements == 1, "only a single element can be used at this time. Set 'num_elements' to 1."
@@ -274,6 +275,11 @@ class DiffusionMACE(torch.nn.Module):
             )
             self.conditional_layers.append(cond_layer)
 
+        if nonlinear_on_output:
+            self.nonlinear_output = NormActivation(o3.Irreps("1x1o"), torch.tanh)
+        else:
+            self.nonlinear_output = None
+
     def forward(self, data: Dict[str, torch.Tensor], conditional: bool = False) -> torch.Tensor:
         """Forward method."""
         # Setup
@@ -314,4 +320,7 @@ class DiffusionMACE(torch.nn.Module):
 
         # Outputs
         vectors_output = self.vector_readout(node_feats)
+        if self.nonlinear_output is not None:
+            vectors_output = self.nonlinear_output(vectors_output / (3 * data["node_diffusion_scalars"])) * \
+                             data["node_diffusion_scalars"]
         return vectors_output

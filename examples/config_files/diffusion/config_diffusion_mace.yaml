@@ -40,6 +40,7 @@ model:
     conditional_prob: 0.0
     conditional_gamma: 2
     condition_embedding_size: 64
+    nonlinear_on_output: False
   noise:
     total_time_steps: 100
     sigma_min: 0.001  # default value
