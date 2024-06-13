@@ -10,11 +10,10 @@ import torch
 from tqdm import tqdm
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.generators.ode_position_generator import \
-    ExplodingVarianceODEPositionGenerator
+from crystal_diffusion.analysis.generator_sample_analysis_utils import \
+    PartialODEPositionGenerator
 from crystal_diffusion.models.position_diffusion_lightning_model import \
     PositionDiffusionLightningModel
-from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
                                          UNIT_CELL)
@@ -26,40 +25,6 @@ from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
 logger = logging.getLogger(__name__)
-
-
-class PartialODEPositionGenerator(ExplodingVarianceODEPositionGenerator):
-    """Partial ODE Position Generator.
-
-    This class is for exploring the nature of the sampling process.
-    """
-
-    def __init__(self,
-                 noise_parameters: NoiseParameters,
-                 number_of_atoms: int,
-                 spatial_dimension: int,
-                 sigma_normalized_score_network: ScoreNetwork,
-                 initial_relative_coordinates: torch.Tensor,
-                 record_samples: bool = False,
-                 tf: float = 1.0,
-                 ):
-        """Init method."""
-        super(PartialODEPositionGenerator, self).__init__(noise_parameters,
-                                                          number_of_atoms,
-                                                          spatial_dimension,
-                                                          sigma_normalized_score_network,
-                                                          record_samples)
-
-        self.tf = tf
-        assert initial_relative_coordinates.shape[1:] == (number_of_atoms, spatial_dimension), "Inconsistent shape"
-
-        self.initial_relative_coordinates = initial_relative_coordinates
-
-    def initialize(self, number_of_samples: int):
-        """This method must initialize the samples from the fully noised distribution."""
-        assert number_of_samples == self.initial_relative_coordinates.shape[0], "Inconsistent number of samples"
-        return self.initial_relative_coordinates
-
 
 plt.style.use(PLOT_STYLE_PATH)
 

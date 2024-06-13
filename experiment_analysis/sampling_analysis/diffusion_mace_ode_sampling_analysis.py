@@ -7,28 +7,13 @@ from einops import einops
 
 from crystal_diffusion import DATA_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from crystal_diffusion.analysis.generator_sample_analysis_utils import \
+    get_interatomic_distances
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
-from crystal_diffusion.models.mace_utils import get_adj_matrix
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from experiment_analysis import EXPERIMENT_ANALYSIS_DIR
-
-
-def get_interatomic_distances(cartesian_positions: torch.Tensor,
-                              basis_vectors: torch.Tensor,
-                              radial_cutoff: float = 5.0):
-    """Get interatomic distances."""
-    shifted_adjacency_matrix, shifts, batch_indices = get_adj_matrix(positions=cartesian_positions,
-                                                                     basis_vectors=basis_vectors,
-                                                                     radial_cutoff=radial_cutoff)
-
-    flat_positions = einops.rearrange(cartesian_positions, "b n d -> (b n) d")
-
-    displacements = flat_positions[shifted_adjacency_matrix[1]] - flat_positions[shifted_adjacency_matrix[0]] + shifts
-    interatomic_distances = torch.linalg.norm(displacements, dim=1)
-    return interatomic_distances
-
 
 logger = logging.getLogger(__name__)
 
