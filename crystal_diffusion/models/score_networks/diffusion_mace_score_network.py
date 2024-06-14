@@ -38,6 +38,7 @@ class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
     radial_MLP: List[int] = field(default_factory=lambda: [64, 64, 64])  # "width of the radial MLP"
     radial_type: str = "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
     condition_embedding_size: int = 64  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
+    use_batchnorm: bool = False
 
 
 class DiffusionMACEScoreNetwork(ScoreNetwork):
@@ -74,6 +75,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             radial_MLP=hyper_params.radial_MLP,
             radial_type=hyper_params.radial_type,
             condition_embedding_size=hyper_params.condition_embedding_size,
+            use_batchnorm=hyper_params.use_batchnorm
         )
 
         self._natoms = hyper_params.number_of_atoms
