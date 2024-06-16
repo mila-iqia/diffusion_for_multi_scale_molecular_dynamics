@@ -53,7 +53,7 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
     # We broadcast to each node to avoid complex broadcasting logic within the model itself.
     # TODO: it might be better to define the noise as a 'global' graph attribute, and find 'the right way' of
     #   mixing it with bona fide node features within the model.
-    noises = batch[NOISE]  # [batch_size, 1]
+    noises = batch[NOISE] + 1  # [batch_size, 1]  - add 1 to avoid getting a zero at sigma=0 (initialization issues)
     node_diffusion_scalars = noises.repeat_interleave(n_atom_per_graph, dim=0)  # [flat_batch_size, 1]
 
     # [batchsize * natoms, spatial dimension]
@@ -92,6 +92,8 @@ class DiffusionMACE(torch.nn.Module):
         r_max: float,
         num_bessel: int,
         num_polynomial_cutoff: int,
+        num_edge_hidden_layers: int,
+        edge_hidden_irreps: o3.Irreps,
         max_ell: int,
         interaction_cls: Type[InteractionBlock],
         interaction_cls_first: Type[InteractionBlock],
@@ -182,6 +184,20 @@ class DiffusionMACE(torch.nn.Module):
         )
         edge_feats_irreps = o3.Irreps([(self.radial_embedding.out_dim, scalar_irrep)])
 
+        self.edge_attribute_mixing = o3.FullyConnectedTensorProduct(irreps_in1=diffusion_scalar_irreps_out,
+                                                                    irreps_in2=edge_feats_irreps,
+                                                                    irreps_out=edge_hidden_irreps,
+                                                                    irrep_normalization='norm')
+        self.edge_hidden_layers = torch.nn.ModuleList([])
+        edge_non_linearity = Activation(irreps_in=edge_hidden_irreps, acts=[gate])
+        for i in range(num_edge_hidden_layers):
+            if i != 0:
+                self.edge_hidden_layers.append(edge_non_linearity)
+            edge_hidden_layer = o3.Linear(irreps_in=edge_hidden_irreps,
+                                          irreps_out=edge_hidden_irreps,
+                                          biases=False)
+            self.edge_hidden_layers.append(edge_hidden_layer)
+
         # The "spherical harmonics" correspond to Y_{lm} in the definition of A^{(1)}, eq. 9 of the PAPER.
         sh_irreps = o3.Irreps.spherical_harmonics(max_ell)
         interaction_irreps = (sh_irreps * number_of_hidden_scalar_dimensions).sort()[0].simplify()
@@ -199,7 +215,7 @@ class DiffusionMACE(torch.nn.Module):
             node_attrs_irreps=node_attr_irreps,
             node_feats_irreps=node_feats_irreps,
             edge_attrs_irreps=sh_irreps,
-            edge_feats_irreps=edge_feats_irreps,
+            edge_feats_irreps=edge_hidden_irreps,
             target_irreps=interaction_irreps,
             hidden_irreps=hidden_irreps,
             avg_num_neighbors=avg_num_neighbors,
@@ -236,7 +252,7 @@ class DiffusionMACE(torch.nn.Module):
                 node_attrs_irreps=node_attr_irreps,
                 node_feats_irreps=hidden_irreps,
                 edge_attrs_irreps=sh_irreps,
-                edge_feats_irreps=edge_feats_irreps,
+                edge_feats_irreps=edge_hidden_irreps,
                 target_irreps=interaction_irreps,
                 hidden_irreps=hidden_irreps_out,
                 avg_num_neighbors=avg_num_neighbors,
@@ -292,6 +308,8 @@ class DiffusionMACE(torch.nn.Module):
         )
         edge_attrs = self.spherical_harmonics(vectors)
         edge_feats = self.radial_embedding(lengths)
+        augmented_edge_attributes = self.edge_attribute_mixing(diffusion_scalar_embeddings, edge_feats)
+        edge_feats = self.edge_hidden_layers(augmented_edge_attributes)
 
         forces_embedding = self.condition_embedding_layer(data["forces"])  # 0e + 1o embedding
 
