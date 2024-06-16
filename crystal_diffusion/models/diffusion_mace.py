@@ -191,7 +191,7 @@ class DiffusionMACE(torch.nn.Module):
                                                                     irreps_in2=edge_feats_irreps,
                                                                     irreps_out=edge_hidden_irreps,
                                                                     irrep_normalization='norm')
-        self.edge_hidden_layers = torch.nn.ModuleList([])
+        self.edge_hidden_layers = torch.nn.Sequential()
         edge_non_linearity = Activation(irreps_in=edge_hidden_irreps, acts=[gate])
         for i in range(num_edge_hidden_layers):
             if i != 0:
@@ -200,6 +200,8 @@ class DiffusionMACE(torch.nn.Module):
                                           irreps_out=edge_hidden_irreps,
                                           biases=False)
             self.edge_hidden_layers.append(edge_hidden_layer)
+            bn = BatchNorm(edge_hidden_irreps)
+            self.edge_hidden_layers.append(bn)
 
         # The "spherical harmonics" correspond to Y_{lm} in the definition of A^{(1)}, eq. 9 of the PAPER.
         sh_irreps = o3.Irreps.spherical_harmonics(max_ell)
