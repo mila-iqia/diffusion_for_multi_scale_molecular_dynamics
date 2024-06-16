@@ -14,7 +14,7 @@ from crystal_diffusion.utils.neighbors import (
 
 def get_adj_matrix(positions: torch.Tensor,
                    basis_vectors: torch.Tensor,
-                   radial_cutoff: float = 4.0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                   radial_cutoff: float = 4.0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Create the adjacency and shift matrices.
 
     Args:
@@ -32,6 +32,7 @@ def get_adj_matrix(positions: torch.Tensor,
         adjacency matrix: The (src, dst) node indices, as a [2, num_edge] tensor,
         shift matrix: The lattice vector shifts between source and destination, as a [num_edge, 3] tensor
         batch_indices: for each node, this indicates which batch item it originally belonged to.
+        number_of_edges: for each element in the batch, how many edges belong to it
     """
     batch_size, number_of_atoms, spatial_dimensions = positions.shape
 
@@ -47,7 +48,9 @@ def get_adj_matrix(positions: torch.Tensor,
     shifts = adjacency_info.shifts
     batch_indices = adjacency_info.node_batch_indices
 
-    return shifted_adjacency_matrix, shifts, batch_indices
+    number_of_edges = adjacency_info.number_of_edges
+
+    return shifted_adjacency_matrix, shifts, batch_indices, number_of_edges
 
 
 def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
