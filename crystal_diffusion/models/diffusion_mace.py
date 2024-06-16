@@ -41,9 +41,9 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
 
     basis_vectors = batch[UNIT_CELL]  # batch, spatial_dimension, spatial_dimension
 
-    adj_matrix, shift_matrix, batch_tensor = get_adj_matrix(positions=cartesian_positions,
-                                                            basis_vectors=basis_vectors,
-                                                            radial_cutoff=radial_cutoff)
+    adj_matrix, shift_matrix, batch_tensor, num_edges = get_adj_matrix(positions=cartesian_positions,
+                                                                       basis_vectors=basis_vectors,
+                                                                       radial_cutoff=radial_cutoff)
 
     # node features are int corresponding to atom type
     # TODO handle different atom types
@@ -55,6 +55,7 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
     #   mixing it with bona fide node features within the model.
     noises = batch[NOISE] + 1  # [batch_size, 1]  - add 1 to avoid getting a zero at sigma=0 (initialization issues)
     node_diffusion_scalars = noises.repeat_interleave(n_atom_per_graph, dim=0)  # [flat_batch_size, 1]
+    edge_diffusion_scalars = noises.repeat_interleave(num_edges, dim=0)
 
     # [batchsize * natoms, spatial dimension]
     flat_cartesian_positions = cartesian_positions.view(-1, spatial_dimension)
@@ -70,6 +71,7 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
     graph_data = Data(edge_index=adj_matrix,
                       node_attrs=node_attrs.to(device),
                       node_diffusion_scalars=node_diffusion_scalars.to(device),
+                      edge_diffusion_scalars=edge_diffusion_scalars.to(device),
                       positions=flat_cartesian_positions,
                       ptr=ptr.to(device),
                       batch=batch_tensor.to(device),
@@ -320,7 +322,8 @@ class DiffusionMACE(torch.nn.Module):
         )
         edge_attrs = self.spherical_harmonics(vectors)
         edge_feats = self.radial_embedding(lengths)
-        augmented_edge_attributes = self.edge_attribute_mixing(diffusion_scalar_embeddings, edge_feats)
+        edge_diffusion_scalar_embeddings = self.diffusion_scalar_embedding(data["edge_diffusion_scalars"])
+        augmented_edge_attributes = self.edge_attribute_mixing(edge_diffusion_scalar_embeddings, edge_feats)
         edge_feats = self.edge_hidden_layers(augmented_edge_attributes)
 
         forces_embedding = self.condition_embedding_layer(data["forces"])  # 0e + 1o embedding
