@@ -55,7 +55,7 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
     #   mixing it with bona fide node features within the model.
     noises = batch[NOISE] + 1  # [batch_size, 1]  - add 1 to avoid getting a zero at sigma=0 (initialization issues)
     node_diffusion_scalars = noises.repeat_interleave(n_atom_per_graph, dim=0)  # [flat_batch_size, 1]
-    edge_diffusion_scalars = noises.repeat_interleave(num_edges, dim=0)
+    edge_diffusion_scalars = noises.repeat_interleave(num_edges.long().to(noises), dim=0)
 
     # [batchsize * natoms, spatial dimension]
     flat_cartesian_positions = cartesian_positions.view(-1, spatial_dimension)
