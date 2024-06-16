@@ -25,6 +25,8 @@ class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
     r_max: float = 5.0
     num_bessel: int = 8
     num_polynomial_cutoff: int = 5
+    num_edge_hidden_layers: int = 1
+    edge_hidden_irreps: str = "16x0e"
     max_ell: int = 2
     interaction_cls: str = "RealAgnosticResidualInteractionBlock"
     interaction_cls_first: str = "RealAgnosticInteractionBlock"
@@ -60,6 +62,8 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             r_max=hyper_params.r_max,
             num_bessel=hyper_params.num_bessel,
             num_polynomial_cutoff=hyper_params.num_polynomial_cutoff,
+            num_edge_hidden_layers=hyper_params.num_edge_hidden_layers,
+            edge_hidden_irreps=o3.Irreps(hyper_params.edge_hidden_irreps),
             max_ell=hyper_params.max_ell,
             interaction_cls=interaction_classes[hyper_params.interaction_cls],
             interaction_cls_first=interaction_classes[hyper_params.interaction_cls_first],
