@@ -2,7 +2,7 @@ from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 
 import torch
 from e3nn import o3
-from e3nn.nn import Activation
+from e3nn.nn import Activation, BatchNorm
 from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
                           LinearNodeEmbeddingBlock, RadialEmbeddingBlock)
 from mace.modules.utils import get_edge_vectors_and_lengths
@@ -106,7 +106,8 @@ class DiffusionMACE(torch.nn.Module):
         gate: Optional[Callable],
         radial_MLP: List[int],
         radial_type: Optional[str] = "bessel",
-        condition_embedding_size: int = 64  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
+        condition_embedding_size: int = 64,  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
+        use_batchnorm: bool = False,
     ):
         """Init method."""
         assert num_elements == 1, "only a single element can be used at this time. Set 'num_elements' to 1."
@@ -229,7 +230,14 @@ class DiffusionMACE(torch.nn.Module):
         )
         self.products = torch.nn.ModuleList([prod])
 
+        self.use_batchnorm = use_batchnorm
+        if self.use_batchnorm:
+            self.batch_norms = torch.nn.ModuleList([
+                BatchNorm(node_feats_irreps)
+            ])
+
         hidden_irreps_out = hidden_irreps
+
         for i in range(num_interactions - 1):
             # Inter computes A^{(t)} from h^{(t)}, doing a sum-on-neighbors operation.
             inter = interaction_cls(
@@ -253,6 +261,10 @@ class DiffusionMACE(torch.nn.Module):
                 use_sc=True,
             )
             self.products.append(prod)
+
+            if self.use_batchnorm:
+                bn = BatchNorm(hidden_irreps)
+                self.batch_norms.append(bn)
 
         # the output is a single vector.
         self.vector_readout = LinearVectorReadoutBlock(irreps_in=hidden_irreps_out)
@@ -295,7 +307,12 @@ class DiffusionMACE(torch.nn.Module):
 
         forces_embedding = self.condition_embedding_layer(data["forces"])  # 0e + 1o embedding
 
-        for interaction, product, cond_layer in zip(self.interactions, self.products, self.conditional_layers):
+        for i, (interaction, product, cond_layer) in enumerate(
+                zip(self.interactions, self.products, self.conditional_layers)
+        ):
+            if self.use_batchnorm:
+                node_feats = self.batch_norms[i](node_feats)
+
             node_feats, sc = interaction(
                 node_attrs=augmented_node_attributes,
                 node_feats=node_feats,
