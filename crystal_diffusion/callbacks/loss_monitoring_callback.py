@@ -85,6 +85,9 @@ class LossMonitoringCallback(Callback):
                        dataset="validation",
                        name="weighted_loss")
 
+        plt.close(fig_squared_errors)
+        plt.close(fig_weighted_loss)
+
         self.all_sigmas.clear()
         self.all_squared_errors.clear()
         self.all_weighted_losses.clear()
