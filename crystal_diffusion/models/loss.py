@@ -24,6 +24,9 @@ class LossCalculator(torch.nn.Module):
 
         self.hyperparams = hyperparams
 
+        self.register_buffer("sigma0", torch.tensor(self.hyperparams.sigma0))
+        self.register_buffer("exponent", torch.tensor(self.hyperparams.exponent))
+
         if hyperparams.algorithm == 'mse':
             self.mse_loss = torch.nn.MSELoss(reduction='mean')
             self.compute_weights = False
@@ -31,10 +34,9 @@ class LossCalculator(torch.nn.Module):
             self.mse_loss = torch.nn.MSELoss(reduction='none')
             self.compute_weights = True
 
-    @staticmethod
-    def _exponential_weights(sigmas, sigma0: float, exponent: float):
+    def _exponential_weights(self, sigmas):
         """Compute an exponential weight for the loss."""
-        weights = torch.exp(exponent * (sigmas - sigma0)) + 1.0
+        weights = torch.exp(self.exponent * (sigmas - self.sigma0)) + 1.0
         return weights
 
     def calculate_loss(self, predicted_normalized_scores: torch.tensor,
@@ -57,7 +59,7 @@ class LossCalculator(torch.nn.Module):
             "Inconsistent shapes"
 
         if self.compute_weights:
-            weights = self._exponential_weights(sigmas, self.hyperparams.sigma0, self.hyperparams.exponent)
+            weights = self._exponential_weights(sigmas)
             unreduced_loss = self.mse_loss(predicted_normalized_scores, target_normalized_conditional_scores)
             loss = torch.mean(unreduced_loss * weights)
         else:
