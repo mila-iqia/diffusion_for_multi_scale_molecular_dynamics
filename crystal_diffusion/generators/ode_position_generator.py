@@ -32,6 +32,8 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
                  spatial_dimension: int,
                  sigma_normalized_score_network: ScoreNetwork,
                  record_samples: bool = False,
+                 absolute_solver_tolerance: float = 1e-3,
+                 relative_solver_tolerance: float = 1e-2,
                  ):
         """Init method.
 
@@ -41,6 +43,8 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             spatial_dimension : the dimension of space.
             sigma_normalized_score_network : the score network to use for drawing samples.
             record_samples : should samples be recorded.
+            absolute_solver_tolerance: the absolute error tolerance passed to the ODE solver.
+            relative_solver_tolerance: the relative error tolerance passed to the ODE solver.
         """
         self.noise_parameters = noise_parameters
         assert self.noise_parameters.total_time_steps >= 2, \
@@ -52,6 +56,9 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
 
         self.t0 = 0.0  # The "initial diffusion time", corresponding to the physical distribution.
         self.tf = 1.0  # The "final diffusion time", corresponding to the uniform distribution.
+
+        self.absolute_solver_tolerance = absolute_solver_tolerance
+        self.relative_solver_tolerance = relative_solver_tolerance
 
         self.record_samples = record_samples
 
@@ -172,8 +179,10 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
 
         term = to.ODETerm(ode_term)
         step_method = to.Dopri5(term=term)
-        # TODO: parameterize the tolerances
-        step_size_controller = to.IntegralController(atol=1e-3, rtol=1e-3, term=term)
+
+        step_size_controller = to.IntegralController(atol=self.absolute_solver_tolerance,
+                                                     rtol=self.relative_solver_tolerance,
+                                                     term=term)
         solver = to.AutoDiffAdjoint(step_method, step_size_controller)
         jit_solver = torch.compile(solver)
 

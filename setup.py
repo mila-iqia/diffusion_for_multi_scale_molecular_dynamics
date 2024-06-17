@@ -7,7 +7,7 @@ setup(
     name='crystal_diffusion',
     version='0.0.1',
     packages=find_packages(include=['crystal_diffusion', 'crystal_diffusion.*']),
-    python_requires='>=3.11',
+    python_requires='>=3.10',
     install_requires=requirements,
     entry_points={
         'console_scripts': [
