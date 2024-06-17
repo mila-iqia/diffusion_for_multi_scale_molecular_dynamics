@@ -18,6 +18,8 @@ data:
 # architecture
 spatial_dimension: 3
 model:
+  loss:
+    algorithm: mse
   score_network:
     architecture: mace
     use_pretrained: None

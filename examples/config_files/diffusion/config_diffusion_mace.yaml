@@ -19,6 +19,8 @@ data:
 # architecture
 spatial_dimension: 3
 model:
+  loss:
+    algorithm: mse
   score_network:
     architecture: diffusion_mace
     number_of_atoms: 8
