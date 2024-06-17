@@ -37,6 +37,7 @@ class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
     gate: str = "silu"  # non linearity for last readout - choices: ["silu", "tanh", "abs", "None"]
     radial_MLP: List[int] = field(default_factory=lambda: [64, 64, 64])  # "width of the radial MLP"
     radial_type: str = "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
+    condition_embedding_size: int = 64  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
 
 
 class DiffusionMACEScoreNetwork(ScoreNetwork):
@@ -71,7 +72,8 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             correlation=hyper_params.correlation,
             gate=gate_dict[hyper_params.gate],
             radial_MLP=hyper_params.radial_MLP,
-            radial_type=hyper_params.radial_type
+            radial_type=hyper_params.radial_type,
+            condition_embedding_size=hyper_params.condition_embedding_size,
         )
 
         self._natoms = hyper_params.number_of_atoms
@@ -100,7 +102,6 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         Returns:
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
-        del conditional  # TODO do something with forces when conditional
         relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
@@ -108,7 +109,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         batch[NOISY_CARTESIAN_POSITIONS] = get_positions_from_coordinates(relative_coordinates, basis_vectors)
         graph_input = input_to_diffusion_mace(batch, radial_cutoff=self.r_max)
 
-        flat_cartesian_scores = self.diffusion_mace_network(graph_input)
+        flat_cartesian_scores = self.diffusion_mace_network(graph_input, conditional)
         cartesian_scores = flat_cartesian_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
 
         reciprocal_basis_vectors_as_columns = get_reciprocal_basis_vectors(basis_vectors)
