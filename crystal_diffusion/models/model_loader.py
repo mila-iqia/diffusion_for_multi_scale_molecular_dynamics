@@ -3,6 +3,7 @@ import dataclasses
 import logging
 from typing import Any, AnyStr, Dict
 
+from crystal_diffusion.models.loss import LossParameters
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
@@ -47,10 +48,16 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
 
     scheduler_parameters = get_scheduler_parameters(hyper_params)
 
+    if "loss" in hyper_params['model']:
+        loss_parameters = LossParameters(**hyper_params['model']['loss'])
+    else:
+        loss_parameters = LossParameters()
+
     noise_parameters = NoiseParameters(**hyper_params['model']['noise'])
 
     diffusion_params = PositionDiffusionParameters(
         score_network_parameters=score_network_parameters,
+        loss_parameters=loss_parameters,
         optimizer_parameters=optimizer_parameters,
         scheduler_parameters=scheduler_parameters,
         noise_parameters=noise_parameters,

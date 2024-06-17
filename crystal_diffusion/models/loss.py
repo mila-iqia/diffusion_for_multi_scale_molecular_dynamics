@@ -8,6 +8,8 @@ class LossParameters:
     """Specific Hyper-parameters for the loss function."""
     algorithm: str = 'mse'
     # The default values are chosen to lead to a flat loss curve vs. sigma, based on preliminary experiments.
+    # These parameters have no effect if the algorithm is 'mse'.
+    # The default parameters are chosen such that weights(sigma=0.5) \sim 10^3
     sigma0: float = 0.2
     exponent: float = 23.0259  # ~ 10 ln(10)
 

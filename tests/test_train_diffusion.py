@@ -88,6 +88,7 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
     data_config = dict(batch_size=4, num_workers=0, max_atom=number_of_atoms)
 
     model_config = dict(score_network=get_score_network(architecture, head_name, number_of_atoms),
+                        loss={'algorithm': 'mse'},
                         noise={'total_time_steps': 10})
 
     optimizer_config = dict(name='adam', learning_rate=0.001)
