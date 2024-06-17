@@ -195,11 +195,13 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         use_conditional = None if no_conditional is False else False
         predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch, conditional=use_conditional)
 
-        loss = self.loss_calculator.calculate_loss(predicted_normalized_scores,
-                                                   target_normalized_conditional_scores,
-                                                   sigmas.to(self.device))
+        unreduced_loss = self.loss_calculator.calculate_unreduced_loss(predicted_normalized_scores,
+                                                                       target_normalized_conditional_scores,
+                                                                       sigmas.to(self.device))
+        loss = torch.mean(unreduced_loss)
 
         output = dict(loss=loss,
+                      unreduced_loss=unreduced_loss.detach(),
                       sigmas=sigmas,
                       predicted_normalized_scores=predicted_normalized_scores.detach(),
                       target_normalized_conditional_scores=target_normalized_conditional_scores)

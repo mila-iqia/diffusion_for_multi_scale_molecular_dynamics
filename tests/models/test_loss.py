@@ -71,11 +71,10 @@ def loss_calculator(loss_parameters):
 
 @pytest.fixture()
 def computed_loss(loss_calculator, predicted_normalized_scores, target_normalized_conditional_scores, sigmas):
-    loss = loss_calculator.calculate_loss(predicted_normalized_scores,
-                                          target_normalized_conditional_scores,
-                                          sigmas)
-
-    return loss
+    unreduced_loss = loss_calculator.calculate_unreduced_loss(predicted_normalized_scores,
+                                                              target_normalized_conditional_scores,
+                                                              sigmas)
+    return torch.mean(unreduced_loss)
 
 
 @pytest.fixture()
