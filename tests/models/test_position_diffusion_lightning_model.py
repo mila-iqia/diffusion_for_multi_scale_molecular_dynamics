@@ -3,6 +3,7 @@ import torch
 from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
+from crystal_diffusion.models.loss import LossParameters
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 ValidOptimizerName)
 from crystal_diffusion.models.position_diffusion_lightning_model import (
@@ -58,6 +59,7 @@ class FakePositionsDataModule(LightningDataModule):
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
+@pytest.mark.parametrize("loss_algorithm", ['mse', 'weighted_mse'])
 class TestPositionDiffusionLightningModel:
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
@@ -84,7 +86,7 @@ class TestPositionDiffusionLightningModel:
         return None
 
     @pytest.fixture()
-    def hyper_params(self, number_of_atoms, spatial_dimension, optimizer_name, scheduler_name):
+    def hyper_params(self, number_of_atoms, spatial_dimension, optimizer_name, scheduler_name, loss_algorithm):
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             n_hidden_dimensions=3,
@@ -111,11 +113,14 @@ class TestPositionDiffusionLightningModel:
 
         noise_parameters = NoiseParameters(total_time_steps=15)
 
+        loss_parameters = LossParameters(algorithm=loss_algorithm)
+
         hyper_params = PositionDiffusionParameters(
             score_network_parameters=score_network_parameters,
             optimizer_parameters=optimizer_parameters,
             scheduler_parameters=scheduler_parameters,
             noise_parameters=noise_parameters,
+            loss_parameters=loss_parameters
         )
         return hyper_params
 
