@@ -197,7 +197,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         loss = self.loss_calculator.calculate_loss(predicted_normalized_scores,
                                                    target_normalized_conditional_scores,
-                                                   sigmas)
+                                                   sigmas.to(self.device))
 
         output = dict(loss=loss,
                       sigmas=sigmas,
