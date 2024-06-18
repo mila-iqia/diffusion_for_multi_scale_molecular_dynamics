@@ -3,7 +3,7 @@ from typing import Tuple
 import torch
 
 
-def broadcast_batch_tensor_to_all_dimensions(batch_values: torch.Tensor, final_shape: Tuple[int]) -> torch.Tensor:
+def broadcast_batch_tensor_to_all_dimensions(batch_values: torch.Tensor, final_shape: Tuple[int, ...]) -> torch.Tensor:
     """Broadcast batch tensor to all dimensions.
 
     A data batch is typically a tensor of shape [batch_size, n1, n2, ...] where n1, n2, etc constitute

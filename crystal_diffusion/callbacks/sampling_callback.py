@@ -55,6 +55,8 @@ class PredictorCorrectorSamplingParameters(SamplingParameters):
 class ODESamplingParameters(SamplingParameters):
     """Hyper-parameters for diffusion sampling with the ode algorithm."""
     algorithm: str = 'ode'
+    absolute_solver_tolerance: float = 1.0e-3
+    relative_solver_tolerance: float = 1.0e-2
 
 
 def instantiate_diffusion_sampling_callback(callback_params: Dict[AnyStr, Any],

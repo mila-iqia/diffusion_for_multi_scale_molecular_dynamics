@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import pytorch_lightning as pl
 import torch
 
+from crystal_diffusion.models.loss import LossCalculator, LossParameters
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
@@ -37,8 +38,8 @@ logger = logging.getLogger(__name__)
 @dataclass(kw_only=True)
 class PositionDiffusionParameters:
     """Position Diffusion parameters."""
-
     score_network_parameters: ScoreNetworkParameters
+    loss_parameters: LossParameters
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: typing.Union[SchedulerParameters, None] = None
     noise_parameters: NoiseParameters
@@ -79,6 +80,8 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.sigma_normalized_score_network = score_network(
             hyper_params.score_network_parameters
         )
+
+        self.loss_calculator = LossCalculator(hyper_params.loss_parameters)
 
         self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
@@ -192,11 +195,13 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         use_conditional = None if no_conditional is False else False
         predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch, conditional=use_conditional)
 
-        loss = torch.nn.functional.mse_loss(
-            predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
-        )
+        unreduced_loss = self.loss_calculator.calculate_unreduced_loss(predicted_normalized_scores,
+                                                                       target_normalized_conditional_scores,
+                                                                       sigmas.to(self.device))
+        loss = torch.mean(unreduced_loss)
 
         output = dict(loss=loss,
+                      unreduced_loss=unreduced_loss.detach(),
                       sigmas=sigmas,
                       predicted_normalized_scores=predicted_normalized_scores.detach(),
                       target_normalized_conditional_scores=target_normalized_conditional_scores)
