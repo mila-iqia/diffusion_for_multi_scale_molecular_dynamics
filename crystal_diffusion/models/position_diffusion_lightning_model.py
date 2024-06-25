@@ -10,12 +10,7 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
                                                 load_scheduler_dictionary)
-from crystal_diffusion.models.score_networks.diffusion_mace_score_network import \
-    DiffusionMACEScoreNetwork
-from crystal_diffusion.models.score_networks.mace_score_network import \
-    MACEScoreNetwork
-from crystal_diffusion.models.score_networks.mlp_score_network import \
-    MLPScoreNetwork
+from crystal_diffusion.models.score_networks import create_score_network
 from crystal_diffusion.models.score_networks.score_network import \
     ScoreNetworkParameters
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
@@ -67,19 +62,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.grads_are_needed_in_inference = False
 
         # we will model sigma x score
-        architecture = hyper_params.score_network_parameters.architecture
-        if architecture == 'mlp':
-            score_network = MLPScoreNetwork
-        elif architecture == 'mace':
-            score_network = MACEScoreNetwork
-        elif architecture == 'diffusion_mace':
-            score_network = DiffusionMACEScoreNetwork
-        else:
-            raise NotImplementedError(f'Architecture {architecture} is not implemented.')
-
-        self.sigma_normalized_score_network = score_network(
-            hyper_params.score_network_parameters
-        )
+        self.sigma_normalized_score_network = create_score_network(hyper_params.score_network_parameters)
 
         self.loss_calculator = LossCalculator(hyper_params.loss_parameters)
 
