@@ -68,9 +68,9 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
 
     batch_size, n_atom_per_graph, spatial_dimension = noisy_cartesian_positions.shape
     device = noisy_cartesian_positions.device
-    adj_matrix, shift_matrix, batch_tensor = get_adj_matrix(positions=noisy_cartesian_positions,
-                                                            basis_vectors=cell,
-                                                            radial_cutoff=radial_cutoff)
+    adj_matrix, shift_matrix, batch_tensor, _ = get_adj_matrix(positions=noisy_cartesian_positions,
+                                                               basis_vectors=cell,
+                                                               radial_cutoff=radial_cutoff)
     # node features are int corresponding to atom type
     # TODO handle different atom types
     node_attrs = torch.nn.functional.one_hot((torch.ones(batch_size * n_atom_per_graph) * 14).long(),
