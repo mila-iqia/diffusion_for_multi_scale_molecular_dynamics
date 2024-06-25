@@ -8,7 +8,7 @@ from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
 from mace.modules.utils import get_edge_vectors_and_lengths
 from torch_geometric.data import Data
 
-from crystal_diffusion.models.mace_utils import get_adj_matrix
+from crystal_diffusion.models.mace_utils import get_adj_matrix, reshape_from_mace_to_e3nn, reshape_from_e3nn_to_mace
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
 
@@ -358,7 +358,12 @@ class DiffusionMACE(torch.nn.Module):
 
             if self.interactions_tanh is not None:
                 batch_size, nf_irreps = node_feats.size(0), node_feats.size(-1)  # reshaping for e3nn implementation
-                node_feats = self.interactions_tanh[i](node_feats.view(batch_size, -1)).view(batch_size, -1, nf_irreps)
+                # reshape from (node, channels, (l_max + 1)**2) to a (node, -1) tensor compatible with e3nn
+                node_feats = reshape_from_mace_to_e3nn(node_feats, self.interactions_tanh[i].irreps_in)
+                # apply non-linearity
+                node_feats = self.interactions_tanh[i](node_feats)
+                # reshape from e3nn shape to mace format (node, channels, (l_max+1)**2)
+                node_feats = reshape_from_e3nn_to_mace(node_feats, self.interactions_tanh[i].irreps_out)
 
             node_feats = product(
                 node_feats=node_feats,

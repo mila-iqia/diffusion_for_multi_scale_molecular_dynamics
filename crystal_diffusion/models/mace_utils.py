@@ -211,3 +211,22 @@ def get_normalized_irreps_permutation_indices(irreps: o3.Irreps) -> Tuple[o3.Irr
     sorted_irreps = sorted_output.irreps.simplify()
 
     return sorted_irreps, column_permutation_indices
+
+
+def reshape_from_mace_to_e3nn(x: torch.Tensor, irreps: o3.Irreps):
+    node = x.size(0)
+    # x : node, channel, irreps index
+    x_ = []
+    for ell in range(irreps.lmax + 1):
+        x_l = x[:, :, (ell ** 2):(ell + 1)**2].reshape(node, -1)  # node, channel * (2l + 1)
+        x_.append(x_l)
+    return torch.cat(x_, dim=-1)
+
+
+def reshape_from_e3nn_to_mace(x, irreps):
+    node = x.size(0)
+    x_ = []
+    for ell, s in enumerate(irreps.slices()):
+        x_l = x[:, s].reshape(node, -1, 2 * ell + 1)
+        x_.append(x_l)
+    return torch.cat(x_, dim=-1)
