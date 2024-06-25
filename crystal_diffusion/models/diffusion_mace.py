@@ -359,7 +359,6 @@ class DiffusionMACE(torch.nn.Module):
             )
 
             if self.interactions_tanh is not None:
-                batch_size, nf_irreps = node_feats.size(0), node_feats.size(-1)  # reshaping for e3nn implementation
                 # reshape from (node, channels, (l_max + 1)**2) to a (node, -1) tensor compatible with e3nn
                 node_feats = reshape_from_mace_to_e3nn(node_feats, self.interactions_tanh[i].irreps_in)
                 # apply non-linearity
