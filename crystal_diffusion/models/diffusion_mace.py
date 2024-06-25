@@ -8,7 +8,9 @@ from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
 from mace.modules.utils import get_edge_vectors_and_lengths
 from torch_geometric.data import Data
 
-from crystal_diffusion.models.mace_utils import get_adj_matrix, reshape_from_mace_to_e3nn, reshape_from_e3nn_to_mace
+from crystal_diffusion.models.mace_utils import (get_adj_matrix,
+                                                 reshape_from_e3nn_to_mace,
+                                                 reshape_from_mace_to_e3nn)
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
 
