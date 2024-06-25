@@ -2,7 +2,7 @@ from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 
 import torch
 from e3nn import o3
-from e3nn.nn import Activation, BatchNorm
+from e3nn.nn import Activation, BatchNorm, NormActivation
 from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
                           LinearNodeEmbeddingBlock, RadialEmbeddingBlock)
 from mace.modules.utils import get_edge_vectors_and_lengths
@@ -112,6 +112,7 @@ class DiffusionMACE(torch.nn.Module):
         radial_type: Optional[str] = "bessel",
         condition_embedding_size: int = 64,  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
         use_batchnorm: bool = False,
+        tanh_after_interaction: bool = True,
     ):
         """Init method."""
         assert num_elements == 1, "only a single element can be used at this time. Set 'num_elements' to 1."
@@ -187,21 +188,23 @@ class DiffusionMACE(torch.nn.Module):
         )
         edge_feats_irreps = o3.Irreps([(self.radial_embedding.out_dim, scalar_irrep)])
 
-        self.edge_attribute_mixing = o3.FullyConnectedTensorProduct(irreps_in1=diffusion_scalar_irreps_out,
-                                                                    irreps_in2=edge_feats_irreps,
-                                                                    irreps_out=edge_hidden_irreps,
-                                                                    irrep_normalization='norm')
-        self.edge_hidden_layers = torch.nn.Sequential()
-        edge_non_linearity = Activation(irreps_in=edge_hidden_irreps, acts=[gate])
-        for i in range(num_edge_hidden_layers):
-            if i != 0:
-                self.edge_hidden_layers.append(edge_non_linearity)
-            edge_hidden_layer = o3.Linear(irreps_in=edge_hidden_irreps,
-                                          irreps_out=edge_hidden_irreps,
-                                          biases=False)
-            self.edge_hidden_layers.append(edge_hidden_layer)
-            bn = BatchNorm(edge_hidden_irreps)
-            self.edge_hidden_layers.append(bn)
+        if num_edge_hidden_layers > 0:
+            self.edge_attribute_mixing = o3.FullyConnectedTensorProduct(irreps_in1=diffusion_scalar_irreps_out,
+                                                                        irreps_in2=edge_feats_irreps,
+                                                                        irreps_out=edge_hidden_irreps,
+                                                                        irrep_normalization='norm')
+            self.edge_hidden_layers = torch.nn.Sequential()
+            edge_non_linearity = Activation(irreps_in=edge_hidden_irreps, acts=[gate])
+            for i in range(num_edge_hidden_layers):
+                if i != 0:
+                    self.edge_hidden_layers.append(edge_non_linearity)
+                edge_hidden_layer = o3.Linear(irreps_in=edge_hidden_irreps,
+                                              irreps_out=edge_hidden_irreps,
+                                              biases=False)
+                self.edge_hidden_layers.append(edge_hidden_layer)
+        else:
+            self.edge_attribute_mixing, self.edge_hidden_layers = None, None
+            edge_hidden_irreps = edge_feats_irreps
 
         # The "spherical harmonics" correspond to Y_{lm} in the definition of A^{(1)}, eq. 9 of the PAPER.
         sh_irreps = o3.Irreps.spherical_harmonics(max_ell)
@@ -227,6 +230,11 @@ class DiffusionMACE(torch.nn.Module):
             radial_MLP=radial_MLP,
         )
         self.interactions = torch.nn.ModuleList([inter])
+
+        if tanh_after_interaction:
+            self.interactions_tanh = torch.nn.ModuleList([NormActivation(inter.target_irreps, torch.tanh)])
+        else:
+            self.interactions_tanh = None
 
         # 'sc' means 'self-connection', namely a 'residual-like' connection, h^{t+1} = m^{t} + (sc) x h^{(t)}
         # Use the appropriate self connection at the first layer for proper E0
@@ -271,6 +279,9 @@ class DiffusionMACE(torch.nn.Module):
                 radial_MLP=radial_MLP,
             )
             self.interactions.append(inter)
+
+            if self.interactions_tanh is not None:
+                self.interactions_tanh.append(NormActivation(interaction_irreps, torch.tanh))
 
             # prod compute h^{(t+1)} from A^{(t)} and h^{(t)}, computing B and the messages internally.
             prod = EquivariantProductBasisBlock(
@@ -343,6 +354,11 @@ class DiffusionMACE(torch.nn.Module):
                 edge_feats=edge_feats,
                 edge_index=data["edge_index"],
             )
+
+            if self.interactions_tanh is not None:
+                batch_size, nf_irreps = node_feats.size(0), node_feats.size(-1)  # reshaping for e3nn implementation
+                node_feats = self.interactions_tanh[i](node_feats.view(batch_size, -1)).view(batch_size, -1, nf_irreps)
+
             node_feats = product(
                 node_feats=node_feats,
                 sc=sc,

@@ -25,7 +25,7 @@ class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
     r_max: float = 5.0
     num_bessel: int = 8
     num_polynomial_cutoff: int = 5
-    num_edge_hidden_layers: int = 1
+    num_edge_hidden_layers: int = 0  # layers mixing sigma in edge features. Set to 0 to not add sigma in edges
     edge_hidden_irreps: str = "16x0e"
     max_ell: int = 2
     interaction_cls: str = "RealAgnosticResidualInteractionBlock"
@@ -41,6 +41,7 @@ class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
     radial_type: str = "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
     condition_embedding_size: int = 64  # dimension of the conditional variable embedding - assumed to be l=1 (odd)
     use_batchnorm: bool = False
+    tanh_after_interaction: bool = True  # use a tanh non-linearity (based on irreps norm) in the message-passing
 
 
 class DiffusionMACEScoreNetwork(ScoreNetwork):
@@ -79,7 +80,8 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             radial_MLP=hyper_params.radial_MLP,
             radial_type=hyper_params.radial_type,
             condition_embedding_size=hyper_params.condition_embedding_size,
-            use_batchnorm=hyper_params.use_batchnorm
+            use_batchnorm=hyper_params.use_batchnorm,
+            tanh_after_interaction=hyper_params.tanh_after_interaction
         )
 
         self._natoms = hyper_params.number_of_atoms
