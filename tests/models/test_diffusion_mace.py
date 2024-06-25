@@ -134,6 +134,8 @@ class TestDiffusionMace:
         hps = dict(r_max=r_max,
                    num_bessel=8,
                    num_polynomial_cutoff=5,
+                   num_edge_hidden_layers=0,
+                   edge_hidden_irreps=o3.Irreps("8x0e"),
                    max_ell=2,
                    num_elements=1,
                    atomic_numbers=[14],
@@ -147,7 +149,8 @@ class TestDiffusionMace:
                    correlation=2,
                    gate=gate_dict["silu"],
                    radial_MLP=[8, 8, 8],
-                   radial_type="bessel")
+                   radial_type="bessel",
+                   )
         return hps
 
     @pytest.fixture()
