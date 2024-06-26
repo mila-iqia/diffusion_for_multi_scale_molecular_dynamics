@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import pytorch_lightning as pl
 import torch
 
-from crystal_diffusion.models.loss import LossCalculator, LossParameters
+from crystal_diffusion.models.loss import (LossParameters,
+                                           create_loss_calculator)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
@@ -64,7 +65,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         # we will model sigma x score
         self.sigma_normalized_score_network = create_score_network(hyper_params.score_network_parameters)
 
-        self.loss_calculator = LossCalculator(hyper_params.loss_parameters)
+        self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
         self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)

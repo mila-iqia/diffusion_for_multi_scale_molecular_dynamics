@@ -2,7 +2,7 @@
 import logging
 from typing import Any, AnyStr, Dict
 
-from crystal_diffusion.models.loss import LossParameters
+from crystal_diffusion.models.loss import create_loss_parameters
 from crystal_diffusion.models.optimizer import create_optimizer_parameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
@@ -26,18 +26,16 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
     globals_dict = dict(max_atom=hyper_params['data']['max_atom'],
                         spatial_dimension=hyper_params.get('spatial_dimension', 3))
 
-    score_network_dictionary = hyper_params['model']['score_network']
-    score_network_parameters = create_score_network_parameters(score_network_dictionary, globals_dict)
+    score_network_dict = hyper_params['model']['score_network']
+    score_network_parameters = create_score_network_parameters(score_network_dict, globals_dict)
 
-    optimizer_configuration_dictionary = hyper_params['optimizer']
-    optimizer_parameters = create_optimizer_parameters(optimizer_configuration_dictionary)
+    optimizer_configuration_dict = hyper_params['optimizer']
+    optimizer_parameters = create_optimizer_parameters(optimizer_configuration_dict)
 
     scheduler_parameters = create_scheduler_parameters(hyper_params)
 
-    if "loss" in hyper_params['model']:
-        loss_parameters = LossParameters(**hyper_params['model']['loss'])
-    else:
-        loss_parameters = LossParameters()
+    model_dict = hyper_params['model']
+    loss_parameters = create_loss_parameters(model_dict)
 
     noise_dict = hyper_params['model']['noise']
     noise_parameters = NoiseParameters(**noise_dict)
