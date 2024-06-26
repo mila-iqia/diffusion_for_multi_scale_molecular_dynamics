@@ -23,11 +23,11 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
     Returns:
         Diffusion model randomly initialized
     """
-    global_parameters = dict(max_atom=hyper_params['data']['max_atom'],
-                             spatial_dimension=hyper_params.get('spatial_dimension', 3))
+    globals_dict = dict(max_atom=hyper_params['data']['max_atom'],
+                        spatial_dimension=hyper_params.get('spatial_dimension', 3))
 
     score_network_dictionary = hyper_params['model']['score_network']
-    score_network_parameters = create_score_network_parameters(score_network_dictionary, global_parameters)
+    score_network_parameters = create_score_network_parameters(score_network_dictionary, globals_dict)
 
     optimizer_configuration_dictionary = hyper_params['optimizer']
     optimizer_parameters = create_optimizer_parameters(optimizer_configuration_dictionary)
