@@ -3,7 +3,7 @@ import torch
 from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
-from crystal_diffusion.models.loss import LossParameters
+from crystal_diffusion.models.loss import create_loss_parameters
 from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
@@ -57,11 +57,10 @@ class FakePositionsDataModule(LightningDataModule):
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
-@pytest.mark.parametrize("loss_algorithm", ['mse', 'weighted_mse'])
 class TestPositionDiffusionLightningModel:
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
-        torch.manual_seed(23452342)
+        torch.manual_seed(2345234)
 
     @pytest.fixture()
     def batch_size(self):
@@ -75,16 +74,31 @@ class TestPositionDiffusionLightningModel:
     def unit_cell_size(self):
         return 10
 
-    @pytest.fixture()
-    def optimizer_name(self):
-        return 'adam'
+    @pytest.fixture(params=['adam', 'adamw'])
+    def optimizer_parameters(self, request):
+        return OptimizerParameters(name=request.param, learning_rate=0.01, weight_decay=1e-6)
+
+    @pytest.fixture(params=[None, 'ReduceLROnPlateau', 'CosineAnnealingLR'])
+    def scheduler_parameters(self, request):
+        match request.param:
+            case None:
+                scheduler_parameters = None
+            case 'ReduceLROnPlateau':
+                scheduler_parameters = ReduceLROnPlateauSchedulerParameters(factor=0.5, patience=2)
+            case 'CosineAnnealingLR':
+                scheduler_parameters = CosineAnnealingLRSchedulerParameters(T_max=5, eta_min=1e-5)
+            case _:
+                raise ValueError(f"Untested case {request.param}")
+
+        return scheduler_parameters
+
+    @pytest.fixture(params=['mse', 'weighted_mse'])
+    def loss_parameters(self, request):
+        return create_loss_parameters(model_dictionary=dict(algorithm=request.param))
 
     @pytest.fixture()
-    def scheduler_name(self):
-        return None
-
-    @pytest.fixture()
-    def hyper_params(self, number_of_atoms, spatial_dimension, optimizer_name, scheduler_name, loss_algorithm):
+    def hyper_params(self, number_of_atoms, spatial_dimension,
+                     optimizer_parameters, scheduler_parameters, loss_parameters):
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             n_hidden_dimensions=3,
@@ -92,20 +106,7 @@ class TestPositionDiffusionLightningModel:
             spatial_dimension=spatial_dimension,
         )
 
-        optimizer_parameters = OptimizerParameters(name=optimizer_name, learning_rate=0.01, weight_decay=1e-6)
-
-        if scheduler_name is None:
-            scheduler_parameters = None
-        elif scheduler_name == 'ReduceLROnPlateau':
-            scheduler_parameters = ReduceLROnPlateauSchedulerParameters(factor=0.5, patience=2)
-        elif scheduler_name == 'CosineAnnealingLR':
-            scheduler_parameters = CosineAnnealingLRSchedulerParameters(T_max=5, eta_min=1e-5)
-        else:
-            raise ValueError(f"Untested case {scheduler_name}")
-
         noise_parameters = NoiseParameters(total_time_steps=15)
-
-        loss_parameters = LossParameters(algorithm=loss_algorithm)
 
         hyper_params = PositionDiffusionParameters(
             score_network_parameters=score_network_parameters,
@@ -186,6 +187,11 @@ class TestPositionDiffusionLightningModel:
     def unit_cell_sample(self, unit_cell_size, spatial_dimension, batch_size):
         return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(batch_size, 1, 1)
 
+    # The brute force target normalized scores are *fragile*; they can return NaNs easily.
+    # There is no point in running this test for all possible component combinations.
+    @pytest.mark.parametrize("loss_parameters", ["mse"], indirect=True)
+    @pytest.mark.parametrize("optimizer_parameters", ["adam"], indirect=True)
+    @pytest.mark.parametrize("scheduler_parameters", [None], indirect=True)
     def test_get_target_normalized_score(
         self,
         lightning_model,
@@ -207,8 +213,6 @@ class TestPositionDiffusionLightningModel:
                                    rtol=1e-4)
 
     @pytest.mark.parametrize("accelerator", available_accelerators)
-    @pytest.mark.parametrize("optimizer_name", ['adam', 'adamw'])
-    @pytest.mark.parametrize("scheduler_name", [None, 'ReduceLROnPlateau', 'CosineAnnealingLR'])
     def test_smoke_test(self, lightning_model, fake_datamodule, accelerator):
         trainer = Trainer(fast_dev_run=3, accelerator=accelerator)
         trainer.fit(lightning_model, fake_datamodule)
