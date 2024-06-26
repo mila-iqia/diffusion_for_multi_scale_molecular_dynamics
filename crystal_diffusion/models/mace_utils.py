@@ -226,7 +226,7 @@ def reshape_from_mace_to_e3nn(x: torch.Tensor, irreps: o3.Irreps) -> torch.Tenso
         ---- l = 0 ---- ---- l= 1 ---- ---- l=2 ---- ...
 
     Args:
-        x: torch used by MACE. Should be of size (number of nodes, number of channels, (ell_max + 1)^2
+        x: tensor used by MACE. Should be of size (number of nodes, number of channels, (ell_max + 1)^2)
         irreps: o3 irreps matching the x tensor
 
     Returns:
