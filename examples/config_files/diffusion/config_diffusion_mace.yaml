@@ -27,6 +27,8 @@ model:
     r_max: 5.0
     num_bessel: 8
     num_polynomial_cutoff: 5
+    num_edge_hidden_layers: 0
+    edge_hidden_irreps: 8x0e
     max_ell: 2
     interaction_cls: RealAgnosticResidualInteractionBlock
     interaction_cls_first: RealAgnosticInteractionBlock
@@ -38,10 +40,12 @@ model:
     correlation: 3
     gate: silu
     radial_MLP: [8, 8, 8]
-    radial_type: bessel
+    radial_type: gaussian
     conditional_prob: 0.0
     conditional_gamma: 2
     condition_embedding_size: 64
+    use_batchnorm: False
+    tanh_after_interaction: True
   noise:
     total_time_steps: 100
     sigma_min: 0.001  # default value
