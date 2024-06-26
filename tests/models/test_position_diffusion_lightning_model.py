@@ -8,8 +8,7 @@ from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.scheduler import (
-    CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters,
-    ValidSchedulerName)
+    CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters)
 from crystal_diffusion.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
@@ -98,13 +97,9 @@ class TestPositionDiffusionLightningModel:
         if scheduler_name is None:
             scheduler_parameters = None
         elif scheduler_name == 'ReduceLROnPlateau':
-            scheduler_parameters = ReduceLROnPlateauSchedulerParameters(name=ValidSchedulerName(scheduler_name),
-                                                                        factor=0.5,
-                                                                        patience=2)
+            scheduler_parameters = ReduceLROnPlateauSchedulerParameters(factor=0.5, patience=2)
         elif scheduler_name == 'CosineAnnealingLR':
-            scheduler_parameters = CosineAnnealingLRSchedulerParameters(name=ValidSchedulerName(scheduler_name),
-                                                                        T_max=5,
-                                                                        eta_min=1e-5)
+            scheduler_parameters = CosineAnnealingLRSchedulerParameters(T_max=5, eta_min=1e-5)
         else:
             raise ValueError(f"Untested case {scheduler_name}")
 

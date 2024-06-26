@@ -83,7 +83,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         output = dict(optimizer=optimizer)
 
         if self.hyper_params.scheduler_parameters is not None:
-            scheduler_dict = load_scheduler_dictionary(hyper_params=self.hyper_params.scheduler_parameters,
+            scheduler_dict = load_scheduler_dictionary(scheduler_parameters=self.hyper_params.scheduler_parameters,
                                                        optimizer=optimizer)
             output.update(scheduler_dict)
 
