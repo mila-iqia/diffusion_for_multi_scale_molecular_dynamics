@@ -2,7 +2,6 @@ import pytest
 import torch
 
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerName,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (
     CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters,
@@ -22,7 +21,7 @@ class FakeNeuralNet(torch.nn.Module):
 @pytest.fixture
 def optimizer():
     model = FakeNeuralNet()
-    optimizer_parameters = OptimizerParameters(name=ValidOptimizerName.adam, learning_rate=0.001, weight_decay=1e-6)
+    optimizer_parameters = OptimizerParameters(name='adam', learning_rate=0.001, weight_decay=1e-6)
     optimizer = load_optimizer(optimizer_parameters, model)
     return optimizer
 

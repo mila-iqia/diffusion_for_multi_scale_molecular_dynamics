@@ -4,8 +4,7 @@ from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
 from crystal_diffusion.models.loss import LossParameters
-from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerName)
+from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.scheduler import (
@@ -94,9 +93,7 @@ class TestPositionDiffusionLightningModel:
             spatial_dimension=spatial_dimension,
         )
 
-        optimizer_parameters = OptimizerParameters(
-            name=ValidOptimizerName(optimizer_name), learning_rate=0.01, weight_decay=1e-6
-        )
+        optimizer_parameters = OptimizerParameters(name=optimizer_name, learning_rate=0.01, weight_decay=1e-6)
 
         if scheduler_name is None:
             scheduler_parameters = None

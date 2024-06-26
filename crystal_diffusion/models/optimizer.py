@@ -1,43 +1,61 @@
 import logging
-from dataclasses import dataclass
-from enum import Enum
+from dataclasses import asdict, dataclass
+from typing import Any, Dict
 
 import torch
 from torch import optim
 
+from crystal_diffusion.utils.configuration_parsing import \
+    create_parameters_from_configuration_dictionary
+
 logger = logging.getLogger(__name__)
-
-
-class ValidOptimizerName(Enum):
-    """Valid optimizer names."""
-    adam = "adam"
-    adamw = "adamw"
 
 
 @dataclass(kw_only=True)
 class OptimizerParameters:
     """Parameters for the optimizer."""
-    name: ValidOptimizerName
+    name: str
     learning_rate: float
     weight_decay: float = 0.0
 
 
-def load_optimizer(hyper_params: OptimizerParameters, model: torch.nn.Module) -> optim.Optimizer:
+OPTIMIZERS_BY_NAME = dict(adam=optim.Adam, adamw=optim.AdamW)
+OPTIMIZER_PARAMETERS_BY_NAME = dict(adam=OptimizerParameters, adamw=OptimizerParameters)
+
+
+def create_optimizer_parameters(optimizer_configuration_dictionary: Dict[str, Any]) -> OptimizerParameters:
+    """Create Optimizer Parameters.
+
+    Args:
+        optimizer_configuration_dictionary : optimizer-related parameters.
+
+    Returns:
+        optimizer_parameters: a Dataclass with the optimizer parameters.
+    """
+    optimizer_parameters = (
+        create_parameters_from_configuration_dictionary(configuration=optimizer_configuration_dictionary,
+                                                        identifier="name",
+                                                        options=OPTIMIZER_PARAMETERS_BY_NAME))
+    return optimizer_parameters
+
+
+def load_optimizer(optimizer_parameters: OptimizerParameters, model: torch.nn.Module) -> optim.Optimizer:
     """Instantiate the optimizer.
 
     Args:
-        hyper_params : hyperparameters defining the optimizer
+        optimizer_parameters: hyperparameters defining the optimizer
         model : A neural network model.
 
     Returns:
         optimizer : The optimizer for the given model
     """
-    parameters_dict = dict(lr=hyper_params.learning_rate, weight_decay=hyper_params.weight_decay)
-    match hyper_params.name:
-        case ValidOptimizerName.adam:
-            optimizer = optim.Adam(model.parameters(), **parameters_dict)
-        case ValidOptimizerName.adamw:
-            optimizer = optim.AdamW(model.parameters(), **parameters_dict)
-        case _:
-            raise ValueError(f"optimizer {hyper_params.name} not supported")
-    return optimizer
+    assert optimizer_parameters.name in OPTIMIZERS_BY_NAME.keys(), \
+        f"Optimizer '{optimizer_parameters.name}' is not defined."
+    optimizer_class = OPTIMIZERS_BY_NAME[optimizer_parameters.name]
+
+    # Adapt the input configurations to the optimizer constructor expectations.
+    parameters_dict = asdict(optimizer_parameters)
+    parameters_dict.pop('name')
+    parameters_dict['lr'] = parameters_dict.pop('learning_rate')
+
+    return optimizer_class(model.parameters(), **parameters_dict)

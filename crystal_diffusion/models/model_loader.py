@@ -3,8 +3,7 @@ import logging
 from typing import Any, AnyStr, Dict
 
 from crystal_diffusion.models.loss import LossParameters
-from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerName)
+from crystal_diffusion.models.optimizer import create_optimizer_parameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.scheduler import get_scheduler_parameters
@@ -32,11 +31,8 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
     score_network_dictionary = hyper_params['model']['score_network']
     score_network_parameters = create_score_network_parameters(score_network_dictionary, global_parameters)
 
-    hyper_params['optimizer']['name'] = ValidOptimizerName(hyper_params['optimizer']['name'])
-
-    optimizer_parameters = OptimizerParameters(
-        **hyper_params['optimizer']
-    )
+    optimizer_configuration_dictionary = hyper_params['optimizer']
+    optimizer_parameters = create_optimizer_parameters(optimizer_configuration_dictionary)
 
     scheduler_parameters = get_scheduler_parameters(hyper_params)
 
