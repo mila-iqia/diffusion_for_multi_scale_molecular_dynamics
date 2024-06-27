@@ -21,8 +21,19 @@ from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 @pytest.mark.parametrize("number_of_atoms", [4])
 @pytest.mark.parametrize("sample_batchsize", [None, 8, 4])
 @pytest.mark.parametrize("record_samples", [True, False])
-@pytest.mark.parametrize("algorithm, number_of_corrector_steps", [('predictor_corrector', 1), ('ode', None)])
 class TestSamplingCallback:
+
+    @pytest.fixture(params=['predictor_corrector', 'ode'])
+    def algorithm(self, request):
+        return request.param
+
+    @pytest.fixture()
+    def number_of_corrector_steps(self, algorithm):
+        if algorithm == 'predictor_corrector':
+            return 1
+        else:
+            return 0
+
     @pytest.fixture()
     def mock_create_generator(self):
         generator = MagicMock()

@@ -1,7 +1,9 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.loss import LossCalculator, LossParameters
+from crystal_diffusion.models.loss import (MSELossParameters,
+                                           WeightedMSELossParameters,
+                                           create_loss_calculator)
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
@@ -59,14 +61,26 @@ def weights(sigmas, sigma0, exponent):
     return 1.0 + torch.exp(exponent * (sigmas - sigma0))
 
 
+@pytest.fixture(params=['mse', 'weighted_mse'])
+def algorithm(request):
+    return request.param
+
+
 @pytest.fixture()
 def loss_parameters(algorithm, sigma0, exponent):
-    return LossParameters(algorithm=algorithm, sigma0=sigma0, exponent=exponent)
+    match algorithm:
+        case 'mse':
+            parameters = MSELossParameters()
+        case 'weighted_mse':
+            parameters = WeightedMSELossParameters(sigma0=sigma0, exponent=exponent)
+        case _:
+            raise ValueError(f'Unknown loss algorithm {algorithm}')
+    return parameters
 
 
 @pytest.fixture()
 def loss_calculator(loss_parameters):
-    return LossCalculator(loss_parameters)
+    return create_loss_calculator(loss_parameters)
 
 
 @pytest.fixture()
@@ -79,16 +93,17 @@ def computed_loss(loss_calculator, predicted_normalized_scores, target_normalize
 
 @pytest.fixture()
 def expected_loss(algorithm, weights, predicted_normalized_scores, target_normalized_conditional_scores, sigmas):
-    if algorithm == 'mse':
-        loss = torch.nn.functional.mse_loss(
-            predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
-        )
-    else:
-        return torch.mean(weights * (predicted_normalized_scores - target_normalized_conditional_scores)**2)
-
+    match algorithm:
+        case 'mse':
+            loss = torch.nn.functional.mse_loss(
+                predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
+            )
+        case 'weighted_mse':
+            loss = torch.mean(weights * (predicted_normalized_scores - target_normalized_conditional_scores)**2)
+        case _:
+            raise ValueError(f'Unknown loss algorithm {algorithm}')
     return loss
 
 
-@pytest.mark.parametrize("algorithm", ['mse', 'weighted_mse'])
 def test_mse_loss(computed_loss, expected_loss):
     torch.testing.assert_close(computed_loss, expected_loss)

@@ -144,7 +144,7 @@ class TestTrainDiffusion(TestDiffusionDataBase):
     def all_paths(self, paths, tmpdir, config):
         all_paths = dict(data=paths['raw_data_dir'], processed_datadir=paths['processed_data_dir'])
 
-        for directory_name in ['dataset_working_dir', 'tmp-folder', 'output']:
+        for directory_name in ['dataset_working_dir', 'output']:
             # use random names to make sure we didn't accidentally hardcode a folder name.
             directory = os.path.join(tmpdir, f"{directory_name}_{np.random.randint(99999999)}")
             all_paths[directory_name] = directory
@@ -163,7 +163,6 @@ class TestTrainDiffusion(TestDiffusionDataBase):
                       f"--data={all_paths['data']}",
                       f"--processed_datadir={all_paths['processed_datadir']}",
                       f"--dataset_working_dir={all_paths['dataset_working_dir']}",
-                      f"--tmp-folder={all_paths['tmp-folder']}",
                       f"--output={all_paths['output']}",
                       f"--accelerator={'cpu'}",
                       f"--devices={1}"]

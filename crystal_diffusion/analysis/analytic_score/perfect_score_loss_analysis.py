@@ -11,12 +11,11 @@ from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import get_exact_samples
 from crystal_diffusion.callbacks.loss_monitoring_callback import \
     LossMonitoringCallback
-from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerName)
+from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
-from crystal_diffusion.models.scheduler import (
-    CosineAnnealingLRSchedulerParameters, ValidSchedulerName)
+from crystal_diffusion.models.scheduler import \
+    CosineAnnealingLRSchedulerParameters
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.namespace import RELATIVE_COORDINATES
@@ -74,8 +73,8 @@ noise_parameters = NoiseParameters(total_time_steps=100,
 
 
 # We will not optimize, so  this doesn't matter
-dummy_optimizer_parameters = OptimizerParameters(name=ValidOptimizerName.adam, learning_rate=0.001, weight_decay=0.0)
-dummy_scheduler_parameters = CosineAnnealingLRSchedulerParameters(name=ValidSchedulerName.cosine_annealing_lr, T_max=10)
+dummy_optimizer_parameters = OptimizerParameters(name='adam', learning_rate=0.001, weight_decay=0.0)
+dummy_scheduler_parameters = CosineAnnealingLRSchedulerParameters(T_max=10)
 
 loss_monitoring_callback = LossMonitoringCallback(number_of_bins=50,
                                                   sample_every_n_epochs=1,

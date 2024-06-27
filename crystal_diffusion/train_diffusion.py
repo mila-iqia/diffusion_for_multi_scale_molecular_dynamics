@@ -19,7 +19,6 @@ from crystal_diffusion.main_utils import (MetricResult,
                                           load_and_backup_hyperparameters,
                                           report_to_orion_if_on)
 from crystal_diffusion.models.model_loader import load_diffusion_model
-from crystal_diffusion.utils.file_utils import rsync_folder
 from crystal_diffusion.utils.hp_utils import check_and_log_hp
 from crystal_diffusion.utils.logging_utils import (log_exp_details,
                                                    setup_console_logger)
@@ -43,10 +42,6 @@ def main(args: typing.Optional[typing.Any] = None):
     parser.add_argument('--processed_datadir', help='path to the processed data directory', required=True)
     parser.add_argument('--dataset_working_dir', help='path to the Datasets working directory. Defaults to None',
                         default=None)
-    parser.add_argument('--tmp-folder',
-                        help='will use this folder as working folder - it will copy the input data '
-                             'here, generate results here, and then copy them back to the output '
-                             'folder')  # TODO possibly remove this
     parser.add_argument('--output', help='path to outputs - will store files here', required=True)
     parser.add_argument('--disable-progressbar', action='store_true',
                         help='will disable the progressbar while going over the mini-batch')
@@ -71,22 +66,13 @@ def main(args: typing.Optional[typing.Any] = None):
     logger.info(first_logging_message)
     log_exp_details(os.path.realpath(__file__), args)
 
-    if args.tmp_folder is not None:
-        # TODO data rsync to tmp_folder
-        output_dir = os.path.join(args.tmp_folder, 'output')
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-    else:
-        output_dir = args.output
+    output_dir = args.output
 
     hyper_params = load_and_backup_hyperparameters(config_file_path=args.config, output_directory=output_dir)
 
     logger.info("Input hyper-parameters:\n" + yaml.dump(hyper_params, allow_unicode=True, default_flow_style=False))
 
     run(args, output_dir, hyper_params)
-
-    if args.tmp_folder is not None:
-        rsync_folder(output_dir + os.path.sep, args.output)
 
 
 def run(args, output_dir, hyper_params):

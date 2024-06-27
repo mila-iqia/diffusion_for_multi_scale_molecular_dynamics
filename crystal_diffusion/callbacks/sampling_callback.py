@@ -321,7 +321,7 @@ class PredictorCorrectorDiffusionSamplingCallback(DiffusionSamplingCallback):
                                   number_of_atoms=self.sampling_parameters.number_of_atoms,
                                   spatial_dimension=self.sampling_parameters.spatial_dimension,
                                   record_samples=self.sampling_parameters.record_samples,
-                                  positions_require_grad=pl_model.grads_are_needed_in_inference)
+                                  positions_require_grad=False)
 
         generator = AnnealedLangevinDynamicsGenerator(sigma_normalized_score_network=sigma_normalized_score_network,
                                                       **sampler_parameters)

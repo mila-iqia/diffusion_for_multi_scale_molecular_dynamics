@@ -2,7 +2,6 @@ import pytest
 import torch
 
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerName,
                                                 load_optimizer)
 
 
@@ -21,17 +20,24 @@ def model():
     return FakeNeuralNet()
 
 
+@pytest.fixture(params=[None, 1e-6])
+def weight_decay(request):
+    return request.param
+
+
+@pytest.fixture(params=['adam', 'adamw'])
+def optimizer_name(request):
+    return request.param
+
+
 @pytest.fixture()
 def optimizer_parameters(optimizer_name, weight_decay):
-    valid_optimizer_name = ValidOptimizerName(optimizer_name)
-    if weight_decay is False:
-        return OptimizerParameters(name=valid_optimizer_name, learning_rate=0.01)
-    if weight_decay is True:
-        return OptimizerParameters(name=valid_optimizer_name, learning_rate=0.01, weight_decay=1e-6)
+    if weight_decay:
+        return OptimizerParameters(name=optimizer_name, learning_rate=0.01, weight_decay=weight_decay)
+    else:
+        return OptimizerParameters(name=optimizer_name, learning_rate=0.01)
 
 
-@pytest.mark.parametrize("optimizer_name", [option.value for option in list(ValidOptimizerName)])
-@pytest.mark.parametrize("weight_decay", [True, False])
 def test_load_optimizer(optimizer_name, optimizer_parameters, model):
     # This is more of a "smoke test": can the optimizer be instantiated and run without crashing.
     optimizer = load_optimizer(optimizer_parameters, model)

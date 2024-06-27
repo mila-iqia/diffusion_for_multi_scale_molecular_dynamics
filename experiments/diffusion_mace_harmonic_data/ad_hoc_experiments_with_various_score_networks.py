@@ -14,12 +14,11 @@ from crystal_diffusion.callbacks.analysis_callbacks import \
     HarmonicEnergyDiffusionSamplingCallback
 from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
 from crystal_diffusion.callbacks.sampling_callback import SamplingParameters
-from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerName)
+from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
-from crystal_diffusion.models.scheduler import (
-    ReduceLROnPlateauSchedulerParameters, ValidSchedulerName)
+from crystal_diffusion.models.scheduler import \
+    ReduceLROnPlateauSchedulerParameters
 from crystal_diffusion.models.score_networks.diffusion_mace_score_network import \
     DiffusionMACEScoreNetworkParameters
 from crystal_diffusion.models.score_networks.mace_score_network import \
@@ -108,10 +107,8 @@ sampling_parameters = SamplingParameters(spatial_dimension=3,
                                          cell_dimensions=[acell, acell, acell])
 
 
-optimizer_parameters = OptimizerParameters(name=ValidOptimizerName.adamw, learning_rate=0.001, weight_decay=0.0)
-scheduler_parameters = ReduceLROnPlateauSchedulerParameters(name=ValidSchedulerName.reduce_lr_on_plateau,
-                                                            factor=0.5,
-                                                            patience=10)
+optimizer_parameters = OptimizerParameters(name='adamw', learning_rate=0.001, weight_decay=0.0)
+scheduler_parameters = ReduceLROnPlateauSchedulerParameters(factor=0.5, patience=10)
 
 loss_monitoring_parameters = dict(number_of_bins=50, sample_every_n_epochs=1, spatial_dimension=spatial_dimension)
 

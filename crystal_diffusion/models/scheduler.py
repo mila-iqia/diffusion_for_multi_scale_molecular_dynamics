@@ -1,26 +1,24 @@
-import dataclasses
-from dataclasses import dataclass
-from enum import Enum
+from dataclasses import asdict, dataclass
 from typing import Any, AnyStr, Dict, Union
 
 from torch import optim
 
-
-class ValidSchedulerName(Enum):
-    """Valid scheduler names."""
-    reduce_lr_on_plateau = "ReduceLROnPlateau"
-    cosine_annealing_lr = "CosineAnnealingLR"
+from crystal_diffusion.utils.configuration_parsing import \
+    create_parameters_from_configuration_dictionary
 
 
 @dataclass(kw_only=True)
 class SchedulerParameters:
     """Base data class for scheduler parameters."""
-    name: ValidSchedulerName
+
+    name: str
 
 
 @dataclass(kw_only=True)
 class ReduceLROnPlateauSchedulerParameters(SchedulerParameters):
     """Parameters for the reduce LR on plateau scheduler."""
+
+    name: str = "ReduceLROnPlateau"
     factor: float = 0.1
     patience: int = 10
     # The scheduler must be told what to monitor. This is not actually a parameter for the scheduler itself,
@@ -28,8 +26,30 @@ class ReduceLROnPlateauSchedulerParameters(SchedulerParameters):
     monitor: str = "validation_epoch_loss"
 
 
-def get_scheduler_parameters(hyper_params: Dict[str, Any]) -> Union[SchedulerParameters, None]:
-    """Get scheduler parameters.
+@dataclass(kw_only=True)
+class CosineAnnealingLRSchedulerParameters(SchedulerParameters):
+    """Parameters for the reduce LR on plateau scheduler."""
+
+    name: str = "CosineAnnealingLR"
+    T_max: int
+    eta_min: float = 0.0
+
+
+SCHEDULER_PARAMETERS_BY_NAME = dict(
+    CosineAnnealingLR=CosineAnnealingLRSchedulerParameters,
+    ReduceLROnPlateau=ReduceLROnPlateauSchedulerParameters,
+)
+
+SCHEDULERS_BY_NAME = dict(
+    CosineAnnealingLR=optim.lr_scheduler.CosineAnnealingLR,
+    ReduceLROnPlateau=optim.lr_scheduler.ReduceLROnPlateau,
+)
+
+
+def create_scheduler_parameters(
+    hyper_params: Dict[str, Any]
+) -> Union[SchedulerParameters, None]:
+    """Create scheduler parameters.
 
     Extract the relevant information from the general configuration dictionary.
 
@@ -39,51 +59,48 @@ def get_scheduler_parameters(hyper_params: Dict[str, Any]) -> Union[SchedulerPar
     Returns:
         scheduler_parameters: the scheduler parameters.
     """
-    if 'scheduler' not in hyper_params:
+    if "scheduler" not in hyper_params:
         return None
 
-    scheduler_dict = dict(hyper_params['scheduler'])
-    name_str = scheduler_dict.pop('name')
-    scheduler_name = ValidSchedulerName(name_str)
-    scheduler_dict['name'] = scheduler_name
-    match scheduler_name:
-        case ValidSchedulerName.reduce_lr_on_plateau:
-            return ReduceLROnPlateauSchedulerParameters(**scheduler_dict)
-        case ValidSchedulerName.cosine_annealing_lr:
-            return CosineAnnealingLRSchedulerParameters(**scheduler_dict)
-        case _:
-            raise ValueError("Invalid scheduler name.")
+    scheduler_configuration_dict = dict(hyper_params["scheduler"])
+
+    scheduler_parameters = create_parameters_from_configuration_dictionary(
+        configuration=scheduler_configuration_dict,
+        identifier="name",
+        options=SCHEDULER_PARAMETERS_BY_NAME,
+    )
+    return scheduler_parameters
 
 
-@dataclass(kw_only=True)
-class CosineAnnealingLRSchedulerParameters(SchedulerParameters):
-    """Parameters for the reduce LR on plateau scheduler."""
-    T_max: int
-    eta_min: float = 0.0
-
-
-def load_scheduler_dictionary(hyper_params: SchedulerParameters, optimizer: optim.Optimizer) -> Dict[AnyStr, Any]:
+def load_scheduler_dictionary(
+    scheduler_parameters: SchedulerParameters, optimizer: optim.Optimizer
+) -> Dict[AnyStr, Any]:
     """Instantiate the Scheduler.
 
     Args:
-        hyper_params : hyperparameters defining the scheduler
+        scheduler_parameters: hyperparameters defining the scheduler
         optimizer: the optimizer to be scheduled.
 
     Returns:
         scheduler_dict : A dictionary containing the configured scheduler, as well as potentially other needed info.
     """
+    name = scheduler_parameters.name
+    assert (
+        name in SCHEDULERS_BY_NAME.keys()
+    ), f"Scheduler '{name}' is not implemented. Possible choices are {SCHEDULERS_BY_NAME.keys()}"
+
     scheduler_dict = dict()
-    parameters_dict = dataclasses.asdict(hyper_params)
-    parameters_dict.pop('name')
 
-    match hyper_params.name:
-        case ValidSchedulerName.reduce_lr_on_plateau:
-            scheduler_dict["monitor"] = parameters_dict.pop('monitor')
-            scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, **parameters_dict)
-        case ValidSchedulerName.cosine_annealing_lr:
-            scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, **parameters_dict)
-        case _:
-            raise ValueError(f"scheduler {hyper_params.name} not supported")
+    scheduler_class = SCHEDULERS_BY_NAME[name]
 
-    scheduler_dict['lr_scheduler'] = scheduler
+    scheduler_parameters_dict = asdict(scheduler_parameters)
+    scheduler_parameters_dict.pop("name")
+
+    if "monitor" in scheduler_parameters_dict:
+        scheduler_dict["monitor"] = scheduler_parameters_dict.pop("monitor")
+
+    scheduler_dict["lr_scheduler"] = scheduler_class(
+        optimizer, **scheduler_parameters_dict
+    )
+
     return scheduler_dict

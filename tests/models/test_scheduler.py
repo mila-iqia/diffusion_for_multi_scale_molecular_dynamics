@@ -2,11 +2,10 @@ import pytest
 import torch
 
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerName,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (
     CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters,
-    ValidSchedulerName, load_scheduler_dictionary)
+    load_scheduler_dictionary)
 
 
 class FakeNeuralNet(torch.nn.Module):
@@ -22,25 +21,27 @@ class FakeNeuralNet(torch.nn.Module):
 @pytest.fixture
 def optimizer():
     model = FakeNeuralNet()
-    optimizer_parameters = OptimizerParameters(name=ValidOptimizerName.adam, learning_rate=0.001, weight_decay=1e-6)
+    optimizer_parameters = OptimizerParameters(name='adam', learning_rate=0.001, weight_decay=1e-6)
     optimizer = load_optimizer(optimizer_parameters, model)
     return optimizer
 
 
-@pytest.fixture
-def scheduler_parameters(scheduler_name: ValidSchedulerName):
-    valid_scheduler_name = ValidSchedulerName(scheduler_name)
+@pytest.fixture(params=['CosineAnnealingLR', 'ReduceLROnPlateau'])
+def scheduler_name(request):
+    return request.param
 
-    if valid_scheduler_name is ValidSchedulerName.reduce_lr_on_plateau:
-        parameters = ReduceLROnPlateauSchedulerParameters(name=valid_scheduler_name, factor=0.243, patience=17)
-        pass
-    elif valid_scheduler_name is ValidSchedulerName.cosine_annealing_lr:
-        parameters = CosineAnnealingLRSchedulerParameters(name=valid_scheduler_name, T_max=1000, eta_min=0.001)
-    else:
-        raise ValueError(f"Untested case: {valid_scheduler_name}")
+
+@pytest.fixture
+def scheduler_parameters(scheduler_name):
+    match scheduler_name:
+        case 'CosineAnnealingLR':
+            parameters = CosineAnnealingLRSchedulerParameters(name=scheduler_name, T_max=1000, eta_min=0.001)
+        case 'ReduceLROnPlateau':
+            parameters = ReduceLROnPlateauSchedulerParameters(name=scheduler_name, factor=0.243, patience=17)
+        case _:
+            raise ValueError(f"Untested case: {scheduler_name}")
     return parameters
 
 
-@pytest.mark.parametrize("scheduler_name", [option.value for option in list(ValidSchedulerName)])
 def test_load_scheduler(optimizer, scheduler_parameters):
-    _ = load_scheduler_dictionary(hyper_params=scheduler_parameters, optimizer=optimizer)
+    _ = load_scheduler_dictionary(scheduler_parameters=scheduler_parameters, optimizer=optimizer)

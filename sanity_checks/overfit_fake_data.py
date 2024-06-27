@@ -17,8 +17,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                ValidOptimizerName)
+from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.score_networks.mlp_score_network import \
@@ -66,7 +65,7 @@ score_network_parameters = MLPScoreNetworkParameters(
     spatial_dimension=spatial_dimension,
 )
 
-optimizer_parameters = OptimizerParameters(name=ValidOptimizerName("adam"), learning_rate=lr)
+optimizer_parameters = OptimizerParameters(name="adam", learning_rate=lr)
 
 noise_parameters = NoiseParameters(total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=sigma_max)
 
