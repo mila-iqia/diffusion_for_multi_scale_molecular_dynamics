@@ -13,7 +13,7 @@ from crystal_diffusion.analysis.analytic_score.utils import (
 from crystal_diffusion.callbacks.analysis_callbacks import \
     HarmonicEnergyDiffusionSamplingCallback
 from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
-from crystal_diffusion.callbacks.sampling_callback import SamplingParameters
+from crystal_diffusion.generators.position_generator import SamplingParameters
 from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)

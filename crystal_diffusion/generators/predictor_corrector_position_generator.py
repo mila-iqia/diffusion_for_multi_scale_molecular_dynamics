@@ -1,10 +1,12 @@
 import logging
 from abc import abstractmethod
+from dataclasses import dataclass
 
 import torch
 from tqdm import tqdm
 
-from crystal_diffusion.generators.position_generator import PositionGenerator
+from crystal_diffusion.generators.position_generator import (
+    PositionGenerator, SamplingParameters)
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
@@ -17,6 +19,13 @@ from crystal_diffusion.utils.sample_trajectory import (
     NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(kw_only=True)
+class PredictorCorrectorSamplingParameters(SamplingParameters):
+    """Hyper-parameters for diffusion sampling with the predictor-corrector algorithm."""
+    algorithm: str = 'predictor_corrector'
+    number_of_corrector_steps: int = 1
 
 
 class PredictorCorrectorPositionGenerator(PositionGenerator):
@@ -107,25 +116,21 @@ class AnnealedLangevinDynamicsGenerator(PredictorCorrectorPositionGenerator):
 
     def __init__(self,
                  noise_parameters: NoiseParameters,
-                 number_of_corrector_steps: int,
-                 number_of_atoms: int,
-                 spatial_dimension: int,
+                 sampling_parameters: PredictorCorrectorSamplingParameters,
                  sigma_normalized_score_network: ScoreNetwork,
-                 record_samples: bool = False,
-                 positions_require_grad: bool = False
                  ):
         """Init method."""
         super().__init__(number_of_discretization_steps=noise_parameters.total_time_steps,
-                         number_of_corrector_steps=number_of_corrector_steps,
-                         spatial_dimension=spatial_dimension)
+                         number_of_corrector_steps=sampling_parameters.number_of_corrector_steps,
+                         spatial_dimension=sampling_parameters.spatial_dimension)
+
         self.noise_parameters = noise_parameters
-        self.positions_require_grad = positions_require_grad
         sampler = ExplodingVarianceSampler(noise_parameters)
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
-        self.number_of_atoms = number_of_atoms
+        self.number_of_atoms = sampling_parameters.number_of_atoms
         self.sigma_normalized_score_network = sigma_normalized_score_network
 
-        if record_samples:
+        if sampling_parameters.record_samples:
             self.sample_trajectory_recorder = PredictorCorrectorSampleTrajectory()
         else:
             self.sample_trajectory_recorder = NoOpPredictorCorrectorSampleTrajectory()
@@ -133,8 +138,6 @@ class AnnealedLangevinDynamicsGenerator(PredictorCorrectorPositionGenerator):
     def initialize(self, number_of_samples: int):
         """This method must initialize the samples from the fully noised distribution."""
         relative_coordinates = torch.rand(number_of_samples, self.number_of_atoms, self.spatial_dimension)
-        if self.positions_require_grad:
-            relative_coordinates.requires_grad_(True)
         return relative_coordinates
 
     def _draw_gaussian_sample(self, number_of_samples):

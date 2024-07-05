@@ -1,11 +1,13 @@
 import logging
+from dataclasses import dataclass
 from typing import Callable
 
 import einops
 import torch
 import torchode as to
 
-from crystal_diffusion.generators.position_generator import PositionGenerator
+from crystal_diffusion.generators.position_generator import (
+    PositionGenerator, SamplingParameters)
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
@@ -19,6 +21,14 @@ from crystal_diffusion.utils.sample_trajectory import (NoOpODESampleTrajectory,
 logger = logging.getLogger(__name__)
 
 
+@dataclass(kw_only=True)
+class ODESamplingParameters(SamplingParameters):
+    """Hyper-parameters for diffusion sampling with the ode algorithm."""
+    algorithm: str = 'ode'
+    absolute_solver_tolerance: float = 1.0e-3  # the absolute error tolerance passed to the ODE solver.
+    relative_solver_tolerance: float = 1.0e-2  # the relative error tolerance passed to the ODE solver.
+
+
 class ExplodingVarianceODEPositionGenerator(PositionGenerator):
     """Exploding Variance ODE Position Generator.
 
@@ -28,41 +38,31 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
 
     def __init__(self,
                  noise_parameters: NoiseParameters,
-                 number_of_atoms: int,
-                 spatial_dimension: int,
+                 sampling_parameters: ODESamplingParameters,
                  sigma_normalized_score_network: ScoreNetwork,
-                 record_samples: bool = False,
-                 absolute_solver_tolerance: float = 1e-3,
-                 relative_solver_tolerance: float = 1e-2,
                  ):
         """Init method.
 
         Args:
             noise_parameters : the diffusion noise parameters.
-            number_of_atoms : the number of atoms to sample.
-            spatial_dimension : the dimension of space.
+            sampling_parameters: the parameters needed for sampling.
             sigma_normalized_score_network : the score network to use for drawing samples.
-            record_samples : should samples be recorded.
-            absolute_solver_tolerance: the absolute error tolerance passed to the ODE solver.
-            relative_solver_tolerance: the relative error tolerance passed to the ODE solver.
         """
-        self.noise_parameters = noise_parameters
-        assert self.noise_parameters.total_time_steps >= 2, \
-            "There must at least be two time steps in the noise parameters to define the limits t0 and tf."
-        self.number_of_atoms = number_of_atoms
-        self.spatial_dimension = spatial_dimension
-
-        self.sigma_normalized_score_network = sigma_normalized_score_network
-
         self.t0 = 0.0  # The "initial diffusion time", corresponding to the physical distribution.
         self.tf = 1.0  # The "final diffusion time", corresponding to the uniform distribution.
 
-        self.absolute_solver_tolerance = absolute_solver_tolerance
-        self.relative_solver_tolerance = relative_solver_tolerance
+        self.noise_parameters = noise_parameters
+        self.sigma_normalized_score_network = sigma_normalized_score_network
 
-        self.record_samples = record_samples
+        assert self.noise_parameters.total_time_steps >= 2, \
+            "There must at least be two time steps in the noise parameters to define the limits t0 and tf."
+        self.number_of_atoms = sampling_parameters.number_of_atoms
+        self.spatial_dimension = sampling_parameters.spatial_dimension
+        self.absolute_solver_tolerance = sampling_parameters.absolute_solver_tolerance
+        self.relative_solver_tolerance = sampling_parameters.relative_solver_tolerance
+        self.record_samples = sampling_parameters.record_samples
 
-        if record_samples:
+        if self.record_samples:
             self.sample_trajectory_recorder = ODESampleTrajectory()
         else:
             self.sample_trajectory_recorder = NoOpODESampleTrajectory()

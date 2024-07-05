@@ -12,8 +12,9 @@ import torch
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import \
     get_relative_harmonic_energy
-from crystal_diffusion.callbacks.sampling_callback import (
-    DiffusionSamplingCallback, SamplingParameters)
+from crystal_diffusion.callbacks.sampling_callback import \
+    DiffusionSamplingCallback
+from crystal_diffusion.generators.position_generator import SamplingParameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 logger = logging.getLogger(__name__)

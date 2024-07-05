@@ -2,7 +2,8 @@ import pytest
 import torch
 
 from crystal_diffusion.generators.predictor_corrector_position_generator import (
-    AnnealedLangevinDynamicsGenerator, PredictorCorrectorPositionGenerator)
+    AnnealedLangevinDynamicsGenerator, PredictorCorrectorPositionGenerator,
+    PredictorCorrectorSamplingParameters)
 from crystal_diffusion.models.score_networks.mlp_score_network import (
     MLPScoreNetwork, MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import (
@@ -126,15 +127,20 @@ class TestAnnealedLangevinDynamics:
         return noise_parameters
 
     @pytest.fixture()
-    def pc_generator(self, noise_parameters,
-                     number_of_corrector_steps,
-                     number_of_atoms,
-                     spatial_dimension,
-                     sigma_normalized_score_network):
+    def sampling_parameters(self, number_of_atoms, spatial_dimension, number_of_samples,
+                            number_of_corrector_steps, unit_cell_size):
+        sampling_parameters = PredictorCorrectorSamplingParameters(number_of_corrector_steps=number_of_corrector_steps,
+                                                                   number_of_atoms=number_of_atoms,
+                                                                   number_of_samples=number_of_samples,
+                                                                   cell_dimensions=spatial_dimension * [unit_cell_size],
+                                                                   spatial_dimension=spatial_dimension)
+
+        return sampling_parameters
+
+    @pytest.fixture()
+    def pc_generator(self, noise_parameters, sampling_parameters, sigma_normalized_score_network):
         generator = AnnealedLangevinDynamicsGenerator(noise_parameters=noise_parameters,
-                                                      number_of_corrector_steps=number_of_corrector_steps,
-                                                      number_of_atoms=number_of_atoms,
-                                                      spatial_dimension=spatial_dimension,
+                                                      sampling_parameters=sampling_parameters,
                                                       sigma_normalized_score_network=sigma_normalized_score_network)
 
         return generator
