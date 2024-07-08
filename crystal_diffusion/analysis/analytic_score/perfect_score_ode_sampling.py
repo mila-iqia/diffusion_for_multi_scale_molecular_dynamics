@@ -13,8 +13,8 @@ from einops import einops
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import (get_exact_samples,
                                                              get_unit_cells)
-from crystal_diffusion.generators.ode_position_generator import \
-    ExplodingVarianceODEPositionGenerator
+from crystal_diffusion.generators.ode_position_generator import (
+    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -40,6 +40,14 @@ if __name__ == '__main__':
                                        sigma_min=0.001,
                                        sigma_max=0.5)
 
+    ode_sampling_parameters = ODESamplingParameters(spatial_dimension=spatial_dimension,
+                                                    number_of_atoms=number_of_atoms,
+                                                    number_of_samples=batch_size,
+                                                    cell_dimensions=[1., 1., 1.],
+                                                    record_samples=True,
+                                                    absolute_solver_tolerance=1.0e-5,
+                                                    relative_solver_tolerance=1.0e-5)
+
     equilibrium_relative_coordinates = torch.stack([0.25 * torch.ones(spatial_dimension),
                                                     0.75 * torch.ones(spatial_dimension)]).to(device)
     inverse_covariance = torch.zeros(number_of_atoms, spatial_dimension, number_of_atoms, spatial_dimension).to(device)
@@ -56,11 +64,10 @@ if __name__ == '__main__':
 
     sigma_normalized_score_network = AnalyticalScoreNetwork(score_network_parameters)
 
-    position_generator = ExplodingVarianceODEPositionGenerator(noise_parameters,
-                                                               number_of_atoms,
-                                                               spatial_dimension,
-                                                               sigma_normalized_score_network,
-                                                               record_samples=True)
+    position_generator = (
+        ExplodingVarianceODEPositionGenerator(noise_parameters=noise_parameters,
+                                              sampling_parameters=ode_sampling_parameters,
+                                              sigma_normalized_score_network=sigma_normalized_score_network))
 
     times = torch.linspace(0, 1, 1001)
     sigmas = position_generator._get_exploding_variance_sigma(times)
