@@ -57,7 +57,7 @@ class TestAnalyticalScoreNetwork:
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
         return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, NOISE: noises, UNIT_CELL: unit_cell}
 
-    @pytest.fixture(params=[True, False])
+    @pytest.fixture()
     def score_network_parameters(self, number_of_atoms, spatial_dimension, kmax,
                                  equilibrium_relative_coordinates, variance_parameter, use_permutation_invariance):
         hyper_params = AnalyticalScoreNetworkParameters(

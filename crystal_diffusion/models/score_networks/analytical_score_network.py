@@ -115,7 +115,8 @@ class AnalyticalScoreNetwork(ScoreNetwork):
             unnormalized_log_prob = self._compute_unnormalized_log_probability(sigmas, xt, x0)
             list_unnormalized_log_prob.append(unnormalized_log_prob)
 
-        log_probs = sum(list_unnormalized_log_prob)
+        list_unnormalized_log_prob = torch.stack(list_unnormalized_log_prob)
+        log_probs = torch.logsumexp(list_unnormalized_log_prob, dim=0, keepdim=False)
 
         grad_outputs = [torch.ones_like(log_probs)]
 
