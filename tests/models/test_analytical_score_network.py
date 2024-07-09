@@ -1,6 +1,5 @@
 import itertools
 
-import einops
 import pytest
 import torch
 
@@ -8,7 +7,6 @@ from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
                                          TIME, UNIT_CELL)
-from tests.fake_data_utils import find_aligning_permutation
 
 
 def factorial(n):
@@ -19,8 +17,6 @@ def factorial(n):
         return n * factorial(n - 1)
 
 
-@pytest.mark.parametrize("spatial_dimension", [1, 2, 3])
-@pytest.mark.parametrize("number_of_atoms", [1, 2])
 class TestAnalyticalScoreNetwork:
 
     @pytest.fixture(scope="class", autouse=True)
@@ -35,26 +31,23 @@ class TestAnalyticalScoreNetwork:
     def kmax(self):
         return 1
 
+    @pytest.fixture(params=[1, 2, 3])
+    def spatial_dimension(self, request):
+        return request.param
+
+    @pytest.fixture(params=[1, 2])
+    def number_of_atoms(self, request):
+        return request.param
+
     @pytest.fixture
     def equilibrium_relative_coordinates(self, number_of_atoms, spatial_dimension):
         return torch.rand(number_of_atoms, spatial_dimension)
 
     @pytest.fixture
-    def inverse_covariance(self, number_of_atoms, spatial_dimension):
-
-        combined_dimension = number_of_atoms * spatial_dimension
-
-        # extract a random orthogonal matrix
-        random_matrix = torch.rand(combined_dimension, combined_dimension)
-        orthogonal_matrix, _, _ = torch.svd(random_matrix)
-
+    def variance_parameter(self):
         # Make the spring constants pretty large so that the displacements will be small
-        spring_constants = 5. + 5. * torch.rand(combined_dimension)
-
-        flat_inverse_covariance = orthogonal_matrix @ (torch.diag(spring_constants) @ orthogonal_matrix.T)
-
-        return einops.rearrange(flat_inverse_covariance, '(n1 d1) (n2 d2) -> n1 d1 n2 d2',
-                                n1=number_of_atoms, d1=spatial_dimension, n2=number_of_atoms, d2=spatial_dimension)
+        inverse_variance = float(1000 * torch.rand(1))
+        return 1. / inverse_variance
 
     @pytest.fixture()
     def batch(self, batch_size, number_of_atoms, spatial_dimension):
@@ -64,29 +57,26 @@ class TestAnalyticalScoreNetwork:
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
         return {NOISY_RELATIVE_COORDINATES: relative_coordinates, TIME: times, NOISE: noises, UNIT_CELL: unit_cell}
 
-    @pytest.fixture()
+    @pytest.fixture(params=[True, False])
     def score_network_parameters(self, number_of_atoms, spatial_dimension, kmax,
-                                 equilibrium_relative_coordinates, inverse_covariance):
+                                 equilibrium_relative_coordinates, variance_parameter, use_permutation_invariance):
         hyper_params = AnalyticalScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
             kmax=kmax,
             equilibrium_relative_coordinates=equilibrium_relative_coordinates,
-            inverse_covariance=inverse_covariance)
+            variance_parameter=variance_parameter,
+            use_permutation_invariance=use_permutation_invariance)
         return hyper_params
 
     @pytest.fixture()
     def score_network(self, score_network_parameters):
         return AnalyticalScoreNetwork(score_network_parameters)
 
-    def test_all_translations(self, kmax, number_of_atoms, spatial_dimension):
-
-        flat_dim = number_of_atoms * spatial_dimension
-
-        computed_translations = AnalyticalScoreNetwork._get_all_translations(kmax, flat_dim)
-
-        expected_number_of_translations = (2 * kmax + 1) ** flat_dim
-        assert computed_translations.shape == (expected_number_of_translations, flat_dim)
+    def test_all_translations(self, kmax):
+        computed_translations = AnalyticalScoreNetwork._get_all_translations(kmax)
+        expected_translations = torch.tensor(list(range(-kmax, kmax + 1)))
+        torch.testing.assert_close(expected_translations, computed_translations)
 
     def test_get_all_equilibrium_permutations(self, number_of_atoms, spatial_dimension,
                                               equilibrium_relative_coordinates):
@@ -104,43 +94,39 @@ class TestAnalyticalScoreNetwork:
 
         torch.testing.assert_close(expected_permutations, computed_permutations)
 
-    def test_get_effective_inverse_covariance_matrices(self, number_of_atoms, spatial_dimension,
-                                                       batch, inverse_covariance, score_network):
-        sigmas = batch[NOISE]
-        flat_dim = number_of_atoms * spatial_dimension
+    @pytest.mark.parametrize('use_permutation_invariance', [False])
+    def test_compute_unnormalized_log_probability(self, equilibrium_relative_coordinates, variance_parameter,
+                                                  kmax, batch, score_network):
+        sigmas = batch[NOISE]  # dimension: [batch_size, 1]
+        xt = batch[NOISY_RELATIVE_COORDINATES]
+        computed_log_prob = score_network._compute_unnormalized_log_probability(sigmas,
+                                                                                xt,
+                                                                                equilibrium_relative_coordinates)
 
-        beta_phi = einops.rearrange(inverse_covariance, 'n1 d1 n2 d2 -> (n1 d1) (n2 d2)',
-                                    n1=number_of_atoms, d1=spatial_dimension,
-                                    n2=number_of_atoms, d2=spatial_dimension)
+        batch_size = sigmas.shape[0]
 
-        list_matrices = []
-        for sigma in sigmas:
-            matrix = torch.linalg.inv(torch.eye(flat_dim) + sigma**2 * beta_phi) @ beta_phi
-            list_matrices.append(matrix)
+        expected_log_prob = torch.zeros(batch_size)
+        for batch_idx in range(batch_size):
+            sigma = sigmas[batch_idx, 0]
 
-        expected_matrices = torch.stack(list_matrices)
+            for i in range(score_network.natoms):
+                for alpha in range(score_network.spatial_dimension):
 
-        computed_matrices = score_network._get_effective_inverse_covariance_matrices(sigmas)
+                    eq_coordinate = equilibrium_relative_coordinates[i, alpha]
+                    coordinate = xt[batch_idx, i, alpha]
 
-        torch.testing.assert_close(computed_matrices, expected_matrices)
+                    sum_on_k = torch.tensor(0.)
+                    for k in range(-kmax, kmax + 1):
+                        exponent = -0.5 * (coordinate - eq_coordinate - k)**2 / (sigma**2 + variance_parameter)
+                        sum_on_k += torch.exp(exponent)
 
-    def test_get_all_flat_offsets(self, score_network):
-        permutations_x0 = score_network.permutations_x0
-        translations_k = score_network.translations_k
+                    expected_log_prob[batch_idx] += torch.log(sum_on_k)
 
-        list_offsets = []
-        for perm in permutations_x0:
-            for tran in translations_k:
-                offset = perm + tran
-                list_offsets.append(offset)
+        torch.testing.assert_close(expected_log_prob, computed_log_prob)
 
-        expected_all_offsets = torch.stack(list_offsets)
+    @pytest.mark.parametrize('number_of_atoms, use_permutation_invariance', [(1, False), (1, True),
+                                                                             (2, False), (2, True), (8, False)])
+    def test_analytical_score_network(self, score_network, batch, batch_size, number_of_atoms, spatial_dimension):
+        normalized_scores = score_network.forward(batch)
 
-        computed_all_offsets = score_network._get_all_flat_offsets(permutations_x0, translations_k)
-
-        perm = find_aligning_permutation(expected_all_offsets, computed_all_offsets)
-
-        torch.testing.assert_close(expected_all_offsets, computed_all_offsets[perm])
-
-    def test_analytical_score_network(self, score_network, batch):
-        _ = score_network.forward(batch)
+        assert normalized_scores.shape == (batch_size, number_of_atoms, spatial_dimension)
