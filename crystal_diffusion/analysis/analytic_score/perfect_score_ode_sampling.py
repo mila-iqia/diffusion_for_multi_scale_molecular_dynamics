@@ -11,15 +11,18 @@ import torch
 from einops import einops
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.analysis.analytic_score.utils import (get_exact_samples,
-                                                             get_unit_cells)
+from crystal_diffusion.analysis.analytic_score.utils import (
+    get_exact_samples, get_silicon_supercell, get_unit_cells)
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 
 logger = logging.getLogger(__name__)
+setup_analysis_logger()
+
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -28,13 +31,20 @@ if torch.cuda.is_available():
 else:
     device = torch.device('cpu')
 
-spatial_dimension = 3
-number_of_atoms = 2
+
 kmax = 1
-spring_constant = 1000.
+supercell_factor = 2
+
+variance_parameter = 0.001 / supercell_factor
 batch_size = 1000
 total_time_steps = 41
+
 if __name__ == '__main__':
+
+    equilibrium_relative_coordinates = torch.from_numpy(
+        get_silicon_supercell(supercell_factor=supercell_factor)).to(device)
+    number_of_atoms, spatial_dimension = equilibrium_relative_coordinates.shape
+    nd = number_of_atoms * spatial_dimension
 
     noise_parameters = NoiseParameters(total_time_steps=total_time_steps,
                                        sigma_min=0.001,
@@ -48,19 +58,12 @@ if __name__ == '__main__':
                                                     absolute_solver_tolerance=1.0e-5,
                                                     relative_solver_tolerance=1.0e-5)
 
-    equilibrium_relative_coordinates = torch.stack([0.25 * torch.ones(spatial_dimension),
-                                                    0.75 * torch.ones(spatial_dimension)]).to(device)
-    inverse_covariance = torch.zeros(number_of_atoms, spatial_dimension, number_of_atoms, spatial_dimension).to(device)
-    for atom_i in range(number_of_atoms):
-        for alpha in range(spatial_dimension):
-            inverse_covariance[atom_i, alpha, atom_i, alpha] = spring_constant
-
     score_network_parameters = AnalyticalScoreNetworkParameters(
         number_of_atoms=number_of_atoms,
         spatial_dimension=spatial_dimension,
         kmax=kmax,
         equilibrium_relative_coordinates=equilibrium_relative_coordinates,
-        inverse_covariance=inverse_covariance)
+        variance_parameter=variance_parameter)
 
     sigma_normalized_score_network = AnalyticalScoreNetwork(score_network_parameters)
 
@@ -120,6 +123,9 @@ if __name__ == '__main__':
     ax.set_xlim([1.01, -0.01])
     plt.show()
 
+    inverse_covariance = torch.diag(torch.ones(nd)) / variance_parameter
+    inverse_covariance = inverse_covariance.reshape(number_of_atoms, spatial_dimension,
+                                                    number_of_atoms, spatial_dimension)
     exact_samples = get_exact_samples(equilibrium_relative_coordinates,
                                       inverse_covariance,
                                       batch_size).cpu()
