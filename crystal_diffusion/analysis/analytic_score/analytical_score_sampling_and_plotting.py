@@ -1,7 +1,9 @@
-"""Perfect Score ODE sampling.
+"""Sampling and plotting of the Analytical score.
 
-This little ad hoc experiment explores sampling with an ODE solver, using the 'analytic' score.
-It works very well!
+This little ad hoc experiment explores sampling using the 'analytic' score,
+plotting various artifacts along the way.
+
+It shows that both ODE and Langevin sampling work very well when the score is good!
 """
 
 import logging
@@ -42,11 +44,12 @@ if torch.cuda.is_available():
 else:
     device = torch.device('cpu')
 
+# Change these parameters as needed!
 sampling_algorithm = 'ode'
 # sampling_algorithm = 'langevin'
+supercell_factor = 1
 
 kmax = 1
-supercell_factor = 1
 
 variance_parameter = 0.001 / supercell_factor
 number_of_samples = 1000
