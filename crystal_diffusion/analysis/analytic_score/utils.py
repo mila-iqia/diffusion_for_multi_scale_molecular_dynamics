@@ -3,10 +3,6 @@ import numpy as np
 import torch
 from pymatgen.core import Lattice, Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from sklearn.neighbors import KDTree
-
-from crystal_diffusion.models.score_networks.analytical_score_network import \
-    AnalyticalScoreNetwork
 
 
 def get_unit_cells(acell: float, spatial_dimension: int, number_of_samples: int) -> torch.Tensor:
@@ -96,18 +92,13 @@ def get_exact_samples(equilibrium_relative_coordinates: torch.Tensor, inverse_co
 def get_samples_harmonic_energy(equilibrium_relative_coordinates: torch.Tensor, inverse_covariance: torch.Tensor,
                                 samples: torch.Tensor) -> torch.Tensor:
     """Get samples harmonic energy."""
-    all_permutations = AnalyticalScoreNetwork._get_all_equilibrium_permutations(equilibrium_relative_coordinates)
+    flat_x_eq = einops.rearrange(equilibrium_relative_coordinates, "n d -> (n d)")
+    flat_x = einops.rearrange(samples, "batch n d -> batch (n d)")
 
-    flat_permutations = einops.rearrange(all_permutations, "perm n d -> perm (n d)")
-    flat_samples = einops.rearrange(samples, "batch n d -> batch (n d)")
+    flat_displacements = flat_x - flat_x_eq
 
-    # find the smallest displacements by matching the 'best' permutation to each sample
-    tree = KDTree(flat_permutations.numpy())
-
-    _, min_indices = tree.query(flat_samples, k=1)
-    min_indices = min_indices[:, 0]
-
-    flat_displacements = flat_samples - flat_permutations[min_indices]
+    # Account for periodicity: the closest equilibrium position might be a lattice vector away from the origin.
+    flat_displacements = flat_displacements - flat_displacements.round()
 
     flat_inverse_covariance = einops.rearrange(inverse_covariance, "n1 d1 n2 d2 -> (n1 d1) (n2 d2)")
 
