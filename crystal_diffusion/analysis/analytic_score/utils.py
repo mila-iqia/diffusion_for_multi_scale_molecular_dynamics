@@ -1,5 +1,8 @@
 import einops
+import numpy as np
 import torch
+from pymatgen.core import Lattice, Structure
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from sklearn.neighbors import KDTree
 
 from crystal_diffusion.models.score_networks.analytical_score_network import \
@@ -10,6 +13,28 @@ def get_unit_cells(acell: float, spatial_dimension: int, number_of_samples: int)
     """Generate cubic unit cells."""
     unit_cell = torch.diag(acell * torch.ones(spatial_dimension))
     return unit_cell.repeat(number_of_samples, 1, 1)
+
+
+def get_silicon_supercell(supercell_factor: int):
+    """Get silicon supercell."""
+    primitive_cell_a = 3.84
+    lattice = Lattice.from_parameters(a=primitive_cell_a,
+                                      b=primitive_cell_a,
+                                      c=primitive_cell_a,
+                                      alpha=60., beta=60., gamma=60.)
+
+    species = ['Si', 'Si']
+    coordinates = np.array([[0.0, 0.0, 0.0], [0.25, 0.25, 0.25]])
+
+    primitize_structure = Structure(lattice=lattice,
+                                    species=species,
+                                    coords=coordinates,
+                                    coords_are_cartesian=False)
+    conventional_structure = SpacegroupAnalyzer(primitize_structure).get_symmetrized_structure().to_conventional()
+
+    super_structure = conventional_structure.make_supercell([supercell_factor, supercell_factor, supercell_factor])
+
+    return super_structure.frac_coords
 
 
 def get_random_equilibrium_relative_coordinates(number_of_atoms: int, spatial_dimension: int) -> torch.Tensor:
