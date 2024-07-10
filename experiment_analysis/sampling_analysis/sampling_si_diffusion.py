@@ -15,8 +15,7 @@ import yaml
 from yaml import load
 
 from crystal_diffusion import DATA_DIR, TOP_DIR
-from crystal_diffusion.generators.langevin_position_generator import \
-    LangevinGenerator
+from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.models.model_loader import load_diffusion_model
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters

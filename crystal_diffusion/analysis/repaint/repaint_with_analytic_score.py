@@ -8,7 +8,7 @@ from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import (
     get_silicon_supercell, get_unit_cells)
-from crystal_diffusion.generators.constrained_langevin_dynamics_generator import (
+from crystal_diffusion.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)

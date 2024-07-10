@@ -11,8 +11,7 @@ from matplotlib import pyplot as plt
 from pytorch_lightning import Callback, LightningModule, Trainer
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.generators.langevin_position_generator import \
-    LangevinGenerator
+from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
 from crystal_diffusion.generators.position_generator import (
