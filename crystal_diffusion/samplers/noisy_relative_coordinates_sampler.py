@@ -58,7 +58,7 @@ class NoisyRelativeCoordinatesSampler:
         assert real_relative_coordinates.shape == sigmas.shape, \
             "sigmas array is expected to be of the same shape as the real_relative_coordinates array"
 
-        z_scores = NoisyRelativeCoordinatesSampler._get_gaussian_noise(real_relative_coordinates.shape)
-        noise = (sigmas * z_scores).to(real_relative_coordinates.device)
+        z_scores = NoisyRelativeCoordinatesSampler._get_gaussian_noise(real_relative_coordinates.shape).to(sigmas)
+        noise = (sigmas * z_scores).to(real_relative_coordinates)
         noisy_relative_coordinates = map_relative_coordinates_to_unit_cell(real_relative_coordinates + noise)
         return noisy_relative_coordinates

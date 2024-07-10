@@ -39,14 +39,14 @@ class TestLangevinGenerator:
         return 10
 
     @pytest.fixture()
-    def sigma_normalized_score_network(self, number_of_atoms, spatial_dimension):
+    def sigma_normalized_score_network(self, number_of_atoms, spatial_dimension, device):
         hyper_params = MLPScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
             n_hidden_dimensions=3,
             hidden_dimensions_size=16
         )
-        return MLPScoreNetwork(hyper_params)
+        return MLPScoreNetwork(hyper_params).to(device)
 
     @pytest.fixture()
     def noise_parameters(self, total_time_steps):
@@ -76,16 +76,17 @@ class TestLangevinGenerator:
         return generator
 
     @pytest.fixture()
-    def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples):
-        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(number_of_samples, 1, 1)
+    def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples, device):
+        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(number_of_samples, 1, 1).to(device)
 
     def test_smoke_sample(self, pc_generator, device, number_of_samples, unit_cell_sample):
         # Just a smoke test that we can sample without crashing.
         pc_generator.sample(number_of_samples, device, unit_cell_sample)
 
     @pytest.fixture()
-    def x_i(self, number_of_samples, number_of_atoms, spatial_dimension):
-        return map_relative_coordinates_to_unit_cell(torch.rand(number_of_samples, number_of_atoms, spatial_dimension))
+    def x_i(self, number_of_samples, number_of_atoms, spatial_dimension, device):
+        return map_relative_coordinates_to_unit_cell(
+            torch.rand(number_of_samples, number_of_atoms, spatial_dimension)).to(device)
 
     def test_predictor_step(self, mocker, pc_generator, noise_parameters, x_i, total_time_steps, number_of_samples,
                             unit_cell_sample):
@@ -97,7 +98,7 @@ class TestLangevinGenerator:
         list_time = noise.time
         forces = torch.zeros_like(x_i)
 
-        z = pc_generator._draw_gaussian_sample(number_of_samples)
+        z = pc_generator._draw_gaussian_sample(number_of_samples).to(x_i)
         mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
 
         for index_i in range(1, total_time_steps + 1):
@@ -130,7 +131,7 @@ class TestLangevinGenerator:
         sigma_1 = list_sigma[0]
         forces = torch.zeros_like(x_i)
 
-        z = pc_generator._draw_gaussian_sample(number_of_samples)
+        z = pc_generator._draw_gaussian_sample(number_of_samples).to(x_i)
         mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
 
         for index_i in range(0, total_time_steps):
