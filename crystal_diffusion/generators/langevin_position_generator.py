@@ -12,7 +12,7 @@ from crystal_diffusion.utils.sample_trajectory import (
     NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
 
 
-class AnnealedLangevinDynamicsGenerator(PredictorCorrectorPositionGenerator):
+class LangevinGenerator(PredictorCorrectorPositionGenerator):
     """Annealed Langevin Dynamics Generator.
 
     This class implements the annealed Langevin Dynamics generation of position samples, following

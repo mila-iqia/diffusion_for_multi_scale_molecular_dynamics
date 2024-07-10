@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from crystal_diffusion.generators.langevin_position_generator import \
-    AnnealedLangevinDynamicsGenerator
+    LangevinGenerator
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
 from crystal_diffusion.models.score_networks import (MLPScoreNetwork,
@@ -77,9 +77,9 @@ class TestAnnealedLangevinDynamics:
 
     @pytest.fixture()
     def pc_generator(self, noise_parameters, sampling_parameters, sigma_normalized_score_network):
-        generator = AnnealedLangevinDynamicsGenerator(noise_parameters=noise_parameters,
-                                                      sampling_parameters=sampling_parameters,
-                                                      sigma_normalized_score_network=sigma_normalized_score_network)
+        generator = LangevinGenerator(noise_parameters=noise_parameters,
+                                      sampling_parameters=sampling_parameters,
+                                      sigma_normalized_score_network=sigma_normalized_score_network)
 
         return generator
 

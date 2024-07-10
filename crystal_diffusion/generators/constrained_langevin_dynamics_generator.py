@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 
 from crystal_diffusion.generators.langevin_position_generator import \
-    AnnealedLangevinDynamicsGenerator
+    LangevinGenerator
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
@@ -17,13 +17,13 @@ from crystal_diffusion.utils.basis_transformations import \
 
 
 @dataclass(kw_only=True)
-class ConstrainedAnnealedLangevinDyamicsGeneratorParameters(PredictorCorrectorSamplingParameters):
+class ConstrainedLangevinGeneratorParameters(PredictorCorrectorSamplingParameters):
     """Hyper-parameters for diffusion sampling with the predictor-corrector algorithm."""
     algorithm: str = 'constrained_langevin'
     constrained_relative_coordinates: np.ndarray  # the positions that must be satisfied at the end of sampling.
 
 
-class ConstrainedAnnealedLangevinDynamicsGenerator(AnnealedLangevinDynamicsGenerator):
+class ConstrainedLangevinGenerator(LangevinGenerator):
     """Constrained Annealed Langevin Dynamics Generator.
 
     This generator implements a basic version of the inpainting algorithm presented in the
@@ -33,7 +33,7 @@ class ConstrainedAnnealedLangevinDynamicsGenerator(AnnealedLangevinDynamicsGener
 
     def __init__(self,
                  noise_parameters: NoiseParameters,
-                 sampling_parameters: ConstrainedAnnealedLangevinDyamicsGeneratorParameters,
+                 sampling_parameters: ConstrainedLangevinGeneratorParameters,
                  sigma_normalized_score_network: ScoreNetwork,
                  ):
         """Init method."""

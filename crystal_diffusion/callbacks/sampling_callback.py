@@ -12,7 +12,7 @@ from pytorch_lightning import Callback, LightningModule, Trainer
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.generators.langevin_position_generator import \
-    AnnealedLangevinDynamicsGenerator
+    LangevinGenerator
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
 from crystal_diffusion.generators.position_generator import (
@@ -283,14 +283,14 @@ class DiffusionSamplingCallback(Callback):
 class PredictorCorrectorDiffusionSamplingCallback(DiffusionSamplingCallback):
     """Callback class to periodically generate samples and log their energies."""
 
-    def _create_generator(self, pl_model: LightningModule) -> AnnealedLangevinDynamicsGenerator:
+    def _create_generator(self, pl_model: LightningModule) -> LangevinGenerator:
         """Draw a sample from the generative model."""
         logger.info("Creating sampler")
         sigma_normalized_score_network = pl_model.sigma_normalized_score_network
 
-        generator = AnnealedLangevinDynamicsGenerator(noise_parameters=self.noise_parameters,
-                                                      sampling_parameters=self.sampling_parameters,
-                                                      sigma_normalized_score_network=sigma_normalized_score_network)
+        generator = LangevinGenerator(noise_parameters=self.noise_parameters,
+                                      sampling_parameters=self.sampling_parameters,
+                                      sigma_normalized_score_network=sigma_normalized_score_network)
 
         return generator
 

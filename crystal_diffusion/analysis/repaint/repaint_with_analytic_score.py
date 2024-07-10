@@ -9,8 +9,7 @@ from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import (
     get_silicon_supercell, get_unit_cells)
 from crystal_diffusion.generators.constrained_langevin_dynamics_generator import (
-    ConstrainedAnnealedLangevinDyamicsGeneratorParameters,
-    ConstrainedAnnealedLangevinDynamicsGenerator)
+    ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -66,7 +65,7 @@ if __name__ == '__main__':
 
     sigma_normalized_score_network = AnalyticalScoreNetwork(score_network_parameters)
 
-    sampling_parameters = ConstrainedAnnealedLangevinDyamicsGeneratorParameters(
+    sampling_parameters = ConstrainedLangevinGeneratorParameters(
         number_of_corrector_steps=number_of_corrector_steps,
         spatial_dimension=spatial_dimension,
         number_of_atoms=number_of_atoms,
@@ -75,7 +74,7 @@ if __name__ == '__main__':
         constrained_relative_coordinates=constrained_relative_coordinates,
         record_samples=False)
 
-    position_generator = ConstrainedAnnealedLangevinDynamicsGenerator(
+    position_generator = ConstrainedLangevinGenerator(
         noise_parameters=noise_parameters,
         sampling_parameters=sampling_parameters,
         sigma_normalized_score_network=sigma_normalized_score_network)
