@@ -16,7 +16,7 @@ if torch.cuda.is_available():
     _available_devices.append(torch.device('cuda'))
 
 
-class TestAnnealedLangevinDynamics:
+class TestLangevinGenerator:
     @pytest.fixture(params=_available_devices)
     def device(self, request):
         return request.param
