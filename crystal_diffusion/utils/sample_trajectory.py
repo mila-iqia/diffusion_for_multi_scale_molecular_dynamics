@@ -48,6 +48,7 @@ class ODESampleTrajectory(SampleTrajectory):
         """Record ODE solution information."""
         self.data['time'].append(times)
         self.data['sigma'].append(sigmas)
+        self.data['relative_coordinates'].append(relative_coordinates)
         self.data['normalized_scores'].append(normalized_scores)
         self.data['stats'].append(stats)
         self.data['status'].append(status)
@@ -59,7 +60,7 @@ class ODESampleTrajectory(SampleTrajectory):
                                  time=data['time'][0],
                                  sigma=data['sigma'][0],
                                  relative_coordinates=data['relative_coordinates'][0],
-                                 normalized_scores=data['relative_coordinates'][0],
+                                 normalized_scores=data['normalized_scores'][0],
                                  extra={key: data[key][0] for key in extra_fields})
         return standardized_data
 

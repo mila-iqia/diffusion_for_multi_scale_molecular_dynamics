@@ -26,12 +26,7 @@ from crystal_diffusion.generators.predictor_corrector_position_generator import 
     PredictorCorrectorSamplingParameters
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
-                                         NOISY_RELATIVE_COORDINATES, TIME,
-                                         UNIT_CELL)
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
-from crystal_diffusion.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 
 logger = logging.getLogger(__name__)
@@ -117,43 +112,6 @@ if __name__ == '__main__':
                                         unit_cell=unit_cell).detach()
 
     if sampling_algorithm == 'ode':
-
-        logger.info("Extracting ODE artifacts...")
-        recorded_data = position_generator.sample_trajectory_recorder.data
-
-        # Extract the scores at the sampling positions of the ODE solver
-        sampling_times = recorded_data['time'][0][0]  # dimension [time]
-        sampling_sigmas = position_generator._get_exploding_variance_sigma(sampling_times)
-        raw_relative_coordinates = recorded_data['relative_coordinates'][0]  # dimension [batch, times, natoms, d]
-
-        b, t, _, _ = raw_relative_coordinates.shape
-
-        super_batch_size = b * t
-        super_batch_times = einops.repeat(sampling_times, 't -> (b t) 1', b=b)
-        super_batch_sigmas = einops.repeat(sampling_sigmas, 't -> (b t) 1', b=b)
-        super_batch_relative_coordinates = einops.rearrange(raw_relative_coordinates, ' b t n d -> (b t) n d')
-
-        super_batch_unit_cell = get_unit_cells(acell=1.,
-                                               spatial_dimension=spatial_dimension,
-                                               number_of_samples=super_batch_size).to(device)
-
-        batch = {NOISY_RELATIVE_COORDINATES: map_relative_coordinates_to_unit_cell(super_batch_relative_coordinates),
-                 NOISE: super_batch_sigmas,
-                 TIME: super_batch_times,
-                 UNIT_CELL: super_batch_unit_cell,
-                 CARTESIAN_FORCES: torch.zeros_like(super_batch_relative_coordinates)
-                 }
-
-        # Shape [batch_size, number of atoms, spatial dimension]
-        logger.info("Explicitly computing ODE scores...")
-        super_batch_sigma_normalized_scores = sigma_normalized_score_network(batch)
-
-        # Reshape everything so that it is easy to plot later on
-        batch_flat_normalized_scores = einops.rearrange(super_batch_sigma_normalized_scores,
-                                                        "(b t) n d -> b t (n d)", b=b, t=t)
-
-        batch_flat_relative_coordinates = einops.rearrange(raw_relative_coordinates, "b t n d -> b t (n d)")
-
         # Plot the ODE parameters
         logger.info("Plotting ODE parameters")
         times = torch.linspace(0, 1, 1001)
@@ -180,19 +138,19 @@ if __name__ == '__main__':
         fig0.savefig(ANALYTIC_SCORE_RESULTS_DIR / "ODE_parameters.png")
         plt.close(fig0)
 
-    elif sampling_algorithm == 'langevin':
+    logger.info("Extracting data artifacts")
+    raw_data = position_generator.sample_trajectory_recorder.data
+    recorded_data = position_generator.sample_trajectory_recorder.standardize_data(raw_data)
 
-        logger.info("Extracting Langevin sampling artifacts")
-        recorded_data = position_generator.sample_trajectory_recorder.data
+    sampling_times = recorded_data['time']
+    relative_coordinates = recorded_data['relative_coordinates']
+    batch_flat_relative_coordinates = einops.rearrange(relative_coordinates, "b t n d -> b t (n d)")
 
-        sampling_times = torch.tensor(recorded_data['predictor_time'])  # dimension [time]
-        raw_relative_coordinates = torch.stack(recorded_data['predictor_x_i'])  # dimension [time, batch, natoms, d]
-        batch_flat_relative_coordinates = einops.rearrange(raw_relative_coordinates, "t b n d -> b t (n d)")
-
-        raw_normalized_scores = torch.stack(recorded_data['predictor_scores'])  # dimension [time, batch, natoms, d]
-        batch_flat_normalized_scores = einops.rearrange(raw_normalized_scores, "t b n d -> b t (n d)")
+    normalized_scores = recorded_data['normalized_scores']
+    batch_flat_normalized_scores = einops.rearrange(normalized_scores, "b t n d -> b t (n d)")
 
     # ============================================================================
+
     logger.info("Creating samples from the exact distribution")
     inverse_covariance = (torch.diag(torch.ones(nd)) / variance_parameter).to(equilibrium_relative_coordinates)
     inverse_covariance = inverse_covariance.reshape(number_of_atoms, spatial_dimension,
