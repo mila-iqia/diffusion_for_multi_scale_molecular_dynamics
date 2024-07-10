@@ -4,11 +4,10 @@ import torch
 
 from crystal_diffusion.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
-from tests.generators.test_langevin_generator import \
-    TestAnnealedLangevinDynamics
+from tests.generators.test_langevin_generator import TestLangevinGenerator
 
 
-class TestConstrainedAnnealedLangevinDyamics(TestAnnealedLangevinDynamics):
+class TestConstrainedLangevinGenerator(TestLangevinGenerator):
 
     @pytest.fixture()
     def constrained_relative_coordinates(self, number_of_atoms, spatial_dimension):
