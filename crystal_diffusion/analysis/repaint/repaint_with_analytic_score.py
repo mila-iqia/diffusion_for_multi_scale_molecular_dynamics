@@ -42,10 +42,14 @@ constrained_relative_coordinates = np.array([[0.5, 0.5, 0.25],
                                              [0.5, 0.5, 0.5],
                                              [0.5, 0.5, 0.75]], dtype=np.float32)
 
+translation = np.array([0.125, 0.125, 0.125]).astype(np.float32)
 if __name__ == '__main__':
     logger.info("Setting up parameters")
 
     equilibrium_relative_coordinates = get_silicon_supercell(supercell_factor=supercell_factor).astype(np.float32)
+    # Translate to avoid atoms right on the cell boundary
+    equilibrium_relative_coordinates = equilibrium_relative_coordinates + translation
+
     number_of_atoms, spatial_dimension = equilibrium_relative_coordinates.shape
 
     unit_cells = get_unit_cells(acell=acell,
