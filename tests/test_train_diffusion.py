@@ -157,14 +157,14 @@ class TestTrainDiffusion(TestDiffusionDataBase):
         return all_paths
 
     @pytest.fixture()
-    def args(self, all_paths):
+    def args(self, all_paths, accelerator):
         """Input arguments for main."""
         input_args = [f"--config={all_paths['config']}",
                       f"--data={all_paths['data']}",
                       f"--processed_datadir={all_paths['processed_datadir']}",
                       f"--dataset_working_dir={all_paths['dataset_working_dir']}",
                       f"--output={all_paths['output']}",
-                      f"--accelerator={'cpu'}",
+                      f"--accelerator={accelerator}",
                       f"--devices={1}"]
 
         return input_args

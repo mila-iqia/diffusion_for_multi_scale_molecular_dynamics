@@ -35,6 +35,26 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip)
 
 
+_available_devices = [torch.device('cpu')]
+if torch.cuda.is_available():
+    _available_devices.append(torch.device('cuda'))
+
+
+@pytest.fixture(params=_available_devices)
+def device(request):
+    return request.param
+
+
+@pytest.fixture()
+def accelerator(device):
+    if str(device) == 'cpu':
+        return 'cpu'
+    elif str(device) == 'cuda':
+        return 'gpu'
+    else:
+        raise ValueError("Wrong device")
+
+
 @pytest.fixture
 def basis_vectors(batch_size):
     # orthogonal boxes with dimensions between 5 and 10.

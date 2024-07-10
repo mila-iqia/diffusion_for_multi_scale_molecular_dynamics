@@ -11,15 +11,8 @@ from crystal_diffusion.samplers.variance_sampler import (
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
-_available_devices = [torch.device('cpu')]
-if torch.cuda.is_available():
-    _available_devices.append(torch.device('cuda'))
-
 
 class TestLangevinGenerator:
-    @pytest.fixture(params=_available_devices)
-    def device(self, request):
-        return request.param
 
     @pytest.fixture(params=[0, 1, 2])
     def number_of_corrector_steps(self, request):

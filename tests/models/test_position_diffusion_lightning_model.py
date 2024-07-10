@@ -18,10 +18,6 @@ from crystal_diffusion.score.wrapped_gaussian_score import \
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
-available_accelerators = ["cpu"]
-if torch.cuda.is_available():
-    available_accelerators.append("gpu")
-
 
 class FakePositionsDataModule(LightningDataModule):
     def __init__(
@@ -212,7 +208,6 @@ class TestPositionDiffusionLightningModel:
                                    atol=1e-7,
                                    rtol=1e-4)
 
-    @pytest.mark.parametrize("accelerator", available_accelerators)
     def test_smoke_test(self, lightning_model, fake_datamodule, accelerator):
         trainer = Trainer(fast_dev_run=3, accelerator=accelerator)
         trainer.fit(lightning_model, fake_datamodule)
