@@ -19,10 +19,12 @@ from crystal_diffusion.analysis.analytic_score import \
 from crystal_diffusion.analysis.analytic_score.utils import (
     get_exact_samples, get_samples_harmonic_energy, get_silicon_supercell,
     get_unit_cells)
+from crystal_diffusion.generators.langevin_position_generator import \
+    AnnealedLangevinDynamicsGenerator
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from crystal_diffusion.generators.predictor_corrector_position_generator import (
-    AnnealedLangevinDynamicsGenerator, PredictorCorrectorSamplingParameters)
+from crystal_diffusion.generators.predictor_corrector_position_generator import \
+    PredictorCorrectorSamplingParameters
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,

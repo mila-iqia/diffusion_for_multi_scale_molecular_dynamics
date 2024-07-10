@@ -4,7 +4,7 @@ from pytorch_lightning import Callback
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.generators.predictor_corrector_position_generator import \
+from crystal_diffusion.generators.langevin_position_generator import \
     AnnealedLangevinDynamicsGenerator
 from crystal_diffusion.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters

@@ -1,8 +1,10 @@
 import pytest
 import torch
 
-from crystal_diffusion.generators.predictor_corrector_position_generator import (
-    AnnealedLangevinDynamicsGenerator, PredictorCorrectorSamplingParameters)
+from crystal_diffusion.generators.langevin_position_generator import \
+    AnnealedLangevinDynamicsGenerator
+from crystal_diffusion.generators.predictor_corrector_position_generator import \
+    PredictorCorrectorSamplingParameters
 from crystal_diffusion.models.score_networks import (MLPScoreNetwork,
                                                      MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import (
