@@ -19,8 +19,7 @@ from crystal_diffusion.analysis.analytic_score import \
 from crystal_diffusion.analysis.analytic_score.utils import (
     get_exact_samples, get_samples_harmonic_energy, get_silicon_supercell,
     get_unit_cells)
-from crystal_diffusion.generators.langevin_position_generator import \
-    LangevinGenerator
+from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
 from crystal_diffusion.generators.predictor_corrector_position_generator import \

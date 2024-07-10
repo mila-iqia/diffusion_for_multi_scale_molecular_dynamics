@@ -1,8 +1,7 @@
 import pytest
 import torch
 
-from crystal_diffusion.generators.langevin_position_generator import \
-    LangevinGenerator
+from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
 from crystal_diffusion.models.score_networks import (MLPScoreNetwork,
