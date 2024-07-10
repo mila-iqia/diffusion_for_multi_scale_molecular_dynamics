@@ -3,8 +3,7 @@ import pytest
 import torch
 
 from crystal_diffusion.generators.constrained_langevin_dynamics_generator import (
-    ConstrainedAnnealedLangevinDyamicsGeneratorParameters,
-    ConstrainedAnnealedLangevinDynamicsGenerator)
+    ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from tests.generators.test_langevin_dynamics import \
     TestAnnealedLangevinDynamics
 
@@ -19,7 +18,7 @@ class TestConstrainedAnnealedLangevinDyamics(TestAnnealedLangevinDynamics):
     @pytest.fixture()
     def sampling_parameters(self, number_of_atoms, spatial_dimension, number_of_samples,
                             number_of_corrector_steps, unit_cell_size, constrained_relative_coordinates):
-        sampling_parameters = ConstrainedAnnealedLangevinDyamicsGeneratorParameters(
+        sampling_parameters = ConstrainedLangevinGeneratorParameters(
             number_of_corrector_steps=number_of_corrector_steps,
             number_of_atoms=number_of_atoms,
             number_of_samples=number_of_samples,
@@ -31,7 +30,7 @@ class TestConstrainedAnnealedLangevinDyamics(TestAnnealedLangevinDynamics):
 
     @pytest.fixture()
     def pc_generator(self, noise_parameters, sampling_parameters, sigma_normalized_score_network):
-        generator = ConstrainedAnnealedLangevinDynamicsGenerator(
+        generator = ConstrainedLangevinGenerator(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
             sigma_normalized_score_network=sigma_normalized_score_network)
