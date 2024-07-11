@@ -230,8 +230,9 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         ode_prefactor = self._get_ode_prefactor(sigmas)
         list_flat_normalized_scores = []
         for time_idx, (time, gamma) in enumerate(zip(evaluation_times, ode_prefactor)):
+            times = time * torch.ones(number_of_samples).to(sol.ys)
             # The score network must be called again to get scores at intermediate times
-            flat_normalized_score = -ode_term(times=time * torch.ones(number_of_samples),
+            flat_normalized_score = -ode_term(times=times,
                                               flat_relative_coordinates=sol.ys[:, time_idx]) / gamma
             list_flat_normalized_scores.append(flat_normalized_score)
         record_normalized_scores = einops.rearrange(torch.stack(list_flat_normalized_scores),
