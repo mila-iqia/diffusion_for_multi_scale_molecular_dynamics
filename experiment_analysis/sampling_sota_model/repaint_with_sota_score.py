@@ -76,7 +76,7 @@ if __name__ == '__main__':
         number_of_samples=number_of_samples,
         cell_dimensions=3 * [acell],
         constrained_relative_coordinates=constrained_relative_coordinates,
-        record_samples=False)
+        record_samples=True)
 
     position_generator = ConstrainedLangevinGenerator(
         noise_parameters=noise_parameters,
@@ -92,6 +92,8 @@ if __name__ == '__main__':
 
         batch_relative_positions = samples.cpu().numpy()
         batch_positions = np.dot(batch_relative_positions, box)
+
+    position_generator.sample_trajectory_recorder.write_to_pickle(repaint_dir / "repaint_trajectories.pkl")
 
     logger.info("Compute energy from Oracle")
     list_energy = []
