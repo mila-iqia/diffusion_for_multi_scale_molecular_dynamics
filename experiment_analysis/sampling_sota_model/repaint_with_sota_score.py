@@ -8,7 +8,7 @@ import torch
 import yaml
 
 from crystal_diffusion import DATA_DIR
-from crystal_diffusion.analysis import PLOT_STYLE_PATH, PLEASANT_FIG_SIZE
+from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from crystal_diffusion.models.model_loader import load_diffusion_model
@@ -21,7 +21,7 @@ setup_analysis_logger()
 
 
 experiments_dir = Path("/home/mila/r/rousseab/experiments/")
-model_dir = experiments_dir /  "checkpoints/sota_model/"
+model_dir = experiments_dir / "checkpoints/sota_model/"
 state_dict_path = model_dir / "last_model-epoch=199-step=019600_state_dict.ckpt"
 config_path = model_dir / "config_backup.yaml"
 
@@ -54,7 +54,6 @@ if __name__ == '__main__':
     noise_parameters = NoiseParameters(total_time_steps=total_time_steps,
                                        sigma_min=0.001,
                                        sigma_max=0.5)
-
 
     logger.info("Loading state dict")
     with open(str(state_dict_path), 'rb') as fd:
@@ -118,7 +117,7 @@ if __name__ == '__main__':
 
     logger.info("Plotting energy distributions")
     fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    fig.suptitle(f'Energy Distribution for Repaint Structures,')
+    fig.suptitle('Energy Distribution for Repaint Structures,')
 
     common_params = dict(density=True, bins=50, histtype="stepfilled", alpha=0.25)
 

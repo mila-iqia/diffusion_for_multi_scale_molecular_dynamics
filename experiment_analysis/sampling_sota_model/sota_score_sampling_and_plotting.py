@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 setup_analysis_logger()
 
 experiments_dir = Path("/home/mila/r/rousseab/experiments/")
-model_dir = experiments_dir /  "checkpoints/sota_model/"
+model_dir = experiments_dir / "checkpoints/sota_model/"
 state_dict_path = model_dir / "last_model-epoch=199-step=019600_state_dict.ckpt"
 config_path = model_dir / "config_backup.yaml"
 
@@ -40,7 +40,7 @@ plt.style.use(PLOT_STYLE_PATH)
 device = torch.device('cuda')
 
 # Change these parameters as needed!
-#sampling_algorithm = 'ode'
+# sampling_algorithm = 'ode'
 sampling_algorithm = 'langevin'
 
 spatial_dimension = 3
@@ -112,7 +112,6 @@ if __name__ == '__main__':
         samples = position_generator.sample(number_of_samples=number_of_samples,
                                             device=device,
                                             unit_cell=unit_cells)
-
 
     batch_relative_positions = samples.cpu().numpy()
     batch_positions = np.dot(batch_relative_positions, box)
@@ -276,7 +275,6 @@ if __name__ == '__main__':
     fig4.savefig(
         SOTA_SCORE_RESULTS_DIR / f"marginal_1D_distributions_{sampling_algorithm}_{number_of_atoms}_atoms.png")
     plt.close(fig4)
-
 
     # ========================   Figure 5   ======================================
     logger.info("Plotting energy distributions")
