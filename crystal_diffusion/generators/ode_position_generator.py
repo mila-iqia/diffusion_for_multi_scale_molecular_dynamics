@@ -185,7 +185,7 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
                                                      rtol=self.relative_solver_tolerance,
                                                      term=term)
         solver = to.AutoDiffAdjoint(step_method, step_size_controller)
-        #jit_solver = torch.compile(solver)
+        # jit_solver = torch.compile(solver) # Compilation is not necessary, and breaks on the cluster...
         jit_solver = solver
 
         logger.info("Starting ODE solver...")
