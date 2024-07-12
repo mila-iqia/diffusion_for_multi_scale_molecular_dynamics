@@ -197,9 +197,11 @@ if __name__ == '__main__':
     fig2.suptitle('Root Mean Squared Normalized Scores Along Sample Trajectories')
     rms_norm_score = (batch_flat_normalized_scores ** 2).mean(dim=-1).sqrt().cpu().numpy()
 
-    ax1 = fig2.add_subplot(111)
+    ax1 = fig2.add_subplot(121)
+    ax2 = fig2.add_subplot(122)
     for y in rms_norm_score[::10]:
-        ax1.plot(sampling_times, y, '-', color='gray', alpha=0.2, label='__nolabel__')
+        for ax in [ax1, ax2]:
+            ax.plot(sampling_times, y, '-', color='gray', alpha=0.2, label='__nolabel__')
 
     list_quantiles = [0.0, 0.10, 0.5, 1.0]
     list_colors = ['green', 'yellow', 'orange', 'red']
@@ -208,13 +210,17 @@ if __name__ == '__main__':
         energy_quantile = np.quantile(energies, q)
         idx = np.argmin(np.abs(energies - energy_quantile))
         e = energies[idx]
-        ax1.plot(sampling_times, rms_norm_score[idx], '-',
-                 color=c, alpha=1., label=f'{100 * q:2.0f}% Percentile Energy: {e:5.1f}')
+        for ax in [ax1, ax2]:
+            ax.plot(sampling_times, rms_norm_score[idx], '-',
+                    color=c, alpha=1., label=f'{100 * q:2.0f}% Percentile Energy: {e:5.1f}')
 
-    ax1.set_xlabel('Diffusion Time')
-    ax1.set_ylabel(r'$ \sqrt{\langle | (\sigma(t) S_{\theta} )^2\rangle}$')
-    ax1.legend(loc=0)
-    ax1.set_xlim(1, 0)
+    for ax in [ax1, ax2]:
+        ax.set_xlabel('Diffusion Time')
+        ax.set_ylabel(r'$ \sqrt{\langle (\sigma(t) S_{\theta} )^2\rangle}$')
+        ax.set_xlim(1, 0)
+
+    ax1.legend(loc=0, fontsize=6)
+    ax1.set_yscale('log')
 
     fig2.savefig(
         SOTA_SCORE_RESULTS_DIR / f"sampling_score_trajectories_{sampling_algorithm}_{number_of_atoms}_atoms.png")
