@@ -1,9 +1,8 @@
 import logging
 import os
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AnyStr, Dict, List, Optional, Tuple
+from typing import Any, AnyStr, Dict, List, Tuple
 
 import numpy as np
 import scipy.stats as ss
@@ -12,11 +11,12 @@ from matplotlib import pyplot as plt
 from pytorch_lightning import Callback, LightningModule, Trainer
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.generators.ode_position_generator import \
-    ExplodingVarianceODEPositionGenerator
-from crystal_diffusion.generators.position_generator import PositionGenerator
-from crystal_diffusion.generators.predictor_corrector_position_generator import \
-    AnnealedLangevinDynamicsGenerator
+from crystal_diffusion.generators.ode_position_generator import (
+    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
+from crystal_diffusion.generators.position_generator import (
+    PositionGenerator, SamplingParameters)
+from crystal_diffusion.generators.predictor_corrector_position_generator import (
+    AnnealedLangevinDynamicsGenerator, PredictorCorrectorSamplingParameters)
 from crystal_diffusion.loggers.logger_loader import log_figure
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -27,36 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 plt.style.use(PLOT_STYLE_PATH)
-
-
-@dataclass(kw_only=True)
-class SamplingParameters:
-    """Hyper-parameters for diffusion sampling."""
-    algorithm: str
-    spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
-    number_of_corrector_steps: int = 1
-    number_of_atoms: int  # the number of atoms that must be generated in a sampled configuration.
-    number_of_samples: int
-    sample_batchsize: Optional[int] = None  # iterate up to number_of_samples with batches of this size
-    # if None, use number_of_samples as batchsize
-    sample_every_n_epochs: int = 1  # Sampling is expensive; control frequency
-    cell_dimensions: List[float]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
-    record_samples: bool = False  # should the predictor and corrector steps be recorded to a file
-
-
-@dataclass(kw_only=True)
-class PredictorCorrectorSamplingParameters(SamplingParameters):
-    """Hyper-parameters for diffusion sampling with the predictor-corrector algorithm."""
-    algorithm: str = 'predictor_corrector'
-    number_of_corrector_steps: int = 1
-
-
-@dataclass(kw_only=True)
-class ODESamplingParameters(SamplingParameters):
-    """Hyper-parameters for diffusion sampling with the ode algorithm."""
-    algorithm: str = 'ode'
-    absolute_solver_tolerance: float = 1.0e-3
-    relative_solver_tolerance: float = 1.0e-2
 
 
 def instantiate_diffusion_sampling_callback(callback_params: Dict[AnyStr, Any],
@@ -316,15 +286,9 @@ class PredictorCorrectorDiffusionSamplingCallback(DiffusionSamplingCallback):
         logger.info("Creating sampler")
         sigma_normalized_score_network = pl_model.sigma_normalized_score_network
 
-        sampler_parameters = dict(noise_parameters=self.noise_parameters,
-                                  number_of_corrector_steps=self.sampling_parameters.number_of_corrector_steps,
-                                  number_of_atoms=self.sampling_parameters.number_of_atoms,
-                                  spatial_dimension=self.sampling_parameters.spatial_dimension,
-                                  record_samples=self.sampling_parameters.record_samples,
-                                  positions_require_grad=False)
-
-        generator = AnnealedLangevinDynamicsGenerator(sigma_normalized_score_network=sigma_normalized_score_network,
-                                                      **sampler_parameters)
+        generator = AnnealedLangevinDynamicsGenerator(noise_parameters=self.noise_parameters,
+                                                      sampling_parameters=self.sampling_parameters,
+                                                      sigma_normalized_score_network=sigma_normalized_score_network)
 
         return generator
 
@@ -337,12 +301,8 @@ class ODEDiffusionSamplingCallback(DiffusionSamplingCallback):
         logger.info("Creating sampler")
         sigma_normalized_score_network = pl_model.sigma_normalized_score_network
 
-        sampler_parameters = dict(noise_parameters=self.noise_parameters,
-                                  number_of_atoms=self.sampling_parameters.number_of_atoms,
-                                  spatial_dimension=self.sampling_parameters.spatial_dimension,
-                                  record_samples=self.sampling_parameters.record_samples)
-
-        generator = ExplodingVarianceODEPositionGenerator(sigma_normalized_score_network=sigma_normalized_score_network,
-                                                          **sampler_parameters)
+        generator = ExplodingVarianceODEPositionGenerator(noise_parameters=self.noise_parameters,
+                                                          sampling_parameters=self.sampling_parameters,
+                                                          sigma_normalized_score_network=sigma_normalized_score_network)
 
         return generator

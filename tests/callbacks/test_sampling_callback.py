@@ -4,9 +4,12 @@ import numpy as np
 import pytest
 from pytorch_lightning import LightningModule
 
-from crystal_diffusion.callbacks.sampling_callback import (
-    DiffusionSamplingCallback, ODESamplingParameters,
-    PredictorCorrectorSamplingParameters)
+from crystal_diffusion.callbacks.sampling_callback import \
+    DiffusionSamplingCallback
+from crystal_diffusion.generators.ode_position_generator import \
+    ODESamplingParameters
+from crystal_diffusion.generators.predictor_corrector_position_generator import \
+    PredictorCorrectorSamplingParameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 
