@@ -1,15 +1,36 @@
 import einops
+import numpy as np
 import torch
-from sklearn.neighbors import KDTree
-
-from crystal_diffusion.models.score_networks.analytical_score_network import \
-    AnalyticalScoreNetwork
+from pymatgen.core import Lattice, Structure
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 
 def get_unit_cells(acell: float, spatial_dimension: int, number_of_samples: int) -> torch.Tensor:
     """Generate cubic unit cells."""
     unit_cell = torch.diag(acell * torch.ones(spatial_dimension))
     return unit_cell.repeat(number_of_samples, 1, 1)
+
+
+def get_silicon_supercell(supercell_factor: int):
+    """Get silicon supercell."""
+    primitive_cell_a = 3.84
+    lattice = Lattice.from_parameters(a=primitive_cell_a,
+                                      b=primitive_cell_a,
+                                      c=primitive_cell_a,
+                                      alpha=60., beta=60., gamma=60.)
+
+    species = ['Si', 'Si']
+    coordinates = np.array([[0.0, 0.0, 0.0], [0.25, 0.25, 0.25]])
+
+    primitize_structure = Structure(lattice=lattice,
+                                    species=species,
+                                    coords=coordinates,
+                                    coords_are_cartesian=False)
+    conventional_structure = SpacegroupAnalyzer(primitize_structure).get_symmetrized_structure().to_conventional()
+
+    super_structure = conventional_structure.make_supercell([supercell_factor, supercell_factor, supercell_factor])
+
+    return super_structure.frac_coords
 
 
 def get_random_equilibrium_relative_coordinates(number_of_atoms: int, spatial_dimension: int) -> torch.Tensor:
@@ -71,18 +92,13 @@ def get_exact_samples(equilibrium_relative_coordinates: torch.Tensor, inverse_co
 def get_samples_harmonic_energy(equilibrium_relative_coordinates: torch.Tensor, inverse_covariance: torch.Tensor,
                                 samples: torch.Tensor) -> torch.Tensor:
     """Get samples harmonic energy."""
-    all_permutations = AnalyticalScoreNetwork._get_all_equilibrium_permutations(equilibrium_relative_coordinates)
+    flat_x_eq = einops.rearrange(equilibrium_relative_coordinates, "n d -> (n d)")
+    flat_x = einops.rearrange(samples, "batch n d -> batch (n d)")
 
-    flat_permutations = einops.rearrange(all_permutations, "perm n d -> perm (n d)")
-    flat_samples = einops.rearrange(samples, "batch n d -> batch (n d)")
+    flat_displacements = flat_x - flat_x_eq
 
-    # find the smallest displacements by matching the 'best' permutation to each sample
-    tree = KDTree(flat_permutations.numpy())
-
-    _, min_indices = tree.query(flat_samples, k=1)
-    min_indices = min_indices[:, 0]
-
-    flat_displacements = flat_samples - flat_permutations[min_indices]
+    # Account for periodicity: the closest equilibrium position might be a lattice vector away from the origin.
+    flat_displacements = flat_displacements - flat_displacements.round()
 
     flat_inverse_covariance = einops.rearrange(inverse_covariance, "n1 d1 n2 d2 -> (n1 d1) (n2 d2)")
 

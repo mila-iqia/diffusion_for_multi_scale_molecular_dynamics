@@ -2,8 +2,10 @@
 
 This module implements an "exact" score network that is obtained under the approximation that the
 atomic positions are just small displacements around some equilibrium positions and that the
-energy is purely harmonic (ie, quadratic in the displacements). The score network is made
-permutation invariant by summing on all atomic permutations.
+energy is purely harmonic (ie, quadratic in the displacements).  Furthermore, it is assumed that
+the covariance matrix is proportional to the identity; this makes the lattice sums manageable.
+
+Optionally, the score network is made permutation invariant by summing on all atomic permutations.
 
 This goal of this module is to investigate and understand the properties of diffusion. It is not
 meant to generate 'production' results.
@@ -22,16 +24,18 @@ from crystal_diffusion.namespace import NOISE, NOISY_RELATIVE_COORDINATES
 
 @dataclass(kw_only=True)
 class AnalyticalScoreNetworkParameters(ScoreNetworkParameters):
-    """Specific Hyper-parameters for MLP score networks."""
+    """Specific Hyper-parameters for analytical score networks."""
     architecture: str = 'analytical'
     number_of_atoms: int   # the number of atoms in a configuration.
     kmax: int  # the maximum lattice translation along any dimension. Translations will be [-kmax,..,kmax].
     equilibrium_relative_coordinates: torch.Tensor  # Should have shape [number_of_atoms, spatial_dimensions]
     # Harmonic energy is defined as U = 1/2 u^T . Phi . u for "u"
     # the relative coordinate displacements. The 'inverse covariance' is beta Phi
-    # and should be unitless. The shape should be
+    # and should be unitless. This is assumed to be proportional to the identity, such that
+    # (beta Phi)^{-1} = sigma_d^2 Id, where the shape of Id is
     #   [number_of_atoms, spatial_dimensions,number_of_atoms, spatial_dimensions]
-    inverse_covariance: torch.Tensor
+    variance_parameter: float  # sigma_d^2
+    use_permutation_invariance: bool = False  # should the analytical score consider every coordinate permutations.
 
 
 class AnalyticalScoreNetwork(ScoreNetwork):
@@ -50,46 +54,34 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         self.natoms = hyper_params.number_of_atoms
         self.spatial_dimension = hyper_params.spatial_dimension
+        self.nd = self.natoms * self.spatial_dimension
         self.kmax = hyper_params.kmax
 
-        self.flat_dim = self.natoms * self.spatial_dimension
-
-        self.device = hyper_params.equilibrium_relative_coordinates.device
+        assert hyper_params.variance_parameter > 0., "the variance parameter should be positive."
+        self.sigma_d_square = hyper_params.variance_parameter
 
         assert hyper_params.equilibrium_relative_coordinates.shape == (self.natoms, self.spatial_dimension), \
             "equilibrium relative coordinates have the wrong shape"
 
-        expected_shape = (self.natoms, self.spatial_dimension, self.natoms, self.spatial_dimension)
-        assert hyper_params.inverse_covariance.shape == expected_shape, "inverse covariance has the wrong shape"
+        self.use_permutation_invariance = hyper_params.use_permutation_invariance
+        self.device = hyper_params.equilibrium_relative_coordinates.device
 
-        # Shape : [natom!, natoms, spatial dimension]
-        permuted_equilibrium_relative_coordinates = (
-            self._get_all_equilibrium_permutations(hyper_params.equilibrium_relative_coordinates))
+        # shape: [number_of_translations]
+        self.translations_k = self._get_all_translations(self.kmax).to(self.device)
+        self.number_of_translations = len(self.translations_k)
 
-        # Shape : [natom!, flat_dim]
-        self.permutations_x0 = einops.rearrange(permuted_equilibrium_relative_coordinates,
-                                                'permutation natom d -> permutation (natom d)')
+        self.equilibrium_relative_coordinates = hyper_params.equilibrium_relative_coordinates
 
-        # shape: [ (2 kmax + 1)^flat_dim,  flat_dim]
-        self.translations_k = self._get_all_translations(self.kmax, self.flat_dim).to(self.device)
-
-        # shape [ (2 kmax + 1)^flat_dim x natom!, flat_dim]
-        self.all_offsets = self._get_all_flat_offsets(self.permutations_x0, self.translations_k).to(self.device)
-
-        self.beta_phi_matrix = einops.rearrange(hyper_params.inverse_covariance,
-                                                "natom1 d1 natom2 d2 -> (natom1 d1) (natom2 d2)")
-
-        eigen = torch.linalg.eigh(self.beta_phi_matrix)
-        self.spring_constants = eigen.eigenvalues
-        self.eigenvectors_as_columns = eigen.eigenvectors
-
-        assert torch.all(self.spring_constants > 0.), "the inverse covariance has non-positive eigenvalues."
+        if self.use_permutation_invariance:
+            # Shape : [natom!, natoms, spatial dimension]
+            self.all_x0 = self._get_all_equilibrium_permutations(self.equilibrium_relative_coordinates)
+        else:
+            # Shape : [1, natoms, spatial dimension]
+            self.all_x0 = einops.rearrange(hyper_params.equilibrium_relative_coordinates, 'natom d -> 1 natom d')
 
     @staticmethod
-    def _get_all_translations(kmax: int, flat_dim: int) -> torch.Tensor:
-        shifts = range(-kmax, kmax + 1)
-        all_translations = 1.0 * torch.tensor(list(itertools.product(shifts, repeat=flat_dim)))
-        return all_translations
+    def _get_all_translations(kmax: int) -> torch.Tensor:
+        return torch.arange(-kmax, kmax + 1)
 
     @staticmethod
     def _get_all_equilibrium_permutations(relative_coordinates: torch.Tensor) -> torch.Tensor:
@@ -100,35 +92,6 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         perm_indices = torch.stack([torch.tensor(perm) for perm in itertools.permutations(range(number_of_atoms))])
         equilibrium_permutations = relative_coordinates[perm_indices]
         return equilibrium_permutations
-
-    @staticmethod
-    def _get_all_flat_offsets(permutations_x0: torch.Tensor, translations_k: torch.Tensor) -> torch.Tensor:
-
-        assert len(permutations_x0.shape) == 2
-        assert len(translations_k.shape) == 2
-
-        assert permutations_x0.shape[1] == translations_k.shape[1]
-
-        all_offsets = permutations_x0.unsqueeze(0) + translations_k.unsqueeze(1)
-        all_offsets = einops.rearrange(all_offsets,
-                                       'permutation kshells flat_dim -> (permutation kshells) flat_dim')
-        return all_offsets
-
-    def _get_effective_inverse_covariance_matrices(self, sigmas: torch.Tensor) -> torch.Tensor:
-
-        # Shape [batch_size, natom x spatial dimension]
-        renormalized_spring_constants = self.spring_constants / (sigmas**2 * self.spring_constants + 1.0)
-        lambda_matrix = torch.diag_embed(renormalized_spring_constants)
-
-        batch_size = sigmas.shape[0]
-        u_matrix = einops.repeat(self.eigenvectors_as_columns,
-                                 'f1 f2 -> batch f1 f2', batch=batch_size, f1=self.flat_dim, f2=self.flat_dim)
-
-        lambda_u_transpose = torch.bmm(lambda_matrix, u_matrix.transpose(2, 1))
-
-        effective_inverse_covariance_matrices = torch.bmm(u_matrix, lambda_u_transpose)
-
-        return effective_inverse_covariance_matrices
 
     def _forward_unchecked(self, batch: Dict[AnyStr, Any], conditional: bool = False) -> torch.Tensor:
         """Forward unchecked.
@@ -144,37 +107,50 @@ class AnalyticalScoreNetwork(ScoreNetwork):
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-
-        # Dimension: [batch_size, flat_dim, flat_dim]
-        effective_inverse_covariance_matrices = self._get_effective_inverse_covariance_matrices(sigmas)
-
         xt = batch[NOISY_RELATIVE_COORDINATES]
         xt.requires_grad_(True)
 
-        flat_xt = einops.rearrange(xt, 'batch natom d -> batch (natom d)')
+        list_unnormalized_log_prob = []
+        for x0 in self.all_x0:
+            unnormalized_log_prob = self._compute_unnormalized_log_probability(sigmas, xt, x0)
+            list_unnormalized_log_prob.append(unnormalized_log_prob)
 
-        # shape [batch size, number of offsets, flat_dim]
-        all_displacements = flat_xt.unsqueeze(1) - self.all_offsets.unsqueeze(0)
+        list_unnormalized_log_prob = torch.stack(list_unnormalized_log_prob)
+        log_probs = torch.logsumexp(list_unnormalized_log_prob, dim=0, keepdim=False)
 
-        m_u = einops.einsum(effective_inverse_covariance_matrices, all_displacements,
-                            "batch f1 f2, batch offsets f2 -> batch f1 offsets")
+        grad_outputs = [torch.ones_like(log_probs)]
 
-        u_m_u = einops.einsum(all_displacements, m_u, "batch offsets flat_dim, batch flat_dim offsets -> batch offsets")
-
-        exponent = -0.5 * u_m_u
-
-        unnormalized_log_prob = torch.logsumexp(exponent, dim=1, keepdim=True)
-
-        grad_outputs = [torch.ones_like(unnormalized_log_prob)]
-
-        flat_scores = torch.autograd.grad(outputs=[unnormalized_log_prob],
-                                          inputs=[flat_xt],
-                                          grad_outputs=grad_outputs)[0]
+        scores = torch.autograd.grad(outputs=[log_probs],
+                                     inputs=[xt],
+                                     grad_outputs=grad_outputs)[0]
 
         # We actually want sigma x score.
-        flat_sigma_normalized_score = sigmas * flat_scores
-
-        sigma_normalized_scores = einops.rearrange(flat_sigma_normalized_score, 'batch (n d) -> batch n d',
-                                                   n=self.natoms, d=self.spatial_dimension)
+        broadcast_sigmas = einops.repeat(sigmas, 'batch 1 -> batch n d', n=self.natoms, d=self.spatial_dimension)
+        sigma_normalized_scores = broadcast_sigmas * scores
 
         return sigma_normalized_scores
+
+    def _compute_unnormalized_log_probability(self, sigmas: torch.Tensor,
+                                              xt: torch.Tensor,
+                                              x_eq: torch.Tensor) -> torch.Tensor:
+
+        batch_size = sigmas.shape[0]
+
+        # Recast various spatial arrays to the correct dimensions to combine them,
+        # in dimensions [batch, nd, number_of_translations]
+        effective_variance = einops.repeat(sigmas ** 2 + self.sigma_d_square, 'batch 1 -> batch nd t',
+                                           t=self.number_of_translations, nd=self.nd)
+
+        sampling_coordinates = einops.repeat(xt, 'batch natom d -> batch (natom d) t',
+                                             batch=batch_size, t=self.number_of_translations)
+
+        equilibrium_coordinates = einops.repeat(x_eq, 'natom d -> batch (natom d) t',
+                                                batch=batch_size, t=self.number_of_translations)
+
+        translations = einops.repeat(self.translations_k, 't -> batch nd t', batch=batch_size, nd=self.nd)
+
+        exponent = -0.5 * (sampling_coordinates - equilibrium_coordinates - translations) ** 2 / effective_variance
+        # logsumexp on lattice translation vectors, then sum on spatial indices
+        unnormalized_log_prob = torch.logsumexp(exponent, dim=2, keepdim=False).sum(dim=1)
+
+        return unnormalized_log_prob
