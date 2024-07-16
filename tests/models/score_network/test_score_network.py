@@ -4,16 +4,18 @@ import numpy as np
 import pytest
 import torch
 
-from crystal_diffusion.models.score_networks import \
-    create_score_network_parameters
 from crystal_diffusion.models.score_networks.diffusion_mace_score_network import (
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.egnn_score_network import (
+    EGNNScoreNetwork, EGNNScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.mace_score_network import (
     MACEScoreNetwork, MACEScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.mlp_score_network import (
     MLPScoreNetwork, MLPScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.score_network_factory import \
+    create_score_network_parameters
 from crystal_diffusion.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
@@ -289,3 +291,14 @@ class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
     def score_network(self, score_network_parameters):
         return DiffusionMACEScoreNetwork(score_network_parameters)
+
+
+@pytest.mark.parametrize("spatial_dimension", [3])
+class TestEGNNScoreNetwork(BaseTestScoreNetwork):
+    @pytest.fixture()
+    def score_network_parameters(self):
+        return EGNNScoreNetworkParameters(hidden_dim=32)
+
+    @pytest.fixture()
+    def score_network(self, score_network_parameters):
+        return EGNNScoreNetwork(score_network_parameters)

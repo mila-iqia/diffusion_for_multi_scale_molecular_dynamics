@@ -7,7 +7,7 @@ from crystal_diffusion.models.optimizer import create_optimizer_parameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
 from crystal_diffusion.models.scheduler import create_scheduler_parameters
-from crystal_diffusion.models.score_networks import \
+from crystal_diffusion.models.score_networks.score_network_factory import \
     create_score_network_parameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
