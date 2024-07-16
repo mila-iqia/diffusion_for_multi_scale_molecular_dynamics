@@ -29,11 +29,19 @@ class EGNNScoreNetwork(ScoreNetwork):
         """
         super(EGNNScoreNetwork, self).__init__(hyper_params)
 
+        # TODO: do something cleaner
+        if torch.cuda.is_available():
+            device = torch.device('cuda')
+        else:
+            device = torch.device('cpu')
+
         self.egnn = EGNN(in_node_nf=1,
                          hidden_nf=hyper_params.hidden_dimensions_size,
                          n_layers=hyper_params.number_of_layers,
                          out_node_nf=1,
-                         in_edge_nf=1)
+                         in_edge_nf=1,
+                         device=device,
+                         normalize=True)
         hidden_dimensions_size: int
         number_of_layers: int
 
