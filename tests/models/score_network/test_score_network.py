@@ -297,7 +297,7 @@ class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
 class TestEGNNScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
     def score_network_parameters(self):
-        return EGNNScoreNetworkParameters(hidden_dim=32)
+        return EGNNScoreNetworkParameters(hidden_dimensions_size=32, number_of_layers=3)
 
     @pytest.fixture()
     def score_network(self, score_network_parameters):
