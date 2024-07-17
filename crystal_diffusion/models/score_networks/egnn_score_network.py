@@ -31,16 +31,16 @@ class EGNNScoreNetwork(ScoreNetwork):
 
         # TODO: do something cleaner
         if torch.cuda.is_available():
-            device = torch.device('cuda')
+            self.device = torch.device('cuda')
         else:
-            device = torch.device('cpu')
+            self.device = torch.device('cpu')
 
         self.egnn = EGNN(in_node_nf=1,
                          hidden_nf=hyper_params.hidden_dimensions_size,
                          n_layers=hyper_params.number_of_layers,
                          out_node_nf=1,
                          in_edge_nf=1,
-                         device=device,
+                         device=self.device,
                          normalize=True)
         hidden_dimensions_size: int
         number_of_layers: int
@@ -51,6 +51,8 @@ class EGNNScoreNetwork(ScoreNetwork):
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         edges, edge_attr = get_edges_batch(n_nodes=number_of_atoms, batch_size=batch_size)
+        edge_attr.to(relative_coordinates.device)
+        edges.to(relative_coordinates.device)
 
         flat_relative_coordinates = einops.rearrange(relative_coordinates,
                                                      "batch natom space -> (batch natom) space")
