@@ -1,5 +1,6 @@
-import os
+from copy import deepcopy
 
+import einops
 import pytest
 import torch
 
@@ -146,32 +147,27 @@ def test_record_corrector(sample_trajectory, number_of_corrector_steps, list_tim
     torch.testing.assert_close(torch.stack(sample_trajectory.data['corrector_scores'], dim=0), corrector_scores)
 
 
-def test_write_to_pickle(sample_trajectory, tmp_path):
+def test_standardize_data_and_write_pickle(sample_trajectory, basis_vectors, list_times, list_sigmas,
+                                           list_x_i, predictor_scores, tmp_path):
     pickle_path = str(tmp_path / 'test_pickle_path.pkl')
     sample_trajectory.write_to_pickle(pickle_path)
-    os.path.exists(pickle_path)
 
+    with open(pickle_path, 'rb') as fd:
+        standardized_data = torch.load(fd)
 
-def test_load_from_pickle(sample_trajectory, tmp_path):
+    reordered_scores = einops.rearrange(predictor_scores, "t b n d -> b t n d")
+    reordered_relative_coordinates = einops.rearrange(list_x_i, "t b n d -> b t n d")
 
-    pickle_path = str(tmp_path / 'test_pickle_path_to_load.pkl')
-    sample_trajectory.write_to_pickle(pickle_path)
-
-    loaded_sample_trajectory = PredictorCorrectorSampleTrajectory.read_from_pickle(pickle_path)
-
-    assert set(sample_trajectory.data.keys()) == set(loaded_sample_trajectory.data.keys())
-
-    for key in sample_trajectory.data.keys():
-        expected = sample_trajectory.data[key]
-        computed = loaded_sample_trajectory.data[key]
-        torch.testing.assert_close(expected, computed)
+    torch.testing.assert_close(standardized_data['unit_cell'], basis_vectors)
+    torch.testing.assert_close(standardized_data['time'], list_times)
+    torch.testing.assert_close(standardized_data['sigma'], list_sigmas)
+    torch.testing.assert_close(standardized_data['relative_coordinates'], reordered_relative_coordinates)
+    torch.testing.assert_close(standardized_data['normalized_scores'], reordered_scores)
 
 
 def test_reset(sample_trajectory, tmp_path):
-    pickle_path = str(tmp_path / 'test_pickle_path_reset.pkl')
-    sample_trajectory.write_to_pickle(pickle_path)
-    loaded_sample_trajectory = PredictorCorrectorSampleTrajectory.read_from_pickle(pickle_path)
-
-    assert len(loaded_sample_trajectory.data.keys()) != 0
-    loaded_sample_trajectory.reset()
-    assert len(loaded_sample_trajectory.data.keys()) == 0
+    # We don't want to affect other tests!
+    copied_sample_trajectory = deepcopy(sample_trajectory)
+    assert len(copied_sample_trajectory.data.keys()) != 0
+    copied_sample_trajectory.reset()
+    assert len(copied_sample_trajectory.data.keys()) == 0

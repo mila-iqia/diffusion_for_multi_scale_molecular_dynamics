@@ -1,6 +1,7 @@
 from collections import defaultdict
-from typing import Dict
+from typing import Any, AnyStr, Dict
 
+import einops
 import torch
 
 
@@ -23,10 +24,15 @@ class SampleTrajectory:
         """Record unit cell."""
         self.data['unit_cell'] = unit_cell.detach().cpu()
 
+    def standardize_data(self, data: Dict[AnyStr, Any]) -> Dict[AnyStr, Any]:
+        """Method to transform the recorded data to a standard form."""
+        raise NotImplementedError("Must be implemented in child class.")
+
     def write_to_pickle(self, path_to_pickle: str):
-        """Write data to pickle file."""
+        """Write standardized data to pickle file."""
+        standard_data = self.standardize_data(self.data)
         with open(path_to_pickle, 'wb') as fd:
-            torch.save(self.data, fd)
+            torch.save(standard_data, fd)
 
 
 class ODESampleTrajectory(SampleTrajectory):
@@ -36,21 +42,27 @@ class ODESampleTrajectory(SampleTrajectory):
     an artifact that can then be analyzed off-line.
     """
 
-    def record_ode_solution(self, times: torch.Tensor, relative_coordinates: torch.Tensor,
+    def record_ode_solution(self, times: torch.Tensor, sigmas: torch.Tensor,
+                            relative_coordinates: torch.Tensor, normalized_scores: torch.Tensor,
                             stats: Dict, status: torch.Tensor):
         """Record ODE solution information."""
         self.data['time'].append(times)
+        self.data['sigma'].append(sigmas)
+        self.data['relative_coordinates'].append(relative_coordinates)
+        self.data['normalized_scores'].append(normalized_scores)
         self.data['stats'].append(stats)
         self.data['status'].append(status)
-        self.data['relative_coordinates'].append(relative_coordinates)
 
-    @staticmethod
-    def read_from_pickle(path_to_pickle: str):
-        """Read from pickle."""
-        with open(path_to_pickle, 'rb') as fd:
-            sample_trajectory = ODESampleTrajectory()
-            sample_trajectory.data = torch.load(fd, map_location=torch.device('cpu'))
-        return sample_trajectory
+    def standardize_data(self, data: Dict[AnyStr, Any]) -> Dict[AnyStr, Any]:
+        """Method to transform the recorded data to a standard form."""
+        extra_fields = ['stats', 'status']
+        standardized_data = dict(unit_cell=data['unit_cell'],
+                                 time=data['time'][0],
+                                 sigma=data['sigma'][0],
+                                 relative_coordinates=data['relative_coordinates'][0],
+                                 normalized_scores=data['normalized_scores'][0],
+                                 extra={key: data[key][0] for key in extra_fields})
+        return standardized_data
 
 
 class NoOpODESampleTrajectory(ODESampleTrajectory):
@@ -60,7 +72,8 @@ class NoOpODESampleTrajectory(ODESampleTrajectory):
         """No Op."""
         return
 
-    def record_ode_solution(self, times: torch.Tensor, relative_coordinates: torch.Tensor,
+    def record_ode_solution(self, times: torch.Tensor, sigmas: torch.Tensor,
+                            relative_coordinates: torch.Tensor, normalized_scores: torch.Tensor,
                             stats: Dict, status: torch.Tensor):
         """No Op."""
         return
@@ -96,13 +109,24 @@ class PredictorCorrectorSampleTrajectory(SampleTrajectory):
         self.data['corrector_corrected_x_i'].append(corrected_x_i.detach().cpu())
         self.data['corrector_scores'].append(scores.detach().cpu())
 
-    @staticmethod
-    def read_from_pickle(path_to_pickle: str):
-        """Read from pickle."""
-        with open(path_to_pickle, 'rb') as fd:
-            sample_trajectory = PredictorCorrectorSampleTrajectory()
-            sample_trajectory.data = torch.load(fd, map_location=torch.device('cpu'))
-        return sample_trajectory
+    def standardize_data(self, data: Dict[AnyStr, Any]) -> Dict[AnyStr, Any]:
+        """Method to transform the recorded data to a standard form."""
+        predictor_relative_coordinates = einops.rearrange(torch.stack(data['predictor_x_i']),
+                                                          "t b n d -> b t n d")
+        predictor_normalized_scores = einops.rearrange(torch.stack(data['predictor_scores']),
+                                                       "t b n d -> b t n d")
+
+        extra_fields = ['predictor_i_index', 'predictor_x_i', 'predictor_x_im1',
+                        'corrector_i_index', 'corrector_time', 'corrector_sigma',
+                        'corrector_x_i', 'corrector_corrected_x_i', 'corrector_scores']
+
+        standardized_data = dict(unit_cell=data['unit_cell'],
+                                 time=torch.tensor(data['predictor_time']),
+                                 sigma=torch.tensor(data['predictor_sigma']),
+                                 relative_coordinates=predictor_relative_coordinates,
+                                 normalized_scores=predictor_normalized_scores,
+                                 extra={key: data[key] for key in extra_fields})
+        return standardized_data
 
 
 class NoOpPredictorCorrectorSampleTrajectory(PredictorCorrectorSampleTrajectory):

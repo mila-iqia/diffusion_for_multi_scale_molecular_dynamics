@@ -5,6 +5,7 @@ from typing import Callable
 import einops
 import torch
 import torchode as to
+from torchode import Solution
 
 from crystal_diffusion.generators.position_generator import (
     PositionGenerator, SamplingParameters)
@@ -184,23 +185,15 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
                                                      rtol=self.relative_solver_tolerance,
                                                      term=term)
         solver = to.AutoDiffAdjoint(step_method, step_size_controller)
-        jit_solver = torch.compile(solver)
+        # jit_solver = torch.compile(solver) # Compilation is not necessary, and breaks on the cluster...
+        jit_solver = solver
 
         logger.info("Starting ODE solver...")
         sol = jit_solver.solve(to.InitialValueProblem(y0=y0, t_eval=t_eval))
         logger.info("ODE solver Finished.")
 
         if self.record_samples:
-            # Only do these operations if they are required!
-            self.sample_trajectory_recorder.record_unit_cell(unit_cell)
-            record_relative_coordinates = einops.rearrange(sol.ys,
-                                                           'batch times (natom space) -> batch times natom space',
-                                                           natom=self.number_of_atoms,
-                                                           space=self.spatial_dimension)
-            self.sample_trajectory_recorder.record_ode_solution(times=sol.ts,
-                                                                relative_coordinates=record_relative_coordinates,
-                                                                stats=sol.stats,
-                                                                status=sol.status)
+            self.record_sample(ode_term, sol, evaluation_times, unit_cell)
 
         # sol.ys has dimensions [number of samples, number of times, number of features]
         # only the final time (ie, t0) is the real sample.
@@ -212,6 +205,46 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
                                                 space=self.spatial_dimension)
 
         return map_relative_coordinates_to_unit_cell(relative_coordinates)
+
+    def record_sample(self, ode_term: Callable, sol: Solution, evaluation_times: torch.Tensor, unit_cell: torch.Tensor):
+        """Record sample.
+
+        This method takes care of recomputing the normalized score on the solution trajectory and record it to the
+        sample trajectory object.
+        Args:
+            ode_term : the Callable that is used to compute the rhs of the solved ODE.
+            sol : the solution object obtained when solving the ODE.
+            evaluation_times : times along the trajectory.
+            unit_cell : unit cell definition in Angstrom.
+
+        Returns:
+            None
+        """
+        number_of_samples = sol.ys.shape[0]
+
+        self.sample_trajectory_recorder.record_unit_cell(unit_cell)
+        record_relative_coordinates = einops.rearrange(sol.ys,
+                                                       'batch times (natom space) -> batch times natom space',
+                                                       natom=self.number_of_atoms,
+                                                       space=self.spatial_dimension)
+        sigmas = self._get_exploding_variance_sigma(evaluation_times)
+        ode_prefactor = self._get_ode_prefactor(sigmas)
+        list_flat_normalized_scores = []
+        for time_idx, (time, gamma) in enumerate(zip(evaluation_times, ode_prefactor)):
+            times = time * torch.ones(number_of_samples).to(sol.ys)
+            # The score network must be called again to get scores at intermediate times
+            flat_normalized_score = -ode_term(times=times,
+                                              flat_relative_coordinates=sol.ys[:, time_idx]) / gamma
+            list_flat_normalized_scores.append(flat_normalized_score)
+        record_normalized_scores = einops.rearrange(torch.stack(list_flat_normalized_scores),
+                                                    "time batch (natom space) -> batch time natom space",
+                                                    natom=self.number_of_atoms, space=self.spatial_dimension)
+        self.sample_trajectory_recorder.record_ode_solution(times=evaluation_times,
+                                                            sigmas=sigmas,
+                                                            relative_coordinates=record_relative_coordinates,
+                                                            normalized_scores=record_normalized_scores,
+                                                            stats=sol.stats,
+                                                            status=sol.status)
 
     def initialize(self, number_of_samples: int):
         """This method must initialize the samples from the fully noised distribution."""

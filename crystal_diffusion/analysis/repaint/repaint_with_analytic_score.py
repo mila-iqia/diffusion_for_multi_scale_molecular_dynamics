@@ -7,7 +7,7 @@ import torch
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import (
-    get_silicon_supercell, get_unit_cells)
+    get_samples_harmonic_energy, get_silicon_supercell, get_unit_cells)
 from crystal_diffusion.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from crystal_diffusion.models.score_networks.analytical_score_network import (
@@ -19,7 +19,7 @@ from crystal_diffusion.utils.structure_utils import create_structure
 logger = logging.getLogger(__name__)
 setup_analysis_logger()
 
-repaint_dir = ANALYSIS_RESULTS_DIR / "repaint"
+repaint_dir = ANALYSIS_RESULTS_DIR / "ANALYTIC_SCORE/REPAINT"
 repaint_dir.mkdir(exist_ok=True)
 
 plt.style.use(PLOT_STYLE_PATH)
@@ -32,8 +32,8 @@ else:
 kmax = 1
 supercell_factor = 1
 variance_parameter = 0.001 / supercell_factor
-number_of_samples = 100
-total_time_steps = 101
+number_of_samples = 1000
+total_time_steps = 100
 number_of_corrector_steps = 1
 
 acell = 5.43  # Angstroms.
@@ -51,6 +51,12 @@ if __name__ == '__main__':
     equilibrium_relative_coordinates = equilibrium_relative_coordinates + translation
 
     number_of_atoms, spatial_dimension = equilibrium_relative_coordinates.shape
+
+    logger.info("Creating samples from the exact distribution")
+    inverse_covariance = ((torch.diag(torch.ones(number_of_atoms * spatial_dimension)) / variance_parameter)
+                          .to(device))
+    inverse_covariance = inverse_covariance.reshape(number_of_atoms, spatial_dimension,
+                                                    number_of_atoms, spatial_dimension)
 
     unit_cells = get_unit_cells(acell=acell,
                                 spatial_dimension=spatial_dimension,
@@ -76,7 +82,7 @@ if __name__ == '__main__':
         number_of_samples=number_of_samples,
         cell_dimensions=3 * [acell],
         constrained_relative_coordinates=constrained_relative_coordinates,
-        record_samples=False)
+        record_samples=True)
 
     position_generator = ConstrainedLangevinGenerator(
         noise_parameters=noise_parameters,
@@ -87,6 +93,16 @@ if __name__ == '__main__':
     samples = position_generator.sample(number_of_samples=number_of_samples,
                                         device=device,
                                         unit_cell=unit_cells).detach()
+
+    position_generator.sample_trajectory_recorder.write_to_pickle(repaint_dir / "repaint_trajectories.pkl")
+
+    logger.info("Computing harmonic energies")
+    sampled_harmonic_energies = get_samples_harmonic_energy(equilibrium_relative_coordinates,
+                                                            inverse_covariance,
+                                                            samples)
+
+    with open(repaint_dir / "harmonic_energies.pt", "wb") as fd:
+        torch.save(sampled_harmonic_energies, fd)
 
     logger.info("Creating CIF files")
 

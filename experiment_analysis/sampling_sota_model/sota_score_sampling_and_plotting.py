@@ -1,83 +1,85 @@
-"""Sampling and plotting of the Analytical score.
-
-This little ad hoc experiment explores sampling using the 'analytic' score,
-plotting various artifacts along the way.
-
-It shows that both ODE and Langevin sampling work very well when the score is good!
-"""
+"""Sampling and plotting of the score coming from our SOTA model."""
 
 import logging
+import tempfile
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import yaml
 from einops import einops
 
+from crystal_diffusion import DATA_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.analysis.analytic_score import \
-    ANALYTIC_SCORE_RESULTS_DIR
-from crystal_diffusion.analysis.analytic_score.utils import (
-    get_exact_samples, get_samples_harmonic_energy, get_silicon_supercell,
-    get_unit_cells)
 from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
-from crystal_diffusion.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
+from crystal_diffusion.models.model_loader import load_diffusion_model
+from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 
 logger = logging.getLogger(__name__)
 setup_analysis_logger()
 
+experiments_dir = Path("/home/mila/r/rousseab/experiments/")
+model_dir = experiments_dir / "checkpoints/sota_model/"
+state_dict_path = model_dir / "last_model-epoch=199-step=019600_state_dict.ckpt"
+config_path = model_dir / "config_backup.yaml"
+
+SOTA_SCORE_RESULTS_DIR = Path("/home/mila/r/rousseab/experiments/draw_sota_samples/figures")
+SOTA_SCORE_RESULTS_DIR.mkdir(exist_ok=True)
+
 
 plt.style.use(PLOT_STYLE_PATH)
 
-if torch.cuda.is_available():
-    device = torch.device('cuda')
-else:
-    device = torch.device('cpu')
+
+device = torch.device('cuda')
 
 # Change these parameters as needed!
 # sampling_algorithm = 'ode'
 sampling_algorithm = 'langevin'
-supercell_factor = 1
 
-kmax = 1
+spatial_dimension = 3
+number_of_atoms = 8
+atom_types = np.ones(number_of_atoms, dtype=int)
 
-variance_parameter = 0.001 / supercell_factor
+acell = 5.43
+box = np.diag([acell, acell, acell])
+
 number_of_samples = 1000
-total_time_steps = 101
+total_time_steps = 100
 number_of_corrector_steps = 1
 
 if __name__ == '__main__':
 
-    logger.info("Setting up parameters")
-    equilibrium_relative_coordinates = torch.from_numpy(
-        get_silicon_supercell(supercell_factor=supercell_factor)).to(device)
-    number_of_atoms, spatial_dimension = equilibrium_relative_coordinates.shape
-    nd = number_of_atoms * spatial_dimension
+    logger.info("Loading state dict")
+    with open(str(state_dict_path), 'rb') as fd:
+        state_dict = torch.load(fd)
 
+    with open(str(config_path), 'r') as fd:
+        hyper_params = yaml.load(fd, Loader=yaml.FullLoader)
+    logger.info("Instantiate model")
+    pl_model = load_diffusion_model(hyper_params)
+    pl_model.load_state_dict(state_dict=state_dict)
+    pl_model.to(device)
+    pl_model.eval()
+
+    sigma_normalized_score_network = pl_model.sigma_normalized_score_network
+
+    logger.info("Setting up parameters")
     noise_parameters = NoiseParameters(total_time_steps=total_time_steps,
                                        sigma_min=0.001,
                                        sigma_max=0.5)
-
-    score_network_parameters = AnalyticalScoreNetworkParameters(
-        number_of_atoms=number_of_atoms,
-        spatial_dimension=spatial_dimension,
-        kmax=kmax,
-        equilibrium_relative_coordinates=equilibrium_relative_coordinates,
-        variance_parameter=variance_parameter)
-
-    sigma_normalized_score_network = AnalyticalScoreNetwork(score_network_parameters)
 
     if sampling_algorithm == 'ode':
         ode_sampling_parameters = ODESamplingParameters(spatial_dimension=spatial_dimension,
                                                         number_of_atoms=number_of_atoms,
                                                         number_of_samples=number_of_samples,
-                                                        cell_dimensions=[1., 1., 1.],
+                                                        cell_dimensions=[acell, acell, acell],
                                                         record_samples=True,
                                                         absolute_solver_tolerance=1.0e-5,
                                                         relative_solver_tolerance=1.0e-5)
@@ -93,7 +95,7 @@ if __name__ == '__main__':
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
             number_of_samples=number_of_samples,
-            cell_dimensions=[1., 1., 1.],
+            cell_dimensions=[acell, acell, acell],
             record_samples=True)
 
         position_generator = LangevinGenerator(
@@ -102,14 +104,29 @@ if __name__ == '__main__':
             sigma_normalized_score_network=sigma_normalized_score_network)
 
     # Draw some samples, create some plots
-    unit_cell = get_unit_cells(acell=1.,
-                               spatial_dimension=spatial_dimension,
-                               number_of_samples=number_of_samples).to(device)
+    unit_cells = torch.Tensor(box).repeat(number_of_samples, 1, 1).to(device)
 
     logger.info("Drawing samples")
-    samples = position_generator.sample(number_of_samples=number_of_samples,
-                                        device=device,
-                                        unit_cell=unit_cell).detach()
+
+    with torch.no_grad():
+        samples = position_generator.sample(number_of_samples=number_of_samples,
+                                            device=device,
+                                            unit_cell=unit_cells)
+
+    batch_relative_positions = samples.cpu().numpy()
+    batch_positions = np.dot(batch_relative_positions, box)
+
+    list_energy = []
+    logger.info("Compute energy from Oracle")
+    with tempfile.TemporaryDirectory() as lammps_work_directory:
+        for idx, positions in enumerate(batch_positions):
+            energy, forces = get_energy_and_forces_from_lammps(positions,
+                                                               box,
+                                                               atom_types,
+                                                               tmp_work_dir=lammps_work_directory,
+                                                               pair_coeff_dir=DATA_DIR)
+            list_energy.append(energy)
+    energies = np.array(list_energy)
 
     if sampling_algorithm == 'ode':
         # Plot the ODE parameters
@@ -135,14 +152,14 @@ if __name__ == '__main__':
             ax.set_xlim([-0.01, 1.01])
 
         fig0.tight_layout()
-        fig0.savefig(ANALYTIC_SCORE_RESULTS_DIR / "ODE_parameters.png")
+        fig0.savefig(SOTA_SCORE_RESULTS_DIR / "ODE_parameters.png")
         plt.close(fig0)
 
     logger.info("Extracting data artifacts")
     raw_data = position_generator.sample_trajectory_recorder.data
     recorded_data = position_generator.sample_trajectory_recorder.standardize_data(raw_data)
 
-    sampling_times = recorded_data['time']
+    sampling_times = recorded_data['time'].cpu()
     relative_coordinates = recorded_data['relative_coordinates']
     batch_flat_relative_coordinates = einops.rearrange(relative_coordinates, "b t n d -> b t (n d)")
 
@@ -150,25 +167,6 @@ if __name__ == '__main__':
     batch_flat_normalized_scores = einops.rearrange(normalized_scores, "b t n d -> b t (n d)")
 
     # ============================================================================
-
-    logger.info("Creating samples from the exact distribution")
-    inverse_covariance = (torch.diag(torch.ones(nd)) / variance_parameter).to(equilibrium_relative_coordinates)
-    inverse_covariance = inverse_covariance.reshape(number_of_atoms, spatial_dimension,
-                                                    number_of_atoms, spatial_dimension)
-    exact_samples = get_exact_samples(equilibrium_relative_coordinates,
-                                      inverse_covariance,
-                                      number_of_samples).cpu()
-
-    logger.info("Computing harmonic energies")
-    exact_harmonic_energies = get_samples_harmonic_energy(equilibrium_relative_coordinates,
-                                                          inverse_covariance,
-                                                          exact_samples)
-
-    sampled_harmonic_energies = get_samples_harmonic_energy(equilibrium_relative_coordinates,
-                                                            inverse_covariance,
-                                                            samples)
-
-    # ========================   Figure 1   ======================================
     logger.info("Plotting relative coordinates trajectories")
     fig1 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig1.suptitle('Sampling Trajectories')
@@ -185,31 +183,28 @@ if __name__ == '__main__':
     alpha = 1.0
     for flat_relative_coordinates in batch_flat_relative_coordinates[::100]:
         for i in range(number_of_atoms * spatial_dimension):
-            coordinate = flat_relative_coordinates[:, i]
-            ax.plot(sampling_times.cpu(), coordinate.cpu(), '-', color='b', alpha=alpha)
+            coordinate = flat_relative_coordinates[:, i].cpu()
+            ax.plot(sampling_times, coordinate, '-', color='b', alpha=alpha)
         alpha = 0.05
 
     ax.set_xlim([1.01, -0.01])
-    fig1.savefig(ANALYTIC_SCORE_RESULTS_DIR / f"sampling_trajectories_{sampling_algorithm}_{number_of_atoms}_atoms.png")
+    fig1.savefig(SOTA_SCORE_RESULTS_DIR / f"sampling_trajectories_{sampling_algorithm}_{number_of_atoms}_atoms.png")
     plt.close(fig1)
 
     # ========================   Figure 2   ======================================
     logger.info("Plotting scores along trajectories")
     fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig2.suptitle('Root Mean Squared Normalized Scores Along Sample Trajectories')
-    rms_norm_score = (batch_flat_normalized_scores ** 2).mean(dim=-1).sqrt().numpy()
+    rms_norm_score = (batch_flat_normalized_scores ** 2).mean(dim=-1).sqrt().cpu().numpy()
 
     ax1 = fig2.add_subplot(121)
     ax2 = fig2.add_subplot(122)
     for y in rms_norm_score[::10]:
-        ax1.plot(sampling_times, y, '-', color='gray', alpha=0.2, label='__nolabel__')
-        ax2.plot(sampling_times, y, '-', color='gray', alpha=0.2, label='__nolabel__')
+        for ax in [ax1, ax2]:
+            ax.plot(sampling_times, y, '-', color='gray', alpha=0.2, label='__nolabel__')
 
-    ax2.set_yscale('log')
     list_quantiles = [0.0, 0.10, 0.5, 1.0]
     list_colors = ['green', 'yellow', 'orange', 'red']
-
-    energies = sampled_harmonic_energies.numpy()
 
     for q, c in zip(list_quantiles, list_colors):
         energy_quantile = np.quantile(energies, q)
@@ -221,39 +216,33 @@ if __name__ == '__main__':
 
     for ax in [ax1, ax2]:
         ax.set_xlabel('Diffusion Time')
-        ax.set_ylabel(r'$\langle \sqrt{(\sigma(t) S_{\theta})^2}  \rangle$')
+        ax.set_ylabel(r'$ \sqrt{\langle (\sigma(t) S_{\theta} )^2\rangle}$')
         ax.set_xlim(1, 0)
-    ax1.legend(loc=0, fontsize=6)
-    ax1.set_title("Normal Scale")
-    ax2.set_title("Log Scale")
 
-    fig2.tight_layout()
+    ax1.legend(loc=0, fontsize=6)
+    ax1.set_yscale('log')
 
     fig2.savefig(
-        ANALYTIC_SCORE_RESULTS_DIR / f"sampling_score_trajectories_{sampling_algorithm}_{number_of_atoms}_atoms.png")
+        SOTA_SCORE_RESULTS_DIR / f"sampling_score_trajectories_{sampling_algorithm}_{number_of_atoms}_atoms.png")
     plt.close(fig2)
 
     # ========================   Figure 3   ======================================
     logger.info("Plotting Marginal distribution in 2D")
     fig3 = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    fig3.suptitle('Comparing Sampling and Expected Marginal Distributions')
+    fig3.suptitle('Sampling Marginal Distributions')
     ax1 = fig3.add_subplot(131, aspect='equal')
     ax2 = fig3.add_subplot(132, aspect='equal')
     ax3 = fig3.add_subplot(133, aspect='equal')
 
     xs = einops.rearrange(samples, 'b n d -> (b n) d').cpu()
-    zs = einops.rearrange(exact_samples, 'b n d -> (b n) d').cpu()
     ax1.set_title('XY Projection')
     ax1.plot(xs[:, 0], xs[:, 1], 'ro', alpha=0.5, mew=0, label='ODE Solver')
-    ax1.plot(zs[:, 0], zs[:, 1], 'go', alpha=0.05, mew=0, label='Exact Samples')
 
     ax2.set_title('XZ Projection')
     ax2.plot(xs[:, 0], xs[:, 2], 'ro', alpha=0.5, mew=0, label='ODE Solver')
-    ax2.plot(zs[:, 0], zs[:, 2], 'go', alpha=0.05, mew=0, label='Exact Samples')
 
     ax3.set_title('YZ Projection')
     ax3.plot(xs[:, 1], xs[:, 2], 'ro', alpha=0.5, mew=0, label='ODE Solver')
-    ax3.plot(zs[:, 1], zs[:, 2], 'go', alpha=0.05, mew=0, label='Exact Samples')
 
     for ax in [ax1, ax2, ax3]:
         ax.set_xlim(-0.01, 1.01)
@@ -264,7 +253,7 @@ if __name__ == '__main__':
     ax1.legend(loc=0)
     fig3.tight_layout()
     fig3.savefig(
-        ANALYTIC_SCORE_RESULTS_DIR / f"marginal_2D_distributions_{sampling_algorithm}_{number_of_atoms}_atoms.png")
+        SOTA_SCORE_RESULTS_DIR / f"marginal_2D_distributions_{sampling_algorithm}_{number_of_atoms}_atoms.png")
     plt.close(fig3)
 
     # ========================   Figure 4   ======================================
@@ -277,13 +266,9 @@ if __name__ == '__main__':
 
     common_params = dict(histtype='stepfilled', alpha=0.5, bins=50)
 
-    ax1.hist(xs[:, 0], **common_params, facecolor='r', label='ODE solver')
-    ax2.hist(xs[:, 1], **common_params, facecolor='r', label='ODE solver')
-    ax3.hist(xs[:, 2], **common_params, facecolor='r', label='ODE solver')
-
-    ax1.hist(zs[:, 0], **common_params, facecolor='g', label='Exact')
-    ax2.hist(zs[:, 1], **common_params, facecolor='g', label='Exact')
-    ax3.hist(zs[:, 2], **common_params, facecolor='g', label='Exact')
+    ax1.hist(xs[:, 0], **common_params, facecolor='r')
+    ax2.hist(xs[:, 1], **common_params, facecolor='r')
+    ax3.hist(xs[:, 2], **common_params, facecolor='r')
 
     ax1.set_xlabel('X')
     ax2.set_xlabel('Y')
@@ -292,30 +277,27 @@ if __name__ == '__main__':
     for ax in [ax1, ax2, ax3]:
         ax.set_xlim(-0.01, 1.01)
 
-    ax1.legend(loc=0)
     fig4.tight_layout()
     fig4.savefig(
-        ANALYTIC_SCORE_RESULTS_DIR / f"marginal_1D_distributions_{sampling_algorithm}_{number_of_atoms}_atoms.png")
+        SOTA_SCORE_RESULTS_DIR / f"marginal_1D_distributions_{sampling_algorithm}_{number_of_atoms}_atoms.png")
     plt.close(fig4)
 
     # ========================   Figure 5   ======================================
-    logger.info("Plotting harmonic energy distributions")
+    logger.info("Plotting energy distributions")
     fig5 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig5.suptitle(f'Energy Distribution, sampling algorithm {sampling_algorithm}')
 
     common_params = dict(density=True, bins=50, histtype="stepfilled", alpha=0.25)
 
     ax1 = fig5.add_subplot(111)
-    ax1.hist(sampled_harmonic_energies, **common_params, label='Sampled Energies', color='red')
-    ax1.hist(exact_harmonic_energies, **common_params, label='Theoretical Energies', color='green')
+    ax1.hist(energies, **common_params, label='Sampled Energies', color='red')
 
-    ax1.set_xlim(xmin=-0.01)
-    ax1.set_xlabel('Unitless Harmonic Energy')
+    ax1.set_xlabel('Energy (eV)')
     ax1.set_ylabel('Density')
     ax1.legend(loc='upper right', fancybox=True, shadow=True, ncol=1, fontsize=12)
     fig5.tight_layout()
     fig5.savefig(
-        ANALYTIC_SCORE_RESULTS_DIR / f"harmonic_energy_samples_{sampling_algorithm}_{number_of_atoms}_atoms.png")
+        SOTA_SCORE_RESULTS_DIR / f"energy_samples_{sampling_algorithm}_{number_of_atoms}_atoms.png")
     plt.close(fig5)
 
     logger.info("Done!")
