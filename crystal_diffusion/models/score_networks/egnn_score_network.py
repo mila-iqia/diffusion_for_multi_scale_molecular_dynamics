@@ -52,7 +52,6 @@ class EGNNScoreNetwork(ScoreNetwork):
 
         edges, edge_attr = get_edges_batch(n_nodes=number_of_atoms, batch_size=batch_size)
         edge_attr.to(relative_coordinates.device)
-        edges.to(relative_coordinates.device)
 
         flat_relative_coordinates = einops.rearrange(relative_coordinates,
                                                      "batch natom space -> (batch natom) space")
