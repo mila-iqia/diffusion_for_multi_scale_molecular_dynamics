@@ -1,3 +1,5 @@
+import itertools
+from copy import deepcopy
 from dataclasses import asdict, dataclass, fields
 
 import numpy as np
@@ -22,6 +24,8 @@ from crystal_diffusion.models.score_networks.score_prediction_head import (
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
                                          UNIT_CELL)
+from crystal_diffusion.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
 
 
 def assert_parameters_are_the_same(parameters1: dataclass, parameters2: dataclass):
@@ -295,10 +299,56 @@ class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
 
 @pytest.mark.parametrize("spatial_dimension", [3])
 class TestEGNNScoreNetwork(BaseTestScoreNetwork):
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_default_type_to_float64(self):
+        """Set the random seed."""
+        torch.set_default_dtype(torch.float64)
+        yield
+        # this returns the default type to float32 at the end of all tests in this class in order
+        # to not affect other tests.
+        torch.set_default_dtype(torch.float32)
+
     @pytest.fixture()
     def score_network_parameters(self):
         return EGNNScoreNetworkParameters(hidden_dimensions_size=32, number_of_layers=3)
 
     @pytest.fixture()
     def score_network(self, score_network_parameters):
-        return EGNNScoreNetwork(score_network_parameters)
+        score_network = EGNNScoreNetwork(score_network_parameters)
+        # Put big weights so that the score output is large, for testing purposes.
+        for weights in score_network.parameters():
+            torch.nn.init._no_grad_uniform_(weights, -0.5, 0.5)
+
+        return score_network
+
+    @pytest.fixture()
+    def octahedral_point_group_symmetries(self):
+        permutations = [torch.diag(torch.ones(3))[[idx]] for idx in itertools.permutations([0, 1, 2])]
+        sign_changes = [torch.diag(torch.tensor(diag)) for diag in itertools.product([-1., 1.], repeat=3)]
+
+        symmetries = []
+        for permutation in permutations:
+            for sign_change in sign_changes:
+                symmetries.append(permutation @ sign_change)
+
+        return symmetries
+
+    def test_equivariance(self, score_network, batch, octahedral_point_group_symmetries):
+        with torch.no_grad():
+            normalized_scores = score_network(batch)
+
+        for point_group_symmetry in octahedral_point_group_symmetries:
+            op = point_group_symmetry.transpose(1, 0)
+            modified_batch = deepcopy(batch)
+            relative_coordinates = modified_batch[NOISY_RELATIVE_COORDINATES]
+
+            op_relative_coordinates = map_relative_coordinates_to_unit_cell(relative_coordinates @ op)
+
+            modified_batch[NOISY_RELATIVE_COORDINATES] = op_relative_coordinates
+            with torch.no_grad():
+                modified_normalized_scores = score_network(modified_batch)
+
+            expected_modified_normalized_scores = normalized_scores @ op
+
+            torch.testing.assert_close(expected_modified_normalized_scores, modified_normalized_scores)
