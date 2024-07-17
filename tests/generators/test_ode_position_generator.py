@@ -71,9 +71,10 @@ class TestExplodingVarianceODEPositionGenerator:
         computed_ode_prefactor = ode_generator._get_ode_prefactor(sigmas)
         torch.testing.assert_close(expected_ode_prefactor, computed_ode_prefactor)
 
-    def test_smoke_sample(self, ode_generator, number_of_samples, number_of_atoms, spatial_dimension, unit_cell_sample):
+    def test_smoke_sample(self, ode_generator, device, number_of_samples,
+                          number_of_atoms, spatial_dimension, unit_cell_sample):
         # Just a smoke test that we can sample without crashing.
-        relative_coordinates = ode_generator.sample(number_of_samples, torch.device('cpu'), unit_cell_sample)
+        relative_coordinates = ode_generator.sample(number_of_samples, device, unit_cell_sample)
 
         assert relative_coordinates.shape == (number_of_samples, number_of_atoms, spatial_dimension)
 
