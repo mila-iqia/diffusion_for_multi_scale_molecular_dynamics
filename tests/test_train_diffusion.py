@@ -78,6 +78,11 @@ def get_score_network(architecture: str, head_name: Union[str, None], number_of_
                              number_of_mlp_layers=1,
                              number_of_atoms=number_of_atoms,
                              radial_MLP=[4, 4, 4])
+
+    elif architecture == 'egnn':
+        score_network = dict(architecture='egnn',
+                             hidden_dimensions_size=32,
+                             number_of_layers=3)
     else:
         raise NotImplementedError("This score network is not implemented")
     return score_network
@@ -126,7 +131,8 @@ def get_config(number_of_atoms: int, max_epoch: int, architecture: str, head_nam
 
 @pytest.mark.parametrize("sampling_algorithm", ["ode", "predictor_corrector"])
 @pytest.mark.parametrize("architecture, head_name",
-                         [('diffusion_mace', None),
+                         [('egnn', None),
+                          ('diffusion_mace', None),
                           ('mlp', None),
                           ('mace', 'equivariant'),
                           ('mace', 'mlp')])
