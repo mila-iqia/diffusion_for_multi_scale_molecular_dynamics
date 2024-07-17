@@ -42,8 +42,6 @@ class EGNNScoreNetwork(ScoreNetwork):
                          in_edge_nf=1,
                          device=self.device,
                          normalize=True)
-        hidden_dimensions_size: int
-        number_of_layers: int
 
     def _forward_unchecked(self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False) -> torch.Tensor:
 
@@ -62,7 +60,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         sines = angles.sin()
         z = einops.rearrange([cosines, sines], "type batch space -> batch (space type)")
 
-        sigmas = batch[NOISE]
+        sigmas = batch[NOISE].to(relative_coordinates.device)
         repeated_sigmas = einops.repeat(sigmas, "batch 1 -> (batch natoms) 1", natoms=number_of_atoms)
 
         _, raw_normalized_score = self.egnn(h=repeated_sigmas, x=z, edges=edges, edge_attr=edge_attr)
