@@ -2,6 +2,7 @@ import itertools
 from copy import deepcopy
 from dataclasses import asdict, dataclass, fields
 
+import einops
 import numpy as np
 import pytest
 import torch
@@ -302,7 +303,7 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture(scope="class", autouse=True)
     def set_default_type_to_float64(self):
-        """Set the random seed."""
+        # Set the default type to float64 to make sure the tests are stringent.
         torch.set_default_dtype(torch.float64)
         yield
         # this returns the default type to float32 at the end of all tests in this class in order
@@ -316,10 +317,6 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
     def score_network(self, score_network_parameters):
         score_network = EGNNScoreNetwork(score_network_parameters)
-        # Put big weights so that the score output is large, for testing purposes.
-        for weights in score_network.parameters():
-            torch.nn.init._no_grad_uniform_(weights, -0.5, 0.5)
-
         return score_network
 
     @pytest.fixture()
@@ -333,6 +330,47 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
                 symmetries.append(permutation @ sign_change)
 
         return symmetries
+
+    def test_create_block_diagonal_projection_matrices(self, score_network, spatial_dimension):
+        expected_matrices = []
+        for space_idx in range(spatial_dimension):
+            matrix = torch.zeros(2 * spatial_dimension, 2 * spatial_dimension)
+            matrix[2 * space_idx + 1, 2 * space_idx] = 1.0
+            matrix[2 * space_idx, 2 * space_idx + 1] = -1.0
+            expected_matrices.append(matrix)
+
+        expected_matrices = torch.stack(expected_matrices)
+
+        computed_matrices = score_network._create_block_diagonal_projection_matrices(spatial_dimension)
+
+        torch.testing.assert_close(computed_matrices, expected_matrices)
+
+    @pytest.fixture()
+    def flat_relative_coordinates(self, batch):
+        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        flat_relative_coordinates = einops.rearrange(relative_coordinates,
+                                                     "batch natom space -> (batch natom) space")
+        return flat_relative_coordinates
+
+    @pytest.fixture()
+    def expected_euclidean_positions(self, flat_relative_coordinates):
+        expected_euclidean_positions = []
+        for relative_coordinates in flat_relative_coordinates:
+            euclidean_position = []
+            for f in relative_coordinates:
+                cos = torch.cos(2 * torch.pi * f)
+                sin = torch.sin(2 * torch.pi * f)
+                euclidean_position.append(cos)
+                euclidean_position.append(sin)
+
+            expected_euclidean_positions.append(torch.tensor(euclidean_position))
+
+        expected_euclidean_positions = torch.stack(expected_euclidean_positions)
+        return expected_euclidean_positions
+
+    def test_get_euclidean_positions(self, score_network, flat_relative_coordinates, expected_euclidean_positions):
+        computed_euclidean_positions = score_network._get_euclidean_positions(flat_relative_coordinates)
+        torch.testing.assert_close(expected_euclidean_positions, computed_euclidean_positions)
 
     def test_equivariance(self, score_network, batch, octahedral_point_group_symmetries):
         with torch.no_grad():
