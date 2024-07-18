@@ -14,6 +14,7 @@ from crystal_diffusion.namespace import NOISE, NOISY_RELATIVE_COORDINATES
 class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for ENN score networks."""
     architecture: str = 'egnn'
+    normalize: bool = False
     hidden_dimensions_size: int
     number_of_layers: int
 
@@ -34,7 +35,7 @@ class EGNNScoreNetwork(ScoreNetwork):
                          n_layers=hyper_params.number_of_layers,
                          out_node_nf=1,
                          in_edge_nf=1,
-                         normalize=True)
+                         normalize=hyper_params.normalize)
 
     def _forward_unchecked(self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False) -> torch.Tensor:
 
