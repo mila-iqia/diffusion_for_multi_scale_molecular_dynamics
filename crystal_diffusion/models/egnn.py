@@ -7,12 +7,13 @@ It implements EGNN as described in the paper "E(n) Equivariant Graph Neural Netw
 
 The file is modified from the original download to fit our own linting style and add additional controls.
 """
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 import torch
 from torch import nn
 
-from crystal_diffusion.models.egnn_utils import unsorted_segment_sum, unsorted_segment_mean
+from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
+                                                 unsorted_segment_sum)
 
 
 class E_GCL(nn.Module):
@@ -113,10 +114,13 @@ class E_GCL(nn.Module):
             self.att_mlp = nn.Sequential(nn.Linear(message_hidden_dimensions_size, 1), nn.Sigmoid())
 
     def message_model(self, source: torch.Tensor, target: torch.Tensor, radial: torch.Tensor) -> torch.Tensor:
-        """Constructs the message m_{ij} from source (j) to target (i)
+        r"""Constructs the message m_{ij} from source (j) to target (i)
 
-        m_ij = \phi_e(h_i^l, h_j^l, ||x_i^l - x_j^l||^2, a_{ij)}
-        with a_{ij} the edge attributes
+        .. math::
+
+            m_ij = \phi_e(h_i^l, h_j^l, ||x_i^l - x_j^l||^2, a_{ij)}
+
+        with :math:`a_{ij}` the edge attributes
 
         Args:
             source: source node features (size: number of edges, input_size)
@@ -124,7 +128,7 @@ class E_GCL(nn.Module):
             radial: distance squared between nodes i and j (size: number of edges, 1)
 
         Returns:
-            messages m_{ij} size: number of edges, message_hidden_dimensions_size
+            messages :math:`m_{ij}` size: number of edges, message_hidden_dimensions_size
         """
         out = torch.cat([source, target, radial], dim=1)
         out = self.message_mlp(out)
@@ -135,9 +139,11 @@ class E_GCL(nn.Module):
 
     def node_model(self, x: torch.Tensor, edge_index: torch.Tensor, messages: torch.Tensor
                    ) -> torch.Tensor:
-        """Update the node features.
+        r"""Update the node features.
 
-        h_i^{(l+1)} = \phi_h (h_i^l, m_i)
+        .. math::
+
+            h_i^{(l+1)} = \phi_h (h_i^l, m_i)
 
         Args:
             x: node features. Size number of nodes, input_size
@@ -157,14 +163,16 @@ class E_GCL(nn.Module):
 
     def coord_model(self, coord: torch.Tensor, edge_index: torch.Tensor, coord_diff: torch.Tensor,
                     messages: torch.Tensor) -> torch.Tensor:
-        """Update the coordinates.
+        r"""Update the coordinates.
 
-        x_i^{(l+1)} = x_i^l + C \sum_{i \neq j} (x_i - x_j) \phi_x(m_{ij})
+        .. math::
+
+            x_i^{(l+1)} = x_i^l + C \sum_{i \neq j} (x_i - x_j) \phi_x(m_{ij})
 
         Args:
             coord: coordinates. size: number of nodes, spatial dimension
             edge_index: edge indices. size: number of edges, 2
-            coord_diff: difference between coordinates, x_i - x_j. size: number of edges, spatial dimension
+            coord_diff: difference between coordinates, :math:`x_i - x_j`. size: number of edges, spatial dimension
             messages: messages between nodes i and j.  size: number of edges, message_hidden_dimensions_size
 
         Returns:
@@ -284,7 +292,6 @@ class EGNN(nn.Module):
                     tanh=tanh
                 )
             )
-
 
     def forward(self, h: torch.Tensor, x: torch.Tensor, edges: torch.Tensor) -> torch.Tensor:
         """Forward instructions for the model.
