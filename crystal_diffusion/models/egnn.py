@@ -104,7 +104,7 @@ class E_GCL(nn.Module):
             self.coord_mlp.append(act_fn)
         final_coordinate_layer = nn.Linear(coordinate_hidden_dimensions_size, 1, bias=False)
         # based on the original implementation - multiply the random initialization by 0.001 (default is 1)
-        torch.nn.init.xavier_uniform_(final_coordinate_layer.weight, gain=0.001)
+        # torch.nn.init.xavier_uniform_(final_coordinate_layer.weight, gain=0.001)
         self.coord_mlp.append(final_coordinate_layer)  # initialized with a different
         if self.tanh:  # optional, add a tanh to saturate the messages
             self.coord_mlp.append(nn.Tanh())
@@ -227,7 +227,6 @@ class EGNN(nn.Module):
     def __init__(
         self,
         input_size: int,
-        output_size: int,
         message_n_hidden_dimensions: int,
         message_hidden_dimensions_size: int,
         node_n_hidden_dimensions: int,
@@ -265,7 +264,7 @@ class EGNN(nn.Module):
         super(EGNN, self).__init__()
         self.n_layers = n_layers
         self.embedding_in = nn.Linear(input_size, node_hidden_dimensions)
-        self.graph_layers = torch.ModuleList([])
+        self.graph_layers = nn.ModuleList([])
         for _ in range(0, n_layers):
             self.graph_layers.append(
                 E_GCL(
@@ -302,51 +301,3 @@ class EGNN(nn.Module):
         for graph_layer in self.graph_layers:
             h, x = graph_layer(h, edges, x)
         return x
-
-
-
-def get_edges(n_nodes):
-    rows, cols = [], []
-    for i in range(n_nodes):
-        for j in range(n_nodes):
-            if i != j:
-                rows.append(i)
-                cols.append(j)
-
-    edges = [rows, cols]
-    return edges
-
-
-def get_edges_batch(n_nodes, batch_size):
-    edges = get_edges(n_nodes)
-    edge_attr = torch.ones(len(edges[0]) * batch_size, 1)
-    edges = [torch.LongTensor(edges[0]), torch.LongTensor(edges[1])]
-    if batch_size == 1:
-        return edges, edge_attr
-    elif batch_size > 1:
-        rows, cols = [], []
-        for i in range(batch_size):
-            rows.append(edges[0] + n_nodes * i)
-            cols.append(edges[1] + n_nodes * i)
-        edges = [torch.cat(rows), torch.cat(cols)]
-    return edges, edge_attr
-
-
-
-if __name__ == "__main__":
-    # Dummy parameters
-    batch_size = 8
-    n_nodes = 4
-    n_feat = 1
-    x_dim = 3
-
-    # Dummy variables h, x and fully connected edges
-    h = torch.ones(batch_size * n_nodes, n_feat)
-    x = torch.ones(batch_size * n_nodes, x_dim)
-    edges, edge_attr = get_edges_batch(n_nodes, batch_size)
-
-    # Initialize EGNN
-    egnn = EGNN(in_node_nf=n_feat, hidden_nf=32, out_node_nf=1, in_edge_nf=1)
-
-    # Run EGNN
-    h, x = egnn(h, x, edges, edge_attr)
