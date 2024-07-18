@@ -78,13 +78,13 @@ class EGNNScoreNetwork(ScoreNetwork):
 
         return torch.stack(projection_matrices)
 
-    def _get_node_attributes(self, batch: Dict[AnyStr, torch.Tensor]) -> torch.Tensor:
+    @staticmethod
+    def _get_node_attributes(batch: Dict[AnyStr, torch.Tensor]) -> torch.Tensor:
         """Get node attributes.
 
         This method extracts the node atttributes, "h", to be fed as input to the EGNN network.
         Args:
             batch : the batch dictionary
-            device : the device on which the node attributes should live.
 
         Returns:
             node_attributes: a tensor of dimension [number_of_nodes, number_for_features_per_node]
@@ -117,7 +117,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         cosines = angles.cos()
         sines = angles.sin()
         euclidean_positions = einops.rearrange(
-            [cosines, sines],
+            torch.stack([cosines, sines]),
             "two nodes spatial_dimension -> nodes (spatial_dimension two)",
         )
         return euclidean_positions
