@@ -372,7 +372,14 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
         computed_euclidean_positions = score_network._get_euclidean_positions(flat_relative_coordinates)
         torch.testing.assert_close(expected_euclidean_positions, computed_euclidean_positions)
 
-    def test_equivariance(self, score_network, batch, octahedral_point_group_symmetries):
+    @pytest.fixture()
+    def global_translations(self, batch_size, number_of_atoms, spatial_dimension):
+        translations = einops.repeat(torch.rand(batch_size, spatial_dimension),
+                                     "batch spatial_dimension -> batch natoms spatial_dimension",
+                                     natoms=number_of_atoms)
+        return translations
+
+    def test_equivariance(self, score_network, batch, octahedral_point_group_symmetries, global_translations):
         with torch.no_grad():
             normalized_scores = score_network(batch)
 
@@ -381,7 +388,8 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
             modified_batch = deepcopy(batch)
             relative_coordinates = modified_batch[NOISY_RELATIVE_COORDINATES]
 
-            op_relative_coordinates = map_relative_coordinates_to_unit_cell(relative_coordinates @ op)
+            op_relative_coordinates = relative_coordinates @ op + global_translations
+            op_relative_coordinates = map_relative_coordinates_to_unit_cell(op_relative_coordinates)
 
             modified_batch[NOISY_RELATIVE_COORDINATES] = op_relative_coordinates
             with torch.no_grad():
