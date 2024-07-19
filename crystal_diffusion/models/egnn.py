@@ -153,7 +153,7 @@ class E_GCL(nn.Module):
         Returns:
             updated node features. size: number of nodes, output_size
         """
-        row, col = edge_index[:, 0], edge_index[:, 1]
+        row = edge_index[:, 0]
         agg = unsorted_segment_sum(messages, row, num_segments=x.size(0))  # sum messages m_i = \sum_j m_{ij}
         agg = torch.cat([x, agg], dim=1)  # concat h_i and m_i
         out = self.node_mlp(agg)
@@ -178,7 +178,7 @@ class E_GCL(nn.Module):
         Returns:
             updates coordinates. size: number of nodes, spatial dimension
         """
-        row, col = edge_index[:, 0], edge_index[:, 1]
+        row = edge_index[:, 0]
         trans = coord_diff * self.coord_mlp(messages)  # (x_i  - x_j) *  \phi_m(m_{ij})
         agg = self.coords_agg_fn(trans, row, num_segments=coord.size(0))  # sum over j
         coord += agg
