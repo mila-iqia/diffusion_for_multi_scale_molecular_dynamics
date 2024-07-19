@@ -153,7 +153,7 @@ class E_GCL(nn.Module):
         Returns:
             updated node features. size: number of nodes, output_size
         """
-        row, col = edge_index
+        row, col = edge_index[:, 0], edge_index[:, 1]
         agg = unsorted_segment_sum(messages, row, num_segments=x.size(0))  # sum messages m_i = \sum_j m_{ij}
         agg = torch.cat([x, agg], dim=1)  # concat h_i and m_i
         out = self.node_mlp(agg)
@@ -178,7 +178,7 @@ class E_GCL(nn.Module):
         Returns:
             updates coordinates. size: number of nodes, spatial dimension
         """
-        row, col = edge_index
+        row, col = edge_index[:, 0], edge_index[:, 1]
         trans = coord_diff * self.coord_mlp(messages)  # (x_i  - x_j) *  \phi_m(m_{ij})
         agg = self.coords_agg_fn(trans, row, num_segments=coord.size(0))  # sum over j
         coord += agg
@@ -195,7 +195,7 @@ class E_GCL(nn.Module):
             distance squared between nodes. size: number of edges
             distance vector between nodes. size: number of edges, spatial dimension
         """
-        row, col = edge_index
+        row, col = edge_index[:, 0], edge_index[:, 1]
         coord_diff = coord[row] - coord[col]
         radial = torch.sum(coord_diff**2, 1).unsqueeze(1)
 
@@ -220,7 +220,7 @@ class E_GCL(nn.Module):
             updated node features. size: number of nodes, output_size
             updated coordinates. size: number of nodes, spatial dimension
         """
-        row, col = edge_index
+        row, col = edge_index[:, 0], edge_index[:, 1]
         # compute distances between nodes (atoms)
         radial, coord_diff = self.coord2radial(edge_index, coord)
 
@@ -238,9 +238,9 @@ class EGNN(nn.Module):
         message_n_hidden_dimensions: int,
         message_hidden_dimensions_size: int,
         node_n_hidden_dimensions: int,
-        node_hidden_dimensions: int,
+        node_hidden_dimensions_size: int,
         coordinate_n_hidden_dimensions: int,
-        coordinate_hidden_dimensions: int,
+        coordinate_hidden_dimensions_size: int,
         act_fn: Callable = nn.SiLU(),
         residual: bool = True,
         attention: bool = False,
@@ -271,19 +271,19 @@ class EGNN(nn.Module):
 
         super(EGNN, self).__init__()
         self.n_layers = n_layers
-        self.embedding_in = nn.Linear(input_size, node_hidden_dimensions)
+        self.embedding_in = nn.Linear(input_size, node_hidden_dimensions_size)
         self.graph_layers = nn.ModuleList([])
         for _ in range(0, n_layers):
             self.graph_layers.append(
                 E_GCL(
-                    input_size=node_hidden_dimensions,
-                    output_size=node_hidden_dimensions,
+                    input_size=node_hidden_dimensions_size,
+                    output_size=node_hidden_dimensions_size,
                     message_n_hidden_dimensions=message_n_hidden_dimensions,
                     message_hidden_dimensions_size=message_hidden_dimensions_size,
                     node_n_hidden_dimensions=node_n_hidden_dimensions,
-                    node_hidden_dimensions_size=node_hidden_dimensions,
+                    node_hidden_dimensions_size=node_hidden_dimensions_size,
                     coordinate_n_hidden_dimensions=coordinate_n_hidden_dimensions,
-                    coordinate_hidden_dimensions_size=coordinate_hidden_dimensions,
+                    coordinate_hidden_dimensions_size=coordinate_hidden_dimensions_size,
                     act_fn=act_fn,
                     residual=residual,
                     attention=attention,
@@ -293,13 +293,13 @@ class EGNN(nn.Module):
                 )
             )
 
-    def forward(self, h: torch.Tensor, x: torch.Tensor, edges: torch.Tensor) -> torch.Tensor:
+    def forward(self, h: torch.Tensor, edges: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         """Forward instructions for the model.
 
         Args:
             h: node features. size is number of nodes (atoms), input size
-            x: node coordinates. size is number of nodes, spatial dimension
             edges: source and destination node indices defining the graph edges. size is number of edges, 2
+            x: node coordinates. size is number of nodes, spatial dimension
 
         Returns:
             estimated score. size is number of nodes, spatial dimension
