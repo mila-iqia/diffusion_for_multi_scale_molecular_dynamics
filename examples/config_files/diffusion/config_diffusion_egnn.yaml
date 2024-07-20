@@ -23,8 +23,18 @@ model:
     algorithm: mse
   score_network:
     architecture: egnn
-    hidden_dimensions_size: 64
-    number_of_layers: 6
+    message_n_hidden_dimensions:  1
+    message_hidden_dimensions_size: 16
+    node_n_hidden_dimensions: 1
+    node_hidden_dimensions_size: 32
+    coordinate_n_hidden_dimensions: 1
+    coordinate_hidden_dimensions_size: 32
+    residual: True
+    attention: False
+    normalize: False
+    tanh: False
+    coords_agg: mean
+    n_layers: 4
   noise:
     total_time_steps: 100
     sigma_min: 0.005  # default value
