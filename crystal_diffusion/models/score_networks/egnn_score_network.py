@@ -4,7 +4,8 @@ from typing import AnyStr, Dict
 import einops
 import torch
 
-from crystal_diffusion.models.egnn_clean import EGNN, get_edges_batch
+from crystal_diffusion.models.egnn import EGNN
+from crystal_diffusion.models.egnn_utils import get_edges_batch
 from crystal_diffusion.models.score_networks import ScoreNetworkParameters
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.namespace import NOISE, NOISY_RELATIVE_COORDINATES
@@ -14,9 +15,18 @@ from crystal_diffusion.namespace import NOISE, NOISY_RELATIVE_COORDINATES
 class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for ENN score networks."""
     architecture: str = "egnn"
+    message_n_hidden_dimensions: int = 1
+    message_hidden_dimensions_size: int = 16
+    node_n_hidden_dimensions: int = 1
+    node_hidden_dimensions_size: int = 32
+    coordinate_n_hidden_dimensions: int = 1
+    coordinate_hidden_dimensions_size: int = 32
+    residual: bool = True
+    attention: bool = False
     normalize: bool = False
-    hidden_dimensions_size: int
-    number_of_layers: int
+    tanh: bool = False
+    coords_agg: str = "mean"
+    n_layers: int = 4
 
 
 class EGNNScoreNetwork(ScoreNetwork):
@@ -40,12 +50,19 @@ class EGNNScoreNetwork(ScoreNetwork):
         self.projection_matrices = self._create_block_diagonal_projection_matrices(self.spatial_dimension)
 
         self.egnn = EGNN(
-            in_node_nf=self.number_of_features_per_node,
-            hidden_nf=hyper_params.hidden_dimensions_size,
-            n_layers=hyper_params.number_of_layers,
-            out_node_nf=1,
-            in_edge_nf=1,
+            input_size=self.number_of_features_per_node,
+            message_n_hidden_dimensions=hyper_params.message_n_hidden_dimensions,
+            message_hidden_dimensions_size=hyper_params.message_hidden_dimensions_size,
+            node_n_hidden_dimensions=hyper_params.node_n_hidden_dimensions,
+            node_hidden_dimensions_size=hyper_params.node_hidden_dimensions_size,
+            coordinate_n_hidden_dimensions=hyper_params.coordinate_n_hidden_dimensions,
+            coordinate_hidden_dimensions_size=hyper_params.coordinate_hidden_dimensions_size,
+            residual=hyper_params.residual,
+            attention=hyper_params.attention,
             normalize=hyper_params.normalize,
+            tanh=hyper_params.tanh,
+            coords_agg=hyper_params.coords_agg,
+            n_layers=hyper_params.n_layers,
         )
 
     @staticmethod
@@ -128,12 +145,11 @@ class EGNNScoreNetwork(ScoreNetwork):
         relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
-        edges, edge_attr = get_edges_batch(
+        edges = get_edges_batch(
             n_nodes=number_of_atoms, batch_size=batch_size
         )
 
-        edges = [edge.to(relative_coordinates.device) for edge in edges]
-        edge_attr = edge_attr.to(relative_coordinates.device)
+        edges = edges.to(relative_coordinates.device)
 
         flat_relative_coordinates = einops.rearrange(
             relative_coordinates, "batch natom spatial_dimension -> (batch natom) spatial_dimension"
@@ -146,8 +162,8 @@ class EGNNScoreNetwork(ScoreNetwork):
         node_attributes_h = self._get_node_attributes(batch)
         # The raw normalized score has dimensions [number_of_nodes, 2 x spatial_dimension]
         # CAREFUL! It is important to pass a clone of the euclidian positions because EGNN will modify its input!
-        _, raw_normalized_score = self.egnn(
-            h=node_attributes_h, x=euclidean_positions.clone(), edges=edges, edge_attr=edge_attr
+        raw_normalized_score = self.egnn(
+            h=node_attributes_h, edges=edges, x=euclidean_positions.clone()
         )
 
         # The projected score is defined a
