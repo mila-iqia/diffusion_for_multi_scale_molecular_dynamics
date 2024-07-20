@@ -80,9 +80,7 @@ def get_score_network(architecture: str, head_name: Union[str, None], number_of_
                              radial_MLP=[4, 4, 4])
 
     elif architecture == 'egnn':
-        score_network = dict(architecture='egnn',
-                             hidden_dimensions_size=32,
-                             number_of_layers=3)
+        score_network = dict(architecture='egnn')
     else:
         raise NotImplementedError("This score network is not implemented")
     return score_network
