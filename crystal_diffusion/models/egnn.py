@@ -17,9 +17,7 @@ from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
 
 
 class E_GCL(nn.Module):
-    """
-    E(n) Equivariant Convolutional Layer.
-    """
+    """E(n) Equivariant Convolutional Layer."""
 
     def __init__(
         self,
@@ -38,8 +36,7 @@ class E_GCL(nn.Module):
         coords_agg: str = "mean",
         tanh: bool = False,
     ):
-        """
-        E_GCL layer initialization.
+        """E_GCL layer initialization.
 
         Args:
             input_size: number of node features in the input
@@ -114,7 +111,7 @@ class E_GCL(nn.Module):
             self.att_mlp = nn.Sequential(nn.Linear(message_hidden_dimensions_size, 1), nn.Sigmoid())
 
     def message_model(self, source: torch.Tensor, target: torch.Tensor, radial: torch.Tensor) -> torch.Tensor:
-        r"""Constructs the message m_{ij} from source (j) to target (i)
+        r"""Constructs the message m_{ij} from source (j) to target (i).
 
         .. math::
 
@@ -232,6 +229,7 @@ class E_GCL(nn.Module):
 
 
 class EGNN(nn.Module):
+    """EGNN model."""
     def __init__(
         self,
         input_size: int,
@@ -268,7 +266,6 @@ class EGNN(nn.Module):
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
             n_layers: number of E_GCL layers. Defaults to 4.
         """
-
         super(EGNN, self).__init__()
         self.n_layers = n_layers
         self.embedding_in = nn.Linear(input_size, node_hidden_dimensions_size)
