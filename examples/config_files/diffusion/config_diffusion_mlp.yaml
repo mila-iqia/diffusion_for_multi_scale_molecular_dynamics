@@ -25,6 +25,7 @@ model:
     architecture: mlp
     number_of_atoms: 8
     n_hidden_dimensions: 2
+    embedding_dimension_size: 16
     hidden_dimensions_size: 64
     conditional_prob: 0.0
     conditional_gamma: 2
