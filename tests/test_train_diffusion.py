@@ -57,6 +57,7 @@ def get_score_network(architecture: str, head_name: Union[str, None], number_of_
         assert head_name is None, "There are no head options for a MLP score network."
         score_network = dict(architecture='mlp',
                              number_of_atoms=number_of_atoms,
+                             embedding_dimensions_size=8,
                              n_hidden_dimensions=2,
                              hidden_dimensions_size=16)
     elif architecture == 'mace':

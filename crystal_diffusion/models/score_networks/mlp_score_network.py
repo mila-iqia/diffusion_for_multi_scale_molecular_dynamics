@@ -6,8 +6,8 @@ from torch import nn
 
 from crystal_diffusion.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
-from crystal_diffusion.namespace import (CARTESIAN_FORCES,
-                                         NOISY_RELATIVE_COORDINATES, TIME)
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
+                                         NOISY_RELATIVE_COORDINATES)
 
 
 @dataclass(kw_only=True)
@@ -18,6 +18,7 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
     number_of_atoms: int  # the number of atoms in a configuration.
     n_hidden_dimensions: int  # the number of hidden layers.
     hidden_dimensions_size: int  # the dimensions of the hidden layers.
+    embedding_dimensions_size: int  # the dimension of the embedding of the noise parameter.
     condition_embedding_size: int = 64  # dimension of the conditional variable embedding
 
 
@@ -38,7 +39,9 @@ class MLPScoreNetwork(ScoreNetwork):
         self._natoms = hyper_params.number_of_atoms
 
         output_dimension = self.spatial_dimension * self._natoms
-        input_dimension = output_dimension + 1
+        input_dimension = output_dimension + hyper_params.embedding_dimensions_size
+
+        self.noise_embedding_layer = nn.Linear(1, hyper_params.embedding_dimensions_size)
 
         self.condition_embedding_layer = nn.Linear(output_dimension, hyper_params.condition_embedding_size)
 
@@ -77,8 +80,10 @@ class MLPScoreNetwork(ScoreNetwork):
         relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
         # shape [batch_size, number_of_atoms, spatial_dimension]
 
-        times = batch[TIME].to(relative_coordinates.device)  # shape [batch_size, 1]
-        input = torch.cat([self.flatten(relative_coordinates), times], dim=1)
+        sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
+        noise_embedding = self.noise_embedding_layer(sigmas)  # shape [batch_size, embedding_dimension]
+
+        input = torch.cat([self.flatten(relative_coordinates), noise_embedding], dim=1)
 
         forces_input = self.condition_embedding_layer(self.flatten(batch[CARTESIAN_FORCES]))
 
