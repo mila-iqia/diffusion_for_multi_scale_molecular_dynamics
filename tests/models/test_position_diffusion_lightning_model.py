@@ -98,6 +98,7 @@ class TestPositionDiffusionLightningModel:
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             n_hidden_dimensions=3,
+            embedding_dimensions_size=8,
             hidden_dimensions_size=8,
             spatial_dimension=spatial_dimension,
         )
