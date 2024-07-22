@@ -66,7 +66,9 @@ def get_edges(n_nodes: int) -> List[List[int]]:
 
 
 def get_edges_batch(n_nodes: int, batch_size: int) -> torch.Tensor:
-    """Create a tensor indicating all the source/destination nodes in a fully connected graph repeated batch_size times
+    """Get edges batch.
+
+    Create a tensor indicating all the source/destination nodes in a fully connected graph repeated batch_size times.
 
     Args:
         n_nodes: number of nodes in a graph
