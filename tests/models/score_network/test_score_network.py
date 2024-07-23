@@ -1,25 +1,32 @@
+import itertools
+from copy import deepcopy
 from dataclasses import asdict, dataclass, fields
 
+import einops
 import numpy as np
 import pytest
 import torch
 
-from crystal_diffusion.models.score_networks import \
-    create_score_network_parameters
 from crystal_diffusion.models.score_networks.diffusion_mace_score_network import (
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.egnn_score_network import (
+    EGNNScoreNetwork, EGNNScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.mace_score_network import (
     MACEScoreNetwork, MACEScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.mlp_score_network import (
     MLPScoreNetwork, MLPScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.score_network_factory import \
+    create_score_network_parameters
 from crystal_diffusion.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
                                          UNIT_CELL)
+from crystal_diffusion.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
 
 
 def assert_parameters_are_the_same(parameters1: dataclass, parameters2: dataclass):
@@ -289,3 +296,105 @@ class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
     def score_network(self, score_network_parameters):
         return DiffusionMACEScoreNetwork(score_network_parameters)
+
+
+@pytest.mark.parametrize("spatial_dimension", [3])
+class TestEGNNScoreNetwork(BaseTestScoreNetwork):
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_default_type_to_float64(self):
+        # Set the default type to float64 to make sure the tests are stringent.
+        torch.set_default_dtype(torch.float64)
+        yield
+        # this returns the default type to float32 at the end of all tests in this class in order
+        # to not affect other tests.
+        torch.set_default_dtype(torch.float32)
+
+    @pytest.fixture()
+    def score_network_parameters(self):
+        return EGNNScoreNetworkParameters()  # Use the defaults
+
+    @pytest.fixture()
+    def score_network(self, score_network_parameters):
+        score_network = EGNNScoreNetwork(score_network_parameters)
+        return score_network
+
+    @pytest.fixture()
+    def octahedral_point_group_symmetries(self):
+        permutations = [torch.diag(torch.ones(3))[[idx]] for idx in itertools.permutations([0, 1, 2])]
+        sign_changes = [torch.diag(torch.tensor(diag)) for diag in itertools.product([-1., 1.], repeat=3)]
+
+        symmetries = []
+        for permutation in permutations:
+            for sign_change in sign_changes:
+                symmetries.append(permutation @ sign_change)
+
+        return symmetries
+
+    def test_create_block_diagonal_projection_matrices(self, score_network, spatial_dimension):
+        expected_matrices = []
+        for space_idx in range(spatial_dimension):
+            matrix = torch.zeros(2 * spatial_dimension, 2 * spatial_dimension)
+            matrix[2 * space_idx + 1, 2 * space_idx] = 1.0
+            matrix[2 * space_idx, 2 * space_idx + 1] = -1.0
+            expected_matrices.append(matrix)
+
+        expected_matrices = torch.stack(expected_matrices)
+
+        computed_matrices = score_network._create_block_diagonal_projection_matrices(spatial_dimension)
+
+        torch.testing.assert_close(computed_matrices, expected_matrices)
+
+    @pytest.fixture()
+    def flat_relative_coordinates(self, batch):
+        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        flat_relative_coordinates = einops.rearrange(relative_coordinates,
+                                                     "batch natom space -> (batch natom) space")
+        return flat_relative_coordinates
+
+    @pytest.fixture()
+    def expected_euclidean_positions(self, flat_relative_coordinates):
+        expected_euclidean_positions = []
+        for relative_coordinates in flat_relative_coordinates:
+            euclidean_position = []
+            for f in relative_coordinates:
+                cos = torch.cos(2 * torch.pi * f)
+                sin = torch.sin(2 * torch.pi * f)
+                euclidean_position.append(cos)
+                euclidean_position.append(sin)
+
+            expected_euclidean_positions.append(torch.tensor(euclidean_position))
+
+        expected_euclidean_positions = torch.stack(expected_euclidean_positions)
+        return expected_euclidean_positions
+
+    def test_get_euclidean_positions(self, score_network, flat_relative_coordinates, expected_euclidean_positions):
+        computed_euclidean_positions = score_network._get_euclidean_positions(flat_relative_coordinates)
+        torch.testing.assert_close(expected_euclidean_positions, computed_euclidean_positions)
+
+    @pytest.fixture()
+    def global_translations(self, batch_size, number_of_atoms, spatial_dimension):
+        translations = einops.repeat(torch.rand(batch_size, spatial_dimension),
+                                     "batch spatial_dimension -> batch natoms spatial_dimension",
+                                     natoms=number_of_atoms)
+        return translations
+
+    def test_equivariance(self, score_network, batch, octahedral_point_group_symmetries, global_translations):
+        with torch.no_grad():
+            normalized_scores = score_network(batch)
+
+        for point_group_symmetry in octahedral_point_group_symmetries:
+            op = point_group_symmetry.transpose(1, 0)
+            modified_batch = deepcopy(batch)
+            relative_coordinates = modified_batch[NOISY_RELATIVE_COORDINATES]
+
+            op_relative_coordinates = relative_coordinates @ op + global_translations
+            op_relative_coordinates = map_relative_coordinates_to_unit_cell(op_relative_coordinates)
+
+            modified_batch[NOISY_RELATIVE_COORDINATES] = op_relative_coordinates
+            with torch.no_grad():
+                modified_normalized_scores = score_network(modified_batch)
+
+            expected_modified_normalized_scores = normalized_scores @ op
+
+            torch.testing.assert_close(expected_modified_normalized_scores, modified_normalized_scores)

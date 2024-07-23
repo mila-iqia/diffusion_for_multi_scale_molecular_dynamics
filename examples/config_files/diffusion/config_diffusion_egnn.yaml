@@ -1,0 +1,89 @@
+# general
+exp_name: egnn_example
+run_name: run2
+max_epoch: 100
+log_every_n_steps: 1
+gradient_clipping: 0
+accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
+
+# set to null to avoid setting a seed (can speed up GPU computation, but
+# results will not be reproducible)
+seed: 1234
+
+# data
+data:
+  batch_size: 1024
+  num_workers: 0
+  max_atom: 8
+
+# architecture
+spatial_dimension: 3
+model:
+  loss:
+    algorithm: mse
+  score_network:
+    architecture: egnn
+    message_n_hidden_dimensions:  1
+    message_hidden_dimensions_size: 16
+    node_n_hidden_dimensions: 1
+    node_hidden_dimensions_size: 32
+    coordinate_n_hidden_dimensions: 1
+    coordinate_hidden_dimensions_size: 32
+    residual: True
+    attention: False
+    normalize: False
+    tanh: False
+    coords_agg: mean
+    n_layers: 4
+  noise:
+    total_time_steps: 100
+    sigma_min: 0.005  # default value
+    sigma_max: 0.5  # default value'
+
+# optimizer and scheduler
+optimizer:
+  name: adamw
+  learning_rate: 0.001
+  weight_decay: 1.0e-6
+
+scheduler:
+  name: ReduceLROnPlateau
+  factor: 0.1
+  patience: 10
+
+# early stopping
+early_stopping:
+  metric: validation_epoch_loss
+  mode: min
+  patience: 10
+
+model_checkpoint:
+  monitor: validation_epoch_loss
+  mode: min
+
+# A callback to check the loss vs. sigma
+loss_monitoring: 
+  number_of_bins: 50
+  sample_every_n_epochs: 1
+
+# Sampling from the generative model
+diffusion_sampling:
+  noise:
+    total_time_steps: 100
+    sigma_min: 0.001  # default value
+    sigma_max: 0.5  # default value
+  sampling:
+    algorithm: predictor_corrector
+    number_of_corrector_steps: 1
+    spatial_dimension: 3
+    number_of_atoms: 8
+    number_of_samples: 128
+    sample_batchsize: 128
+    sample_every_n_epochs: 1
+    record_samples: True
+    cell_dimensions: [5.43, 5.43, 5.43]
+
+logging:
+#  - comet
+- tensorboard
+#- csv
