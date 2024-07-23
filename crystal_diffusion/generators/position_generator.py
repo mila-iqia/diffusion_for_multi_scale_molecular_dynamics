@@ -15,6 +15,7 @@ class SamplingParameters:
     sample_batchsize: Optional[int] = None  # iterate up to number_of_samples with batches of this size
     # if None, use number_of_samples as batchsize
     sample_every_n_epochs: int = 1  # Sampling is expensive; control frequency
+    first_sampling_epoch: int = 1  # Epoch at which sampling can begin; no sampling before this epoch.
     cell_dimensions: List[float]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
     record_samples: bool = False  # should the predictor and corrector steps be recorded to a file
 
