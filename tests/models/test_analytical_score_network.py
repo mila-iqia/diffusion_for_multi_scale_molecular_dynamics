@@ -4,7 +4,8 @@ import pytest
 import torch
 
 from crystal_diffusion.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters,
+    TargetScoreBasedAnalyticalScoreNetwork)
 from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
                                          TIME, UNIT_CELL)
 
@@ -18,6 +19,13 @@ def factorial(n):
 
 
 class TestAnalyticalScoreNetwork:
+    @pytest.fixture(scope="class", autouse=True)
+    def set_default_type_to_float64(self):
+        torch.set_default_dtype(torch.float64)
+        yield
+        # this returns the default type to float32 at the end of all tests in this class in order
+        # to not affect other tests.
+        torch.set_default_dtype(torch.float32)
 
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
@@ -29,7 +37,9 @@ class TestAnalyticalScoreNetwork:
 
     @pytest.fixture
     def kmax(self):
-        return 1
+        # kmax has to be fairly large for the comparison test between the analytical score and the target based
+        # analytical score to pass.
+        return 8
 
     @pytest.fixture(params=[1, 2, 3])
     def spatial_dimension(self, request):
@@ -43,11 +53,14 @@ class TestAnalyticalScoreNetwork:
     def equilibrium_relative_coordinates(self, number_of_atoms, spatial_dimension):
         return torch.rand(number_of_atoms, spatial_dimension)
 
-    @pytest.fixture
-    def variance_parameter(self):
-        # Make the spring constants pretty large so that the displacements will be small
-        inverse_variance = float(1000 * torch.rand(1))
-        return 1. / inverse_variance
+    @pytest.fixture(params=['finite', 'zero'])
+    def variance_parameter(self, request):
+        if request.param == 'zero':
+            return 0.
+        elif request.param == 'finite':
+            # Make the spring constants pretty large so that the displacements will be small
+            inverse_variance = float(1000 * torch.rand(1))
+            return 1. / inverse_variance
 
     @pytest.fixture()
     def batch(self, batch_size, number_of_atoms, spatial_dimension):
@@ -72,6 +85,10 @@ class TestAnalyticalScoreNetwork:
     @pytest.fixture()
     def score_network(self, score_network_parameters):
         return AnalyticalScoreNetwork(score_network_parameters)
+
+    @pytest.fixture()
+    def target_score_based_score_network(self, score_network_parameters):
+        return TargetScoreBasedAnalyticalScoreNetwork(score_network_parameters)
 
     def test_all_translations(self, kmax):
         computed_translations = AnalyticalScoreNetwork._get_all_translations(kmax)
@@ -130,3 +147,12 @@ class TestAnalyticalScoreNetwork:
         normalized_scores = score_network.forward(batch)
 
         assert normalized_scores.shape == (batch_size, number_of_atoms, spatial_dimension)
+
+    @pytest.mark.parametrize('use_permutation_invariance', [False])
+    @pytest.mark.parametrize('number_of_atoms', [1, 2, 8])
+    def test_compare_score_networks(self, score_network, target_score_based_score_network, batch):
+
+        normalized_scores1 = score_network.forward(batch)
+        normalized_scores2 = target_score_based_score_network.forward(batch)
+
+        torch.testing.assert_close(normalized_scores1, normalized_scores2)
