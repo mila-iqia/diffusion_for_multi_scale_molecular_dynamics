@@ -34,7 +34,6 @@ def test_linear_vector_readout_block():
 class TestDiffusionMace:
     @pytest.fixture(scope="class", autouse=True)
     def set_default_type_to_float64(self):
-        """Set the random seed."""
         torch.set_default_dtype(torch.float64)
         yield
         # this returns the default type to float32 at the end of all tests in this class in order
