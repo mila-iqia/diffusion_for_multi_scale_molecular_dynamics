@@ -48,7 +48,8 @@ class EGNNScoreNetwork(ScoreNetwork):
         self.spatial_dimension = hyper_params.spatial_dimension
 
         projection_matrices = self._create_block_diagonal_projection_matrices(self.spatial_dimension)
-        self.register_parameter('projection_matrices',torch.nn.Parameter(projection_matrices, requires_grad=False))
+        self.register_parameter('projection_matrices',
+                                torch.nn.Parameter(projection_matrices, requires_grad=False))
 
         self.egnn = EGNN(
             input_size=self.number_of_features_per_node,
