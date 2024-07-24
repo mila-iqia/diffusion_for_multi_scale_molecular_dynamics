@@ -9,13 +9,13 @@ from crystal_diffusion.analysis.analytic_score.exploring_langevin_generator impo
 
 plt.style.use(PLOT_STYLE_PATH)
 
-supercell_factor = 1
+supercell_factor = 2
 pickle_directory = LANGEVIN_EXPLORATION_DIRECTORY / f"Si_{supercell_factor}x{supercell_factor}x{supercell_factor}"
 
 title = f"Si {supercell_factor}x{supercell_factor}x{supercell_factor}"
 
-sigma_d = 0.005
-sigma_min = 0.00001
+sigma_d = 0.001
+sigma_min = 0.001
 if __name__ == '__main__':
     list_q = np.linspace(0, 1, 101)
 
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     range = max - min
 
     min = min - 1
-    max = max + 1
+    max = max + 10000
 
     for number_of_corrector_steps, ax in zip([1, 10, 100], [ax1, ax2, ax3]):
         ax.set_title(f"Corrector steps: {number_of_corrector_steps}")
@@ -49,6 +49,9 @@ if __name__ == '__main__':
             name = (f"sampled_energies_Sd={sigma_d}_Sm={sigma_min}"
                     f"_S={total_time_steps}_C={number_of_corrector_steps}.pkl")
             filepath = pickle_directory / name
+            if not filepath.is_file():
+                print(f"File {name} is missing. Moving on.")
+                continue
             with open(filepath, 'rb') as fd:
                 sampled_results = pickle.load(fd)
             energies = sampled_results.pop('energies')

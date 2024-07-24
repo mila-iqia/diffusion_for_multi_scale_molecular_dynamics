@@ -77,11 +77,11 @@ def generate_exact_samples(equilibrium_relative_coordinates: torch.Tensor, sigma
 
 device = torch.device('cpu')
 
-number_of_atoms = 8
+number_of_atoms = 64
 spatial_dimension = 3
 kmax = 8
 acell = 5.43
-supercell_factor = 1
+supercell_factor = 2
 cell_dimensions = 3 * [acell * supercell_factor]
 
 pickle_directory = LANGEVIN_EXPLORATION_DIRECTORY / f"Si_{supercell_factor}x{supercell_factor}x{supercell_factor}"
@@ -106,6 +106,12 @@ if __name__ == '__main__':
         get_silicon_supercell(supercell_factor=supercell_factor)).to(torch.float32)
 
     for sigma_d in tqdm(list_sigma_d, "exact energies"):
+        name = f"Sd={sigma_d}"
+        output_path = pickle_directory / f'exact_energies_{name}.pkl'
+        if output_path.is_file():
+            logger.info(f"file {name} already exists. Moving on.")
+            continue
+
         exact_samples = generate_exact_samples(equilibrium_relative_coordinates,
                                                sigma_d=sigma_d,
                                                number_of_samples=number_of_samples)
@@ -113,12 +119,16 @@ if __name__ == '__main__':
         exact_samples_energies = energy_calculator.compute_oracle_energies(exact_samples)
         result = dict(sigma_d=sigma_d, energies=exact_samples_energies)
 
-        name = f"Sd={sigma_d}"
-        with open(pickle_directory / f'exact_energies_{name}.pkl', 'wb') as fd:
+        with open(output_path, 'wb') as fd:
             pickle.dump(result, fd)
 
     prod = itertools.product(list_number_of_corrector_steps, list_sigma_d, list_sigma_min, list_total_time_steps)
     for number_of_corrector_steps, sigma_d, sigma_min, total_time_steps in tqdm(prod, "sample energies"):
+        name = f"Sd={sigma_d}_Sm={sigma_min}_S={total_time_steps}_C={number_of_corrector_steps}"
+        output_path = pickle_directory / f'sampled_energies_{name}.pkl'
+        if output_path.is_file():
+            logger.info(f"file {name} already exists. Moving on.")
+            continue
 
         score_network_parameters = AnalyticalScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
@@ -160,5 +170,5 @@ if __name__ == '__main__':
                       energies=generated_samples_energies)
         name = f"Sd={sigma_d}_Sm={sigma_min}_S={total_time_steps}_C={number_of_corrector_steps}"
         # Pickle a lot of intermediate things to avoid losing everything in a crash.
-        with open(pickle_directory / f'sampled_energies_{name}.pkl', 'wb') as fd:
+        with open(output_path, 'wb') as fd:
             pickle.dump(result, fd)
