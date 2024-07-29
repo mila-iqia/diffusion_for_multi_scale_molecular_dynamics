@@ -24,9 +24,9 @@ class SDESamplingParameters(SamplingParameters):
     """Hyper-parameters for diffusion sampling with the sde algorithm."""
     algorithm: str = 'sde'
     method: str = 'euler'
-    adaptative: bool = True
-    absolute_solver_tolerance: float = 1.0e-3  # the absolute error tolerance passed to the SDE solver.
-    relative_solver_tolerance: float = 1.0e-2  # the relative error tolerance passed to the SDE solver.
+    adaptative: bool = False
+    absolute_solver_tolerance: float = 1.0e-7  # the absolute error tolerance passed to the SDE solver.
+    relative_solver_tolerance: float = 1.0e-5  # the relative error tolerance passed to the SDE solver.
 
 
 class SDE(torch.nn.Module):
