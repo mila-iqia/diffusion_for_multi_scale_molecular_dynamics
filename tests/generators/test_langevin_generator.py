@@ -44,6 +44,7 @@ class TestLangevinGenerator:
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
             n_hidden_dimensions=3,
+            embedding_dimensions_size=8,
             hidden_dimensions_size=16
         )
         return MLPScoreNetwork(hyper_params).to(device)

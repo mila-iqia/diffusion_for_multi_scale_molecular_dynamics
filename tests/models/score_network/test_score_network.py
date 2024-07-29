@@ -219,12 +219,15 @@ class BaseTestScoreNetwork:
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
+@pytest.mark.parametrize("embedding_dimensions_size", [4, 12])
 class TestMLPScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture()
-    def score_network_parameters(self, number_of_atoms, spatial_dimension, n_hidden_dimensions, hidden_dimensions_size):
+    def score_network_parameters(self, number_of_atoms, spatial_dimension,
+                                 embedding_dimensions_size, n_hidden_dimensions, hidden_dimensions_size):
         return MLPScoreNetworkParameters(spatial_dimension=spatial_dimension,
                                          number_of_atoms=number_of_atoms,
+                                         embedding_dimensions_size=embedding_dimensions_size,
                                          n_hidden_dimensions=n_hidden_dimensions,
                                          hidden_dimensions_size=hidden_dimensions_size)
 

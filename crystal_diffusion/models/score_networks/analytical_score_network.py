@@ -20,6 +20,10 @@ import torch
 from crystal_diffusion.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
 from crystal_diffusion.namespace import NOISE, NOISY_RELATIVE_COORDINATES
+from crystal_diffusion.score.wrapped_gaussian_score import \
+    get_sigma_normalized_score
+from crystal_diffusion.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
 
 
 @dataclass(kw_only=True)
@@ -57,7 +61,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         self.nd = self.natoms * self.spatial_dimension
         self.kmax = hyper_params.kmax
 
-        assert hyper_params.variance_parameter > 0., "the variance parameter should be positive."
+        assert hyper_params.variance_parameter >= 0., "the variance parameter should be non negative."
         self.sigma_d_square = hyper_params.variance_parameter
 
         assert hyper_params.equilibrium_relative_coordinates.shape == (self.natoms, self.spatial_dimension), \
@@ -154,3 +158,55 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         unnormalized_log_prob = torch.logsumexp(exponent, dim=2, keepdim=False).sum(dim=1)
 
         return unnormalized_log_prob
+
+
+class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
+    """Target Score-Based Analytical Score Network.
+
+    An analytical score network that leverages the computation of the target for the score network.
+    This can only work if the permutation equivariance is turned off. This should produce exactly the same results
+    as the AnalyticalScoreNetwork, but does not require gradient calculation.
+    """
+
+    def __init__(self, hyper_params: AnalyticalScoreNetworkParameters):
+        """__init__.
+
+        Args:
+            hyper_params : hyper parameters from the config file.
+        """
+        super(TargetScoreBasedAnalyticalScoreNetwork, self).__init__(hyper_params)
+        assert not hyper_params.use_permutation_invariance, \
+            "This implementation is only valid in the absence of permutation equivariance."
+        self.x0 = self.all_x0[0]
+
+    def _forward_unchecked(self, batch: Dict[AnyStr, Any], conditional: bool = False) -> torch.Tensor:
+        """Forward unchecked.
+
+        This method assumes that the input data has already been checked with respect to expectations
+        and computes the scores assuming that the data is in the correct format.
+
+        Args:
+            batch : dictionary containing the data to be processed by the model.
+            conditional (optional): CURRENTLY DOES NOTHING.
+
+        Returns:
+            output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
+        """
+        sigmas = batch[NOISE]  # dimension: [batch_size, 1]
+        xt = batch[NOISY_RELATIVE_COORDINATES]
+
+        broadcast_sigmas = einops.repeat(sigmas,
+                                         "batch 1 -> batch natoms spatial_dimension",
+                                         natoms=self.natoms,
+                                         spatial_dimension=self.spatial_dimension)
+
+        broadcast_effective_sigmas = (broadcast_sigmas**2 + self.sigma_d_square).sqrt()
+
+        delta_relative_coordinates = map_relative_coordinates_to_unit_cell(xt - self.x0)
+        misnormalized_scores = get_sigma_normalized_score(delta_relative_coordinates,
+                                                          broadcast_effective_sigmas,
+                                                          kmax=self.kmax)
+
+        sigma_normalized_scores = broadcast_sigmas / broadcast_effective_sigmas * misnormalized_scores
+
+        return sigma_normalized_scores
