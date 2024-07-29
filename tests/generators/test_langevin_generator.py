@@ -30,12 +30,12 @@ class TestLangevinGenerator(BaseTestGenerator):
         return noise_parameters
 
     @pytest.fixture()
-    def sampling_parameters(self, number_of_atoms, spatial_dimension, number_of_samples,
+    def sampling_parameters(self, number_of_atoms, spatial_dimension, cell_dimensions, number_of_samples,
                             number_of_corrector_steps, unit_cell_size):
         sampling_parameters = PredictorCorrectorSamplingParameters(number_of_corrector_steps=number_of_corrector_steps,
                                                                    number_of_atoms=number_of_atoms,
                                                                    number_of_samples=number_of_samples,
-                                                                   cell_dimensions=spatial_dimension * [unit_cell_size],
+                                                                   cell_dimensions=cell_dimensions,
                                                                    spatial_dimension=spatial_dimension)
 
         return sampling_parameters

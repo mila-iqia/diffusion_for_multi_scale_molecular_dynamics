@@ -19,11 +19,12 @@ class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
         return NoiseParameters(total_time_steps=total_time_steps, time_delta=0., sigma_min=sigma_min)
 
     @pytest.fixture()
-    def sampling_parameters(self, number_of_atoms, spatial_dimension, number_of_samples, record_samples):
+    def sampling_parameters(self, number_of_atoms, spatial_dimension, cell_dimensions,
+                            number_of_samples, record_samples):
         sampling_parameters = ODESamplingParameters(number_of_atoms=number_of_atoms,
                                                     spatial_dimension=spatial_dimension,
                                                     number_of_samples=number_of_samples,
-                                                    cell_dimensions=spatial_dimension * [10],
+                                                    cell_dimensions=cell_dimensions,
                                                     record_samples=record_samples)
         return sampling_parameters
 

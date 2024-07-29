@@ -15,13 +15,13 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
         return torch.rand(number_of_constraints, spatial_dimension).numpy()
 
     @pytest.fixture()
-    def sampling_parameters(self, number_of_atoms, spatial_dimension, number_of_samples,
+    def sampling_parameters(self, number_of_atoms, spatial_dimension, number_of_samples, cell_dimensions,
                             number_of_corrector_steps, unit_cell_size, constrained_relative_coordinates):
         sampling_parameters = ConstrainedLangevinGeneratorParameters(
             number_of_corrector_steps=number_of_corrector_steps,
             number_of_atoms=number_of_atoms,
             number_of_samples=number_of_samples,
-            cell_dimensions=spatial_dimension * [unit_cell_size],
+            cell_dimensions=cell_dimensions,
             spatial_dimension=spatial_dimension,
             constrained_relative_coordinates=constrained_relative_coordinates)
 

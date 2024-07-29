@@ -39,5 +39,9 @@ class BaseTestGenerator:
         return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(number_of_samples, 1, 1)
 
     @pytest.fixture()
+    def cell_dimensions(self, unit_cell_size, spatial_dimension):
+        return spatial_dimension * [unit_cell_size]
+
+    @pytest.fixture()
     def sigma_normalized_score_network(self, spatial_dimension):
         return FakeScoreNetwork(ScoreNetworkParameters(architecture='dummy', spatial_dimension=spatial_dimension))
