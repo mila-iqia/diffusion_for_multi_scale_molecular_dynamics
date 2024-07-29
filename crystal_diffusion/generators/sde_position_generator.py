@@ -259,14 +259,14 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
 
         with torch.no_grad():
             # Dimensions [number of time steps, number of samples, natom x spatial_dimension]
-            logger.info("Starting ODE solver...")
+            logger.info("Starting SDE solver...")
             ys = torchsde.sdeint(sde, y0, sde_times,
                                  method=self.sampling_parameters.method,
                                  dt=dt,
                                  adaptive=self.sampling_parameters.adaptative,
                                  atol=self.sampling_parameters.absolute_solver_tolerance,
                                  rtol=self.sampling_parameters.relative_solver_tolerance)
-            logger.info("ODE solver Finished.")
+            logger.info("SDE solver Finished.")
 
         if self.record_samples:
             self.record_sample(sde, ys, sde_times)
