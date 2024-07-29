@@ -133,7 +133,10 @@ class SDE(torch.nn.Module):
 
         g_squared = self._get_diffusion_coefficient_g_squared(diffusion_time)
         sigma = self._get_exploding_variance_sigma(diffusion_time)
-        prefactor = -g_squared / sigma
+        # Careful! The prefactor must account for the following facts:
+        #   -  the SDE time is NEGATIVE the diffusion time; this introduces a minus sign dt_{diff} = -dt_{sde}
+        #   -  what our model calculates is the NORMALIZED score (ie, Score x sigma). We must thus divide by sigma.
+        prefactor = g_squared / sigma
 
         return prefactor * flat_sigma_normalized_scores
 
@@ -252,11 +255,14 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
         sde_times = torch.linspace(self.initial_diffusion_time, self.final_diffusion_time,
                                    self.noise_parameters.total_time_steps).to(device)
 
+        dt = (self.final_diffusion_time - self.initial_diffusion_time) / (self.noise_parameters.total_time_steps - 1)
+
         with torch.no_grad():
             # Dimensions [number of time steps, number of samples, natom x spatial_dimension]
             logger.info("Starting ODE solver...")
             ys = torchsde.sdeint(sde, y0, sde_times,
                                  method=self.sampling_parameters.method,
+                                 dt=dt,
                                  adaptive=self.sampling_parameters.adaptative,
                                  atol=self.sampling_parameters.absolute_solver_tolerance,
                                  rtol=self.sampling_parameters.relative_solver_tolerance)
