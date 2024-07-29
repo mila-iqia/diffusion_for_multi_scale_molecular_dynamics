@@ -36,3 +36,4 @@ pykeops==2.2.3
 comet_ml
 einops==0.8.0
 torchode==0.2.0
+torchsde==0.2.6
