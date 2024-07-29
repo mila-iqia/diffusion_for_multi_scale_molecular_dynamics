@@ -4,15 +4,14 @@ import torch
 from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
-from crystal_diffusion.models.score_networks.mlp_score_network import (
-    MLPScoreNetwork, MLPScoreNetworkParameters)
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
+from tests.generators.conftest import BaseTestGenerator
 
 
-class TestLangevinGenerator:
+class TestLangevinGenerator(BaseTestGenerator):
 
     @pytest.fixture(params=[0, 1, 2])
     def number_of_corrector_steps(self, request):
@@ -21,33 +20,6 @@ class TestLangevinGenerator:
     @pytest.fixture(params=[1, 5, 10])
     def total_time_steps(self, request):
         return request.param
-
-    @pytest.fixture(params=[2, 3])
-    def spatial_dimension(self, request):
-        return request.param
-
-    @pytest.fixture()
-    def number_of_atoms(self):
-        return 8
-
-    @pytest.fixture()
-    def number_of_samples(self):
-        return 8
-
-    @pytest.fixture()
-    def unit_cell_size(self):
-        return 10
-
-    @pytest.fixture()
-    def sigma_normalized_score_network(self, number_of_atoms, spatial_dimension, device):
-        hyper_params = MLPScoreNetworkParameters(
-            spatial_dimension=spatial_dimension,
-            number_of_atoms=number_of_atoms,
-            n_hidden_dimensions=3,
-            embedding_dimensions_size=8,
-            hidden_dimensions_size=16
-        )
-        return MLPScoreNetwork(hyper_params).to(device)
 
     @pytest.fixture()
     def noise_parameters(self, total_time_steps):
@@ -75,10 +47,6 @@ class TestLangevinGenerator:
                                       sigma_normalized_score_network=sigma_normalized_score_network)
 
         return generator
-
-    @pytest.fixture()
-    def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples, device):
-        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(number_of_samples, 1, 1).to(device)
 
     def test_smoke_sample(self, pc_generator, device, number_of_samples, unit_cell_sample):
         # Just a smoke test that we can sample without crashing.

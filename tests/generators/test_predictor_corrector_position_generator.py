@@ -5,6 +5,7 @@ from crystal_diffusion.generators.predictor_corrector_position_generator import 
     PredictorCorrectorPositionGenerator
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
+from tests.generators.conftest import BaseTestGenerator
 
 
 class FakePCGenerator(PredictorCorrectorPositionGenerator):
@@ -32,13 +33,9 @@ class FakePCGenerator(PredictorCorrectorPositionGenerator):
         return 0.56 * x_i + 7.89 + i / 117.0
 
 
-@pytest.mark.parametrize("number_of_samples", [4])
-@pytest.mark.parametrize("number_of_atoms", [8])
-@pytest.mark.parametrize("spatial_dimension", [2, 3])
 @pytest.mark.parametrize("number_of_discretization_steps", [1, 5, 10])
 @pytest.mark.parametrize("number_of_corrector_steps", [0, 1, 2])
-@pytest.mark.parametrize("unit_cell_size", [10])
-class TestPredictorCorrectorPositionGenerator:
+class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
         torch.manual_seed(1234567)
@@ -55,10 +52,6 @@ class TestPredictorCorrectorPositionGenerator:
             number_of_discretization_steps, number_of_corrector_steps, spatial_dimension, initial_sample
         )
         return generator
-
-    @pytest.fixture()
-    def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples):
-        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(number_of_samples, 1, 1)
 
     @pytest.fixture
     def expected_samples(
