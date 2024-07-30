@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 class SDESamplingParameters(SamplingParameters):
     """Hyper-parameters for diffusion sampling with the sde algorithm."""
     algorithm: str = 'sde'
+    sde_type: str = 'ito'
     method: str = 'euler'
     adaptative: bool = False
     absolute_solver_tolerance: float = 1.0e-7  # the absolute error tolerance passed to the SDE solver.
@@ -60,6 +61,7 @@ class SDE(torch.nn.Module):
             final_diffusion_time : final diffusion time. Dimensionless tensor.
         """
         super().__init__()
+        self.sde_type = sampling_parameters.sde_type
         self.noise_parameters = noise_parameters
         self.sigma_normalized_score_network = sigma_normalized_score_network
         self.unit_cells = unit_cells
@@ -284,7 +286,7 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
     def record_sample(self, sde: SDE, ys: torch.Tensor, sde_times: torch.Tensor):
         """Record sample.
 
-        This method takes care of recomputing the normalized score on the solution trajectory and record it to the
+        This  takes care of recomputing the normalized score on the solution trajectory and record it to the
         sample trajectory object.
         Args:
             sde: the SDE object that provides drift and diffusion.
