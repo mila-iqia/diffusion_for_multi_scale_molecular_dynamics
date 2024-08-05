@@ -65,6 +65,32 @@ class ODESampleTrajectory(SampleTrajectory):
         return standardized_data
 
 
+class SDESampleTrajectory(SampleTrajectory):
+    """SDE Sample Trajectory.
+
+    This class aims to record all details of the SDE diffusion sampling process. The goal is to produce
+    an artifact that can then be analyzed off-line.
+    """
+
+    def record_sde_solution(self, times: torch.Tensor, sigmas: torch.Tensor,
+                            relative_coordinates: torch.Tensor, normalized_scores: torch.Tensor):
+        """Record ODE solution information."""
+        self.data['time'].append(times)
+        self.data['sigma'].append(sigmas)
+        self.data['relative_coordinates'].append(relative_coordinates)
+        self.data['normalized_scores'].append(normalized_scores)
+
+    def standardize_data(self, data: Dict[AnyStr, Any]) -> Dict[AnyStr, Any]:
+        """Method to transform the recorded data to a standard form."""
+        standardized_data = dict(unit_cell=data['unit_cell'],
+                                 time=data['time'][0],
+                                 sigma=data['sigma'][0],
+                                 relative_coordinates=data['relative_coordinates'][0],
+                                 normalized_scores=data['normalized_scores'][0],
+                                 )
+        return standardized_data
+
+
 class NoOpODESampleTrajectory(ODESampleTrajectory):
     """A sample trajectory object that performs no operation."""
 

@@ -18,6 +18,8 @@ from crystal_diffusion.generators.position_generator import (
     PositionGenerator, SamplingParameters)
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
+from crystal_diffusion.generators.sde_position_generator import (
+    ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
 from crystal_diffusion.loggers.logger_loader import log_figure
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -40,22 +42,28 @@ def instantiate_diffusion_sampling_callback(callback_params: Dict[AnyStr, Any],
     assert 'algorithm' in sampling_parameter_dictionary, "The sampling parameters must select an algorithm."
     algorithm = sampling_parameter_dictionary['algorithm']
 
-    assert algorithm in ['ode', 'predictor_corrector'], \
-        "Unknown algorithm. Possible choices are 'ode' and 'predictor_corrector'"
+    assert algorithm in ['ode', 'sde', 'predictor_corrector'], \
+        "Unknown algorithm. Possible choices are 'ode', 'sde' and 'predictor_corrector'"
 
-    if algorithm == 'predictor_corrector':
-        sampling_parameters = PredictorCorrectorSamplingParameters(**sampling_parameter_dictionary)
-        diffusion_sampling_callback = (
-            PredictorCorrectorDiffusionSamplingCallback(noise_parameters=noise_parameters,
-                                                        sampling_parameters=sampling_parameters,
-                                                        output_directory=output_directory))
-    elif algorithm == 'ode':
-        sampling_parameters = ODESamplingParameters(**sampling_parameter_dictionary)
-        diffusion_sampling_callback = ODEDiffusionSamplingCallback(noise_parameters=noise_parameters,
-                                                                   sampling_parameters=sampling_parameters,
-                                                                   output_directory=output_directory)
-    else:
-        raise NotImplementedError("algorithm is not implemented")
+    match algorithm:
+        case 'predictor_corrector':
+            sampling_parameters = PredictorCorrectorSamplingParameters(**sampling_parameter_dictionary)
+            diffusion_sampling_callback = (
+                PredictorCorrectorDiffusionSamplingCallback(noise_parameters=noise_parameters,
+                                                            sampling_parameters=sampling_parameters,
+                                                            output_directory=output_directory))
+        case 'ode':
+            sampling_parameters = ODESamplingParameters(**sampling_parameter_dictionary)
+            diffusion_sampling_callback = ODEDiffusionSamplingCallback(noise_parameters=noise_parameters,
+                                                                       sampling_parameters=sampling_parameters,
+                                                                       output_directory=output_directory)
+        case 'sde':
+            sampling_parameters = SDESamplingParameters(**sampling_parameter_dictionary)
+            diffusion_sampling_callback = SDEDiffusionSamplingCallback(noise_parameters=noise_parameters,
+                                                                       sampling_parameters=sampling_parameters,
+                                                                       output_directory=output_directory)
+        case _:
+            raise NotImplementedError("algorithm is not implemented")
 
     return dict(diffusion_sampling=diffusion_sampling_callback)
 
@@ -307,4 +315,18 @@ class ODEDiffusionSamplingCallback(DiffusionSamplingCallback):
                                                           sampling_parameters=self.sampling_parameters,
                                                           sigma_normalized_score_network=sigma_normalized_score_network)
 
+        return generator
+
+
+class SDEDiffusionSamplingCallback(DiffusionSamplingCallback):
+    """Callback class to periodically generate samples and log their energies."""
+
+    def _create_generator(self, pl_model: LightningModule) -> ExplodingVarianceODEPositionGenerator:
+        """Draw a sample from the generative model."""
+        logger.info("Creating sampler")
+        sigma_normalized_score_network = pl_model.sigma_normalized_score_network
+
+        generator = ExplodingVarianceSDEPositionGenerator(noise_parameters=self.noise_parameters,
+                                                          sampling_parameters=self.sampling_parameters,
+                                                          sigma_normalized_score_network=sigma_normalized_score_network)
         return generator

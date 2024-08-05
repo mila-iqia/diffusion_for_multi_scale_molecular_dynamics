@@ -1,45 +1,30 @@
-from typing import AnyStr, Dict
-
 import pytest
 import torch
 
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from crystal_diffusion.models.score_networks.score_network import (
-    ScoreNetwork, ScoreNetworkParameters)
-from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
-
-
-class FakeScoreNetwork(ScoreNetwork):
-    """A fake, smooth score network for the ODE solver."""
-
-    def _forward_unchecked(self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False) -> torch.Tensor:
-        return batch[NOISY_RELATIVE_COORDINATES]
+from tests.generators.conftest import BaseTestGenerator
 
 
 @pytest.mark.parametrize("total_time_steps", [2, 5, 10])
-@pytest.mark.parametrize("spatial_dimension", [2, 3])
-@pytest.mark.parametrize("number_of_atoms", [8])
 @pytest.mark.parametrize("sigma_min", [0.15])
 @pytest.mark.parametrize("record_samples", [False, True])
 @pytest.mark.parametrize("number_of_samples", [8])
-class TestExplodingVarianceODEPositionGenerator:
-    @pytest.fixture()
-    def sigma_normalized_score_network(self, spatial_dimension):
-        return FakeScoreNetwork(ScoreNetworkParameters(architecture='dummy', spatial_dimension=spatial_dimension))
+class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
 
     @pytest.fixture()
     def noise_parameters(self, total_time_steps, sigma_min):
         return NoiseParameters(total_time_steps=total_time_steps, time_delta=0., sigma_min=sigma_min)
 
     @pytest.fixture()
-    def sampling_parameters(self, number_of_atoms, spatial_dimension, number_of_samples, record_samples):
+    def sampling_parameters(self, number_of_atoms, spatial_dimension, cell_dimensions,
+                            number_of_samples, record_samples):
         sampling_parameters = ODESamplingParameters(number_of_atoms=number_of_atoms,
                                                     spatial_dimension=spatial_dimension,
                                                     number_of_samples=number_of_samples,
-                                                    cell_dimensions=spatial_dimension * [10],
+                                                    cell_dimensions=cell_dimensions,
                                                     record_samples=record_samples)
         return sampling_parameters
 
@@ -50,11 +35,6 @@ class TestExplodingVarianceODEPositionGenerator:
                                                           sigma_normalized_score_network=sigma_normalized_score_network)
 
         return generator
-
-    @pytest.fixture()
-    def unit_cell_sample(self, spatial_dimension, number_of_samples):
-        unit_cell_size = 10.
-        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(number_of_samples, 1, 1)
 
     def test_get_exploding_variance_sigma(self, ode_generator, noise_parameters):
         times = ExplodingVarianceSampler._get_time_array(noise_parameters)
