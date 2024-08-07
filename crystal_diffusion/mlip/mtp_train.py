@@ -1,8 +1,9 @@
 """Script to train and evaluate a MTP.
 
-Running the main() runs a debugging example. Entry points are train_mtp and evaluate_mtp.
+Running the main() runs a debugging example. Entry points are train_mtp.
 """
 import argparse
+from dataclasses import dataclass
 from typing import Any, Dict, List, NamedTuple, Tuple
 
 import numpy as np
@@ -12,101 +13,15 @@ from pymatgen.core import Structure
 from sklearn.metrics import mean_absolute_error
 
 from crystal_diffusion.models.mtp import MTPWithMLIP3
+from crystal_diffusion.mlip.mtp_utils import prepare_mtp_inputs_from_lammps, crawl_lammps_directory, MTP_Inputs
 
 atom_dict = {1: 'Si'}
 
 
-def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, Any]) -> \
-        Tuple[List[Structure], List[List[float]]]:
-    """Convert LAMMPS yaml output in a format compatible with MTP training and evaluation methods.
-
-    Args:
-        filename: path to LAMMPS output file in yaml format
-        atom_dict: mapping from LAMMPS atom indices to atom type (atomic number as int or atom name as str)
-
-    Returns:
-        list of pymatgen Structure containing the atoms and their positions
-        list of forces (n x 3) for each atom
-    """
-    structures = []
-    forces = []
-    with (open(filename, 'r') as f):
-        l_yaml = yaml.safe_load_all(f)
-        for d in l_yaml:  # loop over LAMMPS outputs and convert in pymatgen Structure objects
-            # lattice in yaml is 3 x 2 [0, x_lim]
-            # we assume a rectangular lattice for now with the 2nd coordinates as the lattice vectors
-            lattice = np.zeros((3, 3))
-            for i, x in enumerate(d['box']):
-                lattice[i, i] = x[1]
-            type_idx = d['keywords'].index('type')
-            species = [atom_dict[x[type_idx]] for x in d['data']]  # convert to atom type
-            coords_idx = [d['keywords'].index(x) for x in ['x', 'y', 'z']]
-            coords = [[x[i] for i in coords_idx] for x in d['data']]
-            pm_structure = Structure(lattice=lattice,
-                                     species=species,
-                                     coords=coords,
-                                     coords_are_cartesian=True)
-            structures.append(pm_structure)
-            force_idx = [d['keywords'].index(x) for x in ['fx', 'fy', 'fz']]
-            structure_forces = [[x[i] for i in force_idx] for x in d['data']]
-            forces.append(structure_forces)
-    return structures, forces
-
-
-def extract_energy_from_thermo_log(filename: str) -> List[float]:
-    """Read energies from LAMMPS thermodynamic output file.
-
-    Args:
-        filename: path to LAMMPS thermodynamic output file in yaml format.
-
-    Returns:
-        list of energies (1 value per configuration)
-    """
-    with open(filename, 'r') as f:
-        log_yaml = yaml.safe_load(f)
-        kin_idx = log_yaml['keywords'].index('KinEng')
-        pot_idx = log_yaml['keywords'].index('PotEng')
-        energies = [x[kin_idx] + x[pot_idx] for x in log_yaml['data']]
-    return energies
-
-
-class MTP_Inputs(NamedTuple):
-    """Create a namedtuple instance for MTP inputs."""
-
-    structure: List[Structure]
-    forces: List[List[float]]
-    energy: List[float]
-
-
-def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
-                                   thermo_yaml: List[str],
-                                   atom_dict: Dict[int, Any]
-                                   ) -> MTP_Inputs:
-    """Convert a list of LAMMPS output files and thermodynamic output files to MTP input format.
-
-    Args:
-        output_yaml: list of LAMMPS output files as yaml.
-        thermo_yaml: list of LAMMPS thermodynamic output files as yaml.
-        atom_dict: mapping of LAMMPS indices to atom type.
-
-    Returns:
-        namedtuple with structure, energies and forces usable by MTP.
-    """
-    mtp_inputs = {
-        'structure': [],
-        'energy': [],
-        'forces': []
-    }
-    for filename in output_yaml:
-        structures, forces = extract_structure_and_forces_from_file(filename, atom_dict)
-        mtp_inputs['structure'] += structures
-        mtp_inputs['forces'] += forces
-    for filename in thermo_yaml:
-        mtp_inputs['energy'] += extract_energy_from_thermo_log(filename)
-    mtp_inputs = MTP_Inputs(structure=mtp_inputs['structure'],
-                            energy=mtp_inputs['energy'],
-                            forces=mtp_inputs['forces'])
-    return mtp_inputs
+def prepare_dataset(root_data_dir: str, atom_dict: Dict[int, str], mode: str = "train") -> MTP_Inputs:
+    lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
+    mtp_dataset = prepare_mtp_inputs_from_lammps(lammps_outputs, thermo_outputs, atom_dict)
+    return mtp_dataset
 
 
 def train_mtp(train_inputs: MTP_Inputs, mlip_folder_path: str, save_dir: str) -> MTPWithMLIP3:

@@ -1,8 +1,19 @@
+import os
+import re
+from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import yaml
 from pymatgen.core import Structure
+
+
+@dataclass(kw_only=True)
+class MTP_Inputs:
+    """Create a dataclass to train or evaluate a MTP model."""
+    structure: List[Structure]
+    forces: List[List[float]]
+    energy: List[float]
 
 
 def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, Any]) -> \
@@ -57,3 +68,56 @@ def extract_energy_from_thermo_log(filename: str) -> List[float]:
         pot_idx = log_yaml['keywords'].index('PotEng')
         energies = [x[kin_idx] + x[pot_idx] for x in log_yaml['data']]
     return energies
+
+
+def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
+                                   thermo_yaml: List[str],
+                                   atom_dict: Dict[int, Any]
+                                   ) -> MTP_Inputs:
+    """Convert a list of LAMMPS output files and thermodynamic output files to MTP input format.
+
+    Args:
+        output_yaml: list of LAMMPS output files as yaml.
+        thermo_yaml: list of LAMMPS thermodynamic output files as yaml.
+        atom_dict: mapping of LAMMPS indices to atom type.
+
+    Returns:
+        dataclass used to
+    """
+    mtp_inputs = {
+        'structure': [],
+        'energy': [],
+        'forces': []
+    }
+    for filename in output_yaml:
+        structures, forces = extract_structure_and_forces_from_file(filename, atom_dict)
+        mtp_inputs['structure'] += structures
+        mtp_inputs['forces'] += forces
+    for filename in thermo_yaml:
+        mtp_inputs['energy'] += extract_energy_from_thermo_log(filename)
+    mtp_inputs = MTP_Inputs(structure=mtp_inputs['structure'],
+                            energy=mtp_inputs['energy'],
+                            forces=mtp_inputs['forces'])
+    return mtp_inputs
+
+
+def crawl_lammps_directory(folder_name: str, folder_name_pattern: str="train") -> Tuple[List[str], List[str]]:
+    """Crawl through a folder and find the LAMMPS output files in folders containing a specified pattern in their name.
+
+    LAMMPS outputs should end with dump.yaml and Thermondynamics variables files should end with thermo.yaml
+
+    Args:
+        folder_name: folder to crawl
+        folder_name_pattern (optional): name of the subfolder to keep. Defaults to train.
+
+    Returns:
+        list of LAMMPS dump outputs and list of LAMMPS thermo outputs
+
+    """
+    assert os.path.exists(folder_name), "Invalid folder name provided."
+    lammps_output_files, thermo_output_files = [], []
+    for dirpath, _, filenames in os.walk(folder_name):
+        if re.search(folder_name_pattern, dirpath):
+            lammps_output_files.extend([os.path.join(dirpath, f) for f in filenames if f.endswith("dump.yaml")])
+            thermo_output_files.extend([os.path.join(dirpath, f) for f in filenames if f.endswith("thermo.yaml")])
+    return lammps_output_files, thermo_output_files
