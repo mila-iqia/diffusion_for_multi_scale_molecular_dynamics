@@ -9,7 +9,7 @@ from pymatgen.core import Structure
 
 
 @dataclass(kw_only=True)
-class MTP_Inputs:
+class MTPInputs:
     """Create a dataclass to train or evaluate a MTP model."""
     structure: List[Structure]
     forces: List[List[float]]
@@ -73,7 +73,7 @@ def extract_energy_from_thermo_log(filename: str) -> List[float]:
 def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
                                    thermo_yaml: List[str],
                                    atom_dict: Dict[int, Any]
-                                   ) -> MTP_Inputs:
+                                   ) -> MTPInputs:
     """Convert a list of LAMMPS output files and thermodynamic output files to MTP input format.
 
     Args:
@@ -95,13 +95,13 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
         mtp_inputs['forces'] += forces
     for filename in thermo_yaml:
         mtp_inputs['energy'] += extract_energy_from_thermo_log(filename)
-    mtp_inputs = MTP_Inputs(structure=mtp_inputs['structure'],
-                            energy=mtp_inputs['energy'],
-                            forces=mtp_inputs['forces'])
+    mtp_inputs = MTPInputs(structure=mtp_inputs['structure'],
+                           energy=mtp_inputs['energy'],
+                           forces=mtp_inputs['forces'])
     return mtp_inputs
 
 
-def crawl_lammps_directory(folder_name: str, folder_name_pattern: str="train") -> Tuple[List[str], List[str]]:
+def crawl_lammps_directory(folder_name: str, folder_name_pattern: str= "train") -> Tuple[List[str], List[str]]:
     """Crawl through a folder and find the LAMMPS output files in folders containing a specified pattern in their name.
 
     LAMMPS outputs should end with dump.yaml and Thermondynamics variables files should end with thermo.yaml

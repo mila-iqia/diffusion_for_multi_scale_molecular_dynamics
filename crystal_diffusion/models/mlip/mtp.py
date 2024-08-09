@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TextIO, Tuple
 
 import numpy as np
@@ -20,30 +21,47 @@ from monty.io import zopen
 from monty.tempfile import ScratchDir
 from pymatgen.core import Structure
 
+from crystal_diffusion.mlip.mtp_utils import MTPInputs, crawl_lammps_directory, prepare_mtp_inputs_from_lammps
+
+
+@dataclass(kw_only=True)
+class MTPArguments:
+    mlip_path: str  # path to MLIP3 library
+    name: Optional[str]= None  # MTP
+    param: Optional[Dict[Any, Any]] = None
+    unfitted_mtp: str = "08.almtp"  # Define the initial mtp file. Default to 08g.amltp
+    fitted_mtp_savedir: str = '../'  # save directory for the fitted MTP. Defaults to '../' (current wd)
+    max_dist: float = 5  # The actual radial cutoff. Defaults to 5.
+    radial_basis_size: int = 8  # Relevant to number of radial basis function. Defaults to 8.
+    max_iter: int = 1000  # The number of maximum iteration. Defaults to 1000.
+    energy_weight: float = 1  # The weight of energy. Defaults to 1
+    force_weight: float = 1e-2  # The weight of forces. Defaults to 1e-2
+    stress_weight: float = 1e-3  # The weight of stresses. Zero-weight can be assigned. Defaults to 1e-3.
+    init_params: str = "same"  # how to initialize parameters if a potential was not pre-fitted: "same" or "random".
+    scale_by_force: float = 0  # If > 0 then configurations near equilibrium get more weight. Defaults to 0.
+    bfgs_conv_tol: float = 1e-3  # Stop training if error dropped by a factor smaller than this over 50 BFGS iterations.
+    weighting: str = "vibration"  # How to weight configuration with different sizes relative to each other.
+    # Choose from "vibrations", "molecules" and "structures". Defaults to "vibration".
+
 
 class MTPWithMLIP3(MTPotential):
     """MTP with MLIP-3."""
 
-    def __init__(self,
-                 mlip_path: str,
-                 name: Optional[str] = None,
-                 param: Optional[Dict[Any, Any]] = None,
-                 version: Optional[str] = None):
+    def __init__(self, mtp_args: MTPArguments):
         """Modifications to maml.apps.pes._mtp.MTPotential to be compatible with mlip-3.
 
         Args:
-            mlip_path: path to mlip3 library
-            name: MTPotential argument
-            param: MTPotential argument
-            version: MTPotential argument
+            mtp_args: MTP arguments from the class MTPArguments
         """
-        super().__init__(name, param, version)
-        self.mlp_command = os.path.join(mlip_path, "build", "mlp")
+        super().__init__(mtp_args.name, mtp_args.param)
+        self.mlp_command = os.path.join(mtp_args.mlip_path, "build", "mlp")
         assert os.path.exists(self.mlp_command), "mlp command not found in mlip-3 build folder"
-        self.mlp_templates = os.path.join(mlip_path, "MTP_templates")
+        self.mlp_templates = os.path.join(mtp_args.mlip_path, "MTP_templates")
         assert os.path.exists(self.mlp_templates), "MTP templates not found in mlip-3 folder"
         self.fitted_mtp = None
         self.elements = None
+        self.mtp_args = mtp_args
+        os.makedirs(mtp_args.fitted_mtp_savedir, exist_ok=True)
 
     def to_lammps_format(self):
         """Write the trained MTP in a LAMMPS compatible format."""
@@ -235,72 +253,50 @@ class MTPWithMLIP3(MTPotential):
         with subprocess.Popen(cmd, stdout=output_file) as p:
             p.communicate()[0]
 
-    def train(
-            self,
-            train_structures: List[Structure],
-            train_energies: List[float],
-            train_forces: List[List[float]],
-            train_stresses: Optional[List[List[float]]] = None,
-            unfitted_mtp: str = "08.almtp",
-            fitted_mtp_savedir: str = '../',
-            max_dist: float = 5,
-            radial_basis_size: int = 8,
-            max_iter: int = 1000,  # TODO check the next kwargs in mlip3
-            energy_weight: float = 1,
-            force_weight: float = 1e-2,
-            stress_weight: float = 1e-3,
-            init_params: str = "same",
-            scale_by_force: float = 0,
-            bfgs_conv_tol: float = 1e-3,
-            weighting: str = "vibration",
-    ) -> int:
+    @staticmethod
+    def prepare_dataset_from_lammps(
+            root_data_dir: str,
+            atom_dict: Dict[int, str],
+            mode: str = "train"
+    ) -> MTPInputs:
+        lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
+        mtp_dataset = prepare_mtp_inputs_from_lammps(lammps_outputs, thermo_outputs, atom_dict)
+        return mtp_dataset
+
+    def train(self, dataset: MTPInputs, mlip_name: str = 'mtp_fitted.almtp') -> str:
         """Training data with moment tensor method using MLIP-3.
 
         Override the base class method.
 
         Args:
-            train_structures: The list of Pymatgen Structure object.
-            train_energies: List of total energies of each structure in structures list.
-            train_forces: List of (m, 3) forces array of each structure with m atoms in structures list.
-                m can be varied with each single structure case.
-            train_stresses (optional): List of (6, ) virial stresses of each structure in structures list.
-                Defaults to None.
-            unfitted_mtp (optional): Define the initial mtp file. Default to 08g.amltp
-            fitted_mtp_savedir (optional): save directory for the fitted MTP. Defaults to '../' (current wd)
-            max_dist (optional): The actual radial cutoff. Defaults to 5.
-            radial_basis_size (optional): Relevant to number of radial basis function. Defaults to 8.
-            max_iter (optional): The number of maximum iteration. Defaults to 1000.
-            energy_weight (optional): The weight of energy. Defaults to 1
-            force_weight (optional): The weight of forces. Defaults to 1e-2
-            stress_weight (optional): The weight of stresses. Zero-weight can be assigned. Defaults to 1e-3.
-            init_params (optional): How to initialize parameters if a potential was not
-                pre-fitted. Choose from "same" and "random". Defaults to "same".
-            scale_by_force (optional): If >0 then configurations near equilibrium
-               (with roughly force < scale_by_force) get more weight. Defaults to 0.
-            bfgs_conv_tol (optional): Stop training if error dropped by a factor smaller than this
-                over 50 BFGS iterations. Defaults to 1e-3.
-            weighting (optional): How to weight configuration with different sizes relative to each other.
-                Choose from "vibrations", "molecules" and "structures". Defaults to "vibration".
+            dataset: MTPInputs dataclass with the following elements:
+                structures: The list of Pymatgen Structure object.
+                energies: List of total energies of each structure in structures list.
+                forces: List of (m, 3) forces array of each structure with m atoms in structures list.
+                    m can be varied with each single structure case.
+            mlip_name: str : filename for the trained MTP. Defaults to mtp_fitted.almtp
 
         Returns:
-            rc : return code of the mlp training script
+            fitted_mtp: path to the fitted MTP
         """
         train_structures, train_forces, train_stresses = check_structures_forces_stresses(
-            train_structures, train_forces, train_stresses
+            dataset.structure, dataset.forces, None
         )
-        train_pool = pool_from(train_structures, train_energies, train_forces, train_stresses)
+        # last argument is for stresses - not used currently
+        train_pool = pool_from(train_structures, dataset.energy, train_forces)
+
         elements = sorted(set(itertools.chain(*[struct.species for struct in train_structures])))
         self.elements = [str(element) for element in elements]  # TODO move to __init__
 
         atoms_filename = "train.cfgs"
 
-        with (ScratchDir(".")):  # create a tmpdir - deleted afterwards
+        with ((ScratchDir("."))):  # create a tmpdir - deleted afterwards
             atoms_filename = self.write_cfg(filename=atoms_filename, cfg_pool=train_pool)
 
-            if not unfitted_mtp:
+            if not self.mtp_args.unfitted_mtp:
                 raise RuntimeError("No specific parameter file provided.")
-            mtp_file_path = os.path.join(self.mlp_templates, unfitted_mtp)
-            shutil.copyfile(mtp_file_path, os.path.join(os.getcwd(), unfitted_mtp))
+            mtp_file_path = os.path.join(self.mlp_templates, self.mtp_args.unfitted_mtp)
+            shutil.copyfile(mtp_file_path, os.path.join(os.getcwd(), self.mtp_args.unfitted_mtp))
             commands = [self.mlp_command, "mindist", atoms_filename]
             with open("min_dist", "w") as f:
                 self._call_cmd_to_stdout(commands, f)
@@ -311,23 +307,26 @@ class MTPWithMLIP3(MTPotential):
             # split_symbol = "="  # different for mlip-2 (":") and mlip-3 ("=")
             # min_dist = float(lines[-1].split(split_symbol)[1])
 
-            save_fitted_mtp = ".".join([unfitted_mtp.split(".")[0] + "_fitted", unfitted_mtp.split(".")[1]])
+            save_fitted_mtp = mlip_name
+            if not save_fitted_mtp.endswith('.almtp'):
+                save_fitted_mtp += '.almtp'
+
             cmds_list = [
                 self.mlp_command,
                 "train",
-                unfitted_mtp,
+                self.mtp_args.unfitted_mtp,
                 atoms_filename,
                 f"--save_to={save_fitted_mtp}",
-                f"--iteration_limit={max_iter}",
+                f"--iteration_limit={self.mtp_args.max_iter}",
                 "--al_mode=nbh",  # active learning mode - required to get extrapolation grade
-                # f"--curr-pot-name={unfitted_mtp}",  # TODO check those kwargs
-                # f"--energy-weight={energy_weight}",
-                # f"--force-weight={force_weight}",
-                # f"--stress-weight={stress_weight}",
-                # f"--init-params={init_params}",
-                # f"--scale-by-force={scale_by_force}",
-                # f"--bfgs-conv-tol={bfgs_conv_tol}",
-                # f"--weighting={weighting}",
+                f"--curr-pot-name={self.mtp_args.unfitted_mtp}",
+                f"--energy-weight={self.mtp_args.energy_weight}",
+                f"--force-weight={self.mtp_args.force_weight}",
+                f"--stress-weight={self.mtp_args.stress_weight}",
+                f"--init-params={self.mtp_args.init_params}",
+                f"--scale-by-force={self.mtp_args.scale_by_force}",
+                f"--bfgs-conv-tol={self.mtp_args.bfgs_conv_tol}",
+                f"--weighting={self.mtp_args.weighting}",
             ]
             stdout, rc = self._call_mlip(cmds_list)
             if rc != 0:
@@ -340,6 +339,6 @@ class MTPWithMLIP3(MTPotential):
                     error_msg += msg[-1]
                 raise RuntimeError(error_msg)
             # copy the fitted mtp outside the working directory
-            self.fitted_mtp = os.path.join(fitted_mtp_savedir, save_fitted_mtp)
+            self.fitted_mtp = os.path.join(self.mtp_args.fitted_mtp_savedir, save_fitted_mtp)
             shutil.copyfile(save_fitted_mtp, self.fitted_mtp)
-        return rc
+        return self.fitted_mtp

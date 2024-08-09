@@ -12,8 +12,8 @@ import yaml
 from pymatgen.core import Structure
 from sklearn.metrics import mean_absolute_error
 
-from crystal_diffusion.models.mtp import MTPWithMLIP3
-from crystal_diffusion.mlip.mtp_utils import prepare_mtp_inputs_from_lammps, crawl_lammps_directory, MTP_Inputs
+from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3
+from crystal_diffusion.mlip.mtp_utils import prepare_mtp_inputs_from_lammps, crawl_lammps_directory, MTPInputs
 
 atom_dict = {1: 'Si'}
 
