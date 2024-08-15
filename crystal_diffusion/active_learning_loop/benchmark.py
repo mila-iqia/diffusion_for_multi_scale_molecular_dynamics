@@ -1,66 +1,122 @@
 import argparse
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import yaml
 from hydra.utils import instantiate
 
-# from crystal_diffusion.mlip.mtp_train import prepare_dataset, evaluate_mtp
-from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3
-from crystal_diffusion.mlip.mtp_utils import MTPInputs
-
-
-@dataclass(kw_only=True)
-class ActiveLearningDataArguments:
-    training_data_dir: str  # training data directory
-    evaluation_data_dir: str  # evaluation data directory
-    output_dir: str  # directory where to save the results
-
-
-@dataclass(kw_only=True)
-class StructureEvaluationArguments:
-    evaluation_criteria: str = 'nbh_grades'
-    criteria_threshold: float = 10
-    number_of_structures: int = None
-    extraction_radius: float = 3
+from crystal_diffusion.active_learning_loop.utils import get_structures_for_retraining, extract_target_region
+from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3, MTPInputs
 
 
 class ActiveLearningLoop:
     def __init__(self,
                  meta_config: str,
-                 evaluation_config: str):
+                 ):
+        """Active learning benchmark with methods to train & evaluate a MLIP, isolate bad sub-structures, repaint
+        new structures and retrain the MLIP
+
+        Args:
+            meta_config: path to a yaml configuration with the parameters for the modules in the class
+        """
         assert os.path.exists(meta_config), "configuration file for active learning loop does not exist."
-        self.data_paths, self.mlip_model, self.evaluation_args = None, None, None
-        # use hydra to convert the yaml file in a dataclass format
+        # define the modules in the __init__ function
+        self.data_paths, self.mlip_model, self.eval_config, self.structure_generation = None, None, None, None
+        self.oracle = None
+        # use hydra to convert the yaml into modules and other data classes
         self.parse_config(meta_config)
         self.atom_dict = {1: "Si"}  # TODO this should be define somewhere smart
         self.trained_mlips = []  # history of trained MLIPs (optional - not sure if we should keep this)
+        self.training_sets = []  # history of training sets
 
     def parse_config(self, meta_config: str):
+        """Read a configuration file and instantiate the different blocks with hydra.
+
+        The configuration file should have the following blocks of parameters:
+            active_learning_data: dataset paths
+            mlip_model: MLIP module training parameters
+            structure_evaluation: identification and isolation of the atomic regions to finetune the MLIP
+
+        Args:
+            meta_config: path to configuration yaml file
+        """
         with open(meta_config, 'r') as stream:
             meta_config = yaml.load(stream, Loader=yaml.FullLoader)
+        # paths to the training & evaluation datasets
         self.data_paths = instantiate(meta_config['active_learning_data'])
+        # MLIP model - for example MTP
         self.mlip_model = instantiate(meta_config['mlip'])
-        self.evaluation_args = instantiate(meta_config['structure_evaluation'])
+        # parameters to find and isolate the problematic regions in the evaluation dataset
+        self.eval_config = instantiate(meta_config['structure_evaluation'])
+        # structure generation module
+        self.structure_generation = instantiate(meta_config['repainting_model'])
+        # force labeling module
+        self.oracle = instantiate(meta_config['oracle'])
 
-    def train_mlip(self, round: int = 1) -> MTPWithMLIP3:
-        train_dataset = self.mlip_model.prepare_dataset_from_lammps(
-            root_data_dir=self.data_paths.training_data_dir,
-            atom_dict=self.atom_dict,
-            mode="train"
-        )
-        trained_mtp = self.mlip_model.train(train_dataset, mlip_name=f'mlip_round_{round}')
+    def train_mlip(self, round: int = 1, training_set: Optional[Any] = None) -> str:
+        """Train a MLIP using the parameters specified in the configuration file.
+
+        Args:
+            round (optional): current round of training. Used to track now configurations in the training set. A round
+                includes the initial training and the evaluation process.
+            training_set (optional): if specified, use this dataset for training. Otherwise, use the dataset from the
+               paths in the configuration file. Defaults to None.
+
+        Returns:
+            path to the trained MLIP model
+        """
+        if training_set is None:
+            if len(self.training_sets) == 0:
+                self.training_sets = [self.mlip_model.prepare_dataset_from_lammps(
+                    root_data_dir=self.data_paths.training_data_dir,
+                    atom_dict=self.atom_dict,
+                    mode="train"
+                )]
+            training_set = self.mlip_model.merge_inputs(self.training_sets)
+
+        trained_mtp = self.mlip_model.train(training_set, mlip_name=f'mlip_round_{round}')
         self.trained_mlips.append(trained_mtp)  # history of trained MLIPs ... not sure if useful
         return trained_mtp
 
-    def evaluate_mlip(self, trained_mtp: MTPWithMLIP3) -> pd.DataFrame:
-        prediction_df = evaluate_mlip(self.mtp_config, self.atom_dict, trained_mtp)
+    def evaluate_mlip(self, round: int = 1, mlip_name: Optional[str] = None, forces_available: bool = True
+                      ) -> pd.DataFrame:
+        """Evaluate a MLIP using the parameters specified in the configuration file.
+
+        Args:
+            round (optional): current round of training. Defaults to 1.
+            mlip_name (optional): if not None, use this MTP to evaluate the dataset.
+            forces_available (optional): if True, get the ground truth forces from the dataset.
+
+        Returns:
+            dataframe with the atomic indices, positions, forces and evaluation criteria
+        """
+        evaluation_dataset = self.mlip_model.prepare_dataset_from_lammps(
+            root_data_dir=self.data_paths.evaluation_data_dir,
+            atom_dict=self.atom_dict,
+            mode="evaluation",
+            get_forces=forces_available
+        )
+        # first returned element is the ground truth DF
+        # TODO make sure this works even if the GT is not available...
+        if mlip_name is None:
+            mlip_name = os.path.join(self.mlip_model.savedir, f'mlip_round_{round}.almtp')
+        _, prediction_df = self.mlip_model.evaluate(evaluation_dataset, mlip_name=mlip_name)
+
         return prediction_df
 
     def get_bad_structures(self, prediction_df: pd.DataFrame) -> List[pd.DataFrame]:
+        """Find the structures with a high uncertainty based on the configuration file parameters.
+
+        Args:
+            prediction_df: evaluation outputs of the MLIP model. Should contain atomic positions, uncertainty criteria
+               and structure indices.
+
+        Returns:
+            list of structures with a high uncertainty criteria.
+        """
         structures_to_retrain = get_structures_for_retraining(prediction_df,
                                                               criteria_threshold=self.eval_config.criteria_threshold,
                                                               number_of_structures=self.eval_config.number_of_structures,
@@ -68,37 +124,138 @@ class ActiveLearningLoop:
         return structures_to_retrain
 
     def excise_worst_atom(self, structures_to_retrain: List[pd.DataFrame]) -> List[pd.DataFrame]:
-        bad_regions = [extract_target_region(s, extraction_radius=self.eval_config.extraction_radius)
+        """For a given structure, isolate the atom with the highest uncertainty criteria.
+
+        Args:
+            structures_to_retrain: list of dataframes with the atomic positions and evaluate criteria
+
+        Returns:
+            list of dataframes with only the targeted region
+        """
+        # we assume the extraction region to be a sphere of radius extraction_radius around the worst atoms
+        # if more than 1 atom are bad in a structure, we only extract the worst
+        # TODO implement other extraction methods
+        bad_regions = [extract_target_region(s,
+                                             extraction_radius=self.eval_config.extraction_radius,
+                                             evaluation_criteria=self.eval_config.evaluation_criteria)
                        for s in structures_to_retrain]
         return bad_regions
 
     def get_structure_candidate_from_generative_model(self,
                                                       fixed_atoms: pd.DataFrame,
-                                                      number_of_candidates: int =1
-                                                      ) -> None:
+                                                      number_of_candidates: int = 1
+                                                      ) -> pd.DataFrame:
+        """Generate new structures around the specified fixed atoms.
+
+        Args:
+            fixed_atoms: dataframe with the atom type, coordinates and unit cell information
+            number_of_candidates: how many structure to generate. Defaults to 1.
+
+        Returns:
+            dataframe with the atom type, coordinates and unit cell
+
+        """
         # TODO: call the diffusion model and get number_of_candidates samples with repaint using the fixed_atoms
-        # the output should be a list of np.ndarray (?)
-        return None
+        if self.structure_generation.model == 'dev_dummy':  # replace with a wrapper around the diffusion model
+            # and hydra instantiate
+            return fixed_atoms
+        else:
+            raise NotImplemented('Only dev_dummy is supported at the moment.')
 
-    def update_mlip_training_set(self, new_structures: List[np.ndarray]):
-        # TODO take the examples generated by the diffusion model and append them to the MLIP training set
-        return None
+    def new_structure_to_csv(self, new_structures: List[pd.DataFrame], round: int = 1):
+        """Save the generated structures in a csv format in the output dir
 
-    def round_of_active_learning_loop(self, trained_mtp: Optional[MTPWithMLIP3]=None, training_set=None):
+        Args:
+            new_structures: structures proposed by the generative model
+            round: current round of training. Defaults to 1.
+        """
+        root_data_dir = os.path.join(self.data_paths.output_dir, f'new_structures_round_{round}')
+        os.makedirs(root_data_dir, exist_ok=True)
+        for i, new_struc in enumerate(new_structures):
+            new_struc.to_csv(os.path.join(root_data_dir, f'structure_{i}.csv'), index=False)
+
+    def get_labels_from_oracle(self, round: int = 1) -> Any:
+        """Compute energy and forces from an oracle such as LAMMPS for the new candidates generated in a round of AL.
+
+        Args:
+            round (optional): round of retraining. Defaults to 1.
+
+        Returns:
+            mlip data input (for example, MTPInputs)
+        """
+        new_labeled_samples = []
+        for file in os.listdir(os.path.join(self.data_paths.output_dir, f'new_structures_round_{round}')):
+            if file.endswith('.csv'):
+                new_labeled_samples.append(self.call_oracle(
+                    os.path.join(self.data_paths.output_dir, f'new_structures_round_{round}', file)
+                ))
+        new_labeled_samples = self.mlip_model.merge_inputs(new_labeled_samples)
+        return new_labeled_samples
+
+    def call_oracle(self, path_to_file: str) -> Any:
+        """Compute energy and forces for a given atomic structure.
+
+        Args:
+            path_to_file: path to csv file containing the atomic positions and structure information
+
+        Returns:
+            mlip data inputs (for example, MTPInputs)
+        """
+        data = pd.read_csv(path_to_file)
+        cartesian_positions = data[['x', 'y', 'z']].to_numpy()
+        box = np.eye(3, 3) * 5.43  # TODO this is bad - fix this
+        atom_type = np.ones(cartesian_positions.shape[0], dtype=np.integer)  # TODO also bad
+        energy, forces = self.oracle(cartesian_positions, box, atom_type)
+        labels_as_mtp = self.mlip_model.prepare_dataset_from_numpy(
+            cartesian_positions,
+            box,
+            forces,
+            energy,
+            atom_type,
+        )
+        return labels_as_mtp
+
+    def round_of_active_learning_loop(self, trained_mlip: Optional[MTPWithMLIP3] = None
+                                      ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Do a full loop of activate learning.
+
+        The following steps are done in sequence:
+            - train a MLIP from the training set specified in the config file if trained_mlip is not specified
+            - evaluate the MLIP with the evaluation set specified in the config file
+            - find the "bad" structures in the evaluation set based on the criteria from the config file
+            - excise the problematic regions
+            - generate new candidates based on these regions
+            - call the oracle to get the labels for the new generated candidates
+            - retrain the MLIP
+            - evaluate the MLIP again
+
+        Args:
+            trained_mlip (optional): if not None, use this MLIP as a starting point. If None, train a MLIP from scratch
+                using the training data specified in the config file.
+
+        Returns:
+            dataframe with the MLIP evaluation results before finetuning with the generated structures
+            dataframe with the MLIP evaluation results after finetuning with the generated structures
+        """
         # one round from a known mtp (or train from provided training set)
         # evaluate, find candidates and update MTP
         # return the updated MTP
-        if trained_mtp is None:
-            trained_mtp = self.train_mlip(training_set)
-        pred_df = self.evaluate_mlip(trained_mtp)
+        if trained_mlip is None:
+            trained_mlip = self.train_mlip()
+        pred_df = self.evaluate_mlip(mlip_name=trained_mlip)
         bad_structures = self.get_bad_structures(pred_df)
         bad_regions = self.excise_worst_atom(bad_structures)
         new_candidates = [self.get_structure_candidate_from_generative_model(x) for x in bad_regions]
-        new_mlip_training_set = self.update_mlip_training_set(self, new_candidates)
-        new_mtp = self.trained_mlip(new_mlip_training_set)
-        return new_mtp
+        self.new_structure_to_csv(new_candidates)
+        new_labeled_candidates = self.get_labels_from_oracle()
+        new_training_set = self.mlip_model.merge_inputs([self.training_sets[-1], new_labeled_candidates])
+        self.training_sets.append(new_training_set)
+        new_mtp = self.train_mlip()
+        new_pred_df = self.evaluate_mlip(mlip_name=new_mtp)
+        return pred_df, new_pred_df
 
     def evaluate_mtp_update(self):
+        # TODO for benchmarking, compare results before and after finetuning
         pass
 
 
@@ -114,121 +271,13 @@ def get_arguments() -> argparse.Namespace:
     return args
 
 
-
-
-
-def train_mlip(mtp_args, atom_dict: Dict[int, str]) -> MTPWithMLIP3:
-    """Train a MTP model using the specified data.
-
-    Args:
-        mtp_args: MTPArguments data class
-        atom_dict: map between atom names and indices used by LAMMPS
-
-    Returns:
-        trained MTP model
-    """
-    # TODO make it more configurable
-    train_datasets = prepare_dataset(mtp_args.training_data_dir, atom_dict, mode="train")
-    # create the output directory if it doesn't exist already
-    trained_mtp = train_mtp(train_datasets, mlip_folder_path=mtp_args.mlip_dir, save_dir=mtp_args.output_dir)
-    return trained_mtp
-
-
-def evaluate_mlip(mtp_args, atom_dict: Dict[int, str], mtp: MTPWithMLIP3) -> pd.DataFrame:
-    """Evaluate a MTP model using the specified data.
-
-    Args:
-        mtp_args: MTPArguments data class
-        atom_dict:  map between atom names and indices used by LAMMPS
-        mtp: trained MTP model
-
-    Returns:
-        dataframe with a column specified the structure, a column with the atom index, 3 columns with the x,y,z
-        coordinates and a column with the MaxVol criteria (nbh_grades)
-    """
-    evaluation_datasets = prepare_dataset(mtp_args.evaluation_data_dir, atom_dict, mode="evaluation")
-    # TODO the current evaluation method also returns the ground truth informations - this won't always be the case
-    # TODO make more configurable
-    _, prediction_df = evaluate_mtp(evaluation_datasets, mtp)
-    return prediction_df
-
-
-def get_structures_for_retraining(prediction_df: pd.DataFrame,
-                                  criteria_threshold: Optional[float] = None,
-                                  number_of_structures: Optional[int] = None,
-                                  evaluation_criteria: str = 'nbh_grades',
-                                  structure_index: str = 'structure_index'
-                                  ) -> List[pd.DataFrame]:
-    assert criteria_threshold is not None or number_of_structures is not None, \
-        "criteria_threshold or number_of_structures should be set."
-    # get the highest evaluation_criteria for each structure i.e. only the worst atom counts for structure selection
-    criteria_by_structure = prediction_df[[evaluation_criteria, structure_index]].groupby(structure_index).max()
-    # find the top number_of_structures
-    structures_indices = criteria_by_structure.sort_values(by=evaluation_criteria, ascending=False)
-    if number_of_structures is not None:
-        structures_indices = structures_indices[:number_of_structures]
-    else:  #  criteria_threshold is not None
-        structures_indices = structures_indices[structures_indices[evaluation_criteria] >= criteria_threshold]
-    structures_indices = structures_indices.index.to_list()
-    assert len(structures_indices) > 0, "No structure meet the criteria."
-    structures_to_retrain = []
-    for idx in structures_indices:
-        structures_to_retrain.append(prediction_df[prediction_df[structure_index] == idx])
-    return structures_to_retrain
-
-
-def extract_target_region(structure_df: pd.DataFrame,
-                          extraction_radius: float,
-                          evaluation_criteria: str ='nbh_grades') -> pd.DataFrame:
-    """Extract the atom with the worst evaluation criteria and all the atoms within a distance extraction_radious.
-
-    Args:
-        structure_df: dataframe with the atomic positions and the evaluation criteria (e.g. MaxVol value)
-        extraction_radius: include all atoms within this distance of the targeted atom
-        evaluation_criteria: name of the evaluation criteria. Defaults to nbh_grades (maxvol in MTP)
-
-    Returns:
-        dataframe with the atomic coordinates in columns x, y, z
-    """
-    # extract the worst ato and a region around of radius extraction_radius
-    # TODO better method to determine radius: number of atoms ?
-    target_atom = structure_df[evaluation_criteria].idxmax()
-    target_position = structure_df.loc[target_atom][['x', 'y', 'z']]
-    structure_df.loc[:, 'distance_squared'] = structure_df.apply(
-        lambda x: sum([(x[i] - target_position[i]) ** 2 for i in ['x', 'y', 'z']]), axis=1)
-    atom_positions = structure_df.loc[structure_df['distance_squared'] <= extraction_radius ** 2, ['x', 'y', 'z']]
-    return atom_positions
-
-
-def generate_new_structures(fixed_atoms: List[pd.DataFrame]) -> None:
-    pass
-
-
 def main():
     # args = get_arguments()
     # TODO get mtp_config_path from the args
     config_path = "/Users/simonb/ic-collab/courtois_collab/crystal_diffusion/experiments/active_learning_benchmark/"
     config_path = os.path.join(config_path, "config", "mtp_training.yaml")
-    al_loop = ActiveLearningLoop(config_path, 'hello')
-    al_loop.train_mlip()
-
-    atom_dict = {1: "Si"}  # TODO this should be define somewhere smart
-    # STEP 1: train a MLIP
-    # trained_mtp = train_mlip(mtp_config, atom_dict)
-    # STEP 2: evaluate the MLIP
-    # prediction_df = evaluate_mlip(mtp_config, atom_dict, trained_mtp)
-    # STEP 3: identify the problematic structures
-    # TODO extraction_params should come from a config file with hydra instantiate
-    # extraction_params = StructureEvaluationArguments()
-    #structures_to_retrain = get_structures_for_retraining(prediction_df,
-    #                                                      criteria_threshold=extraction_params.criteria_threshold,
-    #                                                      number_of_structures=extraction_params.number_of_structures,
-    #                                                      evaluation_criteria=extraction_params.evaluation_criteria)
-    # STEP 4: extract the region
-    #bad_regions = [extract_target_region(s, extraction_radius=extraction_params.extraction_radius)
-    #               for s in structures_to_retrain]
-    # STEP 5: call the generative model to create new candidates
-    print('hello')
+    al_loop = ActiveLearningLoop(config_path)
+    al_loop.round_of_active_learning_loop()
 
 
 if __name__ == '__main__':

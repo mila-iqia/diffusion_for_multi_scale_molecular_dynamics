@@ -21,7 +21,8 @@ from monty.io import zopen
 from monty.tempfile import ScratchDir
 from pymatgen.core import Structure
 
-from crystal_diffusion.mlip.mtp_utils import MTPInputs, crawl_lammps_directory, prepare_mtp_inputs_from_lammps
+from crystal_diffusion.mlip.mtp_utils import (MTPInputs, crawl_lammps_directory, prepare_mtp_inputs_from_lammps,
+                                              concat_mtp_inputs)
 
 
 @dataclass(kw_only=True)
@@ -61,7 +62,8 @@ class MTPWithMLIP3(MTPotential):
         self.fitted_mtp = None
         self.elements = None
         self.mtp_args = mtp_args
-        os.makedirs(mtp_args.fitted_mtp_savedir, exist_ok=True)
+        self.savedir = mtp_args.fitted_mtp_savedir
+        os.makedirs(self.savedir, exist_ok=True)
 
     def to_lammps_format(self):
         """Write the trained MTP in a LAMMPS compatible format."""
@@ -78,44 +80,51 @@ class MTPWithMLIP3(MTPotential):
         pass
 
     def evaluate(self,
-                 test_structures: List[Structure],
-                 test_energies: List[float],
-                 test_forces: List[List[float]],
-                 test_stresses: Optional[List[List[float]]] = None,
+                 dataset: MTPInputs,
+                 mlip_name: str = 'mtp_fitted.almtp'
                  ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Evaluate energies, forces, stresses and MaxVol gamma factor of structures with trained MTP.
 
         Args:
-            test_structures: evaluation set of pymatgen Structure Objects.
-            test_energies: list of total energies of each structure to evaluation in test_structures list.
-            test_forces: list of calculated (m, 3) forces of each evaluation structure with m atoms in structures list.
-                m can be varied with each single structure case.
-            test_stresses (optional): list of calculated (6, ) virial stresses of each evaluation structure in
-                test_structures list. If None, do not evaluate on stresses. Default to None.
+            dataset: MTPInputs dataclass with the following elements:
+                structures: The list of Pymatgen Structure object.
+                energies: List of total energies of each structure in structures list.
+                forces: List of (m, 3) forces array of each structure with m atoms in structures list.
+                    m can be varied with each single structure case.
+            mlip_name: str : filename for the trained MTP. Defaults to mtp_fitted.almtp
 
         Returns:
             dataframe with ground truth energies, forces
             dataframe with predicted energies, forces, MaxVol gamma (nbh grades)
         """
-        if self.fitted_mtp is None:
-            raise AttributeError('MTP was not trained. Please call train() before evaluate().')
+        if not mlip_name.endswith('.almtp'):
+            mlip_name += '.almtp'
+        assert os.path.exists(mlip_name), f"Trained MTP does not exists: {mlip_name}"
 
         original_file = "original.cfgs"
         predict_file = "predict.cfgs"
-        test_structures, test_forces, test_stresses = check_structures_forces_stresses(
-            test_structures, test_forces, test_stresses
+
+        # TODO if forces are not available...
+        test_structures, test_forces, _ = check_structures_forces_stresses(
+            dataset.structure, dataset.forces, stresses=None
         )
-        predict_pool = pool_from(test_structures, test_energies, test_forces, test_stresses)
+        predict_pool = pool_from(test_structures, dataset.energy, test_forces)
+        local_mtp_name = "mtp.almtp"
 
         with ScratchDir("."):  # mlip needs a tmp_work_dir - we will manually copy relevant outputs elsewhere
             # write the structures to evaluate in a mlp compatible format
             original_file = self.write_cfg(original_file, cfg_pool=predict_pool)
+            # TODO how to handle when GT is not available
             df_orig = self.read_cfgs(original_file, nbh_grade=False)  # read original values as a DataFrame
 
+            # copy the trained mtp in the scratchdir
+            shutil.copyfile(mlip_name, os.path.join(os.getcwd(), local_mtp_name))
             # calculate_grade is the method to get the forces, energy & maxvol values
-            cmd = [self.mlp_command, "calculate_grade", self.fitted_mtp, original_file, predict_file]
+            cmd = [self.mlp_command, "calculate_grade", local_mtp_name, original_file, predict_file]
             predict_file += '.0'  # added by mlp...
             stdout, rc = self._call_mlip(cmd)
+
+            # check that MTP was called properly
             if rc != 0:
                 error_msg = f"mlp exited with return code {rc}"
                 msg = stdout.decode("utf-8").split("\n")[:-1]
@@ -125,7 +134,7 @@ class MTPWithMLIP3(MTPotential):
                 except Exception:
                     error_msg += msg[-1]
                 raise RuntimeError(error_msg)
-
+            # read the config
             df_predict = self.read_cfgs(predict_file, nbh_grade=True)
         return df_orig, df_predict
 
@@ -257,11 +266,56 @@ class MTPWithMLIP3(MTPotential):
     def prepare_dataset_from_lammps(
             root_data_dir: str,
             atom_dict: Dict[int, str],
-            mode: str = "train"
+            mode: str = "train",
+            get_forces: bool = True,
     ) -> MTPInputs:
+        """Get the LAMMPS in a folder and organize them as inputs for a MTP
+
+        Args:
+            root_data_dir: folder to read. Each LAMMPS sample is expected to be in a subfolder.
+            atom_dict: map from LAMMPS index to atom name. e.g. {1: 'Si'}
+            mode: subset of samples to get. Data from root_data_dir/*mode*/ folders will be parsed. Defaults to train.
+            get_forces: if True, get the forces from the samples. Defaults to True.
+
+        Returns:
+            inputs for MTP in the MTPInputs dataclass
+        """
         lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
-        mtp_dataset = prepare_mtp_inputs_from_lammps(lammps_outputs, thermo_outputs, atom_dict)
+        mtp_dataset = prepare_mtp_inputs_from_lammps(lammps_outputs, thermo_outputs, atom_dict, get_forces=get_forces)
         return mtp_dataset
+
+    @staticmethod
+    def prepare_dataset_from_numpy(
+            cartesian_positions: np.ndarray,
+            box: np.ndarray,
+            forces: np.ndarray,
+            energy: float,
+            atom_type: np.ndarray,
+            atom_dict: Dict[int, str] = {1: 'Si'}
+    ):
+        structure = Structure(
+            lattice=box,
+            species=[atom_dict[x] for x in atom_type],
+            coords=cartesian_positions,
+            coords_are_cartesian=True
+        )
+        forces = forces.tolist()  # from Nx3 np array to a list of length N where each element is a list of 3 forces
+        return MTPInputs(structure=[structure], forces=[forces], energy=[energy])
+
+    @staticmethod
+    def merge_inputs(mtp_inputs: List[MTPInputs]) -> MTPInputs:
+        """Merge a list of MTPInputs in a single MTPInputs.
+
+        Args:
+            mtp_inputs: list of MTPInputs
+
+        Returns:
+            merged MTPInputs
+        """
+        merged_inputs = MTPInputs(structure=[], forces=[], energy=[])
+        for x in mtp_inputs:
+            merged_inputs = concat_mtp_inputs(merged_inputs, x)
+        return merged_inputs
 
     def train(self, dataset: MTPInputs, mlip_name: str = 'mtp_fitted.almtp') -> str:
         """Training data with moment tensor method using MLIP-3.
@@ -339,6 +393,6 @@ class MTPWithMLIP3(MTPotential):
                     error_msg += msg[-1]
                 raise RuntimeError(error_msg)
             # copy the fitted mtp outside the working directory
-            self.fitted_mtp = os.path.join(self.mtp_args.fitted_mtp_savedir, save_fitted_mtp)
+            self.fitted_mtp = os.path.join(self.savedir, save_fitted_mtp)
             shutil.copyfile(save_fitted_mtp, self.fitted_mtp)
         return self.fitted_mtp
