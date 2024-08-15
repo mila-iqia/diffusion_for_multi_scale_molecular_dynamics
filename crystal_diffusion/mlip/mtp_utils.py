@@ -1,7 +1,7 @@
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
@@ -12,24 +12,25 @@ from pymatgen.core import Structure
 class MTPInputs:
     """Create a dataclass to train or evaluate a MTP model."""
     structure: List[Structure]
-    forces: List[List[float]]
+    forces: List[List[List[float]]]  # num samples x num atoms x spatial dimension
     energy: List[float]
 
 
-def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, Any]) -> \
-        Tuple[List[Structure], List[List[float]]]:
+def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, Any], forces_avail: bool = True) -> \
+        Tuple[List[Structure], Optional[List[List[float]]]]:
     """Convert LAMMPS yaml output in a format compatible with MTP training and evaluation methods.
 
     Args:
         filename: path to LAMMPS output file in yaml format
         atom_dict: mapping from LAMMPS atom indices to atom type (atomic number as int or atom name as str)
+        forces_avail (optional): if True, get the forces from the LAMMPS output file. Defaults to True.
 
     Returns:
         list of pymatgen Structure containing the atoms and their positions
-        list of forces (n x 3) for each atom
+        list of forces (n x 3) for each atom. None if forces_avail is False
     """
     structures = []
-    forces = []
+    forces = [] if forces_avail else None
     with (open(filename, 'r') as f):
         l_yaml = yaml.safe_load_all(f)
         for d in l_yaml:  # loop over LAMMPS outputs and convert in pymatgen Structure objects
@@ -47,9 +48,10 @@ def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, A
                                      coords=coords,
                                      coords_are_cartesian=True)
             structures.append(pm_structure)
-            force_idx = [d['keywords'].index(x) for x in ['fx', 'fy', 'fz']]
-            structure_forces = [[x[i] for i in force_idx] for x in d['data']]
-            forces.append(structure_forces)
+            if forces_avail:
+                force_idx = [d['keywords'].index(x) for x in ['fx', 'fy', 'fz']]
+                structure_forces = [[x[i] for i in force_idx] for x in d['data']]
+                forces.append(structure_forces)
     return structures, forces
 
 
@@ -72,7 +74,8 @@ def extract_energy_from_thermo_log(filename: str) -> List[float]:
 
 def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
                                    thermo_yaml: List[str],
-                                   atom_dict: Dict[int, Any]
+                                   atom_dict: Dict[int, Any],
+                                   get_forces: bool = True,
                                    ) -> MTPInputs:
     """Convert a list of LAMMPS output files and thermodynamic output files to MTP input format.
 
@@ -80,9 +83,10 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
         output_yaml: list of LAMMPS output files as yaml.
         thermo_yaml: list of LAMMPS thermodynamic output files as yaml.
         atom_dict: mapping of LAMMPS indices to atom type.
+        get_forces (optional): if True, get the forces. Defaults to True.
 
     Returns:
-        dataclass used to
+        dataclass used as inputs to train and evaluation a MTP model
     """
     mtp_inputs = {
         'structure': [],
@@ -90,9 +94,9 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
         'forces': []
     }
     for filename in output_yaml:
-        structures, forces = extract_structure_and_forces_from_file(filename, atom_dict)
+        structures, forces = extract_structure_and_forces_from_file(filename, atom_dict, get_forces)
         mtp_inputs['structure'] += structures
-        mtp_inputs['forces'] += forces
+        mtp_inputs['forces'] += forces  # will be None if get_forces is False
     for filename in thermo_yaml:
         mtp_inputs['energy'] += extract_energy_from_thermo_log(filename)
     mtp_inputs = MTPInputs(structure=mtp_inputs['structure'],
@@ -121,3 +125,21 @@ def crawl_lammps_directory(folder_name: str, folder_name_pattern: str= "train") 
             lammps_output_files.extend([os.path.join(dirpath, f) for f in filenames if f.endswith("dump.yaml")])
             thermo_output_files.extend([os.path.join(dirpath, f) for f in filenames if f.endswith("thermo.yaml")])
     return lammps_output_files, thermo_output_files
+
+
+def concat_mtp_inputs(input1: MTPInputs, input2: MTPInputs) -> MTPInputs:
+    """Merge two MTP inputs data class.
+
+    Args:
+        input1: first MTPInputs dataset
+        input2: second MTPInputs dataset
+
+    Returns:
+        concatenated MTPInputs dataset
+    """
+    concat_inputs = MTPInputs(
+        structure=input1.structure + input2.structure,
+        forces=input1.forces + input2.forces,
+        energy=input1.energy + input2.energy
+    )
+    return concat_inputs

@@ -1,5 +1,5 @@
 active_learning_data:
-  _target_: crystal_diffusion.active_learning_loop.benchmark.ActiveLearningDataArguments
+  _target_: crystal_diffusion.active_learning_loop.activelearning_dataclasses.ActiveLearningDataArguments
   training_data_dir: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/data/active_loop_debug/
   evaluation_data_dir: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/data/active_loop_debug/
   output_dir: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/experiments/benchmark/debug/
@@ -26,8 +26,15 @@ mlip:
     # Choose from "vibrations", "molecules" and "structures". Defaults to "vibration".
 
 structure_evaluation:
-  _target_: crystal_diffusion.active_learning_loop.benchmark.StructureEvaluationArguments
+  _target_: crystal_diffusion.active_learning_loop.activelearning_dataclasses.StructureEvaluationArguments
   evaluation_criteria: 'nbh_grades'  # maxvol coefficient name in the mtp outputs
   criteria_threshold: 10.0  # atoms with a MaxVol value under this value are considered bad
-  number_of_structures: None  # alternatively, take the N worst samples from the evaluation set
-  extraction_radius: float = 3  # extract atoms within this radius from the
+  # number_of_structures: None  # alternatively, take the N worst samples from the evaluation set
+  extraction_radius: 3  # extract atoms within this radius from the worst atom in a structure
+
+repainting_model:
+  _target_: crystal_diffusion.active_learning_loop.activelearning_dataclasses.RepaintingArguments
+  model: dev_dummy  # placeholder for development
+
+oracle:
+  _target_: crystal_diffusion.active_learning_loop.oracle.LAMMPS_for_active_learning
