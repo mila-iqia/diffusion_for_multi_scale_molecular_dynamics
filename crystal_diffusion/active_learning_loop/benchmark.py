@@ -254,9 +254,26 @@ class ActiveLearningLoop:
         new_pred_df = self.evaluate_mlip(mlip_name=new_mtp)
         return pred_df, new_pred_df
 
-    def evaluate_mtp_update(self):
-        # TODO for benchmarking, compare results before and after finetuning
-        pass
+    def evaluate_mtp_update(self, original_predictions: pd.DataFrame, updated_predictions) -> Tuple[float, float]:
+        """Find the evaluation criteria in the original predictions and the corresponding value after retraining.
+
+        Args:
+            original_predictions: MLIP predictions before retraining
+            updated_predictions: MLIP predictions after retraining
+
+        Returns:
+             worst evaluation_criteria (e.g. MaxVol) in the original evaluation
+             corresponding value after retraining with new samples. Not guaranteed to be the maximum value.
+        """
+        # find the highest MaxVol in the original predictions - identified by the atom index and structure index
+        # TODO we assume a max - but it could be a min i
+        criteria = self.eval_config.evaluation_criteria
+        atom_index, structure_index, original_value = original_predictions.iloc[
+            original_predictions[criteria].argmax()][['atom_index', 'structure_index', criteria]]
+        updated_value = updated_predictions.loc[
+            (updated_predictions['atom_index'] == atom_index) &
+            (updated_predictions['structure_index'] == structure_index), criteria].values.item()
+        return original_value, updated_value
 
 
 def get_arguments() -> argparse.Namespace:
@@ -277,8 +294,12 @@ def main():
     config_path = "/Users/simonb/ic-collab/courtois_collab/crystal_diffusion/experiments/active_learning_benchmark/"
     config_path = os.path.join(config_path, "config", "mtp_training.yaml")
     al_loop = ActiveLearningLoop(config_path)
-    al_loop.round_of_active_learning_loop()
-
+    # initial_df, new_df = al_loop.round_of_active_learning_loop()
+    # initial_df.to_csv(os.path.join(os.getcwd(), '../../experiments/active_learning_benchmark/debug/before_tuning.csv'), index=False)
+    # new_df.to_csv(os.path.join(os.getcwd(), '../../experiments/active_learning_benchmark/debug/after_tuning.csv'), index=False)
+    initial_df = pd.read_csv(os.path.join(os.getcwd(), '../../experiments/active_learning_benchmark/debug/before_tuning.csv'))
+    new_df = pd.read_csv(os.path.join(os.getcwd(), '../../experiments/active_learning_benchmark/debug/after_tuning.csv'))
+    al_loop.evaluate_mtp_update(initial_df, new_df)
 
 if __name__ == '__main__':
     main()

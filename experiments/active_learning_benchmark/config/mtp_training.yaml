@@ -1,7 +1,7 @@
 active_learning_data:
   _target_: crystal_diffusion.active_learning_loop.activelearning_dataclasses.ActiveLearningDataArguments
-  training_data_dir: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/data/active_loop_debug/
-  evaluation_data_dir: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/data/active_loop_debug/
+  training_data_dir: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/data/al_baseline_dev/v1/
+  evaluation_data_dir: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/data/al_baseline_dev/v1/
   output_dir: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/experiments/benchmark/debug/
 
 mlip:
