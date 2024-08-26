@@ -24,7 +24,7 @@ class NoiseParameters:
     # here we divide by 2pi because our space is in the range [0, 1).
     sigma_min: float = 0.005
     sigma_max: float = 0.5
-
+    sigma_tilde: float = None
     # Default value comes from "Generative Modeling by Estimating Gradients of the Data Distribution"
     corrector_step_epsilon: float = 2e-5
 
@@ -100,8 +100,13 @@ class ExplodingVarianceSampler:
     ) -> torch.Tensor:
         sigma_min = noise_parameters.sigma_min
         sigma_max = noise_parameters.sigma_max
+        sigma_tilde = noise_parameters.sigma_tilde
 
-        sigma = sigma_min ** (1.0 - time_array) * sigma_max**time_array
+        if sigma_tilde is not None:
+            sigma = (sigma_min * ((sigma_max + sigma_min - sigma_tilde) / sigma_min) ** (1.0 - time_array)
+                     - sigma_min * (sigma_tilde / sigma_min) ** time_array + sigma_tilde)
+        else:
+            sigma = sigma_min ** (1.0 - time_array) * sigma_max**time_array
         return sigma
 
     @staticmethod
