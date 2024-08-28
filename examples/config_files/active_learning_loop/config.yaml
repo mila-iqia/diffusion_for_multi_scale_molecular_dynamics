@@ -38,3 +38,6 @@ repainting_model:
 
 oracle:
   _target_: crystal_diffusion.active_learning_loop.oracle.LAMMPS_for_active_learning
+
+initial_df_save_path: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/experiments/active_learning_benchmark/debug/before_tuning.csv
+updated_df_save_path: /Users/simonb/ic-collab/courtois_collab/crystal_diffusion/experiments/active_learning_benchmark/debug/after_tuning.csv

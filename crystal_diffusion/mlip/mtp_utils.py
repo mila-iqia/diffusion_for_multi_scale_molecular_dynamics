@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 import yaml
 from pymatgen.core import Structure
+from sklearn.metrics import mean_absolute_error
 
 
 @dataclass(kw_only=True)
@@ -105,7 +107,7 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
     return mtp_inputs
 
 
-def crawl_lammps_directory(folder_name: str, folder_name_pattern: str= "train") -> Tuple[List[str], List[str]]:
+def crawl_lammps_directory(folder_name: str, folder_name_pattern: str = "train") -> Tuple[List[str], List[str]]:
     """Crawl through a folder and find the LAMMPS output files in folders containing a specified pattern in their name.
 
     LAMMPS outputs should end with dump.yaml and Thermondynamics variables files should end with thermo.yaml
@@ -143,3 +145,28 @@ def concat_mtp_inputs(input1: MTPInputs, input2: MTPInputs) -> MTPInputs:
         energy=input1.energy + input2.energy
     )
     return concat_inputs
+
+
+def get_metrics_from_pred(df_orig: pd.DataFrame, df_predict: pd.DataFrame) -> Tuple[float, float]:
+    """Get mean absolute error on energy and forces from the outputs of MTP.
+
+    Args:
+        df_orig: dataframe with ground truth values
+        df_predict: dataframe with MTP predictions
+
+    Returns:
+        MAE on energy in eV/atom and MAE on forces in eV/Å
+    """
+    # from demo in maml
+    # get a single predicted energy per structure
+    predicted_energy = df_predict.groupby('structure_index').agg({'energy': 'mean', 'atom_index': 'count'})
+    # normalize by number of atoms
+    predicted_energy = (predicted_energy['energy'] / predicted_energy['atom_index']).to_numpy()
+    # same for ground truth
+    gt_energy = df_orig.groupby('structure_index').agg({'energy': 'mean', 'atom_index': 'count'})
+    gt_energy = (gt_energy['energy'] / gt_energy['atom_index']).to_numpy()
+
+    predicted_forces = (df_predict[['fx', 'fy', 'fz']].to_numpy().flatten())
+    gt_forces = (df_orig[['fx', 'fy', 'fz']].to_numpy().flatten())
+
+    return mean_absolute_error(predicted_energy, gt_energy), mean_absolute_error(predicted_forces, gt_forces)
