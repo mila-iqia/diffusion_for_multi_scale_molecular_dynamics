@@ -1,6 +1,5 @@
 import argparse
 import os
-from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
@@ -8,8 +7,9 @@ import pandas as pd
 import yaml
 from hydra.utils import instantiate
 
-from crystal_diffusion.active_learning_loop.utils import get_structures_for_retraining, extract_target_region
-from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3, MTPInputs
+from crystal_diffusion.active_learning_loop.utils import (
+    extract_target_region, get_structures_for_retraining)
+from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3
 
 
 class ActiveLearningLoop:
@@ -117,9 +117,10 @@ class ActiveLearningLoop:
         Returns:
             list of structures with a high uncertainty criteria.
         """
+        num_structures = self.eval_config.number_of_structures
         structures_to_retrain = get_structures_for_retraining(prediction_df,
                                                               criteria_threshold=self.eval_config.criteria_threshold,
-                                                              number_of_structures=self.eval_config.number_of_structures,
+                                                              number_of_structures=num_structures,
                                                               evaluation_criteria=self.eval_config.evaluation_criteria)
         return structures_to_retrain
 
@@ -160,7 +161,7 @@ class ActiveLearningLoop:
             # and hydra instantiate
             return fixed_atoms
         else:
-            raise NotImplemented('Only dev_dummy is supported at the moment.')
+            raise NotImplementedError('Only dev_dummy is supported at the moment.')
 
     def new_structure_to_csv(self, new_structures: List[pd.DataFrame], round: int = 1):
         """Save the generated structures in a csv format in the output dir
@@ -271,8 +272,8 @@ class ActiveLearningLoop:
         atom_index, structure_index, original_value = original_predictions.iloc[
             original_predictions[criteria].argmax()][['atom_index', 'structure_index', criteria]]
         updated_value = updated_predictions.loc[
-            (updated_predictions['atom_index'] == atom_index) &
-            (updated_predictions['structure_index'] == structure_index), criteria].values.item()
+            (updated_predictions['atom_index'] == atom_index)
+            & (updated_predictions['structure_index'] == structure_index), criteria].values.item()
         return original_value, updated_value
 
 
@@ -283,23 +284,19 @@ def get_arguments() -> argparse.Namespace:
         args: arguments
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mtp_config', help='path to data directory', required=True)
+    parser.add_argument('--config', help='path to data directory', required=True)
     args = parser.parse_args()
     return args
 
 
 def main():
-    # args = get_arguments()
+    args = get_arguments()
     # TODO get mtp_config_path from the args
-    config_path = "/Users/simonb/ic-collab/courtois_collab/crystal_diffusion/experiments/active_learning_benchmark/"
-    config_path = os.path.join(config_path, "config", "mtp_training.yaml")
+    config_path = args.config
     al_loop = ActiveLearningLoop(config_path)
-    # initial_df, new_df = al_loop.round_of_active_learning_loop()
-    # initial_df.to_csv(os.path.join(os.getcwd(), '../../experiments/active_learning_benchmark/debug/before_tuning.csv'), index=False)
-    # new_df.to_csv(os.path.join(os.getcwd(), '../../experiments/active_learning_benchmark/debug/after_tuning.csv'), index=False)
-    initial_df = pd.read_csv(os.path.join(os.getcwd(), '../../experiments/active_learning_benchmark/debug/before_tuning.csv'))
-    new_df = pd.read_csv(os.path.join(os.getcwd(), '../../experiments/active_learning_benchmark/debug/after_tuning.csv'))
+    initial_df, new_df = al_loop.round_of_active_learning_loop()
     al_loop.evaluate_mtp_update(initial_df, new_df)
+
 
 if __name__ == '__main__':
     main()
