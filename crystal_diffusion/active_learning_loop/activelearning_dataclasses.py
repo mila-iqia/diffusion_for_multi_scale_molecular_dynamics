@@ -10,7 +10,7 @@ class ActiveLearningDataArguments:
 
 @dataclass(kw_only=True)
 class StructureEvaluationArguments:
-    evaluation_criteria: str ='nbh_grades'
+    evaluation_criteria: str = 'nbh_grades'
     criteria_threshold: float = 10
     number_of_structures: int = None
     extraction_radius: float = 3

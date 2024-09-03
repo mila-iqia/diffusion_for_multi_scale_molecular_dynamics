@@ -3,28 +3,26 @@
 Running the main() runs a debugging example. Entry points are train_mtp.
 """
 import argparse
-from dataclasses import dataclass
-from typing import Any, Dict, List, NamedTuple, Tuple
+from typing import Dict, Tuple
 
-import numpy as np
 import pandas as pd
-import yaml
-from pymatgen.core import Structure
 from sklearn.metrics import mean_absolute_error
 
+from crystal_diffusion.mlip.mtp_utils import (MTPInputs,
+                                              crawl_lammps_directory,
+                                              prepare_mtp_inputs_from_lammps)
 from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3
-from crystal_diffusion.mlip.mtp_utils import prepare_mtp_inputs_from_lammps, crawl_lammps_directory, MTPInputs
 
 atom_dict = {1: 'Si'}
 
 
-def prepare_dataset(root_data_dir: str, atom_dict: Dict[int, str], mode: str = "train") -> MTP_Inputs:
+def prepare_dataset(root_data_dir: str, atom_dict: Dict[int, str], mode: str = "train") -> MTPInputs:
     lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
     mtp_dataset = prepare_mtp_inputs_from_lammps(lammps_outputs, thermo_outputs, atom_dict)
     return mtp_dataset
 
 
-def train_mtp(train_inputs: MTP_Inputs, mlip_folder_path: str, save_dir: str) -> MTPWithMLIP3:
+def train_mtp(train_inputs: MTPInputs, mlip_folder_path: str, save_dir: str) -> MTPWithMLIP3:
     """Create and train an MTP potential.
 
     Args:
@@ -52,7 +50,7 @@ def train_mtp(train_inputs: MTP_Inputs, mlip_folder_path: str, save_dir: str) ->
     return mtp
 
 
-def evaluate_mtp(eval_inputs: MTP_Inputs, mtp: MTPWithMLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def evaluate_mtp(eval_inputs: MTPInputs, mtp: MTPWithMLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Evaluate a trained MTP potential.
 
     Args:

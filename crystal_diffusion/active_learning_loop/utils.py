@@ -46,7 +46,7 @@ def get_structures_for_retraining(prediction_df: pd.DataFrame,
 
 def extract_target_region(structure_df: pd.DataFrame,
                           extraction_radius: float,
-                          evaluation_criteria: str ='nbh_grades') -> pd.DataFrame:
+                          evaluation_criteria: str = 'nbh_grades') -> pd.DataFrame:
     """Extract the atom with the worst evaluation criteria and all the atoms within a distance extraction_radious.
 
     Args:
