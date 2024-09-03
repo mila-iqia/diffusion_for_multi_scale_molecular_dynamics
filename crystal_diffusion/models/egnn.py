@@ -35,6 +35,7 @@ class E_GCL(nn.Module):
         normalize: bool = False,
         coords_agg: str = "mean",
         tanh: bool = False,
+        use_layernorm: bool = False
     ):
         """E_GCL layer initialization.
 
@@ -54,6 +55,7 @@ class E_GCL(nn.Module):
                 vector in eq. 4 in https://arxiv.org/pdf/2102.09844. Defaults to False.
             coords_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
+            use_layernorm: if True, add LayerNorm layers in the message model. Defaults to False
         """
         super(E_GCL, self).__init__()
         self.residual = residual
@@ -61,6 +63,7 @@ class E_GCL(nn.Module):
         self.normalize = normalize
         self.tanh = tanh
         self.epsilon = 1e-8
+        # self.aggregation_noise = aggregation_noise
 
         if coords_agg not in ["mean", "sum"]:
             raise ValueError(f"coords_agg should be mean or sum. Got {coords_agg}")
@@ -72,10 +75,14 @@ class E_GCL(nn.Module):
         message_input_size = input_size * 2 + 1
         self.message_mlp = nn.Sequential(
             nn.Linear(message_input_size, message_hidden_dimensions_size),
-            act_fn
         )
+        if use_layernorm:
+            self.message_mlp.append(nn.LayerNorm(message_hidden_dimensions_size))
+        self.message_mlp.append(act_fn)
         for _ in range(message_n_hidden_dimensions):
             self.message_mlp.append(nn.Linear(message_hidden_dimensions_size, message_hidden_dimensions_size))
+            if use_layernorm:
+                self.message_mlp.append(nn.LayerNorm(message_hidden_dimensions_size))
             self.message_mlp.append(act_fn)
 
         # node update mlp. Input is the node feature (size input_size) and the aggregated messages from neighbors
@@ -179,6 +186,8 @@ class E_GCL(nn.Module):
         trans = coord_diff * self.coord_mlp(messages)  # (x_i  - x_j) *  \phi_m(m_{ij})
         agg = self.coords_agg_fn(trans, row, num_segments=coord.size(0))  # sum over j
         coord += agg
+        # coord += self.aggregation_noise * torch.randn_like(coord)  # add some random noise to break the equivalence if
+        # two atoms collided (same positions = same messages)
         return coord
 
     def coord2radial(self, edge_index: torch.Tensor, coord: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -286,7 +295,8 @@ class EGNN(nn.Module):
                     attention=attention,
                     normalize=normalize,
                     coords_agg=coords_agg,
-                    tanh=tanh
+                    tanh=tanh,
+                    # aggregation_noise=aggregation_noise,
                 )
             )
 

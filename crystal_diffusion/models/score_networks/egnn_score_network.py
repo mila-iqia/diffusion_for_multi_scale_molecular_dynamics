@@ -27,6 +27,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     tanh: bool = False
     coords_agg: str = "mean"
     n_layers: int = 4
+    use_layernorm: bool = False
 
 
 class EGNNScoreNetwork(ScoreNetwork):
@@ -65,6 +66,7 @@ class EGNNScoreNetwork(ScoreNetwork):
             tanh=hyper_params.tanh,
             coords_agg=hyper_params.coords_agg,
             n_layers=hyper_params.n_layers,
+            use_layernorm=hyper_params.use_layernorm
         )
 
     @staticmethod
