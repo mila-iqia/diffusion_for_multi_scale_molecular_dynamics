@@ -13,11 +13,14 @@ from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3
 
 
 class ActiveLearningLoop:
+    """Method to train, evaluate and fine-tune a MLIP."""
     def __init__(self,
                  meta_config: str,
                  ):
-        """Active learning benchmark with methods to train & evaluate a MLIP, isolate bad sub-structures, repaint
-        new structures and retrain the MLIP
+        """Active learning benchmark.
+
+        Includes methods to train & evaluate a MLIP, isolate bad sub-structures, repaint new structures and retrain
+        the MLIP.
 
         Args:
             meta_config: path to a yaml configuration with the parameters for the modules in the class
@@ -164,7 +167,7 @@ class ActiveLearningLoop:
             raise NotImplementedError('Only dev_dummy is supported at the moment.')
 
     def new_structure_to_csv(self, new_structures: List[pd.DataFrame], round: int = 1):
-        """Save the generated structures in a csv format in the output dir
+        """Save the generated structures in a csv format in the output dir.
 
         Args:
             new_structures: structures proposed by the generative model
@@ -290,6 +293,7 @@ def get_arguments() -> argparse.Namespace:
 
 
 def main():
+    """Example to do an active learning loop once."""
     args = get_arguments()
     # TODO get mtp_config_path from the args
     config_path = args.config

@@ -17,6 +17,17 @@ atom_dict = {1: 'Si'}
 
 
 def prepare_dataset(root_data_dir: str, atom_dict: Dict[int, str], mode: str = "train") -> MTPInputs:
+    """Prepare the dataset in a given directory into a MTP format.
+
+    Args:
+        root_data_dir: root data directory to parse
+        atom_dict: map between an index and an atom type
+        mode: type of data to look for. e.g. train will only look at the folders in root_data_dirwith "train" in their
+            name. Defaults to train.
+
+    Returns:
+        data in the MTPInputs dataclass
+    """
     lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
     mtp_dataset = prepare_mtp_inputs_from_lammps(lammps_outputs, thermo_outputs, atom_dict)
     return mtp_dataset

@@ -28,6 +28,7 @@ from crystal_diffusion.mlip.mtp_utils import (MTPInputs, concat_mtp_inputs,
 
 @dataclass(kw_only=True)
 class MTPArguments:
+    """Arguments to train an MTP with the MLIP3 library."""
     mlip_path: str  # path to MLIP3 library
     name: Optional[str] = None  # MTP
     param: Optional[Dict[Any, Any]] = None
@@ -270,7 +271,7 @@ class MTPWithMLIP3(MTPotential):
             mode: str = "train",
             get_forces: bool = True,
     ) -> MTPInputs:
-        """Get the LAMMPS in a folder and organize them as inputs for a MTP
+        """Get the LAMMPS in a folder and organize them as inputs for a MTP.
 
         Args:
             root_data_dir: folder to read. Each LAMMPS sample is expected to be in a subfolder.
@@ -293,7 +294,20 @@ class MTPWithMLIP3(MTPotential):
             energy: float,
             atom_type: np.ndarray,
             atom_dict: Dict[int, str] = {1: 'Si'}
-    ):
+    ) -> MTPInputs:
+        """Convert numpy array variables to a format compatible with MTP.
+
+        Args:
+            cartesian_positions: atomic positions in Angstrom as a (n_atom, 3) array.
+            box: unit cell description as a (3, 3) array.
+            forces: forces on each atom as a (n_atom, 3) array
+            energy: energy of the configuration
+            atom_type: indices for each atom in the structure as a (n_atom,) array
+            atom_dict: map between atom indices and atom types
+
+        Returns:
+            data formatted at an input for MTP.
+        """
         structure = Structure(
             lattice=box,
             species=[atom_dict[x] for x in atom_type],

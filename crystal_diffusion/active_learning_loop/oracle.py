@@ -8,7 +8,9 @@ from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 
 
 class LAMMPS_for_active_learning:
+    """Oracle using LAMMPS to get the energy and forces on atoms."""
     def __init__(self):
+        """Initialize the class."""
         pass
 
     def __call__(self,
