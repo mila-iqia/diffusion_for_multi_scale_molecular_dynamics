@@ -21,14 +21,15 @@ from monty.io import zopen
 from monty.tempfile import ScratchDir
 from pymatgen.core import Structure
 
-from crystal_diffusion.mlip.mtp_utils import (MTPInputs, crawl_lammps_directory, prepare_mtp_inputs_from_lammps,
-                                              concat_mtp_inputs)
+from crystal_diffusion.mlip.mtp_utils import (MTPInputs, concat_mtp_inputs,
+                                              crawl_lammps_directory,
+                                              prepare_mtp_inputs_from_lammps)
 
 
 @dataclass(kw_only=True)
 class MTPArguments:
     mlip_path: str  # path to MLIP3 library
-    name: Optional[str]= None  # MTP
+    name: Optional[str] = None  # MTP
     param: Optional[Dict[Any, Any]] = None
     unfitted_mtp: str = "08.almtp"  # Define the initial mtp file. Default to 08g.amltp
     fitted_mtp_savedir: str = '../'  # save directory for the fitted MTP. Defaults to '../' (current wd)
@@ -106,7 +107,7 @@ class MTPWithMLIP3(MTPotential):
 
         # TODO if forces are not available...
         test_structures, test_forces, _ = check_structures_forces_stresses(
-            dataset.structure, dataset.forces, stresses=None
+            dataset.structure, dataset.forces, None
         )
         predict_pool = pool_from(test_structures, dataset.energy, test_forces)
         local_mtp_name = "mtp.almtp"

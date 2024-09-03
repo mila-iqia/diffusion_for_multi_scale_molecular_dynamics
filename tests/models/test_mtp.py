@@ -8,10 +8,11 @@ import yaml
 from pymatgen.core import Structure
 from sklearn.metrics import mean_absolute_error
 
-from crystal_diffusion.models.mtp import MTPWithMLIP3
-from crystal_diffusion.train_mtp import (
-    extract_energy_from_thermo_log, extract_structure_and_forces_from_file,
-    get_metrics_from_pred, prepare_mtp_inputs_from_lammps)
+from crystal_diffusion.mlip.mtp_utils import (
+    MTPInputs, extract_energy_from_thermo_log,
+    extract_structure_and_forces_from_file, get_metrics_from_pred,
+    prepare_mtp_inputs_from_lammps)
+from crystal_diffusion.models.mlip.mtp import MTPArguments, MTPWithMLIP3
 
 
 class FakeStructure:
@@ -38,15 +39,15 @@ def mock_popen(mocker):
 
 
 # Mock the external dependencies and method calls within the MTPWithMLIP3.train method
-def test_train(mocker, mock_popen):
+def test_train(mocker, mock_popen, tmpdir):
     # Mock os.path.exists to always return True
     mocker.patch("os.path.exists", return_value=True)
 
     # Mock check_structures_forces_stresses to return a value without needing real input
-    mocker.patch("crystal_diffusion.models.mtp.check_structures_forces_stresses", side_effect=passthrough)
+    mocker.patch("crystal_diffusion.models.mlip.mtp.check_structures_forces_stresses", side_effect=passthrough)
 
     # Mock pool_from to return a simplified pool object
-    mocker.patch("crystal_diffusion.models.mtp.pool_from", return_value="simple_pool_object")
+    mocker.patch("crystal_diffusion.models.mlip.mtp.pool_from", return_value="simple_pool_object")
 
     # Mock self.write_cfg to simulate creating a config file without file operations
     mocker.patch.object(MTPWithMLIP3, "write_cfg", return_value="mock_filename.cfg")
@@ -54,19 +55,23 @@ def test_train(mocker, mock_popen):
     mocker.patch("shutil.copyfile", return_value=None)
 
     # Initialize MTPWithMLIP3 with mock parameters
-    model = MTPWithMLIP3(mlip_path="/mock/path", name="test_model")
-    # Call the train method
-
-    return_code = model.train(
-        train_structures=[FakeStructure(['H', 'O']), FakeStructure(['Si'])],
-        train_energies=[1, 2],
-        train_forces=[],
-        train_stresses=[],
+    mtp_args = MTPArguments(
+        mlip_path="/mock/path",
+        name="test_model",
         unfitted_mtp="08.almtp",
-        fitted_mtp_savedir="/mock/dir"
+        fitted_mtp_savedir=tmpdir
     )
-    # Assert the expected results
-    assert return_code == 0  # The train method should return the mocked subprocess success return code from mock_open
+    model = MTPWithMLIP3(mtp_args)
+    # Call the train method
+    mtp_inputs = MTPInputs(
+        structure=[FakeStructure(['H', 'O']), FakeStructure(['Si'])],
+        forces=[],
+        energy=[1, 2]
+    )
+
+    _ = model.train(
+        mtp_inputs,
+    )
 
     # Assert that mocked methods were called
     model.write_cfg.assert_called()
@@ -91,19 +96,17 @@ def mtp_instance(mocker):
     return instance
 
 
-# def test_evaluate(mocker, fake_structure, mtp_instance, mock_popen):
 def test_evaluate(mocker, fake_structure, mtp_instance, mock_popen):
     test_structures = [fake_structure]
     test_energies = [1.0]
     test_forces = [[[0, 0, 0]]]
-    test_stresses = None  # or appropriate mock stresses
 
     # Mock check_structures_forces_stresses to return the arguments unmodified
-    mocker.patch("crystal_diffusion.models.mtp.check_structures_forces_stresses",
+    mocker.patch("crystal_diffusion.models.mlip.mtp.check_structures_forces_stresses",
                  side_effect=lambda s, f, st: (s, f, st))
 
     # Mock pool_from to return a mocked value
-    mocker.patch("crystal_diffusion.models.mtp.pool_from", return_value="mock_pool")
+    mocker.patch("crystal_diffusion.models.mlip.mtp.pool_from", return_value="mock_pool")
 
     # Mock self.write_cfg to simulate creating a config file without file operations
     mocker.patch.object(MTPWithMLIP3, "write_cfg", return_value="mock_filename.cfg")
@@ -116,8 +119,14 @@ def test_evaluate(mocker, fake_structure, mtp_instance, mock_popen):
     mocker.patch("shutil.copyfile", return_value=None)
     mocker.patch("os.path.exists", return_value=True)
 
+    mtp_inputs = MTPInputs(
+        structure=test_structures,
+        forces=test_forces,
+        energy=test_energies
+    )
+
     # Perform the test
-    df_orig, df_predict = mtp_instance.evaluate(test_structures, test_energies, test_forces, test_stresses)
+    df_orig, df_predict = mtp_instance.evaluate(mtp_inputs)
 
     # Assertions can vary based on the real output of `read_cfgs`
     # Here's an example assertion assuming `read_cfgs` returns a string in this mocked scenario
@@ -209,12 +218,13 @@ def test_extract_energy_from_thermo_log(tmpdir):
 
 @pytest.fixture
 def mock_extract_energy_from_thermo_log(mocker):
-    return mocker.patch('crystal_diffusion.train_mtp.extract_energy_from_thermo_log', return_value=[])
+    return mocker.patch('crystal_diffusion.mlip.mtp_utils.extract_energy_from_thermo_log', return_value=[])
 
 
 @pytest.fixture
 def mock_extract_structure_and_forces(mocker):
-    return mocker.patch('crystal_diffusion.train_mtp.extract_structure_and_forces_from_file', return_value=([], []))
+    return mocker.patch('crystal_diffusion.mlip.mtp_utils.extract_structure_and_forces_from_file',
+                        return_value=([], []))
 
 
 def test_prepare_mtp_inputs_from_lammps(mock_extract_structure_and_forces, mock_extract_energy_from_thermo_log, tmpdir):
@@ -230,7 +240,7 @@ def test_prepare_mtp_inputs_from_lammps(mock_extract_structure_and_forces, mock_
 
     # Verify that the mocks were called correctly
     assert mock_extract_structure_and_forces.call_count == 2
-    mock_extract_structure_and_forces.assert_called_with(output_yaml_files[1], atom_dict)
+    mock_extract_structure_and_forces.assert_called_with(output_yaml_files[1], atom_dict, True)
 
     assert mock_extract_energy_from_thermo_log.call_count == 2
     mock_extract_energy_from_thermo_log.assert_called_with(thermo_yaml_files[1])
