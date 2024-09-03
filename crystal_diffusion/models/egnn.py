@@ -254,7 +254,8 @@ class EGNN(nn.Module):
         normalize: bool = False,
         tanh: bool = False,
         coords_agg: str = "mean",
-        n_layers: int = 4
+        n_layers: int = 4,
+        use_layernorm: bool = False,
     ):
         """EGNN model stacking multiple E_GCL layers.
 
@@ -274,6 +275,7 @@ class EGNN(nn.Module):
             coords_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
             n_layers: number of E_GCL layers. Defaults to 4.
+            use_layernorm: if True, add LayerNorm layers in the message model. Defaults to False
         """
         super(EGNN, self).__init__()
         self.n_layers = n_layers
@@ -296,7 +298,7 @@ class EGNN(nn.Module):
                     normalize=normalize,
                     coords_agg=coords_agg,
                     tanh=tanh,
-                    # aggregation_noise=aggregation_noise,
+                    use_layernorm=use_layernorm,
                 )
             )
 
