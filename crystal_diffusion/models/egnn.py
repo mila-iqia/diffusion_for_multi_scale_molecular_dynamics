@@ -62,7 +62,7 @@ class E_GCL(nn.Module):
         self.attention = attention
         self.normalize = normalize
         self.tanh = tanh
-        self.epsilon = 1e-8
+        self.epsilon = 1  # 1e-8  - following EGNN original implementation
         # self.aggregation_noise = aggregation_noise
 
         if coords_agg not in ["mean", "sum"]:
@@ -109,7 +109,7 @@ class E_GCL(nn.Module):
             self.coord_mlp.append(act_fn)
         final_coordinate_layer = nn.Linear(coordinate_hidden_dimensions_size, 1, bias=False)
         # based on the original implementation - multiply the random initialization by 0.001 (default is 1)
-        # torch.nn.init.xavier_uniform_(final_coordinate_layer.weight, gain=0.001)
+        torch.nn.init.xavier_uniform_(final_coordinate_layer.weight, gain=0.001)
         self.coord_mlp.append(final_coordinate_layer)  # initialized with a different
         if self.tanh:  # optional, add a tanh to saturate the messages
             self.coord_mlp.append(nn.Tanh())
