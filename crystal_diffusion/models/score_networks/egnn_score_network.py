@@ -26,6 +26,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     normalize: bool = False
     tanh: bool = False
     coords_agg: str = "mean"
+    message_agg: str = "mean"
     n_layers: int = 4
     repulsion_max: float = 0.0,
     repulsion_rcut: float = 0.5
@@ -66,6 +67,7 @@ class EGNNScoreNetwork(ScoreNetwork):
             normalize=hyper_params.normalize,
             tanh=hyper_params.tanh,
             coords_agg=hyper_params.coords_agg,
+            message_agg=hyper_params.message_agg,
             n_layers=hyper_params.n_layers,
             repulsion_max=hyper_params.repulsion_max,
             repulsion_rcut=hyper_params.repulsion_rcut
