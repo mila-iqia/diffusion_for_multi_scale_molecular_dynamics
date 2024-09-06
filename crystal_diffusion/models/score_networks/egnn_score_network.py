@@ -5,10 +5,12 @@ import einops
 import torch
 
 from crystal_diffusion.models.egnn import EGNN
-from crystal_diffusion.models.egnn_utils import get_edges_batch
+from crystal_diffusion.models.egnn_utils import (get_edges_batch,
+                                                 get_edges_with_radial_cutoff)
 from crystal_diffusion.models.score_networks import ScoreNetworkParameters
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
-from crystal_diffusion.namespace import NOISE, NOISY_RELATIVE_COORDINATES
+from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
+                                         UNIT_CELL)
 
 
 @dataclass(kw_only=True)
@@ -30,6 +32,9 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     n_layers: int = 4
     repulsion_max: float = 0.0,
     repulsion_rcut: float = 0.5
+    edges: str = 'fully_connected'
+    radial_cutoff: float = 4.0
+    drop_duplicate_edges: bool = True
 
 
 class EGNNScoreNetwork(ScoreNetwork):
@@ -53,6 +58,12 @@ class EGNNScoreNetwork(ScoreNetwork):
         projection_matrices = self._create_block_diagonal_projection_matrices(self.spatial_dimension)
         self.register_parameter('projection_matrices',
                                 torch.nn.Parameter(projection_matrices, requires_grad=False))
+
+        self.edges = hyper_params.edges
+        assert self.edges in ["fully_connected", "radial_cutoff"], \
+            f'Edges type should be fully_connected or radial_cutoff. Got {self.edges}'
+        self.radial_cutoff = hyper_params.radial_cutoff
+        self.drop_duplicate_edges = hyper_params.drop_duplicate_edges
 
         self.egnn = EGNN(
             input_size=self.number_of_features_per_node,
@@ -153,9 +164,15 @@ class EGNNScoreNetwork(ScoreNetwork):
         relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
-        edges = get_edges_batch(
-            n_nodes=number_of_atoms, batch_size=batch_size
-        )
+        if self.edges == "fully_connected":
+            edges = get_edges_batch(
+                n_nodes=number_of_atoms, batch_size=batch_size
+            )
+        else:
+            edges = get_edges_with_radial_cutoff(
+                relative_coordinates, batch[UNIT_CELL], self.radial_cutoff,
+                drop_duplicate_edges=self.drop_duplicate_edges
+            )
 
         edges = edges.to(relative_coordinates.device)
 
