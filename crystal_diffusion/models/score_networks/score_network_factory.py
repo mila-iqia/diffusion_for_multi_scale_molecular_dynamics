@@ -11,6 +11,8 @@ from crystal_diffusion.models.score_networks.mace_score_network import (
     MACEScoreNetwork, MACEScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.mlp_score_network import (
     MLPScoreNetwork, MLPScoreNetworkParameters)
+from crystal_diffusion.models.score_networks.molegnn_score_network import (
+    MolEGNNScoreNetwork, MolEGNNScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
@@ -20,11 +22,13 @@ from crystal_diffusion.utils.configuration_parsing import \
 SCORE_NETWORKS_BY_ARCH = dict(mlp=MLPScoreNetwork,
                               mace=MACEScoreNetwork,
                               diffusion_mace=DiffusionMACEScoreNetwork,
-                              egnn=EGNNScoreNetwork)
+                              egnn=EGNNScoreNetwork,
+                              molegnn=MolEGNNScoreNetwork)
 SCORE_NETWORK_PARAMETERS_BY_ARCH = dict(mlp=MLPScoreNetworkParameters,
                                         mace=MACEScoreNetworkParameters,
                                         diffusion_mace=DiffusionMACEScoreNetworkParameters,
-                                        egnn=EGNNScoreNetworkParameters)
+                                        egnn=EGNNScoreNetworkParameters,
+                                        molegnn=MolEGNNScoreNetworkParameters)
 MACE_PREDICTION_HEAD_BY_NAME = dict(mlp=MaceMLPScorePredictionHeadParameters,
                                     equivariant=MaceEquivariantScorePredictionHeadParameters)
 
