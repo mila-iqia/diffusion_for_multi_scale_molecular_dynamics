@@ -1,0 +1,107 @@
+# general
+exp_name: egnn_example
+run_name: run2
+max_epoch: 100
+log_every_n_steps: 1
+gradient_clipping: 0
+accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
+
+# set to null to avoid setting a seed (can speed up GPU computation, but
+# results will not be reproducible)
+seed: 1234
+
+# data
+data:
+  batch_size: 1024
+  num_workers: 0
+  max_atom: 8
+
+# architecture
+spatial_dimension: 3
+model:
+  loss:
+    algorithm: mse
+  score_network:
+    architecture: faenet
+    hidden_channels: 256
+    num_filters: 480
+    num_interactions: 7
+    num_gaussians: 136
+    regress_forces: direct_with_gradient_target
+    max_num_neighbors: 30
+    tag_hidden_channels: 0  # 32  # only for OC20 # TODO check this
+    pg_hidden_channels: 64  # period & group embedding hidden channels
+    phys_embeds: False  # physics-aware embeddings for atoms
+    phys_hidden_channels: 0
+    energy_head: None # Energy head: {False, weighted-av-initial-embeds, weighted-av-final-embeds}
+    skip_co: False  # Skip connections {False, "add", "concat"}
+    second_layer_MLP: False  # in EmbeddingBlock
+    complex_mp: True  # 2-layer MLP in Interaction blocks
+    mp_type: updownscale_base  # Message Passing type {'base', 'simple', 'updownscale', 'updownscale_base'}
+    graph_norm: True  # graph normalization layer
+    force_decoder_type: "mlp" # force head (`"simple"`, `"mlp"`, `"res"`, `"res_updown"`)
+    force_decoder_model_config:
+      simple:
+        hidden_channels: 128
+        norm: batch1d # batch1d, layer or null
+      mlp:
+        hidden_channels: 256
+        norm: batch1d # batch1d, layer or null
+      res:
+        hidden_channels: 128
+        norm: batch1d # batch1d, layer or null
+      res_updown:
+        hidden_channels: 128
+        norm: batch1d # batch1d, layer or null
+  noise:
+    total_time_steps: 100
+    sigma_min: 0.005  # default value
+    sigma_max: 0.5  # default value'
+
+# optimizer and scheduler
+optimizer:
+  name: adamw
+  learning_rate: 0.001
+  weight_decay: 1.0e-6
+
+scheduler:
+  name: ReduceLROnPlateau
+  factor: 0.1
+  patience: 10
+
+# early stopping
+early_stopping:
+  metric: validation_epoch_loss
+  mode: min
+  patience: 10
+
+model_checkpoint:
+  monitor: validation_epoch_loss
+  mode: min
+
+# A callback to check the loss vs. sigma
+loss_monitoring: 
+  number_of_bins: 50
+  sample_every_n_epochs: 1
+
+# Sampling from the generative model
+diffusion_sampling:
+  noise:
+    total_time_steps: 100
+    sigma_min: 0.001  # default value
+    sigma_max: 0.5  # default value
+  sampling:
+    algorithm: predictor_corrector
+    number_of_corrector_steps: 1
+    spatial_dimension: 3
+    number_of_atoms: 8
+    number_of_samples: 128
+    sample_batchsize: 128
+    sample_every_n_epochs: 1
+    record_samples: True
+    cell_dimensions: [5.43, 5.43, 5.43]
+
+logging:
+#  - comet
+- tensorboard
+#- csv
