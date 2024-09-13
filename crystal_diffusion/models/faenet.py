@@ -204,7 +204,8 @@ class FAENetWithSigma(FAENet):
 
         # Embedding block
         h, e = self.embed_block(
-            z, rel_pos, edge_attr, data.tags if hasattr(data, "tags") else None, data.sigma if hasattr(data, "sigma")
+            z, rel_pos, edge_attr, data.tags if hasattr(data, "tags") else None,
+            data.sigma if hasattr(data, "sigma") else None,
         )
 
         # Compute atom weights for late energy head
