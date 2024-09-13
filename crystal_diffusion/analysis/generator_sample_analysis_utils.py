@@ -2,7 +2,7 @@ import torch
 from einops import einops
 
 from crystal_diffusion.generators.ode_position_generator import \
-    ExplodingVarianceODEPositionGenerator
+    ExplodingVarianceODEPositionGenerator, ODESamplingParameters
 from crystal_diffusion.models.mace_utils import get_adj_matrix
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -19,26 +19,20 @@ class PartialODEPositionGenerator(ExplodingVarianceODEPositionGenerator):
 
     def __init__(self,
                  noise_parameters: NoiseParameters,
-                 number_of_atoms: int,
-                 spatial_dimension: int,
+                 sampling_parameters: ODESamplingParameters,
                  sigma_normalized_score_network: ScoreNetwork,
                  initial_relative_coordinates: torch.Tensor,
-                 record_samples: bool = False,
-                 absolute_solver_tolerance: float = 1.0e-3,
-                 relative_solver_tolerance: float = 1.0e-2,
                  tf: float = 1.0,
                  ):
         """Init method."""
         super(PartialODEPositionGenerator, self).__init__(noise_parameters,
-                                                          number_of_atoms,
-                                                          spatial_dimension,
-                                                          sigma_normalized_score_network,
-                                                          record_samples,
-                                                          absolute_solver_tolerance,
-                                                          relative_solver_tolerance)
+                                                          sampling_parameters,
+                                                          sigma_normalized_score_network)
 
         self.tf = tf
-        assert initial_relative_coordinates.shape[1:] == (number_of_atoms, spatial_dimension), "Inconsistent shape"
+        assert (initial_relative_coordinates.shape[1:] ==
+                (sampling_parameters.number_of_atoms, sampling_parameters.spatial_dimension)), \
+            "Inconsistent shape"
 
         self.initial_relative_coordinates = initial_relative_coordinates
 
