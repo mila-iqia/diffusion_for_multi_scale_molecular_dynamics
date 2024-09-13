@@ -152,8 +152,6 @@ class FAENetWithSigma(FAENet):
             graph_norm=graph_norm,
             complex_mp=complex_mp,
             energy_head=energy_head,
-            out_dim=out_dim,
-            pred_as_dict=pred_as_dict,
             regress_forces=regress_forces,
             force_decoder_type=force_decoder_type,
             force_decoder_model_config=force_decoder_model_config,
