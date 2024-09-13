@@ -19,9 +19,7 @@ class EmbeddingBlockWithSigma(EmbeddingBlock):
                  second_layer_MLP,
                  sigma_hidden_channels: int = 0,
                  ):
-        self.use_sigma = sigma_hidden_channels > 0
-        if self.use_sigma:
-            self.sigma_embedding = Linear(1, sigma_hidden_channels)  # sigma as node feature
+        self.use_sigma = False  # bypass the super().reset_parameter
         super(EmbeddingBlockWithSigma, self).__init__(
             num_gaussians,
             num_filters,
@@ -33,11 +31,11 @@ class EmbeddingBlockWithSigma(EmbeddingBlock):
             act,
             second_layer_MLP,
         )
-        if self.use_sigma:  # override the base class definition
+        self.use_sigma = sigma_hidden_channels > 0
+        if self.use_sigma:
+            self.sigma_embedding = Linear(1, sigma_hidden_channels)  # sigma as node feature
             self.lin = Linear(hidden_channels + sigma_hidden_channels, hidden_channels)
-            # reset the weights to reproduce base code
-            nn.init.xavier_uniform_(self.lin.weight)
-            self.lin.bias.data.fill_(0)
+            super(EmbeddingBlockWithSigma, self).reset_parameters()
 
     def reset_parameters(self):
         """Initialize layers weights."""
