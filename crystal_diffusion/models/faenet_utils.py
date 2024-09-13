@@ -3,7 +3,8 @@ from typing import AnyStr, Dict, Tuple
 import torch
 from torch_geometric.data import Data
 
-from crystal_diffusion.namespace import NOISY_CARTESIAN_POSITIONS, UNIT_CELL, NOISY_RELATIVE_COORDINATES
+from crystal_diffusion.namespace import (NOISE, NOISY_CARTESIAN_POSITIONS,
+                                         NOISY_RELATIVE_COORDINATES, UNIT_CELL)
 from crystal_diffusion.utils.neighbors import (
     get_periodic_adjacency_information,
     shift_adjacency_matrix_indices_for_graph_batching)
@@ -69,6 +70,7 @@ def input_to_faenet(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data
                                                                             basis_vectors=cell,
                                                                             radial_cutoff=radial_cutoff)
 
+    sigmas = x[NOISE].unsqueeze(1).repeat(1, n_atom_per_graph, 1)  # batch, n_atom, 1
     # create the pytorch-geometric graph
     # TODO add sigma and do not hard-code Si
     graph_data = Data(edge_index=adj_matrix,
@@ -76,8 +78,9 @@ def input_to_faenet(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data
                       pos=x[NOISY_RELATIVE_COORDINATES].view(-1, spatial_dimension),  # reduced positions N, 3
                       atomic_numbers=(torch.ones(batch_size * n_atom_per_graph) * 14).long().to(device),
                       batch=batch_tensor.to(device),
-                      shifts=shift_matrix,
-                      cell=cell   # batch, spatial dimension, spatial dimension
+                      cell_offsets=shift_matrix,
+                      cell=cell,   # batch, spatial dimension, spatial dimension,
+                      sigma=sigmas.view(-1, 1)  # batch_size * n_atom_per_graph
                       )
 
     return graph_data

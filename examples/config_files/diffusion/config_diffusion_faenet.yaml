@@ -23,6 +23,7 @@ model:
     algorithm: mse
   score_network:
     architecture: faenet
+    number_of_atoms: 8
     hidden_channels: 256
     num_filters: 480
     num_interactions: 7

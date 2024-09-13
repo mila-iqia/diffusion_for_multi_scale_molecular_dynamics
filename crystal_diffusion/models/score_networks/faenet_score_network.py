@@ -1,15 +1,14 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import AnyStr, Dict
 
 import torch
-from faenet.model import FAENet
 
+from crystal_diffusion.models.faenet import FAENetWithSigma
 from crystal_diffusion.models.faenet_utils import input_to_faenet
 from crystal_diffusion.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
 from crystal_diffusion.namespace import (NOISY_CARTESIAN_POSITIONS,
-                                         NOISY_RELATIVE_COORDINATES,
-                                         UNIT_CELL)
+                                         NOISY_RELATIVE_COORDINATES, UNIT_CELL)
 
 
 @dataclass(kw_only=True)
@@ -28,19 +27,20 @@ class FAENetScoreNetworkParameters(ScoreNetworkParameters):
     pg_hidden_channels: int = 64  # period & group embedding hidden channels
     phys_embeds: bool = False  # physics-aware embeddings for atoms
     phys_hidden_channels: int = 0
-    energy_head: str = "weighted-av-final-embeds"  # Energy head: {False, weighted-av-initial-embeds, weighted-av-final-embeds}
+    energy_head: str = "weighted-av-final-embeds"
     skip_co: bool = False  # Skip connections {False, "add", "concat"}
     second_layer_MLP: bool = False  # in EmbeddingBlock
     complex_mp: bool = True  # 2-layer MLP in Interaction blocks
     mp_type: str = "updownscale_base"  # Message Passing type {'base', 'simple', 'updownscale', 'updownscale_base'}
     graph_norm: bool = True  # graph normalization layer
+    sigma_hidden_channels: int = 0  # embedding for sigma
     force_decoder_type: str = "mlp"  # force head (`"simple"`, `"mlp"`, `"res"`, `"res_updown"`)
-    force_decoder_model_config = dict(
+    force_decoder_model_config: dict = field(default=lambda: dict(
         simple=dict(hidden_channels=128, norm="batch1d"),  # norm = batch1d, layer or null
         mlp=dict(hidden_channels=256, norm="batch1d"),
         res=dict(hidden_channels=128, norm="batch1d"),
         res_updown=dict(hidden_channels=128, norm="batch1d")
-    )
+    ))
 
 
 class FAENetScoreNetwork(ScoreNetwork):
@@ -77,12 +77,13 @@ class FAENetScoreNetwork(ScoreNetwork):
             mp_type=hyper_params.mp_type,
             graph_norm=hyper_params.graph_norm,
             force_decoder_type=hyper_params.force_decoder_type,
-            force_decoder_model_config=hyper_params.force_decoder_model_config
+            force_decoder_model_config=hyper_params.force_decoder_model_config,
+            sigma_hidden_channels=hyper_params.sigma_hidden_channels,
         )
 
         self._natoms = hyper_params.number_of_atoms
 
-        self.faenet_network = FAENet(**faenet_config)
+        self.faenet_network = FAENetWithSigma(**faenet_config)
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(FAENetScoreNetwork, self)._check_batch(batch)
