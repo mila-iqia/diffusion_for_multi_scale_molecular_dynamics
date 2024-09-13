@@ -52,7 +52,7 @@ absolute_solver_tolerance = 1.0e-3
 relative_solver_tolerance = 1.0e-2
 
 spatial_dimension = 3
-batch_size = 4
+batch_size = 32
 device = torch.device('cuda')
 
 if __name__ == '__main__':
@@ -123,7 +123,7 @@ if __name__ == '__main__':
             batch_relative_coordinates = generator.sample(number_of_samples=batch_size,
                                                           device=device,
                                                           unit_cell=unit_cell).cpu()
-            sample_output_path = str(partial_samples_dir / f"diffusion_position_sample_time={tf:3.2f}.pt")
+            sample_output_path = str(partial_samples_dir / f"diffusion_position_sample_time={tf:4.3f}.pt")
             generator.sample_trajectory_recorder.write_to_pickle(sample_output_path)
             logger.info("Done Generating Samples")
 
@@ -142,6 +142,6 @@ if __name__ == '__main__':
             energies = torch.tensor(list_energy)
             logger.info("Done Computing energy from Oracle")
 
-            energy_output_path = str(partial_samples_dir / f"diffusion_energies_sample_time={tf:2.1f}.pt")
+            energy_output_path = str(partial_samples_dir / f"diffusion_energies_sample_time={tf:4.3f}.pt")
             with open(energy_output_path, 'wb') as fd:
                 torch.save(energies, fd)
