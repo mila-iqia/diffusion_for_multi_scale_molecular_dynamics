@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from typing import AnyStr, Dict
 
 import torch
+from faenet.fa_forward import model_forward
+from faenet.transforms import FrameAveraging
 
 from crystal_diffusion.models.faenet import FAENetWithSigma
 from crystal_diffusion.models.faenet_utils import input_to_faenet
@@ -41,6 +43,8 @@ class FAENetScoreNetworkParameters(ScoreNetworkParameters):
         res=dict(hidden_channels=128, norm="batch1d"),
         res_updown=dict(hidden_channels=128, norm="batch1d")
     ))
+    frame_averaging: str = '3D'
+    fa_method: str = 'stochastic'
 
 
 class FAENetScoreNetwork(ScoreNetwork):
@@ -84,6 +88,7 @@ class FAENetScoreNetwork(ScoreNetwork):
         self._natoms = hyper_params.number_of_atoms
 
         self.faenet_network = FAENetWithSigma(**faenet_config)
+        self.fa_transform = FrameAveraging(hyper_params.frame_averaging, hyper_params.fa_method)
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(FAENetScoreNetwork, self)._check_batch(batch)
@@ -111,7 +116,15 @@ class FAENetScoreNetwork(ScoreNetwork):
         batch[NOISY_CARTESIAN_POSITIONS] = torch.bmm(relative_coordinates, batch[UNIT_CELL])  # positions in Angstrom
         graph_input = input_to_faenet(batch, radial_cutoff=self.r_max)
         mode = "train" if self.training else "eval"
-        faenet_output = self.faenet_network(graph_input, mode=mode)
+        graph_input =
+
+        faenet_output = model_forward(
+            batch=graph_input,
+            model=self.faenet_network,
+            frame_averaging='3D',  # TODO do not hard-code
+            mode=mode,
+            crystal_task=True  # use pbc for crystals - TODO do not hard code
+        )
 
         flat_scores = faenet_output['forces']
 
