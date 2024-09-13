@@ -34,7 +34,7 @@ def create_cif_files(
     Returns:
         None
     """
-    data = torch.load(ode_trajectory_pickle)
+    data = torch.load(ode_trajectory_pickle, map_location=torch.device('cpu'))
 
     cif_directory = visualization_artifacts_path / _cif_directory_template.format(
         trajectory_index=trajectory_index
