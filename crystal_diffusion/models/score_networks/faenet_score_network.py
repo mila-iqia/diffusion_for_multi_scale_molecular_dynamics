@@ -17,7 +17,7 @@ from crystal_diffusion.namespace import (NOISY_CARTESIAN_POSITIONS,
 class FAENetScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for FAENet score networks."""
     architecture: str = 'faenet'
-    number_of_atoms: int  # the number of atoms in a configuration.
+    number_of_atoms: int  # the number of atoms in a cframonfiguration.
     r_max: float = 5.0
     hidden_channels: int = 256
     num_filters: int = 480
@@ -116,7 +116,7 @@ class FAENetScoreNetwork(ScoreNetwork):
         batch[NOISY_CARTESIAN_POSITIONS] = torch.bmm(relative_coordinates, batch[UNIT_CELL])  # positions in Angstrom
         graph_input = input_to_faenet(batch, radial_cutoff=self.r_max)
         mode = "train" if self.training else "eval"
-        graph_input =
+        graph_input = self.fa_transform(graph_input)
 
         faenet_output = model_forward(
             batch=graph_input,
