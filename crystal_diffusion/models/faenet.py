@@ -126,8 +126,6 @@ class FAENetWithSigma(FAENet):
             graph_norm: bool = True,
             complex_mp: bool = False,
             energy_head: Optional[str] = None,  # {False, weighted-av-initial-embeds, weighted-av-final-embeds}
-            out_dim: int = 1,
-            pred_as_dict: bool = True,
             regress_forces: Optional[str] = None,
             force_decoder_type: Optional[str] = "mlp",
             force_decoder_model_config: Optional[dict] = {"hidden_channels": 128},
