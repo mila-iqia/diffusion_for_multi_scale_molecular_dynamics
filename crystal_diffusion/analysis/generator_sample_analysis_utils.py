@@ -1,8 +1,8 @@
 import torch
 from einops import einops
 
-from crystal_diffusion.generators.ode_position_generator import \
-    ExplodingVarianceODEPositionGenerator, ODESamplingParameters
+from crystal_diffusion.generators.ode_position_generator import (
+    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
 from crystal_diffusion.models.mace_utils import get_adj_matrix
 from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
@@ -17,34 +17,40 @@ class PartialODEPositionGenerator(ExplodingVarianceODEPositionGenerator):
         2- providing a fixed starting point, initial_relative_coordinates, instead of a random starting point.
     """
 
-    def __init__(self,
-                 noise_parameters: NoiseParameters,
-                 sampling_parameters: ODESamplingParameters,
-                 sigma_normalized_score_network: ScoreNetwork,
-                 initial_relative_coordinates: torch.Tensor,
-                 tf: float = 1.0,
-                 ):
+    def __init__(
+        self,
+        noise_parameters: NoiseParameters,
+        sampling_parameters: ODESamplingParameters,
+        sigma_normalized_score_network: ScoreNetwork,
+        initial_relative_coordinates: torch.Tensor,
+        tf: float = 1.0,
+    ):
         """Init method."""
-        super(PartialODEPositionGenerator, self).__init__(noise_parameters,
-                                                          sampling_parameters,
-                                                          sigma_normalized_score_network)
+        super(PartialODEPositionGenerator, self).__init__(
+            noise_parameters, sampling_parameters, sigma_normalized_score_network
+        )
 
         self.tf = tf
-        assert (initial_relative_coordinates.shape[1:] ==
-                (sampling_parameters.number_of_atoms, sampling_parameters.spatial_dimension)), \
-            "Inconsistent shape"
+        assert initial_relative_coordinates.shape[1:] == (
+            sampling_parameters.number_of_atoms,
+            sampling_parameters.spatial_dimension,
+        ), "Inconsistent shape"
 
         self.initial_relative_coordinates = initial_relative_coordinates
 
     def initialize(self, number_of_samples: int):
         """This method must initialize the samples from the fully noised distribution."""
-        assert number_of_samples == self.initial_relative_coordinates.shape[0], "Inconsistent number of samples"
+        assert (
+            number_of_samples == self.initial_relative_coordinates.shape[0]
+        ), "Inconsistent number of samples"
         return self.initial_relative_coordinates
 
 
-def get_interatomic_distances(cartesian_positions: torch.Tensor,
-                              basis_vectors: torch.Tensor,
-                              radial_cutoff: float = 5.0):
+def get_interatomic_distances(
+    cartesian_positions: torch.Tensor,
+    basis_vectors: torch.Tensor,
+    radial_cutoff: float = 5.0,
+):
     """Get Interatomic Distances.
 
     Args:
@@ -55,12 +61,18 @@ def get_interatomic_distances(cartesian_positions: torch.Tensor,
     Returns:
         distances : all distances up to cutoff.
     """
-    shifted_adjacency_matrix, shifts, batch_indices = get_adj_matrix(positions=cartesian_positions,
-                                                                     basis_vectors=basis_vectors,
-                                                                     radial_cutoff=radial_cutoff)
+    shifted_adjacency_matrix, shifts, batch_indices = get_adj_matrix(
+        positions=cartesian_positions,
+        basis_vectors=basis_vectors,
+        radial_cutoff=radial_cutoff,
+    )
 
     flat_positions = einops.rearrange(cartesian_positions, "b n d -> (b n) d")
 
-    displacements = flat_positions[shifted_adjacency_matrix[1]] - flat_positions[shifted_adjacency_matrix[0]] + shifts
+    displacements = (
+        flat_positions[shifted_adjacency_matrix[1]]
+        - flat_positions[shifted_adjacency_matrix[0]]
+        + shifts
+    )
     interatomic_distances = torch.linalg.norm(displacements, dim=1)
     return interatomic_distances
