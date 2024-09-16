@@ -11,7 +11,8 @@ import numpy as np
 import ovito
 import torch
 from ovito.io import import_file
-from ovito.modifiers import AffineTransformationModifier, CreateBondsModifier
+from ovito.modifiers import (AffineTransformationModifier,
+                             CombineDatasetsModifier, CreateBondsModifier)
 from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 
@@ -34,7 +35,7 @@ def create_cif_files(
     Returns:
         None
     """
-    data = torch.load(ode_trajectory_pickle, map_location=torch.device('cpu'))
+    data = torch.load(ode_trajectory_pickle, map_location=torch.device("cpu"))
 
     cif_directory = visualization_artifacts_path / _cif_directory_template.format(
         trajectory_index=trajectory_index
@@ -69,6 +70,8 @@ def create_ovito_session_state(
     visualization_artifacts_path: Path,
     trajectory_index: int,
     cell_scale_factor: int = 2,
+    reference_cif_file: Path = None,
+    cutoff_dict={"Si": 3.2, "H": 3.2},
 ):
     """Create Ovito session state.
 
@@ -78,6 +81,8 @@ def create_ovito_session_state(
         visualization_artifacts_path : where the various visualization artifacts should be written to disk.
         trajectory_index : the index of the trajectory to be loaded.
         cell_scale_factor : factor by which the cell will be modified. This is to mimic smaller atom size.
+        reference_cif_file [Optional]: path to a cif file that should be added as a reference data source.
+        cutoff_dict: Same particle cutoff used in bond creation.
 
     Returns:
         None
@@ -106,6 +111,11 @@ def create_ovito_session_state(
 
     # Create the Ovito pipeline
     pipeline = import_file(cif_directory_template)
+    if reference_cif_file is not None:
+        # Insert the particles from a second file into the dataset.
+        modifier = CombineDatasetsModifier()
+        modifier.source.load(str(reference_cif_file))
+        pipeline.modifiers.append(modifier)
 
     pipeline.modifiers.append(
         AffineTransformationModifier(
@@ -118,7 +128,15 @@ def create_ovito_session_state(
     bond_modifier.cutoff *= cell_scale_factor
     bond_modifier.vis.width = 0.25
     bond_modifier.vis.color = (0.5, 0.5, 0.5)
-    bond_modifier.vis.coloring_mode = ovito.vis.BondsVis.ColoringMode.Uniform
+    bond_modifier.vis.coloring_mode = ovito.vis.BondsVis.ColoringMode.ByParticle
+
+    bond_modifier.mode = ovito.modifiers.CreateBondsModifier.Mode.Pairwise
+    if reference_cif_file is not None:
+        for type_a, cutoff in cutoff_dict.items():
+            bond_modifier.set_pairwise_cutoff(
+                type_a, type_a, cutoff=cell_scale_factor * cutoff
+            )
+
     pipeline.modifiers.append(bond_modifier)
 
     pipeline.add_to_scene()
