@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, AnyStr, Dict, List, Tuple, Optional
+from typing import Any, AnyStr, Dict, List, Optional, Tuple
 
 import numpy as np
 import scipy.stats as ss
@@ -21,13 +21,12 @@ from crystal_diffusion.generators.predictor_corrector_position_generator import 
 from crystal_diffusion.generators.sde_position_generator import (
     ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
 from crystal_diffusion.loggers.logger_loader import log_figure
+from crystal_diffusion.namespace import CARTESIAN_POSITIONS
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
     get_positions_from_coordinates
 from crystal_diffusion.utils.structure_utils import compute_distances_in_batch
-from crystal_diffusion.namespace import CARTESIAN_POSITIONS
-
 
 logger = logging.getLogger(__name__)
 
@@ -215,9 +214,7 @@ class DiffusionSamplingCallback(Callback):
         """Generate a plot of the inter-atomic distances of the samples."""
         fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
 
-        minimum_distance = validation_dataset_distances.min()
         maximum_distance = validation_dataset_distances.max()
-        distance_range = maximum_distance - minimum_distance
 
         dmin = 0.0
         dmax = maximum_distance + 0.1

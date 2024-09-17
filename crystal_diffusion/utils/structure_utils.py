@@ -1,11 +1,14 @@
-from typing import Dict, List
+from typing import List
 
 import numpy as np
 import torch
-from pymatgen.core import Lattice, Structure
 from pykeops.torch import LazyTensor
+from pymatgen.core import Lattice, Structure
 
-from crystal_diffusion.utils.neighbors import _get_relative_coordinates_lattice_vectors, get_positions_from_coordinates, _get_shifted_positions
+from crystal_diffusion.utils.neighbors import (
+    _get_relative_coordinates_lattice_vectors, _get_shifted_positions,
+    get_positions_from_coordinates)
+
 
 def create_structure(basis_vectors: np.ndarray, relative_coordinates: np.ndarray, species: List[str]) -> Structure:
     """Create structure.
