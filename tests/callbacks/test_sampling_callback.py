@@ -100,7 +100,7 @@ class TestSamplingCallback:
         mocker.patch.object(sampling_cb, "_create_unit_cell", return_value=mock_create_create_unit_cell)
         mocker.patch.object(sampling_cb, "_compute_oracle_energies", return_value=mock_compute_lammps_energies)
 
-        sample_energies = sampling_cb.sample_and_evaluate_energy(pl_model)
+        sample_energies, _ = sampling_cb.sample_and_evaluate_energy(pl_model)
         assert isinstance(sample_energies, np.ndarray)
         # each call of compute lammps energy yields a np.array of size 1
         expected_size = int(number_of_samples / sample_batchsize) if sample_batchsize is not None else 1
