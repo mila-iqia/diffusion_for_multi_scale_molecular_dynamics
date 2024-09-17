@@ -41,8 +41,10 @@ class TestSamplingCallback:
     @pytest.fixture()
     def mock_create_generator(self, number_of_atoms, spatial_dimension):
         generator = MagicMock()
+
         def side_effect(n, device, unit_cell):
             return torch.rand(n, number_of_atoms, spatial_dimension)
+
         generator.sample.side_effect = side_effect
         return generator
 
@@ -116,8 +118,8 @@ class TestSamplingCallback:
         assert sample_energies.shape[0] == expected_size
 
     def test_distances_calculation(self, mocker, mock_compute_lammps_energies, mock_create_generator,
-                                        mock_create_create_unit_cell_torch, noise_parameters, sampling_parameters,
-                                        pl_model, tmpdir):
+                                   mock_create_create_unit_cell_torch, noise_parameters, sampling_parameters,
+                                   pl_model, tmpdir):
         sampling_parameters.structure_factor_max_distance = 5.0
         sampling_parameters.compute_structure_factor = True
 
