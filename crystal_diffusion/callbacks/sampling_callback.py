@@ -158,7 +158,7 @@ class DiffusionSamplingCallback(Callback):
         self.validation_energies = np.array([])
 
     def _initialize_validation_distance_array(self):
-        """Initialize the distances array to an empty"""
+        """Initialize the distances array to an empty array."""
         # this is similar to the energy array
         self.validation_distances = np.array([])
 
