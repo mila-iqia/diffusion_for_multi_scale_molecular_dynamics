@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+import torch
 from pytorch_lightning import LightningModule
 
 from crystal_diffusion.callbacks.sampling_callback import \
@@ -38,13 +39,21 @@ class TestSamplingCallback:
             return 0
 
     @pytest.fixture()
-    def mock_create_generator(self):
+    def mock_create_generator(self, number_of_atoms, spatial_dimension):
         generator = MagicMock()
+        def side_effect(n, device, unit_cell):
+            return torch.rand(n, number_of_atoms, spatial_dimension)
+        generator.sample.side_effect = side_effect
         return generator
 
     @pytest.fixture()
     def mock_create_create_unit_cell(self, number_of_samples):
         unit_cell = np.arange(number_of_samples)  # Dummy unit cell
+        return unit_cell
+
+    @pytest.fixture()
+    def mock_create_create_unit_cell_torch(self, number_of_samples, spatial_dimension):
+        unit_cell = torch.diag_embed(torch.rand(number_of_samples, spatial_dimension)) * 3  # Dummy unit cell
         return unit_cell
 
     @pytest.fixture()
@@ -105,3 +114,21 @@ class TestSamplingCallback:
         # each call of compute lammps energy yields a np.array of size 1
         expected_size = int(number_of_samples / sample_batchsize) if sample_batchsize is not None else 1
         assert sample_energies.shape[0] == expected_size
+
+    def test_distances_calculation(self, mocker, mock_compute_lammps_energies, mock_create_generator,
+                                        mock_create_create_unit_cell_torch, noise_parameters, sampling_parameters,
+                                        pl_model, tmpdir):
+        sampling_parameters.structure_factor_max_distance = 5.0
+        sampling_parameters.compute_structure_factor = True
+
+        sampling_cb = DiffusionSamplingCallback(
+            noise_parameters=noise_parameters,
+            sampling_parameters=sampling_parameters,
+            output_directory=tmpdir)
+        mocker.patch.object(sampling_cb, "_create_generator", return_value=mock_create_generator)
+        mocker.patch.object(sampling_cb, "_create_unit_cell", return_value=mock_create_create_unit_cell_torch)
+        mocker.patch.object(sampling_cb, "_compute_oracle_energies", return_value=mock_compute_lammps_energies)
+
+        _, sample_distances = sampling_cb.sample_and_evaluate_energy(pl_model)
+        assert isinstance(sample_distances, np.ndarray)
+        assert all(sample_distances > 0)
