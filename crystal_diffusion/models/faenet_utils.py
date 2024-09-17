@@ -72,7 +72,7 @@ def input_to_faenet(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data
 
     sigmas = x[NOISE].unsqueeze(1).repeat(1, n_atom_per_graph, 1)  # batch, n_atom, 1
     # create the pytorch-geometric graph
-    # TODO add sigma and do not hard-code Si
+    # TODO do not hard-code Si
     graph_data = Data(edge_index=adj_matrix,
                       neighbors=edge_per_batch,  # number of edges for each batch
                       pos=x[NOISY_RELATIVE_COORDINATES].view(-1, spatial_dimension),  # reduced positions N, 3
@@ -80,7 +80,7 @@ def input_to_faenet(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data
                       batch=batch_tensor.to(device),
                       cell_offsets=shift_matrix,
                       cell=cell,   # batch, spatial dimension, spatial dimension,
-                      sigma=sigmas.view(-1, 1)  # batch_size * n_atom_per_graph
+                      sigma=sigmas.view(-1, 1).to(device)  # batch_size * n_atom_per_graph
                       )
 
     return graph_data
