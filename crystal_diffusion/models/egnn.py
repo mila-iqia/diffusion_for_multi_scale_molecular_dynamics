@@ -13,7 +13,8 @@ import torch
 from torch import nn
 
 from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
-                                                 unsorted_segment_sum)
+                                                 unsorted_segment_sum,
+                                                 m3_pooling)
 
 
 class E_GCL(nn.Module):
@@ -34,6 +35,7 @@ class E_GCL(nn.Module):
         attention: bool = False,
         normalize: bool = False,
         coords_agg: str = "mean",
+        message_agg: str = "mean",
         tanh: bool = False,
     ):
         """E_GCL layer initialization.
@@ -62,9 +64,29 @@ class E_GCL(nn.Module):
         self.tanh = tanh
         self.epsilon = 1e-8
 
-        if coords_agg not in ["mean", "sum"]:
-            raise ValueError(f"coords_agg should be mean or sum. Got {coords_agg}")
-        self.coords_agg_fn = unsorted_segment_sum if coords_agg == "sum" else unsorted_segment_mean
+        use_message_m3_pooling = False
+        match message_agg:
+            case "mean":
+                self.message_agg_fn = unsorted_segment_mean
+            case "sum":
+                self.message_agg_fn = unsorted_segment_sum
+            case "m3":
+                self.message_agg_fn = m3_pooling
+                use_message_m3_pooling = True
+            case _:
+                raise ValueError(f"message_agg should be mean, sum or m3. Got {message_agg}")
+
+        self.use_coord_m3_pooling = False
+        match coords_agg:
+            case "mean":
+                self.coords_agg_fn = unsorted_segment_mean
+            case "sum":
+                self.coords_agg_fn = unsorted_segment_sum
+            case "m3":
+                self.coords_agg_fn = unsorted_segment_mean
+                self.use_coord_m3_pooling = True
+            case _:
+                raise ValueError(f"coords_agg should be mean, sum or m3. Got {coords_agg}")
 
         # message update MLP i.e. message m_{ij} used in the graph neural network.
         # \phi_e is eq. (3) in https://arxiv.org/pdf/2102.09844
@@ -81,6 +103,11 @@ class E_GCL(nn.Module):
         # node update mlp. Input is the node feature (size input_size) and the aggregated messages from neighbors
         # size (message_hidden_dimension)
         # \phi_h in eq. (6) in https://arxiv.org/pdf/2102.09844
+        if use_message_m3_pooling:
+            self.message_pooling_layer = nn.Linear(3 * message_hidden_dimensions_size, message_hidden_dimensions_size)
+        else:
+            self.message_pooling_layer = nn.Identity()
+
         node_input_size = input_size + message_hidden_dimensions_size
         self.node_mlp = nn.Sequential(
             nn.Linear(node_input_size, node_hidden_dimensions_size),
@@ -93,6 +120,18 @@ class E_GCL(nn.Module):
 
         # coordinate (x) update MLP. Input is the message m_{ij}
         # \phi_x in eq.(4) in https://arxiv.org/pdf/2102.09844
+
+        if self.use_coord_m3_pooling:
+            self.coord_min_pooling = nn.Sequential(
+                nn.Linear(message_hidden_dimensions_size, coordinate_hidden_dimensions_size),
+                act_fn,
+                nn.Linear(coordinate_hidden_dimensions_size, 1)
+            )
+            self.coord_max_pooling = nn.Sequential(
+                nn.Linear(message_hidden_dimensions_size, coordinate_hidden_dimensions_size),
+                act_fn,
+                nn.Linear(coordinate_hidden_dimensions_size, 1)
+            )
 
         coordinate_input_size = message_hidden_dimensions_size
         self.coord_mlp = nn.Sequential(nn.Linear(coordinate_input_size, coordinate_hidden_dimensions_size))
@@ -151,7 +190,10 @@ class E_GCL(nn.Module):
             updated node features. size: number of nodes, output_size
         """
         row = edge_index[:, 0]
-        agg = unsorted_segment_sum(messages, row, num_segments=x.size(0))  # sum messages m_i = \sum_j m_{ij}
+        # sum, average or m3-pool the messages - m_i = \sum_j m_{ij}
+        agg = self.message_agg_fn(messages, row, num_segments=x.size(0))
+        # if m3-pool, linear map from 3 * hidden_features to hidden_features
+        agg = self.message_pooling_layer(agg)  # does nothing for sum / mean pooling
         agg = torch.cat([x, agg], dim=1)  # concat h_i and m_i
         out = self.node_mlp(agg)
         if self.residual:  # optional skip connection
@@ -159,7 +201,7 @@ class E_GCL(nn.Module):
         return out
 
     def coord_model(self, coord: torch.Tensor, edge_index: torch.Tensor, coord_diff: torch.Tensor,
-                    messages: torch.Tensor) -> torch.Tensor:
+                    messages: torch.Tensor, radial: torch.Tensor) -> torch.Tensor:
         r"""Update the coordinates.
 
         .. math::
@@ -171,15 +213,57 @@ class E_GCL(nn.Module):
             edge_index: edge indices. size: number of edges, 2
             coord_diff: difference between coordinates, :math:`x_i - x_j`. size: number of edges, spatial dimension
             messages: messages between nodes i and j.  size: number of edges, message_hidden_dimensions_size
+            radial: distance squared between nodes i and j (size: number of edges, 1)
 
         Returns:
             updates coordinates. size: number of nodes, spatial dimension
         """
         row = edge_index[:, 0]
         trans = coord_diff * self.coord_mlp(messages)  # (x_i  - x_j) *  \phi_m(m_{ij})
+        # sum or average over j
         agg = self.coords_agg_fn(trans, row, num_segments=coord.size(0))  # sum over j
+        if self.use_coord_m3_pooling:
+            pooled_agg = self.coords_m3_pooling(coord, edge_index, coord_diff, messages, radial)
+            agg += pooled_agg.sum(dim=-1)  # mean + min + max
+            print("I did a coordinate m3 pooling")
         coord += agg
         return coord
+
+    def coords_m3_pooling(self, coord: torch.Tensor, edge_index: torch.Tensor, coord_diff: torch.Tensor,
+                          messages: torch.Tensor, radial: torch.Tensor):
+        r"""Aggregate the messages for the closest node and the furthest node.
+
+        For a given atom i, find the atom j that is the closest (as defined by the radial input tensor). The message
+        as returned is:
+
+        .. math::
+            f(x_i) = (x_i - x_j') * \phi_{xmin}(m_{ij'})   such that  j'=argmin_j ||x_i - x_j||
+
+        and similar for max.
+
+        Args:
+            coord: coordinates. size: number of nodes, spatial dimension
+            edge_index: edge indices. size: number of edges, 2
+            coord_diff: difference between coordinates, :math:`x_i - x_j`. size: number of edges, spatial dimension
+            messages: messages between nodes i and j.  size: number of edges, message_hidden_dimensions_size
+            radial: distance squared between nodes i and j (size: number of edges, 1)
+
+        Returns:
+            tensor of size (number of nodes, spatial dimension, 2) where the first channel is min, second is max
+        """
+        row = edge_index[:, 0]
+        min_messages = torch.zeros_like(coord)  # n_atom * spatial_dimension for min pooling
+        max_messages = torch.zeros_like(coord)  # for max pooling
+        radial = radial.squeeze(1)  # remove dim 1 to avoid a broadcasting
+        for i in range(coord.size(0)):
+            mask = (row == i)  # num_edges bool tensor
+            radial_values_min = torch.where(mask, radial, torch.full_like(radial, float('inf')))
+            _, min_idx = radial_values_min.min(dim=0)
+            min_messages[i, :] = coord_diff[min_idx] * self.coord_min_pooling(messages[min_idx])
+            radial_values_max = torch.where(mask, radial, torch.full_like(radial, -float('inf')))
+            _, max_idx = radial_values_max.max(dim=0)
+            max_messages[i, :] = coord_diff[max_idx] * self.coord_max_pooling(messages[max_idx])
+        return torch.stack([min_messages, max_messages], dim=2)
 
     def coord2radial(self, edge_index: torch.Tensor, coord: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute distances between linked nodes.
@@ -222,7 +306,7 @@ class E_GCL(nn.Module):
         radial, coord_diff = self.coord2radial(edge_index, coord)
 
         messages = self.message_model(h[row], h[col], radial)  # compute m_{ij}
-        coord = self.coord_model(coord, edge_index, coord_diff, messages)  # update x_i
+        coord = self.coord_model(coord, edge_index, coord_diff, messages, radial)  # update x_i
         h = self.node_model(h, edge_index, messages)  # update h_i
 
         return h, coord
@@ -245,6 +329,7 @@ class EGNN(nn.Module):
         normalize: bool = False,
         tanh: bool = False,
         coords_agg: str = "mean",
+        message_agg: str = "mean",
         n_layers: int = 4
     ):
         """EGNN model stacking multiple E_GCL layers.
@@ -262,7 +347,8 @@ class EGNN(nn.Module):
             attention: if True, multiply the message output by a gated value of the output. Defaults to False.
             normalize: if True, use a normalized version of the coordinates update i.e. x_i^l - x_j^l would be a unit
                 vector in eq. 4 in https://arxiv.org/pdf/2102.09844. Defaults to False.
-            coords_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
+            coords_agg: Use a mean,sum or m3 (mean-min-max) aggregation for the coordinates. Defaults to mean.
+            message_agg: Use a mean, sum or m3 (mean-min-max) aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
             n_layers: number of E_GCL layers. Defaults to 4.
         """
@@ -286,6 +372,7 @@ class EGNN(nn.Module):
                     attention=attention,
                     normalize=normalize,
                     coords_agg=coords_agg,
+                    message_agg=message_agg,
                     tanh=tanh
                 )
             )

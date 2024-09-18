@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import torch
 
@@ -67,6 +67,8 @@ def m3_pooling(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int)
     Returns:
         tensor with the average of data elements over ids. size: (num_segments, number of features * 3)
     """
+
+    # mean pooling
     mean_pool = unsorted_segment_mean(data, segment_ids, num_segments)
 
     results_min = torch.zeros_like(mean_pool)
@@ -76,14 +78,13 @@ def m3_pooling(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int)
     for i in range(num_segments):
         mask = (segment_ids == i).unsqueeze(1).expand(data.size(0), data.size(1))
         segment_values_min = torch.where(mask, data, torch.full_like(data, float('inf')))
-        min_values, _ = segment_values_min.min(dim=0)
+        min_values, min_idx = segment_values_min.min(dim=0)
         results_min[i, :] = min_values
         segment_values_max = torch.where(mask, data, torch.full_like(data, -float('inf')))
-        max_values, _ = segment_values_max.max(dim=0)
+        max_values, max_idx = segment_values_max.max(dim=0)
         results_max[i, :] = max_values
 
     results = torch.cat([mean_pool, results_min, results_max], dim=1)
-
     return results
 
 
