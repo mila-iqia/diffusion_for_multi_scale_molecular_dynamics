@@ -53,6 +53,40 @@ def unsorted_segment_mean(data: torch.Tensor, segment_ids: torch.Tensor, num_seg
     return result / count.clamp(min=1)  # avoid dividing by zeros by clamping the counts to be at least 1
 
 
+def m3_pooling(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int) -> torch.Tensor:
+    """Pool the elements with the min, max and mean by their ids.
+
+    For example, messages from atom j to atom i. We will return the concatenation of the mean, min and max over j.
+
+     Args:
+        data: tensor to aggregate. Size is
+            (number of elements to aggregate (e.g. number of edges in the message example), number of features)
+        segment_ids: ids of each element in data (e.g. messages going to node i in the message example)
+        num_segments: number of distinct elements in the data tensor
+
+    Returns:
+        tensor with the average of data elements over ids. size: (num_segments, number of features * 3)
+    """
+    mean_pool = unsorted_segment_mean(data, segment_ids, num_segments)
+
+    results_min = torch.zeros_like(mean_pool)
+    results_max = torch.zeros_like(mean_pool)
+
+    # get the min and max for each features for each node
+    for i in range(num_segments):
+        mask = (segment_ids == i).unsqueeze(1).expand(data.size(0), data.size(1))
+        segment_values_min = torch.where(mask, data, torch.full_like(data, float('inf')))
+        min_values, _ = segment_values_min.min(dim=0)
+        results_min[i, :] = min_values
+        segment_values_max = torch.where(mask, data, torch.full_like(data, -float('inf')))
+        max_values, _ = segment_values_max.max(dim=0)
+        results_max[i, :] = max_values
+
+    results = torch.cat([mean_pool, results_min, results_max], dim=1)
+
+    return results
+
+
 def get_edges(n_nodes: int) -> List[List[int]]:
     """Get a list of nodes for a fully connected graph.
 
