@@ -17,7 +17,7 @@ pyyaml==6.0.1
 pytest==7.1.2
 pytest-cov==3.0.0
 pytest-mock==3.12.0
-pytorch_lightning>=2.2.0
+pytorch_lightning==2.2.1
 pytype==2024.2.13
 sphinx==7.2.6
 sphinx-autoapi==3.0.0
