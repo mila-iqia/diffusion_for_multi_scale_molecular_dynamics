@@ -251,21 +251,22 @@ class E_GCL(nn.Module):
         Returns:
             tensor of size (number of nodes, spatial dimension, 2) where the first channel is min, second is max
         """
+        device = coord.device()
         row = edge_index[:, 0]
-        radial = radial.squeeze(0)
+        radial = radial.squeeze(1)
 
-        min_values = torch.full((coord.size(0),), float('inf')).to(coord)  # n_atom,
+        min_values = torch.full((coord.size(0),), float('inf')).to(device)  # n_atom,
 
         min_values.scatter_reduce_(0, row, radial, reduce='amin')
         min_scatter_mask = radial == min_values[row]
-        min_values_idx = torch.masked_select(torch.arange(min_scatter_mask.size(0)).to(coord), min_scatter_mask)
+        min_values_idx = torch.masked_select(torch.arange(min_scatter_mask.size(0)).to(device), min_scatter_mask)
         min_coord_diff = coord_diff[min_values_idx, :]
         min_messages = messages[min_values_idx, :]
 
         max_values = torch.full_like(min_values, -float('inf'))
         max_values.scatter_reduce_(0, row, radial, reduce='amax')
         max_scatter_mask = radial == max_values[row]
-        max_values_idx = torch.masked_select(torch.arange(max_scatter_mask.size(0)).to(coord), max_scatter_mask)
+        max_values_idx = torch.masked_select(torch.arange(max_scatter_mask.size(0)).to(device), max_scatter_mask)
         max_coord_diff = coord_diff[max_values_idx, :]
         max_messages = messages[max_values_idx, :]
 
