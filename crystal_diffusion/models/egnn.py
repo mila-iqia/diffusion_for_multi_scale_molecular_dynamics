@@ -251,7 +251,7 @@ class E_GCL(nn.Module):
         Returns:
             tensor of size (number of nodes, spatial dimension, 2) where the first channel is min, second is max
         """
-        device = coord.device()
+        device = coord.device
         row = edge_index[:, 0]
         radial = radial.squeeze(1)
 
