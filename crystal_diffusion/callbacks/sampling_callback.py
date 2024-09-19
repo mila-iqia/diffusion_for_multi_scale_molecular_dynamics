@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, AnyStr, Dict, List, Tuple
+from typing import Any, AnyStr, Dict, List, Optional, Tuple
 
 import numpy as np
 import scipy.stats as ss
@@ -21,13 +21,14 @@ from crystal_diffusion.generators.predictor_corrector_position_generator import 
 from crystal_diffusion.generators.sde_position_generator import (
     ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
 from crystal_diffusion.loggers.logger_loader import log_figure
+from crystal_diffusion.namespace import CARTESIAN_POSITIONS
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
     get_positions_from_coordinates
+from crystal_diffusion.utils.structure_utils import compute_distances_in_batch
 
 logger = logging.getLogger(__name__)
-
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -51,17 +52,22 @@ def instantiate_diffusion_sampling_callback(callback_params: Dict[AnyStr, Any],
             diffusion_sampling_callback = (
                 PredictorCorrectorDiffusionSamplingCallback(noise_parameters=noise_parameters,
                                                             sampling_parameters=sampling_parameters,
-                                                            output_directory=output_directory))
+                                                            output_directory=output_directory)
+            )
         case 'ode':
             sampling_parameters = ODESamplingParameters(**sampling_parameter_dictionary)
-            diffusion_sampling_callback = ODEDiffusionSamplingCallback(noise_parameters=noise_parameters,
-                                                                       sampling_parameters=sampling_parameters,
-                                                                       output_directory=output_directory)
+            diffusion_sampling_callback = (
+                ODEDiffusionSamplingCallback(noise_parameters=noise_parameters,
+                                             sampling_parameters=sampling_parameters,
+                                             output_directory=output_directory)
+            )
         case 'sde':
             sampling_parameters = SDESamplingParameters(**sampling_parameter_dictionary)
-            diffusion_sampling_callback = SDEDiffusionSamplingCallback(noise_parameters=noise_parameters,
-                                                                       sampling_parameters=sampling_parameters,
-                                                                       output_directory=output_directory)
+            diffusion_sampling_callback = (
+                SDEDiffusionSamplingCallback(noise_parameters=noise_parameters,
+                                             sampling_parameters=sampling_parameters,
+                                             output_directory=output_directory)
+            )
         case _:
             raise NotImplementedError("algorithm is not implemented")
 
@@ -73,7 +79,8 @@ class DiffusionSamplingCallback(Callback):
 
     def __init__(self, noise_parameters: NoiseParameters,
                  sampling_parameters: SamplingParameters,
-                 output_directory: str):
+                 output_directory: str
+                 ):
         """Init method."""
         self.noise_parameters = noise_parameters
         self.sampling_parameters = sampling_parameters
@@ -86,7 +93,11 @@ class DiffusionSamplingCallback(Callback):
             self.position_sample_output_directory = os.path.join(output_directory, 'diffusion_position_samples')
             Path(self.position_sample_output_directory).mkdir(parents=True, exist_ok=True)
 
+        self.compute_structure_factor = sampling_parameters.compute_structure_factor
+        self.structure_factor_max_distance = sampling_parameters.structure_factor_max_distance
+
         self._initialize_validation_energies_array()
+        self._initialize_validation_distance_array()
 
     @staticmethod
     def _get_orthogonal_unit_cell(batch_size: int, cell_dimensions: List[float]) -> torch.Tensor:
@@ -146,6 +157,11 @@ class DiffusionSamplingCallback(Callback):
         # data does not change, we will avoid having this in memory at all times.
         self.validation_energies = np.array([])
 
+    def _initialize_validation_distance_array(self):
+        """Initialize the distances array to an empty array."""
+        # this is similar to the energy array
+        self.validation_distances = np.array([])
+
     def _create_generator(self, pl_model: LightningModule) -> PositionGenerator:
         """Draw a sample from the generative model."""
         raise NotImplementedError("This method must be implemented in a child class")
@@ -192,6 +208,37 @@ class DiffusionSamplingCallback(Callback):
         fig.tight_layout()
         return fig
 
+    @staticmethod
+    def _plot_distance_histogram(sample_distances: np.ndarray, validation_dataset_distances: np.array,
+                                 epoch: int) -> plt.figure:
+        """Generate a plot of the inter-atomic distances of the samples."""
+        fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
+
+        maximum_distance = validation_dataset_distances.max()
+
+        dmin = 0.0
+        dmax = maximum_distance + 0.1
+        bins = np.linspace(dmin, dmax, 101)
+
+        fig.suptitle(f'Sampling Distances Distribution\nEpoch {epoch}')
+
+        common_params = dict(density=True, bins=bins, histtype="stepfilled", alpha=0.25)
+
+        ax1 = fig.add_subplot(111)
+
+        ax1.hist(sample_distances, **common_params,
+                 label=f'Samples \n(total count = {len(sample_distances)})',
+                 color='red')
+        ax1.hist(validation_dataset_distances, **common_params,
+                 label=f'Validation Data \n(count = {len(validation_dataset_distances)})', color='green')
+
+        ax1.set_xlabel(r'Distance ($\AA$)')
+        ax1.set_ylabel('Density')
+        ax1.legend(loc='upper right', fancybox=True, shadow=True, ncol=1, fontsize=6)
+        ax1.set_xlim(left=dmin, right=dmax)
+        fig.tight_layout()
+        return fig
+
     def _compute_oracle_energies(self, batch_relative_coordinates: torch.Tensor) -> np.ndarray:
         """Compute energies from samples."""
         batch_size = batch_relative_coordinates.shape[0]
@@ -215,7 +262,8 @@ class DiffusionSamplingCallback(Callback):
 
         return np.array(list_energy)
 
-    def sample_and_evaluate_energy(self, pl_model: LightningModule, current_epoch: int = 0) -> np.ndarray:
+    def sample_and_evaluate_energy(self, pl_model: LightningModule, current_epoch: int = 0
+                                   ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """Create samples and estimate their energy with an oracle (LAMMPS).
 
         Args:
@@ -234,6 +282,7 @@ class DiffusionSamplingCallback(Callback):
             self.sampling_parameters.sample_batchsize = self.sampling_parameters.number_of_samples
 
         sample_energies = []
+        sample_distances = []
 
         for n in range(0, self.sampling_parameters.number_of_samples, self.sampling_parameters.sample_batchsize):
             unit_cell_ = unit_cell[n:min(n + self.sampling_parameters.sample_batchsize,
@@ -249,12 +298,24 @@ class DiffusionSamplingCallback(Callback):
                 # write trajectories to disk and reset to save memory
                 generator.sample_trajectory_recorder.write_to_pickle(sample_output_path)
                 generator.sample_trajectory_recorder.reset()
+            if self.compute_structure_factor:
+                batch_cartesian_positions = get_positions_from_coordinates(samples.detach(), unit_cell_)
+                sample_distances += [
+                    compute_distances_in_batch(batch_cartesian_positions,
+                                               unit_cell_,
+                                               self.structure_factor_max_distance
+                                               ).cpu().numpy()
+                ]
             batch_relative_coordinates = samples.detach().cpu()
             sample_energies += [self._compute_oracle_energies(batch_relative_coordinates)]
 
         sample_energies = np.concatenate(sample_energies)
+        if self.compute_structure_factor:
+            sample_distances = np.concatenate(sample_distances)
+        else:
+            sample_distances = None
 
-        return sample_energies
+        return sample_energies, sample_distances
 
     def on_validation_batch_start(self, trainer: Trainer,
                                   pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
@@ -263,13 +324,19 @@ class DiffusionSamplingCallback(Callback):
             return
         self.validation_energies = np.append(self.validation_energies, batch['potential_energy'].cpu().numpy())
 
+        if self.compute_structure_factor:
+            unit_cell = torch.diag_embed(batch['box'])
+            batch_distances = compute_distances_in_batch(batch[CARTESIAN_POSITIONS], unit_cell,
+                                                         self.structure_factor_max_distance)
+            self.validation_distances = np.append(self.validation_distances, batch_distances.cpu().numpy())
+
     def on_validation_epoch_end(self, trainer: Trainer, pl_model: LightningModule) -> None:
         """On validation epoch end."""
         if not self._compute_results_at_this_epoch(trainer.current_epoch):
             return
 
         # generate samples and evaluate their energy with an oracle
-        sample_energies = self.sample_and_evaluate_energy(pl_model, trainer.current_epoch)
+        sample_energies, sample_distances = self.sample_and_evaluate_energy(pl_model, trainer.current_epoch)
 
         energy_output_path = os.path.join(self.energy_sample_output_directory,
                                           f"energies_sample_epoch={trainer.current_epoch}.pt")
@@ -279,13 +346,28 @@ class DiffusionSamplingCallback(Callback):
         ks_distance, p_value = self.compute_kolmogorov_smirnov_distance_and_pvalue(sample_energies,
                                                                                    self.validation_energies)
 
-        pl_model.log("validation_epoch_ks_distance", ks_distance, on_step=False, on_epoch=True)
-        pl_model.log("validation_epoch_ks_p_value", p_value, on_step=False, on_epoch=True)
+        pl_model.log("validation_epoch_energy_ks_distance", ks_distance, on_step=False, on_epoch=True)
+        pl_model.log("validation_epoch_energy_ks_p_value", p_value, on_step=False, on_epoch=True)
 
         for pl_logger in trainer.loggers:
             log_figure(figure=fig, global_step=trainer.global_step, pl_logger=pl_logger)
 
         self._initialize_validation_energies_array()
+
+        if self.compute_structure_factor:
+            distance_output_path = os.path.join(self.energy_sample_output_directory,
+                                                f"distances_sample_epoch={trainer.current_epoch}.pt")
+            torch.save(torch.from_numpy(sample_distances), distance_output_path)
+            fig = self._plot_distance_histogram(sample_distances, self.validation_distances, trainer.current_epoch)
+            ks_distance, p_value = self.compute_kolmogorov_smirnov_distance_and_pvalue(sample_distances,
+                                                                                       self.validation_distances)
+            pl_model.log("validation_epoch_distances_ks_distance", ks_distance, on_step=False, on_epoch=True)
+            pl_model.log("validation_epoch_distances_ks_p_value", p_value, on_step=False, on_epoch=True)
+
+            for pl_logger in trainer.loggers:
+                log_figure(figure=fig, global_step=trainer.global_step, pl_logger=pl_logger, name="distances")
+
+            self._initialize_validation_distance_array()
 
 
 class PredictorCorrectorDiffusionSamplingCallback(DiffusionSamplingCallback):
