@@ -92,7 +92,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
 
         r = torch.linalg.norm(cartesian_displacements, dim=1)
 
-        pseudo_force_prefactors = -2.0 * s * (r - r0) / r
+        pseudo_force_prefactors = 2.0 * s * (r - r0) / r
         # Repeat so we can multiply by r_hat
         repeat_pseudo_force_prefactors = einops.repeat(
             pseudo_force_prefactors, "e -> e d", d=spatial_dimension

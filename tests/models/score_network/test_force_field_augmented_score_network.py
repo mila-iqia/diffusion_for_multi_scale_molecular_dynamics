@@ -132,7 +132,7 @@ class TestForceFieldAugmentedScoreNetwork:
             r_norm = torch.linalg.norm(r)
 
             r_hat = r / r_norm
-            computed_contribution = -2.0 * s * (r_norm - r0) * r_hat
+            computed_contribution = 2.0 * s * (r_norm - r0) * r_hat
             torch.testing.assert_allclose(expected_contribution, computed_contribution)
 
     def test_get_cartesian_pseudo_forces(
@@ -144,8 +144,9 @@ class TestForceFieldAugmentedScoreNetwork:
                 adj_info, batch
             )
         )
-        cartesian_pseudo_force_contributions = (force_field_augmented_score_network.
-                                                _get_cartesian_pseudo_forces_contributions(cartesian_displacements))
+        cartesian_pseudo_force_contributions = (
+            force_field_augmented_score_network._get_cartesian_pseudo_forces_contributions(
+                cartesian_displacements))
 
         computed_cartesian_pseudo_forces = (
             force_field_augmented_score_network._get_cartesian_pseudo_forces(
@@ -168,3 +169,53 @@ class TestForceFieldAugmentedScoreNetwork:
         torch.testing.assert_allclose(
             computed_cartesian_pseudo_forces, expected_cartesian_pseudo_forces
         )
+
+    def test_augmented_scores(
+        self, batch, score_network, force_field_augmented_score_network
+    ):
+        forces = (
+            force_field_augmented_score_network.get_relative_coordinates_pseudo_force(
+                batch
+            )
+        )
+
+        raw_scores = score_network(batch)
+        augmented_scores = force_field_augmented_score_network(batch)
+
+        torch.testing.assert_allclose(augmented_scores - raw_scores, forces)
+
+
+def test_specific_scenario_sanity_check():
+    """Test a specific scenario.
+
+    It is very easy to have the forces point in the wrong direction. Here we check explicitly that
+    the computed forces points AWAY from the neighors.
+    """
+    spatial_dimension = 3
+
+    force_field_parameters = ForceFieldParameters(radial_cutoff=0.4, strength=1)
+
+    force_field_score_network = ForceFieldAugmentedScoreNetwork(
+        score_network=None, force_field_parameters=force_field_parameters
+    )
+
+    # Put two atoms on a straight line
+    relative_coordinates = torch.tensor([[[0.35, 0.5, 0.0], [0.65, 0.5, 0.0]]])
+
+    basis_vectors = torch.diag(torch.ones(spatial_dimension)).unsqueeze(0)
+
+    batch = {NOISY_RELATIVE_COORDINATES: relative_coordinates, UNIT_CELL: basis_vectors}
+
+    forces = force_field_score_network.get_relative_coordinates_pseudo_force(batch)
+
+    force_on_atom1 = forces[0, 0]
+    force_on_atom2 = forces[0, 1]
+
+    assert force_on_atom1[0] < 0.0
+    assert force_on_atom2[0] > 0.0
+
+    torch.testing.assert_allclose(force_on_atom1[1:], torch.zeros(2))
+    torch.testing.assert_allclose(force_on_atom2[1:], torch.zeros(2))
+    torch.testing.assert_allclose(
+        force_on_atom1 + force_on_atom2, torch.zeros(spatial_dimension)
+    )
