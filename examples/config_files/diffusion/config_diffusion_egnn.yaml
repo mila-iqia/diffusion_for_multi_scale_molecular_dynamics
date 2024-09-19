@@ -1,6 +1,6 @@
 # general
-exp_name: egnn_example
-run_name: run2
+exp_name: dev_debug
+run_name: run1
 max_epoch: 100
 log_every_n_steps: 1
 gradient_clipping: 0
@@ -82,6 +82,8 @@ diffusion_sampling:
     sample_every_n_epochs: 1
     record_samples: True
     cell_dimensions: [5.43, 5.43, 5.43]
+    compute_structure_factor: True
+    structure_factor_max_distance: 10.0
 
 logging:
 #  - comet

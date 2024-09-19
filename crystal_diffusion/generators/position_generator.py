@@ -18,6 +18,8 @@ class SamplingParameters:
     first_sampling_epoch: int = 1  # Epoch at which sampling can begin; no sampling before this epoch.
     cell_dimensions: List[float]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
     record_samples: bool = False  # should the predictor and corrector steps be recorded to a file
+    compute_structure_factor: bool = False  # should the structure factor (distances distribution) be recorded
+    structure_factor_max_distance: float = 10.0  # cutoff for the structure factor
 
 
 class PositionGenerator(ABC):
