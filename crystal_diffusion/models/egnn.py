@@ -11,7 +11,7 @@ from typing import Callable, Tuple
 
 import torch
 from torch import nn
-from torch.scatter import scatter
+from torch_scatter import scatter
 
 from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
                                                  unsorted_segment_sum,
