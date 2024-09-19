@@ -162,7 +162,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         list_pseudo_force_components = []
 
         for space_idx in range(spatial_dimension):
-            pseudo_force_component = torch.zeros(natoms * batch_size)
+            pseudo_force_component = torch.zeros(natoms * batch_size).to(cartesian_pseudo_force_contributions)
             pseudo_force_component.scatter_add_(
                 dim=0,
                 index=node_idx,
