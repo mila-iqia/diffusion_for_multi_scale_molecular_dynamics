@@ -255,6 +255,11 @@ class E_GCL(nn.Module):
         row = edge_index[:, 0]
         radial = radial.squeeze(1)
 
+        # if 2 distances are equal, the following script will not work. To avoid this, we add some small random noise
+        # to the distances to break possible equalities. In such cases, it doesn't matter which edge is taken as the
+        # min or max
+        radial += torch.randn_like(radial) * 1e-5
+
         min_values = torch.full((coord.size(0),), float('inf')).to(device)  # n_atom,
 
         min_values.scatter_reduce_(0, row, radial, reduce='amin')
