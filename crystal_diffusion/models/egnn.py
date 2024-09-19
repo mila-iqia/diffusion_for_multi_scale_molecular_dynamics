@@ -11,6 +11,7 @@ from typing import Callable, Tuple
 
 import torch
 from torch import nn
+from torch.scatter import scatter
 
 from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
                                                  unsorted_segment_sum,
@@ -225,7 +226,6 @@ class E_GCL(nn.Module):
         if self.use_coord_m3_pooling:
             pooled_agg = self.coords_m3_pooling(coord, edge_index, coord_diff, messages, radial)
             agg += pooled_agg.sum(dim=-1)  # mean + min + max
-            print("I did a coordinate m3 pooling")
         coord += agg
         return coord
 
@@ -252,17 +252,20 @@ class E_GCL(nn.Module):
             tensor of size (number of nodes, spatial dimension, 2) where the first channel is min, second is max
         """
         row = edge_index[:, 0]
-        min_messages = torch.zeros_like(coord)  # n_atom * spatial_dimension for min pooling
-        max_messages = torch.zeros_like(coord)  # for max pooling
-        radial = radial.squeeze(1)  # remove dim 1 to avoid a broadcasting
-        for i in range(coord.size(0)):
-            mask = (row == i)  # num_edges bool tensor
-            radial_values_min = torch.where(mask, radial, torch.full_like(radial, float('inf')))
-            _, min_idx = radial_values_min.min(dim=0)
-            min_messages[i, :] = coord_diff[min_idx] * self.coord_min_pooling(messages[min_idx])
-            radial_values_max = torch.where(mask, radial, torch.full_like(radial, -float('inf')))
-            _, max_idx = radial_values_max.max(dim=0)
-            max_messages[i, :] = coord_diff[max_idx] * self.coord_max_pooling(messages[max_idx])
+        # this is a trick to get the messages & coords diff associated with the largest / smallest distances
+        radial_augmented = torch.cat([radial, coord_diff, messages], dim=1)
+        # resulting size: n_edge, 1 + spatial_dimension + messages_hidden dimension
+
+        features_min = scatter(radial_augmented, row, dim=0, dim_size=coord.size(0), reduce='min')[:, 1:]
+        # resulting size: number of nodes, spatial_dimension + messages_hidden_dimension
+        features_max = scatter(radial_augmented, row, dim=0, dim_size=coord.size(0), reduce='max')[:, 1:]
+
+        # min_messages = coord_diff[indices for minimal distances for each atom] +
+        # self.coord_min_pooling(messages[indices for min distances])
+        spatial_dimension = coord.size(1)
+        min_messages = features_min[:, :spatial_dimension] * self.coord_min_pooling(features_min[:, spatial_dimension:])
+        max_messages = features_max[:, :spatial_dimension] * self.coord_max_pooling(features_max[:, spatial_dimension:])
+
         return torch.stack([min_messages, max_messages], dim=2)
 
     def coord2radial(self, edge_index: torch.Tensor, coord: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
