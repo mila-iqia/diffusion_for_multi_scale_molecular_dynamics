@@ -256,9 +256,17 @@ class E_GCL(nn.Module):
         radial_augmented = torch.cat([radial, coord_diff, messages], dim=1)
         # resulting size: n_edge, 1 + spatial_dimension + messages_hidden dimension
 
-        features_min = scatter(radial_augmented, row, dim=0, dim_size=coord.size(0), reduce='min')[:, 1:]
+        row_one_hot = torch.nn.functional.one_hot(row, num_classes=coord.size(0))  # num_edge, num_atom
+        radial_onehot = radial_augmented.unsqueeze(1) * row_one_hot.unsqueeze(-1)
+        # size of radial_onehot = num_edge, num_atoms, 1 + spatial_dimension + message_hidden_dimensions_size
+        radial_onehot[row_one_hot == 0] = float('inf')
+        _, min_idx = radial_onehot[:, :, 0].min(dim=0)
+        radial_augmented[row_one_hot == 0] = -float('inf')
+        _, max_idx = radial_onehot[:, :, 0].max(dim=0)
+
+        features_min = radial_augmented[min_idx][:, 1:]
+        features_max = radial_augmented[max_idx][:, 1:]
         # resulting size: number of nodes, spatial_dimension + messages_hidden_dimension
-        features_max = scatter(radial_augmented, row, dim=0, dim_size=coord.size(0), reduce='max')[:, 1:]
 
         # min_messages = coord_diff[indices for minimal distances for each atom] +
         # self.coord_min_pooling(messages[indices for min distances])

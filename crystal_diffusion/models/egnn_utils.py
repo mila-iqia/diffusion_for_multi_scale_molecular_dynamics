@@ -1,7 +1,6 @@
-from typing import List, Optional
+from typing import List, Tuple
 
 import torch
-from torch_scatter import scatter
 
 
 def unsorted_segment_sum(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int) -> torch.Tensor:
@@ -54,6 +53,31 @@ def unsorted_segment_mean(data: torch.Tensor, segment_ids: torch.Tensor, num_seg
     return result / count.clamp(min=1)  # avoid dividing by zeros by clamping the counts to be at least 1
 
 
+def unsorted_segment_min_max(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int
+                             ) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Min or max pool all the elements in data by their ids.
+
+    For example, data could be messages from atoms j to i. We want to average all messages going to i
+    i.e. average all elements in the message tensor that are going to i. This is indicated by the segment_ids input.
+
+    Args:
+        data: tensor to aggregate. Size is
+            (number of elements to aggregate (e.g. number of edges in the message example), number of features)
+        segment_ids: ids of each element in data (e.g. messages going to node i in the message example)
+        num_segments: number of distinct elements in the data tensor
+
+    Returns:
+        tensor with the average of data elements over ids. size: (num_segments, number of features)
+    """
+    segment_ids_onehot = torch.nn.functional.one_hot(segment_ids, num_classes=num_segments)  # num_edge, num_segments
+    data_onehot = data.unsqueeze(1) * segment_ids_onehot.unsqueeze(-1)  # num_edge, num_segments, num_features
+    data_onehot[segment_ids_onehot == 0] = float('inf')
+    pooled_min, _ = data_onehot.min(dim=0)
+    data_onehot[segment_ids_onehot == 0] = -float('inf')
+    pooled_max, _ = data_onehot.max(dim=0)
+    return pooled_min, pooled_max
+
+
 def m3_pooling(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int) -> torch.Tensor:
     """Pool the elements with the min, max and mean by their ids.
 
@@ -72,9 +96,7 @@ def m3_pooling(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int)
     # mean pooling
     mean_pool = unsorted_segment_mean(data, segment_ids, num_segments)
 
-    min_pool = scatter(data, segment_ids, dim_size=num_segments, reduce='min', dim=0)
-    max_pool = scatter(data, segment_ids, dim_size=num_segments, reduce='max', dim=0)
-
+    min_pool, max_pool = unsorted_segment_min_max(data, segment_ids, num_segments)
     results = torch.cat([mean_pool, min_pool, max_pool], dim=1)
     return results
 
