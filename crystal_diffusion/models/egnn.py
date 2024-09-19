@@ -252,27 +252,27 @@ class E_GCL(nn.Module):
             tensor of size (number of nodes, spatial dimension, 2) where the first channel is min, second is max
         """
         row = edge_index[:, 0]
-        # this is a trick to get the messages & coords diff associated with the largest / smallest distances
-        radial_augmented = torch.cat([radial, coord_diff, messages], dim=1)
-        # resulting size: n_edge, 1 + spatial_dimension + messages_hidden dimension
+        radial = radial.squeeze(0)
 
-        row_one_hot = torch.nn.functional.one_hot(row, num_classes=coord.size(0))  # num_edge, num_atom
-        radial_onehot = radial_augmented.unsqueeze(1) * row_one_hot.unsqueeze(-1)
-        # size of radial_onehot = num_edge, num_atoms, 1 + spatial_dimension + message_hidden_dimensions_size
-        radial_onehot[row_one_hot == 0] = float('inf')
-        _, min_idx = radial_onehot[:, :, 0].min(dim=0)
-        radial_augmented[row_one_hot == 0] = -float('inf')
-        _, max_idx = radial_onehot[:, :, 0].max(dim=0)
+        min_values = torch.full((coord.size(0),), float('inf')).to(coord)  # n_atom,
 
-        features_min = radial_augmented[min_idx][:, 1:]
-        features_max = radial_augmented[max_idx][:, 1:]
-        # resulting size: number of nodes, spatial_dimension + messages_hidden_dimension
+        min_values.scatter_reduce_(0, row, radial, reduce='amin')
+        min_scatter_mask = radial == min_values[row]
+        min_values_idx = torch.masked_select(torch.arange(min_scatter_mask.size(0)).to(coord), min_scatter_mask)
+        min_coord_diff = coord_diff[min_values_idx, :]
+        min_messages = messages[min_values_idx, :]
+
+        max_values = torch.full_like(min_values, -float('inf'))
+        max_values.scatter_reduce_(0, row, radial, reduce='amax')
+        max_scatter_mask = radial == max_values[row]
+        max_values_idx = torch.masked_select(torch.arange(max_scatter_mask.size(0)).to(coord), max_scatter_mask)
+        max_coord_diff = coord_diff[max_values_idx, :]
+        max_messages = messages[max_values_idx, :]
 
         # min_messages = coord_diff[indices for minimal distances for each atom] +
         # self.coord_min_pooling(messages[indices for min distances])
-        spatial_dimension = coord.size(1)
-        min_messages = features_min[:, :spatial_dimension] * self.coord_min_pooling(features_min[:, spatial_dimension:])
-        max_messages = features_max[:, :spatial_dimension] * self.coord_max_pooling(features_max[:, spatial_dimension:])
+        min_messages = min_coord_diff * self.coord_min_pooling(min_messages)
+        max_messages = max_coord_diff * self.coord_max_pooling(max_messages)
 
         return torch.stack([min_messages, max_messages], dim=2)
 

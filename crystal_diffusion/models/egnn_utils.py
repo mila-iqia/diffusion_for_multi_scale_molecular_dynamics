@@ -69,13 +69,16 @@ def unsorted_segment_min_max(data: torch.Tensor, segment_ids: torch.Tensor, num_
     Returns:
         tensor with the average of data elements over ids. size: (num_segments, number of features)
     """
-    segment_ids_onehot = torch.nn.functional.one_hot(segment_ids, num_classes=num_segments)  # num_edge, num_segments
-    data_onehot = data.unsqueeze(1) * segment_ids_onehot.unsqueeze(-1)  # num_edge, num_segments, num_features
-    data_onehot[segment_ids_onehot == 0] = float('inf')
-    pooled_min, _ = data_onehot.min(dim=0)
-    data_onehot[segment_ids_onehot == 0] = -float('inf')
-    pooled_max, _ = data_onehot.max(dim=0)
-    return pooled_min, pooled_max
+    result_shape = (num_segments, data.size(1))  # output size
+    result_min = torch.full(result_shape, float('inf')).to(data)
+    result_max = torch.full(result_shape, -float('inf')).to(data)
+    segment_ids = segment_ids.unsqueeze(-1).expand(-1, data.size(1))
+    # segment_ids needs to have the same size as data for the backward pass to go through
+    # see https://pytorch.org/docs/stable/generated/torch.Tensor.scatter_add_.html#torch.Tensor.scatter_add_
+    result_min.scatter_reduce_(0, segment_ids, data, reduce='amin')
+    result_max.scatter_reduce_(0, segment_ids, data, reduce='amax')
+
+    return result_min, result_max
 
 
 def m3_pooling(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int) -> torch.Tensor:
