@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, AnyStr, Dict, List, Optional, Tuple
+from typing import Any, AnyStr, Dict, Optional, Tuple
 
 import numpy as np
 import scipy.stats as ss
@@ -26,7 +26,8 @@ from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
     get_positions_from_coordinates
-from crystal_diffusion.utils.structure_utils import compute_distances_in_batch
+from crystal_diffusion.utils.structure_utils import (
+    compute_distances_in_batch, get_orthogonal_basis_vectors)
 
 logger = logging.getLogger(__name__)
 
@@ -100,20 +101,6 @@ class DiffusionSamplingCallback(Callback):
         self._initialize_validation_distance_array()
 
     @staticmethod
-    def _get_orthogonal_unit_cell(batch_size: int, cell_dimensions: List[float]) -> torch.Tensor:
-        """Get orthogonal unit cell.
-
-        Args:
-            batch_size: number of required repetitions of the unit cell.
-            cell_dimensions : list of dimensions that correspond to the sides of the unit cell.
-
-        Returns:
-            unit_cell: a diagonal matrix with the dimensions along the diagonal.
-        """
-        unit_cell = torch.diag(torch.Tensor(cell_dimensions)).unsqueeze(0).repeat(batch_size, 1, 1)
-        return unit_cell
-
-    @staticmethod
     def compute_kolmogorov_smirnov_distance_and_pvalue(sampling_energies: np.ndarray,
                                                        reference_energies: np.ndarray) -> Tuple[float, float]:
         """Compute Kolmogorov Smirnov Distance.
@@ -169,9 +156,9 @@ class DiffusionSamplingCallback(Callback):
     def _create_unit_cell(self, pl_model) -> torch.Tensor:
         """Create the batch of unit cells needed by the generative model."""
         # TODO we will have to sample unit cell dimensions at some points instead of working with fixed size
-        unit_cell = (self._get_orthogonal_unit_cell(batch_size=self.sampling_parameters.number_of_samples,
-                                                    cell_dimensions=self.sampling_parameters.cell_dimensions)
-                     .to(pl_model.device))
+        unit_cell = (
+            get_orthogonal_basis_vectors(batch_size=self.sampling_parameters.number_of_samples,
+                                         cell_dimensions=self.sampling_parameters.cell_dimensions).to(pl_model.device))
         return unit_cell
 
     @staticmethod
@@ -243,7 +230,7 @@ class DiffusionSamplingCallback(Callback):
         """Compute energies from samples."""
         batch_size = batch_relative_coordinates.shape[0]
         cell_dimensions = self.sampling_parameters.cell_dimensions
-        basis_vectors = self._get_orthogonal_unit_cell(batch_size, cell_dimensions)
+        basis_vectors = get_orthogonal_basis_vectors(batch_size, cell_dimensions)
         batch_cartesian_positions = get_positions_from_coordinates(batch_relative_coordinates, basis_vectors)
 
         atom_types = np.ones(self.sampling_parameters.number_of_atoms, dtype=int)

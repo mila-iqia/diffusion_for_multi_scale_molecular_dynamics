@@ -91,3 +91,17 @@ def compute_distances_in_batch(cartesian_positions: torch.Tensor, unit_cell: tor
     # Identify neighbors within the radial_cutoff, but avoiding self.
     valid_neighbor_mask = torch.logical_and(zero < distances, distances <= radial_cutoff)
     return distances[valid_neighbor_mask]
+
+
+def get_orthogonal_basis_vectors(batch_size: int, cell_dimensions: List[float]) -> torch.Tensor:
+    """Get orthogonal basis vectors.
+
+    Args:
+        batch_size: number of required repetitions of the basis vectors.
+        cell_dimensions : list of dimensions that correspond to the sides of the unit cell.
+
+    Returns:
+        basis_vectors: a diagonal matrix with the dimensions along the diagonal.
+    """
+    basis_vectors = torch.diag(torch.Tensor(cell_dimensions)).unsqueeze(0).repeat(batch_size, 1, 1)
+    return basis_vectors
