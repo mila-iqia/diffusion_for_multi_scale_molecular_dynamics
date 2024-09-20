@@ -83,10 +83,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
 
         if self.hyper_params.sampling_parameters is not None:
+            assert self.hyper_params.sampling_parameters.compute_structure_factor, \
+                "compute_structure_factor should be True. Config is now inconsistent."
             self.draw_samples = True
-            self.max_distance = (
-                min(self.hyper_params.sampling_parameters.cell_dimensions) - 0.1
-            )
+            self.max_distance = self.hyper_params.sampling_parameters.structure_factor_max_distance
             self.structure_ks_metric = KolmogorovSmirnovMetrics()
         else:
             self.draw_samples = False
