@@ -107,6 +107,8 @@ class TestPositionDiffusionLightningModel:
         sampling_parameters = PredictorCorrectorSamplingParameters(number_of_atoms=number_of_atoms,
                                                                    spatial_dimension=spatial_dimension,
                                                                    number_of_samples=number_of_samples,
+                                                                   compute_structure_factor=True,
+                                                                   structure_factor_max_distance=min(cell_dimensions),
                                                                    cell_dimensions=cell_dimensions)
         return sampling_parameters
 
