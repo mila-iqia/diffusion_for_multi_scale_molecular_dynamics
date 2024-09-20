@@ -53,7 +53,8 @@ def compute_distances_in_batch(cartesian_positions: torch.Tensor, unit_cell: tor
     zero = torch.tensor(0.0).to(device)
 
     # The relative coordinates lattice vectors have dimensions [number of lattice vectors, spatial_dimension]
-    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells=1).to(device)
+    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells=1,
+                                                                         spatial_dimension=spatial_dimension).to(device)
     number_of_relative_lattice_vectors = len(relative_lattice_vectors)
 
     # Repeat the relative lattice vectors along the batch dimension; the basis vectors could potentially be
