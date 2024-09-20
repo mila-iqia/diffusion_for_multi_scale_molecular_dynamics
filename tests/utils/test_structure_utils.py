@@ -15,7 +15,10 @@ def spatial_dimension():
 
 @pytest.fixture()
 def cell_dimensions(spatial_dimension):
-    return list(7.5 + 2.5 * torch.rand(spatial_dimension).numpy())
+    values = []
+    for v in list(7.5 + 2.5 * torch.rand(spatial_dimension).numpy()):
+        values.append(float(v))
+    return values
 
 
 @pytest.fixture()
