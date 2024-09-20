@@ -7,7 +7,7 @@ from pymatgen.core import Lattice, Structure
 
 from crystal_diffusion.utils.neighbors import (
     _get_relative_coordinates_lattice_vectors, _get_shifted_positions,
-    get_positions_from_coordinates)
+    get_periodic_adjacency_information, get_positions_from_coordinates)
 
 
 def create_structure(basis_vectors: np.ndarray, relative_coordinates: np.ndarray, species: List[str]) -> Structure:
@@ -106,3 +106,21 @@ def get_orthogonal_basis_vectors(batch_size: int, cell_dimensions: List[float]) 
     """
     basis_vectors = torch.diag(torch.Tensor(cell_dimensions)).unsqueeze(0).repeat(batch_size, 1, 1)
     return basis_vectors
+
+
+def compute_distances(cartesian_positions: torch.Tensor, basis_vectors: torch.Tensor, max_distance: float):
+    """Compute distances."""
+    adj_info = get_periodic_adjacency_information(cartesian_positions, basis_vectors, radial_cutoff=max_distance)
+
+    # The following are 1D arrays of length equal to the total number of neighbors for all batch elements
+    # and all atoms.
+    #   bch: which batch does an edge belong to
+    #   src: at which atom does an edge start
+    #   dst: at which atom does an edge end
+    bch = adj_info.edge_batch_indices
+    src, dst = adj_info.adjacency_matrix
+
+    cartesian_displacements = cartesian_positions[bch, dst] - cartesian_positions[bch, src] + adj_info.shifts
+    distances = torch.linalg.norm(cartesian_displacements, dim=-1)
+    # Identify neighbors within the radial_cutoff, but avoiding self.
+    return distances[distances > 0.0]
