@@ -27,7 +27,7 @@ from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
-from crystal_diffusion.sampling_metrics.kolmogorov_smirnov_metrics import \
+from crystal_diffusion.samples_and_metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
