@@ -9,21 +9,21 @@ class KolmogorovSmirnovMetrics:
 
     def __init__(self):
         """Init method."""
-        self._reference_samples_metric = CatMetric()
-        self._predicted_samples_metric = CatMetric()
+        self.reference_samples_metric = CatMetric()
+        self.predicted_samples_metric = CatMetric()
 
     def register_reference_samples(self, reference_samples):
         """Register reference samples."""
-        self._reference_samples_metric.update(reference_samples)
+        self.reference_samples_metric.update(reference_samples)
 
     def register_predicted_samples(self, predicted_samples):
         """Register predicted samples."""
-        self._predicted_samples_metric.update(predicted_samples)
+        self.predicted_samples_metric.update(predicted_samples)
 
     def reset(self):
         """reset."""
-        self._reference_samples_metric.reset()
-        self._predicted_samples_metric.reset()
+        self.reference_samples_metric.reset()
+        self.predicted_samples_metric.reset()
 
     def compute_kolmogorov_smirnov_distance_and_pvalue(self) -> Tuple[float, float]:
         """Compute Kolmogorov Smirnov Distance.
@@ -39,8 +39,8 @@ class KolmogorovSmirnovMetrics:
             ks_distance, p_value: the Kolmogorov-Smirnov test statistic (a "distance")
                 and the statistical test's p-value.
         """
-        reference_samples = self._reference_samples_metric.compute()
-        predicted_samples = self._predicted_samples_metric.compute()
+        reference_samples = self.reference_samples_metric.compute()
+        predicted_samples = self.predicted_samples_metric.compute()
 
         test_result = ss.ks_2samp(predicted_samples.detach().cpu().numpy(),
                                   reference_samples.detach().cpu().numpy(),

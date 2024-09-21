@@ -6,10 +6,8 @@ from typing import Optional
 import pytorch_lightning as pl
 import torch
 
-from crystal_diffusion.generators.langevin_generator import LangevinGenerator
-from crystal_diffusion.generators.predictor_corrector_position_generator import \
-    PredictorCorrectorSamplingParameters
-from crystal_diffusion.generators.sampling import create_batch_of_samples
+from crystal_diffusion.generators.instantiate_generator import \
+    instantiate_generator
 from crystal_diffusion.models.loss import (LossParameters,
                                            create_loss_calculator)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
@@ -23,12 +21,17 @@ from crystal_diffusion.models.score_networks.score_network_factory import \
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
                                          NOISE, NOISY_RELATIVE_COORDINATES,
                                          RELATIVE_COORDINATES, TIME, UNIT_CELL)
+from crystal_diffusion.oracle.energies import compute_oracle_energies
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+from crystal_diffusion.samples_and_metrics.diffusion_sampling_parameters import \
+    DiffusionSamplingParameters
 from crystal_diffusion.samples_and_metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
+from crystal_diffusion.samples_and_metrics.sampling import \
+    create_batch_of_samples
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
 from crystal_diffusion.utils.basis_transformations import (
@@ -49,9 +52,9 @@ class PositionDiffusionParameters:
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: Optional[SchedulerParameters] = None
     noise_parameters: NoiseParameters
-    sampling_parameters: Optional[PredictorCorrectorSamplingParameters] = None
     # convergence parameter for the Ewald-like sum of the perturbation kernel.
     kmax_target_score: int = 4
+    diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
 
 
 class PositionDiffusionLightningModel(pl.LightningModule):
@@ -82,14 +85,19 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
 
-        if self.hyper_params.sampling_parameters is not None:
-            assert self.hyper_params.sampling_parameters.compute_structure_factor, \
-                "compute_structure_factor should be True. Config is now inconsistent."
-            self.draw_samples = True
-            self.max_distance = self.hyper_params.sampling_parameters.structure_factor_max_distance
-            self.structure_ks_metric = KolmogorovSmirnovMetrics()
-        else:
-            self.draw_samples = False
+        self.generator = None
+        self.structure_ks_metric = None
+        self.energy_ks_metric = None
+
+        self.draw_samples = hyper_params.diffusion_sampling_parameters is not None
+        if self.draw_samples:
+            self.metrics_parameters = (
+                self.hyper_params.diffusion_sampling_parameters.metrics_parameters
+            )
+            if self.metrics_parameters.compute_structure_factor:
+                self.structure_ks_metric = KolmogorovSmirnovMetrics()
+            if self.metrics_parameters.compute_energies:
+                self.energy_ks_metric = KolmogorovSmirnovMetrics()
 
     def configure_optimizers(self):
         """Returns the combination of optimizer(s) and learning rate scheduler(s) to train with.
@@ -303,19 +311,28 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             prog_bar=True,
         )
 
-        if self.draw_samples:
+        if not self.draw_samples:
+            return output
+
+        if self.metrics_parameters.compute_energies:
+            reference_energies = batch["potential_energy"]
+            self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
+
+        if self.metrics_parameters.compute_structure_factor:
             basis_vectors = torch.diag_embed(batch["box"])
             cartesian_positions = get_positions_from_coordinates(
                 relative_coordinates=batch[RELATIVE_COORDINATES],
                 basis_vectors=basis_vectors,
             )
 
-            distances = compute_distances_in_batch(
+            reference_distances = compute_distances_in_batch(
                 cartesian_positions=cartesian_positions,
                 unit_cell=basis_vectors,
-                max_distance=self.max_distance,
+                max_distance=self.metrics_parameters.structure_factor_max_distance,
             )
-            self.structure_ks_metric.register_reference_samples(distances)
+            self.structure_ks_metric.register_reference_samples(
+                reference_distances.cpu()
+            )
 
         return output
 
@@ -333,21 +350,21 @@ class PositionDiffusionLightningModel(pl.LightningModule):
     def generate_samples(self):
         """Generate a batch of samples."""
         assert (
-            self.hyper_params.sampling_parameters is not None
+            self.hyper_params.diffusion_sampling_parameters is not None
         ), "sampling parameters must be provided to create a generator."
-        logger.info("Creating Langevin Generator for sampling")
-
         with torch.no_grad():
-            generator = LangevinGenerator(
+            logger.info("Creating Generator for sampling")
+            self.generator = instantiate_generator(
+                sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
                 noise_parameters=self.hyper_params.noise_parameters,
-                sampling_parameters=self.hyper_params.sampling_parameters,
                 sigma_normalized_score_network=self.sigma_normalized_score_network,
             )
+            logger.info(f"Generator type : {type(self.generator)}")
 
             logger.info("Draw samples")
             samples_batch = create_batch_of_samples(
-                generator=generator,
-                sampling_parameters=self.hyper_params.sampling_parameters,
+                generator=self.generator,
+                sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
                 device=self.device,
             )
         return samples_batch
@@ -357,27 +374,57 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         if not self.draw_samples:
             return
 
+        logger.info("Drawing samples at the end of the validation epoch.")
         samples_batch = self.generate_samples()
-        sample_distances = compute_distances_in_batch(
-            cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
-            unit_cell=samples_batch[UNIT_CELL],
-            max_distance=self.max_distance,
-        )
 
-        self.structure_ks_metric.register_predicted_samples(sample_distances)
+        if self.metrics_parameters.compute_energies:
+            sample_energies = compute_oracle_energies(samples_batch)
+            self.energy_ks_metric.register_predicted_samples(sample_energies.cpu())
 
-        (
-            ks_distance,
-            p_value,
-        ) = self.structure_ks_metric.compute_kolmogorov_smirnov_distance_and_pvalue()
-        self.structure_ks_metric.reset()
+            (
+                ks_distance,
+                p_value,
+            ) = self.energy_ks_metric.compute_kolmogorov_smirnov_distance_and_pvalue()
+            self.log(
+                "validation_ks_distance_energy",
+                ks_distance,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                "validation_ks_p_value_energy", p_value, on_step=False, on_epoch=True
+            )
 
-        self.log(
-            "validation_ks_distance_structure",
-            ks_distance,
-            on_step=False,
-            on_epoch=True,
-        )
-        self.log(
-            "validation_ks_p_value_structure", p_value, on_step=False, on_epoch=True
-        )
+        if self.metrics_parameters.compute_structure_factor:
+            sample_distances = compute_distances_in_batch(
+                cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
+                unit_cell=samples_batch[UNIT_CELL],
+                max_distance=self.metrics_parameters.structure_factor_max_distance,
+            )
+            self.structure_ks_metric.register_predicted_samples(sample_distances.cpu())
+
+            (
+                ks_distance,
+                p_value,
+            ) = (
+                self.structure_ks_metric.compute_kolmogorov_smirnov_distance_and_pvalue()
+            )
+            self.log(
+                "validation_ks_distance_structure",
+                ks_distance,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                "validation_ks_p_value_structure", p_value, on_step=False, on_epoch=True
+            )
+
+    def on_validation_start(self) -> None:
+        """On validation start."""
+        # Clear out any dangling state.
+        self.generator = None
+        if self.metrics_parameters.compute_energies:
+            self.energy_ks_metric.reset()
+
+        if self.metrics_parameters.compute_structure_factor:
+            self.structure_ks_metric.reset()
