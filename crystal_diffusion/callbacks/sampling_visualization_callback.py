@@ -124,6 +124,8 @@ class SamplingVisualizationCallback(Callback):
                     pl_logger=pl_logger,
                     name="energy_quantiles",
                 )
+                plt.close(fig1)
+                plt.close(fig2)
 
         if self.parameters.record_structure:
             assert pl_model.structure_ks_metric is not None, (
@@ -158,6 +160,7 @@ class SamplingVisualizationCallback(Callback):
                     pl_logger=pl_logger,
                     name="distances",
                 )
+                plt.close(fig)
 
         if self.parameters.record_trajectories:
             assert (
