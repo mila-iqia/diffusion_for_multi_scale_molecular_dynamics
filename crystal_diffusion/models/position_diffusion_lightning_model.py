@@ -277,6 +277,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         """Runs a prediction step for training, returning the loss."""
+        logger.info(f"  - Starting training step with batch index {batch_idx}")
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
 
@@ -293,10 +294,12 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             on_step=False,
             on_epoch=True,
         )
+        logger.info(f"         Done training step with batch index {batch_idx}")
         return output
 
     def validation_step(self, batch, batch_idx):
         """Runs a prediction step for validation, logging the loss."""
+        logger.info(f"  - Starting validation step with batch index {batch_idx}")
         output = self._generic_step(batch, batch_idx, no_conditional=True)
         loss = output["loss"]
         batch_size = self._get_batch_size(batch)
@@ -315,10 +318,12 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             return output
 
         if self.metrics_parameters.compute_energies:
+            logger.info("        * registering reference energies")
             reference_energies = batch["potential_energy"]
             self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
 
         if self.metrics_parameters.compute_structure_factor:
+            logger.info("        * registering reference distances")
             basis_vectors = torch.diag_embed(batch["box"])
             cartesian_positions = get_positions_from_coordinates(
                 relative_coordinates=batch[RELATIVE_COORDINATES],
@@ -334,6 +339,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
                 reference_distances.cpu()
             )
 
+        logger.info(f"         Done validation step with batch index {batch_idx}")
         return output
 
     def test_step(self, batch, batch_idx):
@@ -361,12 +367,13 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             )
             logger.info(f"Generator type : {type(self.generator)}")
 
-            logger.info("Draw samples")
+            logger.info("       * Drawing samples")
             samples_batch = create_batch_of_samples(
                 generator=self.generator,
                 sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
                 device=self.device,
             )
+            logger.info("         Done drawing samples")
         return samples_batch
 
     def on_validation_epoch_end(self) -> None:
@@ -378,7 +385,9 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         samples_batch = self.generate_samples()
 
         if self.metrics_parameters.compute_energies:
+            logger.info("   * Computing sample energies")
             sample_energies = compute_oracle_energies(samples_batch)
+            logger.info("   * Registering sample energies")
             self.energy_ks_metric.register_predicted_samples(sample_energies.cpu())
 
             (
@@ -394,13 +403,17 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             self.log(
                 "validation_ks_p_value_energy", p_value, on_step=False, on_epoch=True
             )
+            logger.info("   * Done logging sample energies")
 
         if self.metrics_parameters.compute_structure_factor:
+            logger.info("   * Computing sample distances")
             sample_distances = compute_distances_in_batch(
                 cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
                 unit_cell=samples_batch[UNIT_CELL],
                 max_distance=self.metrics_parameters.structure_factor_max_distance,
             )
+
+            logger.info("   * Registering sample distances")
             self.structure_ks_metric.register_predicted_samples(sample_distances.cpu())
 
             (
@@ -418,9 +431,22 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             self.log(
                 "validation_ks_p_value_structure", p_value, on_step=False, on_epoch=True
             )
+            logger.info("   * Done logging sample distances")
 
     def on_validation_start(self) -> None:
         """On validation start."""
+        logger.info("Clearing generator and metrics on validation start.")
+        # Clear out any dangling state.
+        self.generator = None
+        if self.metrics_parameters.compute_energies:
+            self.energy_ks_metric.reset()
+
+        if self.metrics_parameters.compute_structure_factor:
+            self.structure_ks_metric.reset()
+
+    def on_train_start(self) -> None:
+        """On train start."""
+        logger.info("Clearing generator and metrics on train start.")
         # Clear out any dangling state.
         self.generator = None
         if self.metrics_parameters.compute_energies:
