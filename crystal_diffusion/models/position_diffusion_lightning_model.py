@@ -356,7 +356,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             logger.info("Creating Generator for sampling")
             self.generator = instantiate_generator(
                 sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
-                noise_parameters=self.hyper_params.noise_parameters,
+                noise_parameters=self.hyper_params.diffusion_sampling_parameters.noise_parameters,
                 sigma_normalized_score_network=self.sigma_normalized_score_network,
             )
             logger.info(f"Generator type : {type(self.generator)}")
