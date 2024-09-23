@@ -268,7 +268,7 @@ class SamplingVisualizationCallback(Callback):
 
         dmin = 0.0
         dmax = maximum_distance + 0.1
-        bins = np.linspace(dmin, dmax, 101)
+        bins = np.linspace(dmin, dmax, 251)
 
         fig.suptitle(f"Sampling Distances Distribution\nEpoch {epoch}")
 
