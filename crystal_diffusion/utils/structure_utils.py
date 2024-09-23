@@ -7,7 +7,7 @@ from pymatgen.core import Lattice, Structure
 
 from crystal_diffusion.utils.neighbors import (
     _get_relative_coordinates_lattice_vectors, _get_shifted_positions,
-    get_positions_from_coordinates)
+    get_periodic_adjacency_information, get_positions_from_coordinates)
 
 
 def create_structure(basis_vectors: np.ndarray, relative_coordinates: np.ndarray, species: List[str]) -> Structure:
@@ -53,7 +53,8 @@ def compute_distances_in_batch(cartesian_positions: torch.Tensor, unit_cell: tor
     zero = torch.tensor(0.0).to(device)
 
     # The relative coordinates lattice vectors have dimensions [number of lattice vectors, spatial_dimension]
-    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells=1).to(device)
+    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells=1,
+                                                                         spatial_dimension=spatial_dimension).to(device)
     number_of_relative_lattice_vectors = len(relative_lattice_vectors)
 
     # Repeat the relative lattice vectors along the batch dimension; the basis vectors could potentially be
@@ -91,3 +92,35 @@ def compute_distances_in_batch(cartesian_positions: torch.Tensor, unit_cell: tor
     # Identify neighbors within the radial_cutoff, but avoiding self.
     valid_neighbor_mask = torch.logical_and(zero < distances, distances <= radial_cutoff)
     return distances[valid_neighbor_mask]
+
+
+def get_orthogonal_basis_vectors(batch_size: int, cell_dimensions: List[float]) -> torch.Tensor:
+    """Get orthogonal basis vectors.
+
+    Args:
+        batch_size: number of required repetitions of the basis vectors.
+        cell_dimensions : list of dimensions that correspond to the sides of the unit cell.
+
+    Returns:
+        basis_vectors: a diagonal matrix with the dimensions along the diagonal.
+    """
+    basis_vectors = torch.diag(torch.Tensor(cell_dimensions)).unsqueeze(0).repeat(batch_size, 1, 1)
+    return basis_vectors
+
+
+def compute_distances(cartesian_positions: torch.Tensor, basis_vectors: torch.Tensor, max_distance: float):
+    """Compute distances."""
+    adj_info = get_periodic_adjacency_information(cartesian_positions, basis_vectors, radial_cutoff=max_distance)
+
+    # The following are 1D arrays of length equal to the total number of neighbors for all batch elements
+    # and all atoms.
+    #   bch: which batch does an edge belong to
+    #   src: at which atom does an edge start
+    #   dst: at which atom does an edge end
+    bch = adj_info.edge_batch_indices
+    src, dst = adj_info.adjacency_matrix
+
+    cartesian_displacements = cartesian_positions[bch, dst] - cartesian_positions[bch, src] + adj_info.shifts
+    distances = torch.linalg.norm(cartesian_displacements, dim=-1)
+    # Identify neighbors within the radial_cutoff, but avoiding self.
+    return distances[distances > 0.0]

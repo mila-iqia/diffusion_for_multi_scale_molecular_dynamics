@@ -186,7 +186,8 @@ def get_periodic_adjacency_information(cartesian_positions: torch.Tensor,
                          number_of_edges=number_of_edges)
 
 
-def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1) -> torch.Tensor:
+def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1,
+                                              spatial_dimension: int = 3) -> torch.Tensor:
     """Get relative coordinates lattice vectors.
 
     Get all the lattice vectors in relative coordinates from -number_of_shells to +number_of_shells,
@@ -198,7 +199,6 @@ def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1) -> torc
     Returns:
         list_relative_lattice_vectors : all the lattice vectors in relative coordinates (ie, integers).
     """
-    spatial_dimension = 3
     shifts = range(-number_of_shells, number_of_shells + 1)
     list_relative_lattice_vectors = 1.0 * torch.tensor(list(itertools.product(shifts, repeat=spatial_dimension)))
 

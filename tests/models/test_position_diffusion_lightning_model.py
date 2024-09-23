@@ -3,6 +3,8 @@ import torch
 from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
+from crystal_diffusion.generators.predictor_corrector_position_generator import \
+    PredictorCorrectorSamplingParameters
 from crystal_diffusion.models.loss import create_loss_parameters
 from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
@@ -13,6 +15,10 @@ from crystal_diffusion.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from crystal_diffusion.samples_and_metrics.diffusion_sampling_parameters import \
+    DiffusionSamplingParameters
+from crystal_diffusion.samples_and_metrics.sampling_metrics_parameters import \
+    SamplingMetricsParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
 from crystal_diffusion.utils.tensor_utils import \
@@ -68,7 +74,7 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture()
     def unit_cell_size(self):
-        return 10
+        return 10.1
 
     @pytest.fixture(params=['adam', 'adamw'])
     def optimizer_parameters(self, request):
@@ -93,8 +99,35 @@ class TestPositionDiffusionLightningModel:
         return create_loss_parameters(model_dictionary=dict(algorithm=request.param))
 
     @pytest.fixture()
+    def number_of_samples(self):
+        return 12
+
+    @pytest.fixture()
+    def cell_dimensions(self, unit_cell_size, spatial_dimension):
+        return spatial_dimension * [unit_cell_size]
+
+    @pytest.fixture()
+    def sampling_parameters(self, number_of_atoms, spatial_dimension, number_of_samples, cell_dimensions):
+        sampling_parameters = PredictorCorrectorSamplingParameters(number_of_atoms=number_of_atoms,
+                                                                   spatial_dimension=spatial_dimension,
+                                                                   number_of_samples=number_of_samples,
+                                                                   cell_dimensions=cell_dimensions)
+        return sampling_parameters
+
+    @pytest.fixture()
+    def diffusion_sampling_parameters(self, sampling_parameters):
+        noise_parameters = NoiseParameters(total_time_steps=5)
+        metrics_parameters = SamplingMetricsParameters(structure_factor_max_distance=1.)
+        diffusion_sampling_parameters = DiffusionSamplingParameters(
+            sampling_parameters=sampling_parameters,
+            noise_parameters=noise_parameters,
+            metrics_parameters=metrics_parameters)
+        return diffusion_sampling_parameters
+
+    @pytest.fixture()
     def hyper_params(self, number_of_atoms, spatial_dimension,
-                     optimizer_parameters, scheduler_parameters, loss_parameters):
+                     optimizer_parameters, scheduler_parameters,
+                     loss_parameters, sampling_parameters, diffusion_sampling_parameters):
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             n_hidden_dimensions=3,
@@ -110,7 +143,8 @@ class TestPositionDiffusionLightningModel:
             optimizer_parameters=optimizer_parameters,
             scheduler_parameters=scheduler_parameters,
             noise_parameters=noise_parameters,
-            loss_parameters=loss_parameters
+            loss_parameters=loss_parameters,
+            diffusion_sampling_parameters=diffusion_sampling_parameters
         )
         return hyper_params
 
@@ -213,3 +247,7 @@ class TestPositionDiffusionLightningModel:
         trainer = Trainer(fast_dev_run=3, accelerator=accelerator)
         trainer.fit(lightning_model, fake_datamodule)
         trainer.test(lightning_model, fake_datamodule)
+
+    def test_generate_sample(self, lightning_model, number_of_samples, number_of_atoms, spatial_dimension):
+        samples_batch = lightning_model.generate_samples()
+        assert samples_batch[RELATIVE_COORDINATES].shape == (number_of_samples, number_of_atoms, spatial_dimension)

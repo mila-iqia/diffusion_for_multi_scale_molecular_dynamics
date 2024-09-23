@@ -12,14 +12,11 @@ class SamplingParameters:
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
     number_of_atoms: int  # the number of atoms that must be generated in a sampled configuration.
     number_of_samples: int
-    sample_batchsize: Optional[int] = None  # iterate up to number_of_samples with batches of this size
+    # iterate up to number_of_samples with batches of this size
     # if None, use number_of_samples as batchsize
-    sample_every_n_epochs: int = 1  # Sampling is expensive; control frequency
-    first_sampling_epoch: int = 1  # Epoch at which sampling can begin; no sampling before this epoch.
+    sample_batchsize: Optional[int] = None
     cell_dimensions: List[float]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
     record_samples: bool = False  # should the predictor and corrector steps be recorded to a file
-    compute_structure_factor: bool = False  # should the structure factor (distances distribution) be recorded
-    structure_factor_max_distance: float = 10.0  # cutoff for the structure factor
 
 
 class PositionGenerator(ABC):

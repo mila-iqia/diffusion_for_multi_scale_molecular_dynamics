@@ -10,6 +10,8 @@ from crystal_diffusion.models.scheduler import create_scheduler_parameters
 from crystal_diffusion.models.score_networks.score_network_factory import \
     create_score_network_parameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from crystal_diffusion.samples_and_metrics.diffusion_sampling_parameters import \
+    load_diffusion_sampling_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +39,10 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
     model_dict = hyper_params['model']
     loss_parameters = create_loss_parameters(model_dict)
 
-    noise_dict = hyper_params['model']['noise']
+    noise_dict = model_dict['noise']
     noise_parameters = NoiseParameters(**noise_dict)
+
+    diffusion_sampling_parameters = load_diffusion_sampling_parameters(hyper_params)
 
     diffusion_params = PositionDiffusionParameters(
         score_network_parameters=score_network_parameters,
@@ -46,6 +50,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
         optimizer_parameters=optimizer_parameters,
         scheduler_parameters=scheduler_parameters,
         noise_parameters=noise_parameters,
+        diffusion_sampling_parameters=diffusion_sampling_parameters
     )
 
     model = PositionDiffusionLightningModel(diffusion_params)
