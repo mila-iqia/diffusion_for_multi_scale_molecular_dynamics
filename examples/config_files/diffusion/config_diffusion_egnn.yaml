@@ -12,7 +12,7 @@ seed: 1234
 
 # data
 data:
-  batch_size: 1024
+  batch_size: 32
   num_workers: 0
   max_atom: 8
 
@@ -33,8 +33,9 @@ model:
     attention: False
     normalize: False
     tanh: False
-    coords_agg: mean
-    n_layers: 4
+    coords_agg: m3
+    message_agg: m3
+    n_layers: 2
   noise:
     total_time_steps: 100
     sigma_min: 0.005  # default value
