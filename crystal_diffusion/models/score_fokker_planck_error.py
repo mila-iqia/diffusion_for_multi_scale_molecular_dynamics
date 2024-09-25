@@ -30,10 +30,12 @@ class FokkerPlanckLossCalculator:
 
     def compute_fokker_planck_loss_term(self, augmented_batch):
         """Compute Fokker-Planck loss term."""
+        device = augmented_batch[NOISY_RELATIVE_COORDINATES].device
+
         fokker_planck_errors = self.fokker_planck_error_calculator.get_score_fokker_planck_error(
             augmented_batch[NOISY_RELATIVE_COORDINATES],
-            augmented_batch[TIME],
-            augmented_batch[UNIT_CELL],
+            augmented_batch[TIME].to(device),
+            augmented_batch[UNIT_CELL].to(device),
         )
         fokker_planck_rmse = (fokker_planck_errors ** 2).mean().sqrt()
         return self._weight * fokker_planck_rmse
