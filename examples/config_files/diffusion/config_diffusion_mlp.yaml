@@ -21,6 +21,7 @@ spatial_dimension: 3
 model:
   loss:
     algorithm: mse
+    fokker_planck_weight: 1.0
   score_network:
     architecture: mlp
     number_of_atoms: 8

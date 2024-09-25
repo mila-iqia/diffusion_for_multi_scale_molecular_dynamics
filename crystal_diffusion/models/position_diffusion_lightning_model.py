@@ -1,10 +1,10 @@
 import logging
-import typing
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch
+from torch import Tensor
 
 from crystal_diffusion.generators.instantiate_generator import \
     instantiate_generator
@@ -14,6 +14,8 @@ from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
                                                 load_scheduler_dictionary)
+from crystal_diffusion.models.score_fokker_planck_error import (
+    FokkerPlanckLossCalculator, FokkerPlankRegularizerParameters)
 from crystal_diffusion.models.score_networks.score_network import \
     ScoreNetworkParameters
 from crystal_diffusion.models.score_networks.score_network_factory import \
@@ -82,6 +84,14 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
+        self.fokker_planck = hyper_params.loss_parameters.fokker_planck_weight != 0.0
+        if self.fokker_planck:
+            fokker_planck_parameters = FokkerPlankRegularizerParameters(
+                weight=hyper_params.loss_parameters.fokker_planck_weight)
+            self.fokker_planck_loss_calculator = FokkerPlanckLossCalculator(self.sigma_normalized_score_network,
+                                                                            hyper_params.noise_parameters,
+                                                                            fokker_planck_parameters)
+
         self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
 
@@ -140,10 +150,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def _generic_step(
         self,
-        batch: typing.Any,
+        batch: Any,
         batch_idx: int,
         no_conditional: bool = False,
-    ) -> typing.Any:
+    ) -> Any:
         """Generic step.
 
         This "generic step" computes the loss for any of the possible lightning "steps".
@@ -232,7 +242,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         loss = torch.mean(unreduced_loss)
 
         output = dict(
-            loss=loss,
+            raw_loss=loss.detach(),
             unreduced_loss=unreduced_loss.detach(),
             sigmas=sigmas,
             predicted_normalized_scores=predicted_normalized_scores.detach(),
@@ -240,6 +250,17 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         )
         output[RELATIVE_COORDINATES] = x0
         output[NOISY_RELATIVE_COORDINATES] = xt
+
+        if self.fokker_planck:
+
+            logger.info(f"          * Computing Fokker-Planck loss term for {batch_idx}")
+            fokker_planck_loss = self.fokker_planck_loss_calculator.compute_fokker_planck_loss_term(augmented_batch)
+            logger.info(f"            Done Computing Fokker-Planck loss term for {batch_idx}")
+
+            output['fokker_planck_loss'] = fokker_planck_loss.detach()
+            output['loss'] = loss + fokker_planck_loss
+        else:
+            output['loss'] = loss
 
         return output
 
@@ -294,8 +315,32 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             on_step=False,
             on_epoch=True,
         )
+
+        if self.fokker_planck:
+            self.log(
+                "train_epoch_fokker_planck_loss",
+                output['fokker_planck_loss'],
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                "train_epoch_raw_loss",
+                output['raw_loss'],
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+
         logger.info(f"         Done training step with batch index {batch_idx}")
         return output
+
+    def backward(self, loss: Tensor, *args: Any, **kwargs: Any) -> None:
+        """Backward method."""
+        if self.fokker_planck:
+            loss.backward(retain_graph=True)
+        else:
+            super().backward(loss, *args, **kwargs)
 
     def validation_step(self, batch, batch_idx):
         """Runs a prediction step for validation, logging the loss."""
@@ -313,6 +358,22 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
         )
+
+        if self.fokker_planck:
+            self.log(
+                "validation_epoch_fokker_planck_loss",
+                output['fokker_planck_loss'],
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                "validation_epoch_raw_loss",
+                output['raw_loss'],
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
 
         if not self.draw_samples:
             return output
@@ -351,6 +412,22 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.log(
             "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True
         )
+        if self.fokker_planck:
+            self.log(
+                "test_epoch_fokker_planck_loss",
+                output['fokker_planck_loss'],
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                "test_epoch_raw_loss",
+                output['raw_loss'],
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+
         return output
 
     def generate_samples(self):

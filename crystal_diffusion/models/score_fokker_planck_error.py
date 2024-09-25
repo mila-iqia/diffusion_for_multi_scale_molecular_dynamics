@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import einops
 import torch
 
@@ -7,6 +9,34 @@ from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          UNIT_CELL)
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+
+
+@dataclass(kw_only=True)
+class FokkerPlankRegularizerParameters:
+    """Specific Hyper-parameters for the Fokker Planck Regularization."""
+    weight: float
+
+
+class FokkerPlanckLossCalculator:
+    """Fokker Planck Loss Calculator."""
+    def __init__(self,
+                 sigma_normalized_score_network: ScoreNetwork,
+                 noise_parameters: NoiseParameters,
+                 regularizer_parameters: FokkerPlankRegularizerParameters):
+        """Init method."""
+        self._weight = regularizer_parameters.weight
+        self.fokker_planck_error_calculator = ScoreFokkerPlanckError(sigma_normalized_score_network,
+                                                                     noise_parameters)
+
+    def compute_fokker_planck_loss_term(self, augmented_batch):
+        """Compute Fokker-Planck loss term."""
+        fokker_planck_errors = self.fokker_planck_error_calculator.get_score_fokker_planck_error(
+            augmented_batch[NOISY_RELATIVE_COORDINATES],
+            augmented_batch[TIME],
+            augmented_batch[UNIT_CELL],
+        )
+        fokker_planck_rmse = (fokker_planck_errors ** 2).mean().sqrt()
+        return self._weight * fokker_planck_rmse
 
 
 class ScoreFokkerPlanckError(torch.nn.Module):
@@ -127,7 +157,7 @@ class ScoreFokkerPlanckError(torch.nn.Module):
         # The output of the function, the score, has dimension [batch_size, natoms, spatial_dimension]
         # The jacobian will thus have dimensions [batch_size, natoms, spatial_dimension, batch_size, 1], that is,
         # every output differentiated with respect to every input.
-        jacobian = torch.autograd.functional.jacobian(scores_function, times)
+        jacobian = torch.autograd.functional.jacobian(scores_function, times, create_graph=True)
 
         # Clearly, only "same batch element" is meaningful. We can squeeze out the needless last dimension in the time
         batch_size = relative_coordinates.shape[0]
@@ -155,7 +185,7 @@ class ScoreFokkerPlanckError(torch.nn.Module):
         #   [batch_size, natoms, spatial_dimension, batch_size, natoms, spatial_dimension]
         # every output differentiated with respect to every input.
         jacobian = torch.autograd.functional.jacobian(
-            scores_function, relative_coordinates, create_graph=True
+            scores_function, relative_coordinates, create_graph=True,
         )
 
         flat_jacobian = einops.rearrange(
@@ -194,7 +224,7 @@ class ScoreFokkerPlanckError(torch.nn.Module):
         #   [batch_size, batch_size, natoms, spatial_dimension]
         # every output differentiated with respect to every input.
         jacobian = torch.autograd.functional.jacobian(
-            term_function, relative_coordinates
+            term_function, relative_coordinates, create_graph=True,
         )
 
         # Clearly, only "same batch element" is meaningful. We can squeeze out the needless last dimension in the time
@@ -220,12 +250,12 @@ class ScoreFokkerPlanckError(torch.nn.Module):
             FP_error: how much the score Fokker-Planck equation is violated. Dimensions : [batch_size].
         """
         batch_size, natoms, spatial_dimension = relative_coordinates.shape
-        t = torch.tensor(times, requires_grad=True)
+        t = times.clone().detach().requires_grad_(True)
         d_score_dt = self._get_score_time_derivative(
             relative_coordinates, t, unit_cells
         )
 
-        x = torch.tensor(relative_coordinates, requires_grad=True)
+        x = relative_coordinates.clone().detach().requires_grad_(True)
         gradient_term = self._get_gradient_term(x, times, unit_cells)
 
         time_prefactor = einops.repeat(

@@ -96,7 +96,8 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture(params=['mse', 'weighted_mse'])
     def loss_parameters(self, request):
-        return create_loss_parameters(model_dictionary=dict(algorithm=request.param))
+        model_dict = dict(loss=dict(algorithm=request.param, fokker_planck_weight=0.1))
+        return create_loss_parameters(model_dictionary=model_dict)
 
     @pytest.fixture()
     def number_of_samples(self):
@@ -244,7 +245,7 @@ class TestPositionDiffusionLightningModel:
                                    rtol=1e-4)
 
     def test_smoke_test(self, lightning_model, fake_datamodule, accelerator):
-        trainer = Trainer(fast_dev_run=3, accelerator=accelerator)
+        trainer = Trainer(fast_dev_run=3, accelerator=accelerator, inference_mode=False)
         trainer.fit(lightning_model, fake_datamodule)
         trainer.test(lightning_model, fake_datamodule)
 
