@@ -17,25 +17,24 @@ class FokkerPlankRegularizerParameters:
     weight: float
 
 
-class FokkerPlanckLossCalculator:
+class FokkerPlanckLossCalculator(torch.nn.Module):
     """Fokker Planck Loss Calculator."""
     def __init__(self,
                  sigma_normalized_score_network: ScoreNetwork,
                  noise_parameters: NoiseParameters,
                  regularizer_parameters: FokkerPlankRegularizerParameters):
         """Init method."""
-        self._weight = regularizer_parameters.weight
+        super().__init__()
+        self._weight = torch.nn.Parameter(torch.tensor(regularizer_parameters.weight), requires_grad=False)
         self.fokker_planck_error_calculator = ScoreFokkerPlanckError(sigma_normalized_score_network,
                                                                      noise_parameters)
 
     def compute_fokker_planck_loss_term(self, augmented_batch):
         """Compute Fokker-Planck loss term."""
-        device = augmented_batch[NOISY_RELATIVE_COORDINATES].device
-
         fokker_planck_errors = self.fokker_planck_error_calculator.get_score_fokker_planck_error(
             augmented_batch[NOISY_RELATIVE_COORDINATES],
-            augmented_batch[TIME].to(device),
-            augmented_batch[UNIT_CELL].to(device),
+            augmented_batch[TIME],
+            augmented_batch[UNIT_CELL],
         )
         fokker_planck_rmse = (fokker_planck_errors ** 2).mean().sqrt()
         return self._weight * fokker_planck_rmse
@@ -93,6 +92,7 @@ class ScoreFokkerPlanckError(torch.nn.Module):
         sigmas = self.exploding_variance.get_sigma(times)
 
         batch_size, natoms, spatial_dimension = relative_coordinates.shape
+
 
         augmented_batch = {
             NOISY_RELATIVE_COORDINATES: relative_coordinates,
@@ -253,6 +253,7 @@ class ScoreFokkerPlanckError(torch.nn.Module):
         """
         batch_size, natoms, spatial_dimension = relative_coordinates.shape
         t = times.clone().detach().requires_grad_(True)
+
         d_score_dt = self._get_score_time_derivative(
             relative_coordinates, t, unit_cells
         )
