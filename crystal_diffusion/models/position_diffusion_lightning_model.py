@@ -237,7 +237,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         unreduced_loss = self.loss_calculator.calculate_unreduced_loss(
             predicted_normalized_scores,
             target_normalized_conditional_scores,
-            sigmas.to(self.device),
+            sigmas,
         )
         loss = torch.mean(unreduced_loss)
 
@@ -252,7 +252,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         output[NOISY_RELATIVE_COORDINATES] = xt
 
         if self.fokker_planck:
-
             logger.info(f"          * Computing Fokker-Planck loss term for {batch_idx}")
             fokker_planck_loss = self.fokker_planck_loss_calculator.compute_fokker_planck_loss_term(augmented_batch)
             logger.info(f"            Done Computing Fokker-Planck loss term for {batch_idx}")
