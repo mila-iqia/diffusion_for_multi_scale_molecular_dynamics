@@ -316,6 +316,8 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         )
 
         if self.fokker_planck:
+            self.log("train_step_fokker_planck_loss", output['fokker_planck_loss'],
+                     on_step=True, on_epoch=False, prog_bar=True)
             self.log(
                 "train_epoch_fokker_planck_loss",
                 output['fokker_planck_loss'],
@@ -323,6 +325,8 @@ class PositionDiffusionLightningModel(pl.LightningModule):
                 on_step=False,
                 on_epoch=True,
             )
+            self.log("train_step_raw_loss", output['raw_loss'],
+                     on_step=True, on_epoch=False, prog_bar=True)
             self.log(
                 "train_epoch_raw_loss",
                 output['raw_loss'],
