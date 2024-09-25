@@ -29,7 +29,7 @@ class NoiseParameters:
     corrector_step_epsilon: float = 2e-5
 
 
-class ExplodingVarianceSampler:
+class ExplodingVarianceSampler(torch.nn.Module):
     """Exploding Variance Sampler.
 
     This class is responsible for creating all the quantities needed
@@ -75,20 +75,26 @@ class ExplodingVarianceSampler:
         Args:
             noise_parameters: parameters that define the noise schedule.
         """
+        super().__init__()
         self.noise_parameters = noise_parameters
-        self._time_array = self._get_time_array(noise_parameters)
 
-        self._sigma_array = self._create_sigma_array(noise_parameters, self._time_array)
-        self._sigma_squared_array = self._sigma_array**2
+        self._time_array = torch.nn.Parameter(self._get_time_array(noise_parameters), requires_grad=False)
 
-        self._g_squared_array = self._create_g_squared_array(noise_parameters, self._sigma_squared_array)
-        self._g_array = torch.sqrt(self._g_squared_array)
+        self._sigma_array = torch.nn.Parameter(self._create_sigma_array(noise_parameters, self._time_array),
+                                               requires_grad=False)
+        self._sigma_squared_array = torch.nn.Parameter(self._sigma_array**2, requires_grad=False)
 
-        self._epsilon_array = self._create_epsilon_array(noise_parameters, self._sigma_squared_array)
-        self._sqrt_two_epsilon_array = torch.sqrt(2. * self._epsilon_array)
+        self._g_squared_array = torch.nn.Parameter(
+            self._create_g_squared_array(noise_parameters, self._sigma_squared_array), requires_grad=False)
+        self._g_array = torch.nn.Parameter(torch.sqrt(self._g_squared_array), requires_grad=False)
 
-        self._maximum_random_index = noise_parameters.total_time_steps - 1
-        self._minimum_random_index = 0
+        self._epsilon_array = torch.nn.Parameter(
+            self._create_epsilon_array(noise_parameters, self._sigma_squared_array), requires_grad=False)
+        self._sqrt_two_epsilon_array = torch.nn.Parameter(torch.sqrt(2. * self._epsilon_array), requires_grad=False)
+
+        self._maximum_random_index = torch.nn.Parameter(torch.tensor(noise_parameters.total_time_steps - 1),
+                                                        requires_grad=False)
+        self._minimum_random_index = torch.nn.Parameter(torch.tensor(0), requires_grad=False)
 
     @staticmethod
     def _get_time_array(noise_parameters: NoiseParameters) -> torch.Tensor:
@@ -141,6 +147,7 @@ class ExplodingVarianceSampler:
             self._maximum_random_index
             + 1,  # +1 because the maximum value is not sampled
             size=shape,
+            device=self._minimum_random_index.device
         )
         return random_indices
 
