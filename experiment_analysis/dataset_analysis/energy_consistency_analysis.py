@@ -15,8 +15,8 @@ from tqdm import tqdm
 
 from crystal_diffusion import DATA_DIR
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
-from crystal_diffusion.callbacks.sampling_callback import (
-    LOGGER_FIGSIZE, DiffusionSamplingCallback)
+from crystal_diffusion.callbacks.sampling_visualization_callback import (
+    LOGGER_FIGSIZE, SamplingVisualizationCallback)
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     list_oracle_energies = np.array(list_oracle_energies)
 
-    fig = DiffusionSamplingCallback._plot_energy_histogram(list_oracle_energies, list_dataset_potential_energies)
+    fig = SamplingVisualizationCallback._plot_energy_histogram(list_oracle_energies, list_dataset_potential_energies)
     plt.show()
 
     fig2 = plt.figure(figsize=LOGGER_FIGSIZE)
