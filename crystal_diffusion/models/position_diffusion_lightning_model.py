@@ -343,6 +343,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
         batch_size = self._get_batch_size(batch)
+
         # The 'test_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
         self.log(
             "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True
