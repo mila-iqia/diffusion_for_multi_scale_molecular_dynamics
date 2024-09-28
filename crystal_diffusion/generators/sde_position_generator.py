@@ -33,7 +33,7 @@ class SDESamplingParameters(SamplingParameters):
 class SDE(torch.nn.Module):
     """SDE.
 
-    This class computes the drift and the diffusion coefficients in order to be consisent with the expectations
+    This class computes the drift and the diffusion coefficients in order to be consistent with the expectations
     of the torchsde library.
     """
     noise_type = 'diagonal'  # we assume that there is a distinct Wiener process for each component.
