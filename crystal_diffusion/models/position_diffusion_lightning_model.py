@@ -297,7 +297,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         """Runs a prediction step for training, returning the loss."""
-        logger.info(f"  - Starting training step with batch index {batch_idx}")
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
 
@@ -382,12 +381,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             return output
 
         if self.metrics_parameters.compute_energies:
-            logger.info("        * registering reference energies")
             reference_energies = batch["potential_energy"]
             self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
 
         if self.metrics_parameters.compute_structure_factor:
-            logger.info("        * registering reference distances")
             basis_vectors = torch.diag_embed(batch["box"])
             cartesian_positions = get_positions_from_coordinates(
                 relative_coordinates=batch[RELATIVE_COORDINATES],
@@ -403,7 +400,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
                 reference_distances.cpu()
             )
 
-        logger.info(f"         Done validation step with batch index {batch_idx}")
         return output
 
     def test_step(self, batch, batch_idx):
@@ -411,6 +407,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
         batch_size = self._get_batch_size(batch)
+
         # The 'test_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
         self.log(
             "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True

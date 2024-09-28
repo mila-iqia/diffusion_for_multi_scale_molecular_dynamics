@@ -38,7 +38,6 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
     to such proximity: a repulsive force field will encourage atoms to separate during
     diffusion.
     """
-
     def __init__(
         self, score_network: ScoreNetwork, force_field_parameters: ForceFieldParameters
     ):
@@ -92,7 +91,10 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
 
         r = torch.linalg.norm(cartesian_displacements, dim=1)
 
-        pseudo_force_prefactors = 2.0 * s * (r - r0) / r
+        # Add a small epsilon value in case r is close to zero, to avoid NaNs.
+        epsilon = torch.tensor(1.0e-8).to(r)
+
+        pseudo_force_prefactors = 2.0 * s * (r - r0) / (r + epsilon)
         # Repeat so we can multiply by r_hat
         repeat_pseudo_force_prefactors = einops.repeat(
             pseudo_force_prefactors, "e -> e d", d=spatial_dimension
