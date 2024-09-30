@@ -82,6 +82,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.sigma_normalized_score_network = create_score_network(
             hyper_params.score_network_parameters
         )
+        # Identify which parameters should require grads. PL does a poor job of turning this off correctly.
+        self.live_parameters = []
+        for parameter in self.sigma_normalized_score_network.parameters():
+            self.live_parameters.append(parameter.requires_grad)
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
@@ -493,8 +497,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """On train start."""
         logger.info("Starting train.")
         logger.info("   - Turn on grads on the score network parameters.")
-        for parameter in self.sigma_normalized_score_network.parameters():
-            parameter.requires_grad_(True)
+
+        for parameter, is_live in zip(self.sigma_normalized_score_network.parameters(), self.live_parameters):
+            if is_live:
+                parameter.requires_grad_(True)
 
         logger.info("   - Clearing generator and metrics.")
         # Clear out any dangling state.
