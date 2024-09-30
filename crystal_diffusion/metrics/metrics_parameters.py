@@ -9,6 +9,7 @@ class MetricsParameters:
     This dataclass describes which metrics should be computed.
     """
     fokker_planck: bool = False
+    fokker_planck_max_batches: int = 100  # over how many batches should this metric be computed.
 
 
 def load_metrics_parameters(hyper_params: Dict[AnyStr, Any]) -> Union[MetricsParameters, None]:

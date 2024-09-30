@@ -93,6 +93,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             and hyper_params.metrics_parameters.fokker_planck
         )
         if self.fokker_planck:
+            self.fokker_planck_max_batches = hyper_params.metrics_parameters.fokker_planck_max_batches
             self.fp_error_calculator = NormalizedScoreFokkerPlanckError(
                 sigma_normalized_score_network=self.sigma_normalized_score_network,
                 noise_parameters=hyper_params.noise_parameters,
@@ -329,9 +330,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             prog_bar=True,
         )
 
-        if self.fokker_planck:
-            logger.info("      Computing Fokker-Planck error...")
-
+        if self.fokker_planck and batch_idx <= self.fokker_planck_max_batches:
             # Make extra sure we turn off the gradient tape for the Fokker-Planck calculation!
             for parameter in self.sigma_normalized_score_network.parameters():
                 parameter.requires_grad_(False)
@@ -343,7 +342,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             for parameter in self.sigma_normalized_score_network.parameters():
                 parameter.requires_grad_(True)
 
-            logger.info("      Done Computing Fokker-Planck error.")
             fp_rmse = self.fp_rmse_metric(fp_errors, torch.zeros_like(fp_errors))
 
             self.log(
