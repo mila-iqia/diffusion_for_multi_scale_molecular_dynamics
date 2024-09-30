@@ -2,6 +2,8 @@
 import logging
 from typing import Any, AnyStr, Dict
 
+from crystal_diffusion.metrics.metrics_parameters import \
+    load_metrics_parameters
 from crystal_diffusion.models.loss import create_loss_parameters
 from crystal_diffusion.models.optimizer import create_optimizer_parameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
@@ -44,13 +46,16 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> PositionDiffusionLi
 
     diffusion_sampling_parameters = load_diffusion_sampling_parameters(hyper_params)
 
+    metrics_parameters = load_metrics_parameters(hyper_params)
+
     diffusion_params = PositionDiffusionParameters(
         score_network_parameters=score_network_parameters,
         loss_parameters=loss_parameters,
         optimizer_parameters=optimizer_parameters,
         scheduler_parameters=scheduler_parameters,
         noise_parameters=noise_parameters,
-        diffusion_sampling_parameters=diffusion_sampling_parameters
+        diffusion_sampling_parameters=diffusion_sampling_parameters,
+        metrics_parameters=metrics_parameters
     )
 
     model = PositionDiffusionLightningModel(diffusion_params)

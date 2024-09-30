@@ -4,16 +4,17 @@ from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch
-from torch import Tensor
+from torchmetrics import MeanSquaredError
 
 from crystal_diffusion.generators.instantiate_generator import \
     instantiate_generator
 from crystal_diffusion.metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
+from crystal_diffusion.metrics.metrics_parameters import MetricsParameters
 from crystal_diffusion.models.loss import (LossParameters,
                                            create_loss_calculator)
-from crystal_diffusion.models.normalized_score_fokker_planck_error import (
-    FokkerPlanckLossCalculator, FokkerPlankRegularizerParameters)
+from crystal_diffusion.models.normalized_score_fokker_planck_error import \
+    NormalizedScoreFokkerPlanckError
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
@@ -56,6 +57,7 @@ class PositionDiffusionParameters:
     # convergence parameter for the Ewald-like sum of the perturbation kernel.
     kmax_target_score: int = 4
     diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
+    metrics_parameters: Optional[MetricsParameters] = None
 
 
 class PositionDiffusionLightningModel(pl.LightningModule):
@@ -83,16 +85,19 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
-        self.fokker_planck = hyper_params.loss_parameters.fokker_planck_weight != 0.0
-        if self.fokker_planck:
-            fokker_planck_parameters = FokkerPlankRegularizerParameters(
-                weight=hyper_params.loss_parameters.fokker_planck_weight)
-            self.fokker_planck_loss_calculator = FokkerPlanckLossCalculator(self.sigma_normalized_score_network,
-                                                                            hyper_params.noise_parameters,
-                                                                            fokker_planck_parameters)
-
         self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
+
+        self.fokker_planck = (
+            hyper_params.metrics_parameters is not None
+            and hyper_params.metrics_parameters.fokker_planck
+        )
+        if self.fokker_planck:
+            self.fp_error_calculator = NormalizedScoreFokkerPlanckError(
+                sigma_normalized_score_network=self.sigma_normalized_score_network,
+                noise_parameters=hyper_params.noise_parameters,
+            )
+            self.fp_rmse_metric = MeanSquaredError(squared=False)
 
         self.generator = None
         self.structure_ks_metric = None
@@ -182,7 +187,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             no_conditional (optional): if True, do not use the conditional option of the forward. Used for validation.
 
         Returns:
-            loss : the computed loss.
+            output_dictionary : contains the loss, the predictions and various other useful tensors.
         """
         # The RELATIVE_COORDINATES have dimensions [batch_size, number_of_atoms, spatial_dimension].
         assert (
@@ -243,22 +248,15 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         output = dict(
             raw_loss=loss.detach(),
             unreduced_loss=unreduced_loss.detach(),
+            loss=loss,
             sigmas=sigmas,
             predicted_normalized_scores=predicted_normalized_scores.detach(),
             target_normalized_conditional_scores=target_normalized_conditional_scores,
         )
         output[RELATIVE_COORDINATES] = x0
-        output[NOISY_RELATIVE_COORDINATES] = xt
-
-        if self.fokker_planck:
-            logger.info(f"          * Computing Fokker-Planck loss term for {batch_idx}")
-            fokker_planck_loss = self.fokker_planck_loss_calculator.compute_fokker_planck_loss_term(augmented_batch)
-            logger.info(f"            Done Computing Fokker-Planck loss term for {batch_idx}")
-
-            output['fokker_planck_loss'] = fokker_planck_loss.detach()
-            output['loss'] = loss + fokker_planck_loss
-        else:
-            output['loss'] = loss
+        output[NOISY_RELATIVE_COORDINATES] = augmented_batch[NOISY_RELATIVE_COORDINATES]
+        output[TIME] = augmented_batch[TIME]
+        output[UNIT_CELL] = augmented_batch[UNIT_CELL]
 
         return output
 
@@ -312,36 +310,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             on_step=False,
             on_epoch=True,
         )
-
-        if self.fokker_planck:
-            self.log("train_step_fokker_planck_loss", output['fokker_planck_loss'],
-                     on_step=True, on_epoch=False, prog_bar=True)
-            self.log(
-                "train_epoch_fokker_planck_loss",
-                output['fokker_planck_loss'],
-                batch_size=batch_size,
-                on_step=False,
-                on_epoch=True,
-            )
-            self.log("train_step_raw_loss", output['raw_loss'],
-                     on_step=True, on_epoch=False, prog_bar=True)
-            self.log(
-                "train_epoch_raw_loss",
-                output['raw_loss'],
-                batch_size=batch_size,
-                on_step=False,
-                on_epoch=True,
-            )
-
-        logger.info(f"         Done training step with batch index {batch_idx}")
         return output
-
-    def backward(self, loss: Tensor, *args: Any, **kwargs: Any) -> None:
-        """Backward method."""
-        if self.fokker_planck:
-            loss.backward(retain_graph=True)
-        else:
-            super().backward(loss, *args, **kwargs)
 
     def validation_step(self, batch, batch_idx):
         """Runs a prediction step for validation, logging the loss."""
@@ -361,20 +330,30 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         )
 
         if self.fokker_planck:
-            self.log(
-                "validation_epoch_fokker_planck_loss",
-                output['fokker_planck_loss'],
-                batch_size=batch_size,
-                on_step=False,
-                on_epoch=True,
+            logger.info("      Computing Fokker-Planck error...")
+
+            # Make extra sure we turn off the gradient tape for the Fokker-Planck calculation!
+            for parameter in self.sigma_normalized_score_network.parameters():
+                parameter.requires_grad_(False)
+            fp_errors = (
+                self.fp_error_calculator.get_normalized_score_fokker_planck_error(
+                    output[NOISY_RELATIVE_COORDINATES], output[TIME], output[UNIT_CELL]
+                )
             )
+            for parameter in self.sigma_normalized_score_network.parameters():
+                parameter.requires_grad_(True)
+
+            logger.info("      Done Computing Fokker-Planck error.")
+            fp_rmse = self.fp_rmse_metric(fp_errors, torch.zeros_like(fp_errors))
+
             self.log(
-                "validation_epoch_raw_loss",
-                output['raw_loss'],
+                "validation/fokker_planck_rmse",
+                fp_rmse,
                 batch_size=batch_size,
-                on_step=False,
-                on_epoch=True,
+                on_step=True,
+                on_epoch=False,
             )
+            self.fp_rmse_metric.update(fp_errors, torch.zeros_like(fp_errors))
 
         if not self.draw_samples:
             return output
@@ -411,21 +390,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.log(
             "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True
         )
-        if self.fokker_planck:
-            self.log(
-                "test_epoch_fokker_planck_loss",
-                output['fokker_planck_loss'],
-                batch_size=batch_size,
-                on_step=False,
-                on_epoch=True,
-            )
-            self.log(
-                "test_epoch_raw_loss",
-                output['raw_loss'],
-                batch_size=batch_size,
-                on_step=False,
-                on_epoch=True,
-            )
 
         return output
 
@@ -454,6 +418,14 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         """On validation epoch end."""
+        if self.fokker_planck:
+            logger.info("Logging Fokker-Planck metric and resetting.")
+            fp_rmse = self.fp_rmse_metric.compute()
+            self.log(
+                "validation/fokker_planck_rmse", fp_rmse, on_step=False, on_epoch=True
+            )
+            self.fp_rmse_metric.reset()
+
         if not self.draw_samples:
             return
 

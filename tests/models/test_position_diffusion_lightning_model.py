@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, random_split
 
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
+from crystal_diffusion.metrics.metrics_parameters import MetricsParameters
 from crystal_diffusion.metrics.sampling_metrics_parameters import \
     SamplingMetricsParameters
 from crystal_diffusion.models.loss import create_loss_parameters
@@ -80,6 +81,13 @@ class TestPositionDiffusionLightningModel:
     def optimizer_parameters(self, request):
         return OptimizerParameters(name=request.param, learning_rate=0.01, weight_decay=1e-6)
 
+    @pytest.fixture(params=[None, True, False])
+    def metrics_parameters(self, request):
+        if request.param is None:
+            return None
+        else:
+            return MetricsParameters(fokker_planck=request.param)
+
     @pytest.fixture(params=[None, 'ReduceLROnPlateau', 'CosineAnnealingLR'])
     def scheduler_parameters(self, request):
         match request.param:
@@ -96,7 +104,7 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture(params=['mse', 'weighted_mse'])
     def loss_parameters(self, request):
-        model_dict = dict(loss=dict(algorithm=request.param, fokker_planck_weight=0.1))
+        model_dict = dict(loss=dict(algorithm=request.param))
         return create_loss_parameters(model_dictionary=model_dict)
 
     @pytest.fixture()
@@ -128,7 +136,7 @@ class TestPositionDiffusionLightningModel:
     @pytest.fixture()
     def hyper_params(self, number_of_atoms, spatial_dimension,
                      optimizer_parameters, scheduler_parameters,
-                     loss_parameters, sampling_parameters, diffusion_sampling_parameters):
+                     loss_parameters, sampling_parameters, diffusion_sampling_parameters, metrics_parameters):
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             n_hidden_dimensions=3,
@@ -145,7 +153,8 @@ class TestPositionDiffusionLightningModel:
             scheduler_parameters=scheduler_parameters,
             noise_parameters=noise_parameters,
             loss_parameters=loss_parameters,
-            diffusion_sampling_parameters=diffusion_sampling_parameters
+            diffusion_sampling_parameters=diffusion_sampling_parameters,
+            metrics_parameters=metrics_parameters
         )
         return hyper_params
 
@@ -245,7 +254,7 @@ class TestPositionDiffusionLightningModel:
                                    rtol=1e-4)
 
     def test_smoke_test(self, lightning_model, fake_datamodule, accelerator):
-        trainer = Trainer(fast_dev_run=3, accelerator=accelerator, inference_mode=False)
+        trainer = Trainer(fast_dev_run=3, accelerator=accelerator)
         trainer.fit(lightning_model, fake_datamodule)
         trainer.test(lightning_model, fake_datamodule)
 

@@ -21,7 +21,6 @@ spatial_dimension: 3
 model:
   loss:
     algorithm: mse
-    fokker_planck_weight: 1.0
   score_network:
     architecture: mlp
     number_of_atoms: 8
@@ -35,6 +34,10 @@ model:
     total_time_steps: 100
     sigma_min: 0.0001
     sigma_max: 0.25  
+
+
+metrics: 
+  fokker_planck: True
 
 
 # Sampling from the generative model

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Callable
 
 import einops
@@ -11,42 +10,6 @@ from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          UNIT_CELL)
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
-
-
-@dataclass(kw_only=True)
-class FokkerPlankRegularizerParameters:
-    """Specific Hyper-parameters for the Fokker Planck Regularization."""
-
-    weight: float
-
-
-class FokkerPlanckLossCalculator(torch.nn.Module):
-    """Fokker Planck Loss Calculator."""
-
-    def __init__(
-        self,
-        sigma_normalized_score_network: ScoreNetwork,
-        noise_parameters: NoiseParameters,
-        regularizer_parameters: FokkerPlankRegularizerParameters,
-    ):
-        """Init method."""
-        super().__init__()
-        self._weight = torch.nn.Parameter(
-            torch.tensor(regularizer_parameters.weight), requires_grad=False
-        )
-        self.fokker_planck_error_calculator = NormalizedScoreFokkerPlanckError(
-            sigma_normalized_score_network, noise_parameters
-        )
-
-    def compute_fokker_planck_loss_term(self, augmented_batch):
-        """Compute Fokker-Planck loss term."""
-        fokker_planck_errors = self.fokker_planck_error_calculator.get_normalized_score_fokker_planck_error(
-            augmented_batch[NOISY_RELATIVE_COORDINATES],
-            augmented_batch[TIME],
-            augmented_batch[UNIT_CELL],
-        )
-        fokker_planck_rmse = (fokker_planck_errors**2).mean().sqrt()
-        return self._weight * fokker_planck_rmse
 
 
 class NormalizedScoreFokkerPlanckError(torch.nn.Module):

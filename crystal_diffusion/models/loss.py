@@ -11,7 +11,6 @@ from crystal_diffusion.utils.configuration_parsing import \
 class LossParameters:
     """Specific Hyper-parameters for the loss function."""
     algorithm: str
-    fokker_planck_weight: float = 0.0
 
 
 @dataclass(kw_only=True)
