@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class LammpsLoaderParameters:
     """Base Hyper-parameters for score networks."""
 
-    batch_size: Optional[int] = 64
+    batch_size: Optional[int] = None
     train_batch_size: Optional[int] = None
     valid_batch_size: Optional[int] = None
     num_workers: int = 0
