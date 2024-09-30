@@ -10,12 +10,12 @@ from crystal_diffusion.generators.instantiate_generator import \
     instantiate_generator
 from crystal_diffusion.models.loss import (LossParameters,
                                            create_loss_calculator)
+from crystal_diffusion.models.normalized_score_fokker_planck_error import (
+    FokkerPlanckLossCalculator, FokkerPlankRegularizerParameters)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
                                                 load_scheduler_dictionary)
-from crystal_diffusion.models.score_fokker_planck_error import (
-    FokkerPlanckLossCalculator, FokkerPlankRegularizerParameters)
 from crystal_diffusion.models.score_networks.score_network import \
     ScoreNetworkParameters
 from crystal_diffusion.models.score_networks.score_network_factory import \
