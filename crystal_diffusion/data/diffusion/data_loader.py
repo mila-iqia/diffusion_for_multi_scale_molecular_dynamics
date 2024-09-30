@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 class LammpsLoaderParameters:
     """Base Hyper-parameters for score networks."""
 
-    batch_size: int = 64
+    batch_size: Optional[int] = 64
+    train_batch_size: Optional[int] = None
+    valid_batch_size: Optional[int] = None
     num_workers: int = 0
     max_atom: int = 64
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
@@ -55,10 +57,26 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         self.lammps_run_dir = lammps_run_dir
         self.processed_dataset_dir = processed_dataset_dir
         self.working_cache_dir = working_cache_dir
-        self.batch_size = hyper_params.batch_size
         self.num_workers = hyper_params.num_workers
         self.max_atom = hyper_params.max_atom  # number of atoms to pad tensors
         self.spatial_dim = hyper_params.spatial_dimension
+
+        if hyper_params.batch_size is None:
+            assert hyper_params.valid_batch_size is not None, \
+                "If batch_size is None, valid_batch_size must be specified."
+            assert hyper_params.train_batch_size is not None, \
+                "If batch_size is None, train_batch_size must be specified."
+
+            self.train_batch_size = hyper_params.train_batch_size
+            self.valid_batch_size = hyper_params.valid_batch_size
+
+        else:
+            assert hyper_params.valid_batch_size is None, \
+                "If batch_size is specified, valid_batch_size must be None."
+            assert hyper_params.train_batch_size is not None, \
+                "If batch_size is specified, train_batch_size must be None."
+            self.train_batch_size = hyper_params.batch_size
+            self.valid_batch_size = hyper_params.batch_size
 
     @staticmethod
     def dataset_transform(x: Dict[typing.AnyStr, typing.Any], spatial_dim: int = 3) -> Dict[str, torch.Tensor]:
@@ -143,7 +161,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         """Create the training dataloader using the training data parser."""
         return DataLoader(
             self.train_dataset,
-            batch_size=self.batch_size,
+            batch_size=self.train_batch_size,
             shuffle=True,
             num_workers=self.num_workers,
         )
@@ -152,7 +170,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         """Create the validation dataloader using the validation data parser."""
         return DataLoader(
             self.valid_dataset,
-            batch_size=self.batch_size,
+            batch_size=self.valid_batch_size,
             shuffle=False,
             num_workers=self.num_workers,
         )
