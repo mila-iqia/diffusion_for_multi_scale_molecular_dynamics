@@ -73,7 +73,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         else:
             assert hyper_params.valid_batch_size is None, \
                 "If batch_size is specified, valid_batch_size must be None."
-            assert hyper_params.train_batch_size is not None, \
+            assert hyper_params.train_batch_size is None, \
                 "If batch_size is specified, train_batch_size must be None."
             self.train_batch_size = hyper_params.batch_size
             self.valid_batch_size = hyper_params.batch_size
