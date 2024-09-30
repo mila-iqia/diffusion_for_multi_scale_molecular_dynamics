@@ -331,21 +331,16 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         )
 
         if self.fokker_planck and batch_idx <= self.fokker_planck_max_batches:
-            # Make extra sure we turn off the gradient tape for the Fokker-Planck calculation!
-            for parameter in self.sigma_normalized_score_network.parameters():
-                parameter.requires_grad_(False)
             fp_errors = (
                 self.fp_error_calculator.get_normalized_score_fokker_planck_error(
                     output[NOISY_RELATIVE_COORDINATES], output[TIME], output[UNIT_CELL]
                 )
             )
-            for parameter in self.sigma_normalized_score_network.parameters():
-                parameter.requires_grad_(True)
 
             fp_rmse = self.fp_rmse_metric(fp_errors, torch.zeros_like(fp_errors))
 
             self.log(
-                "validation/fokker_planck_rmse",
+                "validation_step_fokker_planck_rmse",
                 fp_rmse,
                 batch_size=batch_size,
                 on_step=True,
@@ -419,9 +414,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         if self.fokker_planck:
             logger.info("Logging Fokker-Planck metric and resetting.")
             fp_rmse = self.fp_rmse_metric.compute()
-            self.log(
-                "validation/fokker_planck_rmse", fp_rmse, on_step=False, on_epoch=True
-            )
+            self.log("validation_epoch_fokker_planck_rmse", fp_rmse, on_step=False, on_epoch=True)
             self.fp_rmse_metric.reset()
 
         if not self.draw_samples:
@@ -481,6 +474,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def on_validation_start(self) -> None:
         """On validation start."""
+        logger.info("Freezing the score network parameters.")
+        for parameter in self.sigma_normalized_score_network.parameters():
+            parameter.requires_grad_(False)
+
         logger.info("Clearing generator and metrics on validation start.")
         # Clear out any dangling state.
         self.generator = None
@@ -492,6 +489,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def on_train_start(self) -> None:
         """On train start."""
+        logger.info("Turn on grads on the score network parameters.")
+        for parameter in self.sigma_normalized_score_network.parameters():
+            parameter.requires_grad_(True)
+
         logger.info("Clearing generator and metrics on train start.")
         # Clear out any dangling state.
         self.generator = None
