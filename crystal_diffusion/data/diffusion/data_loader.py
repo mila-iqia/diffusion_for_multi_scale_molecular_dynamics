@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass(kw_only=True)
 class LammpsLoaderParameters:
     """Base Hyper-parameters for score networks."""
-
+    # Either batch_size XOR train_batch_size and valid_batch_size should be specified.
     batch_size: Optional[int] = None
     train_batch_size: Optional[int] = None
     valid_batch_size: Optional[int] = None
