@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader, random_split
 
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
+from crystal_diffusion.metrics.sampling_metrics_parameters import \
+    SamplingMetricsParameters
 from crystal_diffusion.models.loss import create_loss_parameters
 from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
@@ -15,10 +17,8 @@ from crystal_diffusion.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
-from crystal_diffusion.samples_and_metrics.diffusion_sampling_parameters import \
+from crystal_diffusion.samples.diffusion_sampling_parameters import \
     DiffusionSamplingParameters
-from crystal_diffusion.samples_and_metrics.sampling_metrics_parameters import \
-    SamplingMetricsParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
 from crystal_diffusion.utils.tensor_utils import \

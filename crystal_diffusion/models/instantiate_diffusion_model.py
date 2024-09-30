@@ -10,7 +10,7 @@ from crystal_diffusion.models.scheduler import create_scheduler_parameters
 from crystal_diffusion.models.score_networks.score_network_factory import \
     create_score_network_parameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
-from crystal_diffusion.samples_and_metrics.diffusion_sampling_parameters import \
+from crystal_diffusion.samples.diffusion_sampling_parameters import \
     load_diffusion_sampling_parameters
 
 logger = logging.getLogger(__name__)

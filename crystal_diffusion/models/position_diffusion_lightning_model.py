@@ -8,6 +8,8 @@ from torch import Tensor
 
 from crystal_diffusion.generators.instantiate_generator import \
     instantiate_generator
+from crystal_diffusion.metrics.kolmogorov_smirnov_metrics import \
+    KolmogorovSmirnovMetrics
 from crystal_diffusion.models.loss import (LossParameters,
                                            create_loss_calculator)
 from crystal_diffusion.models.normalized_score_fokker_planck_error import (
@@ -28,12 +30,9 @@ from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
-from crystal_diffusion.samples_and_metrics.diffusion_sampling_parameters import \
+from crystal_diffusion.samples.diffusion_sampling_parameters import \
     DiffusionSamplingParameters
-from crystal_diffusion.samples_and_metrics.kolmogorov_smirnov_metrics import \
-    KolmogorovSmirnovMetrics
-from crystal_diffusion.samples_and_metrics.sampling import \
-    create_batch_of_samples
+from crystal_diffusion.samples.sampling import create_batch_of_samples
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
 from crystal_diffusion.utils.basis_transformations import (
