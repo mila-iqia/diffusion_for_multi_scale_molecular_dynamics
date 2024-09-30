@@ -146,11 +146,6 @@ def train(model,
     for pl_logger in pl_loggers:
         pl_logger.log_hyperparams(hyper_params)
 
-    if 'fokker_planck_weight' in hyper_params['model']['loss']:
-        inference_mode = False
-    else:
-        inference_mode = True
-
     trainer = pl.Trainer(
         callbacks=list(callbacks_dict.values()),
         max_epochs=hyper_params['max_epoch'],
@@ -161,7 +156,6 @@ def train(model,
         logger=pl_loggers,
         gradient_clip_val=hyper_params.get('gradient_clipping', 0),
         accumulate_grad_batches=hyper_params.get('accumulate_grad_batches', 1),
-        inference_mode=inference_mode
     )
 
     # Using the keyword ckpt_path="last" tells the trainer to resume from the last
