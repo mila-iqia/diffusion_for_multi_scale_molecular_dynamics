@@ -82,10 +82,12 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.sigma_normalized_score_network = create_score_network(
             hyper_params.score_network_parameters
         )
+
+        # TODO: this creates a problem and I don't know why. Turning off for now.
         # Identify which parameters should require grads. PL does a poor job of turning this off correctly.
-        self.live_parameters = []
-        for parameter in self.sigma_normalized_score_network.parameters():
-            self.live_parameters.append(parameter.requires_grad)
+        # self.live_parameters = []
+        # for parameter in self.sigma_normalized_score_network.parameters():
+        #    self.live_parameters.append(parameter.requires_grad)
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
@@ -480,9 +482,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """On validation start."""
         logger.info("Starting validation.")
 
-        logger.info("   - Freezing the score network parameters.")
-        for parameter in self.sigma_normalized_score_network.parameters():
-            parameter.requires_grad_(False)
+        # TODO: this creates a problem and I don't know why. Turning off for now.
+        # logger.info("   - Freezing the score network parameters.")
+        # for parameter in self.sigma_normalized_score_network.parameters():
+        #    parameter.requires_grad_(False)
 
         logger.info("   - Clearing generator and metrics on validation start.")
         # Clear out any dangling state.
@@ -498,9 +501,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         logger.info("Starting train.")
         logger.info("   - Turn on grads on the score network parameters.")
 
-        for parameter, is_live in zip(self.sigma_normalized_score_network.parameters(), self.live_parameters):
-            if is_live:
-                parameter.requires_grad_(True)
+        # TODO: this creates a problem and I don't know why. Turning off for now.
+        # for parameter, is_live in zip(self.sigma_normalized_score_network.parameters(), self.live_parameters):
+        #    if is_live:
+        #        parameter.requires_grad_(True)
 
         logger.info("   - Clearing generator and metrics.")
         # Clear out any dangling state.
