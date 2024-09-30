@@ -273,9 +273,12 @@ class TestScoreFokkerPlanckError:
         times,
         unit_cells,
     ):
-        # This is more of a smoke test: will the code actually run?
-        errors = normalized_score_fokker_planck_error.get_normalized_score_fokker_planck_error(
+        errors1 = normalized_score_fokker_planck_error.get_normalized_score_fokker_planck_error(
             relative_coordinates, times, unit_cells
         )
 
-        torch.testing.assert_allclose(errors.shape, relative_coordinates.shape)
+        errors2 = normalized_score_fokker_planck_error.get_normalized_score_fokker_planck_error_by_iterating_over_batch(
+            relative_coordinates, times, unit_cells
+        )
+
+        torch.testing.assert_allclose(errors1, errors2)

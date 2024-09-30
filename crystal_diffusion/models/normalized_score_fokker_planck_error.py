@@ -243,3 +243,20 @@ class NormalizedScoreFokkerPlanckError(torch.nn.Module):
         )
 
         return fp_errors
+
+    def get_normalized_score_fokker_planck_error_by_iterating_over_batch(
+        self,
+        relative_coordinates: torch.Tensor,
+        times: torch.Tensor,
+        unit_cells: torch.Tensor,
+    ) -> torch.Tensor:
+        """Get the error by iterating over the elements of the batch."""
+        list_errors = []
+        for x, t, c in zip(relative_coordinates, times, unit_cells):
+            # Iterate over the elements of the batch. In effect, compute over "batch_size = 1" tensors.
+            errors = self.get_normalized_score_fokker_planck_error(x.unsqueeze(0),
+                                                                   t.unsqueeze(0),
+                                                                   c.unsqueeze(0)).squeeze(0)
+            list_errors.append(errors)
+
+        return torch.stack(list_errors)
