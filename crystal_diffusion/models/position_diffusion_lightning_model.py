@@ -446,8 +446,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
     def on_train_start(self) -> None:
         """On train start."""
         logger.info("Starting train.")
-        logger.info("   - Turn on grads on the score network parameters.")
-
         logger.info("   - Clearing generator and metrics.")
         # Clear out any dangling state.
         self.generator = None
