@@ -4,17 +4,13 @@ from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch
-from torchmetrics import MeanSquaredError
 
 from crystal_diffusion.generators.instantiate_generator import \
     instantiate_generator
 from crystal_diffusion.metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
-from crystal_diffusion.metrics.metrics_parameters import MetricsParameters
 from crystal_diffusion.models.loss import (LossParameters,
                                            create_loss_calculator)
-from crystal_diffusion.models.normalized_score_fokker_planck_error import \
-    NormalizedScoreFokkerPlanckError
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (SchedulerParameters,
@@ -57,7 +53,6 @@ class PositionDiffusionParameters:
     # convergence parameter for the Ewald-like sum of the perturbation kernel.
     kmax_target_score: int = 4
     diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
-    metrics_parameters: Optional[MetricsParameters] = None
 
 
 class PositionDiffusionLightningModel(pl.LightningModule):
@@ -83,28 +78,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             hyper_params.score_network_parameters
         )
 
-        # TODO: this creates a problem and I don't know why. Turning off for now.
-        # Identify which parameters should require grads. PL does a poor job of turning this off correctly.
-        # self.live_parameters = []
-        # for parameter in self.sigma_normalized_score_network.parameters():
-        #    self.live_parameters.append(parameter.requires_grad)
-
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
         self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
-
-        self.fokker_planck = (
-            hyper_params.metrics_parameters is not None
-            and hyper_params.metrics_parameters.fokker_planck
-        )
-        if self.fokker_planck:
-            self.fokker_planck_max_batches = hyper_params.metrics_parameters.fokker_planck_max_batches
-            self.fp_error_calculator = NormalizedScoreFokkerPlanckError(
-                sigma_normalized_score_network=self.sigma_normalized_score_network,
-                noise_parameters=hyper_params.noise_parameters,
-            )
-            self.fp_rmse_metric = MeanSquaredError(squared=False)
 
         self.generator = None
         self.structure_ks_metric = None
@@ -335,24 +312,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             prog_bar=True,
         )
 
-        if self.fokker_planck and batch_idx <= self.fokker_planck_max_batches:
-            fp_errors = (
-                self.fp_error_calculator.get_normalized_score_fokker_planck_error_by_iterating_over_batch(
-                    output[NOISY_RELATIVE_COORDINATES], output[TIME], output[UNIT_CELL]
-                )
-            )
-
-            fp_rmse = self.fp_rmse_metric(fp_errors, torch.zeros_like(fp_errors))
-
-            self.log(
-                "validation_step_fokker_planck_rmse",
-                fp_rmse,
-                batch_size=batch_size,
-                on_step=True,
-                on_epoch=False,
-            )
-            self.fp_rmse_metric.update(fp_errors, torch.zeros_like(fp_errors))
-
         if not self.draw_samples:
             return output
 
@@ -417,12 +376,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
     def on_validation_epoch_end(self) -> None:
         """On validation epoch end."""
         logger.info("Ending validation.")
-        if self.fokker_planck:
-            logger.info("   - Logging Fokker-Planck metric and resetting.")
-            fp_rmse = self.fp_rmse_metric.compute()
-            self.log("validation_epoch_fokker_planck_rmse", fp_rmse, on_step=False, on_epoch=True)
-            self.fp_rmse_metric.reset()
-
         if not self.draw_samples:
             return
 
