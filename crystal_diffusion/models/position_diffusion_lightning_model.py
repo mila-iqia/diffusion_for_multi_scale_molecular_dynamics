@@ -230,7 +230,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         loss = torch.mean(unreduced_loss)
 
         output = dict(
-            raw_loss=loss.detach(),
             unreduced_loss=unreduced_loss.detach(),
             loss=loss,
             sigmas=sigmas,
