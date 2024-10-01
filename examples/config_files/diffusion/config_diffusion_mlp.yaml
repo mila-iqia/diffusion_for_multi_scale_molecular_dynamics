@@ -35,11 +35,6 @@ model:
     sigma_min: 0.0001
     sigma_max: 0.25  
 
-
-metrics: 
-  fokker_planck: True
-
-
 # Sampling from the generative model
 diffusion_sampling:
   noise:
