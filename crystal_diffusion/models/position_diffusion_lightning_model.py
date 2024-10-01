@@ -435,11 +435,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """On validation start."""
         logger.info("Starting validation.")
 
-        # TODO: this creates a problem and I don't know why. Turning off for now.
-        # logger.info("   - Freezing the score network parameters.")
-        # for parameter in self.sigma_normalized_score_network.parameters():
-        #    parameter.requires_grad_(False)
-
         logger.info("   - Clearing generator and metrics on validation start.")
         # Clear out any dangling state.
         self.generator = None
@@ -453,11 +448,6 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         """On train start."""
         logger.info("Starting train.")
         logger.info("   - Turn on grads on the score network parameters.")
-
-        # TODO: this creates a problem and I don't know why. Turning off for now.
-        # for parameter, is_live in zip(self.sigma_normalized_score_network.parameters(), self.live_parameters):
-        #    if is_live:
-        #        parameter.requires_grad_(True)
 
         logger.info("   - Clearing generator and metrics.")
         # Clear out any dangling state.
