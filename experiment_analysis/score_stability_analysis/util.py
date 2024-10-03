@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Tuple
 
 import einops
 import numpy as np
@@ -15,7 +15,7 @@ from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
 
-def create_fixed_time_vector_field_function(
+def create_fixed_time_normalized_score_function(
     sigma_normalized_score_network: ScoreNetwork,
     noise_parameters: NoiseParameters,
     time: float,
@@ -36,9 +36,6 @@ def create_fixed_time_vector_field_function(
 
         forces = torch.zeros_like(relative_coordinates)
         sigmas = variance_calculator.get_sigma(times)
-        g2 = variance_calculator.get_g_squared(times)
-
-        vector_field_prefactor = -g2 / sigmas
 
         augmented_batch = {
             NOISY_RELATIVE_COORDINATES: relative_coordinates,
@@ -52,14 +49,7 @@ def create_fixed_time_vector_field_function(
             augmented_batch, conditional=False
         )
 
-        prefactor = einops.repeat(
-            vector_field_prefactor,
-            "b 1 -> b n s",
-            n=number_of_atoms,
-            s=spatial_dimension,
-        )
-
-        return prefactor * sigma_normalized_scores
+        return sigma_normalized_scores
 
     return vector_field_function
 
@@ -81,19 +71,39 @@ def get_hessian_function(vector_field_function: Callable) -> Callable:
     return hessian_function
 
 
-def get_flat_vector_field_function(
-    vector_field_function: Callable, number_of_atoms: int, spatial_dimension: int
-) -> Callable:
+def get_square_norm_and_grad_functions(
+    vector_field_function: Callable, number_of_atoms: int, spatial_dimension: int, device: torch.device
+) -> Tuple[Callable, Callable]:
     """Get a flat vector field function."""
-    def flat_vector_field_function(x: np.ndarray) -> np.ndarray:
-        cast_x = torch.from_numpy(x).to(torch.float32)
+
+    hessian_function = get_hessian_function(vector_field_function)
+
+    def _get_relative_coordinates(x: np.ndarray) -> torch.Tensor:
+        cast_x = torch.from_numpy(x).to(torch.float32).to(device)
         relative_coordinates = einops.rearrange(
             cast_x, "(n s) -> 1 n s", n=number_of_atoms, s=spatial_dimension
         )
         relative_coordinates = map_relative_coordinates_to_unit_cell(
             relative_coordinates
         )
-        vector_field = vector_field_function(relative_coordinates)
-        return einops.rearrange(vector_field, "1 n s -> (n s)").numpy()
+        return relative_coordinates
 
-    return flat_vector_field_function
+    def square_norm_function(x: np.ndarray) -> np.ndarray:
+        relative_coordinates = _get_relative_coordinates(x)
+        vector_field = vector_field_function(relative_coordinates)
+        square_norm = 0.5 * (vector_field**2).flatten().sum()
+        return square_norm.cpu().numpy()
+
+    def gradient_function(x: np.ndarray) -> np.ndarray:
+        relative_coordinates = _get_relative_coordinates(x)
+
+        vector_field = vector_field_function(relative_coordinates)
+
+        flat_vector_field = einops.rearrange(vector_field, "1 n s -> (n s)")
+        flat_hessian = einops.rearrange(hessian_function(relative_coordinates), "1 ns1 ns2 -> ns1 ns2")
+
+        gradient = torch.matmul(flat_vector_field, flat_hessian)
+
+        return gradient.cpu().numpy()
+
+    return square_norm_function, gradient_function
