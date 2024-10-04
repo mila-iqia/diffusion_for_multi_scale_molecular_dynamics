@@ -96,12 +96,15 @@ def get_sigma_normalized_score(
     assert sigmas.shape == relative_coordinates.shape, \
         "The relative_coordinates and sigmas inputs should have the same shape"
 
+    device = relative_coordinates.device
+    assert sigmas.device == device, "relative_coordinates and sigmas should be on the same device."
+
     total_number_of_elements = relative_coordinates.nelement()
     list_u = relative_coordinates.view(total_number_of_elements)
     list_sigma = sigmas.reshape(total_number_of_elements)
 
     # The dimension of list_k is [2 kmax + 1].
-    list_k = torch.arange(-kmax, kmax + 1)
+    list_k = torch.arange(-kmax, kmax + 1).to(device)
 
     # Initialize a results array, and view it as a flat list.
     # Since "flat_view" is a view on "sigma_normalized_scores",  sigma_normalized_scores is updated
@@ -123,8 +126,7 @@ def get_sigma_normalized_score(
     for mask_calculator, score_calculator in zip(mask_calculators, score_calculators):
         mask = mask_calculator(list_u, list_sigma)
         if mask.any():
-            device = flat_view.device
-            flat_view[mask] = score_calculator(list_u[mask], list_sigma.to(device)[mask], list_k.to(device))
+            flat_view[mask] = score_calculator(list_u[mask], list_sigma[mask], list_k)
 
     return sigma_normalized_scores
 
@@ -167,7 +169,8 @@ def _get_large_sigma_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> tor
     Returns:
         mask_2 : an array of booleans of shape [N]
     """
-    return list_sigma > SIGMA_THRESHOLD
+    device = list_u.device
+    return list_sigma.to(device) > SIGMA_THRESHOLD.to(device)
 
 
 def _get_s1a_exponential(

@@ -1,13 +1,14 @@
 import logging
-import typing
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch
 
 from crystal_diffusion.generators.instantiate_generator import \
     instantiate_generator
+from crystal_diffusion.metrics.kolmogorov_smirnov_metrics import \
+    KolmogorovSmirnovMetrics
 from crystal_diffusion.models.loss import (LossParameters,
                                            create_loss_calculator)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
@@ -26,12 +27,9 @@ from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
-from crystal_diffusion.samples_and_metrics.diffusion_sampling_parameters import \
+from crystal_diffusion.samples.diffusion_sampling_parameters import \
     DiffusionSamplingParameters
-from crystal_diffusion.samples_and_metrics.kolmogorov_smirnov_metrics import \
-    KolmogorovSmirnovMetrics
-from crystal_diffusion.samples_and_metrics.sampling import \
-    create_batch_of_samples
+from crystal_diffusion.samples.sampling import create_batch_of_samples
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
 from crystal_diffusion.utils.basis_transformations import (
@@ -140,10 +138,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def _generic_step(
         self,
-        batch: typing.Any,
+        batch: Any,
         batch_idx: int,
         no_conditional: bool = False,
-    ) -> typing.Any:
+    ) -> Any:
         """Generic step.
 
         This "generic step" computes the loss for any of the possible lightning "steps".
@@ -173,7 +171,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             no_conditional (optional): if True, do not use the conditional option of the forward. Used for validation.
 
         Returns:
-            loss : the computed loss.
+            output_dictionary : contains the loss, the predictions and various other useful tensors.
         """
         # The RELATIVE_COORDINATES have dimensions [batch_size, number_of_atoms, spatial_dimension].
         assert (
@@ -227,19 +225,21 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         unreduced_loss = self.loss_calculator.calculate_unreduced_loss(
             predicted_normalized_scores,
             target_normalized_conditional_scores,
-            sigmas.to(self.device),
+            sigmas,
         )
         loss = torch.mean(unreduced_loss)
 
         output = dict(
-            loss=loss,
             unreduced_loss=unreduced_loss.detach(),
+            loss=loss,
             sigmas=sigmas,
             predicted_normalized_scores=predicted_normalized_scores.detach(),
             target_normalized_conditional_scores=target_normalized_conditional_scores,
         )
         output[RELATIVE_COORDINATES] = x0
-        output[NOISY_RELATIVE_COORDINATES] = xt
+        output[NOISY_RELATIVE_COORDINATES] = augmented_batch[NOISY_RELATIVE_COORDINATES]
+        output[TIME] = augmented_batch[TIME]
+        output[UNIT_CELL] = augmented_batch[UNIT_CELL]
 
         return output
 
@@ -293,12 +293,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             on_step=False,
             on_epoch=True,
         )
-        logger.info(f"         Done training step with batch index {batch_idx}")
         return output
 
     def validation_step(self, batch, batch_idx):
         """Runs a prediction step for validation, logging the loss."""
-        logger.info(f"  - Starting validation step with batch index {batch_idx}")
         output = self._generic_step(batch, batch_idx, no_conditional=True)
         loss = output["loss"]
         batch_size = self._get_batch_size(batch)
@@ -348,6 +346,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.log(
             "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True
         )
+
         return output
 
     def generate_samples(self):
@@ -375,16 +374,17 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         """On validation epoch end."""
+        logger.info("Ending validation.")
         if not self.draw_samples:
             return
 
-        logger.info("Drawing samples at the end of the validation epoch.")
+        logger.info("   - Drawing samples at the end of the validation epoch.")
         samples_batch = self.generate_samples()
 
         if self.metrics_parameters.compute_energies:
-            logger.info("   * Computing sample energies")
+            logger.info("       * Computing sample energies")
             sample_energies = compute_oracle_energies(samples_batch)
-            logger.info("   * Registering sample energies")
+            logger.info("       * Registering sample energies")
             self.energy_ks_metric.register_predicted_samples(sample_energies.cpu())
 
             (
@@ -400,17 +400,17 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             self.log(
                 "validation_ks_p_value_energy", p_value, on_step=False, on_epoch=True
             )
-            logger.info("   * Done logging sample energies")
+            logger.info("       * Done logging sample energies")
 
         if self.metrics_parameters.compute_structure_factor:
-            logger.info("   * Computing sample distances")
+            logger.info("       * Computing sample distances")
             sample_distances = compute_distances_in_batch(
                 cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
                 unit_cell=samples_batch[UNIT_CELL],
                 max_distance=self.metrics_parameters.structure_factor_max_distance,
             )
 
-            logger.info("   * Registering sample distances")
+            logger.info("       * Registering sample distances")
             self.structure_ks_metric.register_predicted_samples(sample_distances.cpu())
 
             (
@@ -428,11 +428,13 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             self.log(
                 "validation_ks_p_value_structure", p_value, on_step=False, on_epoch=True
             )
-            logger.info("   * Done logging sample distances")
+            logger.info("       * Done logging sample distances")
 
     def on_validation_start(self) -> None:
         """On validation start."""
-        logger.info("Clearing generator and metrics on validation start.")
+        logger.info("Starting validation.")
+
+        logger.info("   - Clearing generator and metrics on validation start.")
         # Clear out any dangling state.
         self.generator = None
         if self.metrics_parameters.compute_energies:
@@ -443,7 +445,8 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
     def on_train_start(self) -> None:
         """On train start."""
-        logger.info("Clearing generator and metrics on train start.")
+        logger.info("Starting train.")
+        logger.info("   - Clearing generator and metrics.")
         # Clear out any dangling state.
         self.generator = None
         if self.metrics_parameters.compute_energies:

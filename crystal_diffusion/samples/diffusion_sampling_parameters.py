@@ -4,9 +4,9 @@ from typing import Any, AnyStr, Dict, Union
 from crystal_diffusion.generators.load_sampling_parameters import \
     load_sampling_parameters
 from crystal_diffusion.generators.position_generator import SamplingParameters
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
-from crystal_diffusion.samples_and_metrics.sampling_metrics_parameters import \
+from crystal_diffusion.metrics.sampling_metrics_parameters import \
     SamplingMetricsParameters
+from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 
 @dataclass(kw_only=True)

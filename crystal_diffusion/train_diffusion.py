@@ -155,7 +155,7 @@ def train(model,
         devices=devices,
         logger=pl_loggers,
         gradient_clip_val=hyper_params.get('gradient_clipping', 0),
-        accumulate_grad_batches=hyper_params.get('accumulate_grad_batches', 1)
+        accumulate_grad_batches=hyper_params.get('accumulate_grad_batches', 1),
     )
 
     # Using the keyword ckpt_path="last" tells the trainer to resume from the last
