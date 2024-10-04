@@ -34,6 +34,7 @@ class E_GCL(nn.Module):
         attention: bool = False,
         normalize: bool = False,
         coords_agg: str = "mean",
+        message_agg: str = "mean",
         tanh: bool = False,
     ):
         """E_GCL layer initialization.
@@ -52,7 +53,8 @@ class E_GCL(nn.Module):
             attention: if True, multiply the message output by a gated value of the output. Defaults to False.
             normalize: if True, use a normalized version of the coordinates update i.e. x_i^l - x_j^l would be a unit
                 vector in eq. 4 in https://arxiv.org/pdf/2102.09844. Defaults to False.
-            coords_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
+            coords_agg: Use a mean or sum aggregation for the coordinates update. Defaults to mean.
+            message_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
         """
         super(E_GCL, self).__init__()
@@ -65,6 +67,7 @@ class E_GCL(nn.Module):
         if coords_agg not in ["mean", "sum"]:
             raise ValueError(f"coords_agg should be mean or sum. Got {coords_agg}")
         self.coords_agg_fn = unsorted_segment_sum if coords_agg == "sum" else unsorted_segment_mean
+        self.msg_agg_fn = unsorted_segment_sum if message_agg == "sum" else unsorted_segment_mean
 
         # message update MLP i.e. message m_{ij} used in the graph neural network.
         # \phi_e is eq. (3) in https://arxiv.org/pdf/2102.09844
@@ -151,7 +154,7 @@ class E_GCL(nn.Module):
             updated node features. size: number of nodes, output_size
         """
         row = edge_index[:, 0]
-        agg = unsorted_segment_sum(messages, row, num_segments=x.size(0))  # sum messages m_i = \sum_j m_{ij}
+        agg = self.msg_agg_fn(messages, row, num_segments=x.size(0))  # sum messages m_i = \sum_j m_{ij}
         agg = torch.cat([x, agg], dim=1)  # concat h_i and m_i
         out = self.node_mlp(agg)
         if self.residual:  # optional skip connection
@@ -245,7 +248,8 @@ class EGNN(nn.Module):
         normalize: bool = False,
         tanh: bool = False,
         coords_agg: str = "mean",
-        n_layers: int = 4
+        message_agg: str = "mean",
+        n_layers: int = 4,
     ):
         """EGNN model stacking multiple E_GCL layers.
 
@@ -262,7 +266,8 @@ class EGNN(nn.Module):
             attention: if True, multiply the message output by a gated value of the output. Defaults to False.
             normalize: if True, use a normalized version of the coordinates update i.e. x_i^l - x_j^l would be a unit
                 vector in eq. 4 in https://arxiv.org/pdf/2102.09844. Defaults to False.
-            coords_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
+            coords_agg: Use a mean or sum aggregation for the coordinates update. Defaults to mean.
+            message_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
             n_layers: number of E_GCL layers. Defaults to 4.
         """
@@ -286,7 +291,8 @@ class EGNN(nn.Module):
                     attention=attention,
                     normalize=normalize,
                     coords_agg=coords_agg,
-                    tanh=tanh
+                    message_agg=message_agg,
+                    tanh=tanh,
                 )
             )
 
