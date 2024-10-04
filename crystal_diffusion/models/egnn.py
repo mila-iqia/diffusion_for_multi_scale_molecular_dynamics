@@ -10,7 +10,6 @@ The file is modified from the original download to fit our own linting style and
 from typing import Callable, Tuple
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
