@@ -9,10 +9,7 @@ from tqdm import tqdm
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import \
     get_silicon_supercell
-from crystal_diffusion.models.score_networks.mlp_score_network import \
-    MLPScoreNetworkParameters
-from crystal_diffusion.models.score_networks.score_network_factory import \
-    create_score_network
+from crystal_diffusion.models.position_diffusion_lightning_model import PositionDiffusionLightningModel
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
@@ -46,26 +43,13 @@ noise_parameters = NoiseParameters(
 
 device = torch.device("cuda")
 if __name__ == "__main__":
-    # For debugging
-    score_network_parameters = MLPScoreNetworkParameters(
-        number_of_atoms=number_of_atoms,
-        n_hidden_dimensions=1,
-        hidden_dimensions_size=16,
-        embedding_dimensions_size=8,
-        condition_embedding_size=8,
-    )
-
-    sigma_normalized_score_network = create_score_network(score_network_parameters)
-
     variance_calculator = ExplodingVariance(noise_parameters)
 
-    """
     logger.info("Loading checkpoint...")
     pl_model = PositionDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
     pl_model.eval()
 
     sigma_normalized_score_network = pl_model.sigma_normalized_score_network
-    """
 
     for parameter in sigma_normalized_score_network.parameters():
         parameter.requires_grad_(False)
@@ -75,9 +59,16 @@ if __name__ == "__main__":
     ).to(torch.float32)
 
     direction = torch.zeros_like(equilibrium_relative_coordinates)
-    direction[2, 0] = 1.0
 
-    list_delta = torch.linspace(-0.5, 0.5, 101)
+    # Move a single atom
+    # direction[0, 0] = 1.0
+    # list_delta = torch.linspace(-0.5, 0.5, 101)
+
+    # Put two particles on top of each other
+    dv = equilibrium_relative_coordinates[0] - equilibrium_relative_coordinates[1]
+    direction[0] = -0.5 * dv
+    direction[1] =  0.5 * dv
+    list_delta = torch.linspace(0., 2.0, 201)
 
     relative_coordinates = []
     for delta in list_delta:
@@ -86,9 +77,9 @@ if __name__ == "__main__":
         )
     relative_coordinates = map_relative_coordinates_to_unit_cell(
         torch.stack(relative_coordinates)
-    )
+    ).to(device)
 
-    list_t = torch.tensor([1.0, 0.8, 0.5, 0.1, 0.01])
+    list_t = torch.tensor([0.8, 0.7, 0.5, 0.3, 0.1, 0.01])
     list_sigmas = variance_calculator.get_sigma(list_t)
     list_norms = []
     for t in tqdm(list_t, "norms"):
@@ -103,7 +94,7 @@ if __name__ == "__main__":
         flat_normalized_scores = einops.rearrange(
             normalized_scores, " b n s -> b (n s)"
         )
-        list_norms.append(flat_normalized_scores.norm(dim=-1))
+        list_norms.append(flat_normalized_scores.norm(dim=-1).cpu())
 
     fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig.suptitle("Normalized Score Norm Along Specific Direction")
