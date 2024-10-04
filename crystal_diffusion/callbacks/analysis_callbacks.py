@@ -12,8 +12,8 @@ import torch
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import \
     get_relative_harmonic_energy
-from crystal_diffusion.callbacks.sampling_callback import \
-    DiffusionSamplingCallback
+from crystal_diffusion.callbacks.sampling_visualization_callback import \
+    SamplingVisualizationCallback
 from crystal_diffusion.generators.position_generator import SamplingParameters
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 plt.style.use(PLOT_STYLE_PATH)
 
 
-class HarmonicEnergyDiffusionSamplingCallback(DiffusionSamplingCallback):
+class HarmonicEnergyDiffusionSamplingCallback(SamplingVisualizationCallback):
     """Callback class to periodically generate samples and log their energies."""
 
     def __init__(self, noise_parameters: NoiseParameters,
@@ -54,7 +54,7 @@ class HarmonicEnergyDiffusionSamplingCallback(DiffusionSamplingCallback):
     @staticmethod
     def _plot_energy_histogram(sample_energies: np.ndarray, validation_dataset_energies: np.array,
                                epoch: int) -> plt.figure:
-        fig = DiffusionSamplingCallback._plot_energy_histogram(sample_energies, validation_dataset_energies, epoch)
+        fig = SamplingVisualizationCallback._plot_energy_histogram(sample_energies, validation_dataset_energies, epoch)
 
         fig.suptitle(f'Sampling Unitless Harmonic Potential Energy Distributions\nEpoch {epoch}')
         ax1 = fig.axes[0]

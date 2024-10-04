@@ -11,7 +11,8 @@ from crystal_diffusion import DATA_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
-from crystal_diffusion.models.model_loader import load_diffusion_model
+from crystal_diffusion.models.instantiate_diffusion_model import \
+    load_diffusion_model
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger

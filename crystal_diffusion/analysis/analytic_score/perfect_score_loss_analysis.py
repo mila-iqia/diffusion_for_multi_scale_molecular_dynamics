@@ -16,7 +16,7 @@ from crystal_diffusion.analysis.analytic_score.utils import (
     get_exact_samples, get_silicon_supercell)
 from crystal_diffusion.callbacks.loss_monitoring_callback import \
     LossMonitoringCallback
-from crystal_diffusion.callbacks.sampling_callback import \
+from crystal_diffusion.callbacks.sampling_visualization_callback import \
     PredictorCorrectorDiffusionSamplingCallback
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters

@@ -16,13 +16,13 @@ class ExplodingVariance(torch.nn.Module):
         Args:
             noise_parameters: parameters that define the noise schedule.
         """
-        super(ExplodingVariance, self).__init__()
+        super().__init__()
 
-        self.sigma_min = torch.nn.Parameter(torch.tensor(noise_parameters.sigma_min))
-        self.sigma_max = torch.nn.Parameter(torch.tensor(noise_parameters.sigma_max))
+        self.sigma_min = torch.nn.Parameter(torch.tensor(noise_parameters.sigma_min), requires_grad=False)
+        self.sigma_max = torch.nn.Parameter(torch.tensor(noise_parameters.sigma_max), requires_grad=False)
 
-        self.ratio = self.sigma_max / self.sigma_min
-        self.log_ratio = torch.log(self.sigma_max / self.sigma_min)
+        self.ratio = torch.nn.Parameter(self.sigma_max / self.sigma_min, requires_grad=False)
+        self.log_ratio = torch.nn.Parameter(torch.log(self.sigma_max / self.sigma_min), requires_grad=False)
 
     def get_sigma(self, times: torch.Tensor) -> torch.Tensor:
         """Get sigma.

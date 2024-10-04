@@ -1,10 +1,14 @@
 import logging
-import typing
 from dataclasses import dataclass
+from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch
 
+from crystal_diffusion.generators.instantiate_generator import \
+    instantiate_generator
+from crystal_diffusion.metrics.kolmogorov_smirnov_metrics import \
+    KolmogorovSmirnovMetrics
 from crystal_diffusion.models.loss import (LossParameters,
                                            create_loss_calculator)
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
@@ -15,17 +19,22 @@ from crystal_diffusion.models.score_networks.score_network import \
     ScoreNetworkParameters
 from crystal_diffusion.models.score_networks.score_network_factory import \
     create_score_network
-from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
-                                         NOISY_RELATIVE_COORDINATES,
+from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
+                                         NOISE, NOISY_RELATIVE_COORDINATES,
                                          RELATIVE_COORDINATES, TIME, UNIT_CELL)
+from crystal_diffusion.oracle.energies import compute_oracle_energies
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+from crystal_diffusion.samples.diffusion_sampling_parameters import \
+    DiffusionSamplingParameters
+from crystal_diffusion.samples.sampling import create_batch_of_samples
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
-from crystal_diffusion.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+from crystal_diffusion.utils.basis_transformations import (
+    get_positions_from_coordinates, map_relative_coordinates_to_unit_cell)
+from crystal_diffusion.utils.structure_utils import compute_distances_in_batch
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
@@ -35,14 +44,15 @@ logger = logging.getLogger(__name__)
 @dataclass(kw_only=True)
 class PositionDiffusionParameters:
     """Position Diffusion parameters."""
+
     score_network_parameters: ScoreNetworkParameters
     loss_parameters: LossParameters
     optimizer_parameters: OptimizerParameters
-    scheduler_parameters: typing.Union[SchedulerParameters, None] = None
+    scheduler_parameters: Optional[SchedulerParameters] = None
     noise_parameters: NoiseParameters
-    kmax_target_score: int = (
-        4  # convergence parameter for the Ewald-like sum of the perturbation kernel.
-    )
+    # convergence parameter for the Ewald-like sum of the perturbation kernel.
+    kmax_target_score: int = 4
+    diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
 
 
 class PositionDiffusionLightningModel(pl.LightningModule):
@@ -59,15 +69,33 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         super().__init__()
 
         self.hyper_params = hyper_params
-        self.save_hyperparameters(logger=False)  # It is not the responsibility of this class to log its parameters.
+        self.save_hyperparameters(
+            logger=False
+        )  # It is not the responsibility of this class to log its parameters.
 
         # we will model sigma x score
-        self.sigma_normalized_score_network = create_score_network(hyper_params.score_network_parameters)
+        self.sigma_normalized_score_network = create_score_network(
+            hyper_params.score_network_parameters
+        )
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
         self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
+
+        self.generator = None
+        self.structure_ks_metric = None
+        self.energy_ks_metric = None
+
+        self.draw_samples = hyper_params.diffusion_sampling_parameters is not None
+        if self.draw_samples:
+            self.metrics_parameters = (
+                self.hyper_params.diffusion_sampling_parameters.metrics_parameters
+            )
+            if self.metrics_parameters.compute_structure_factor:
+                self.structure_ks_metric = KolmogorovSmirnovMetrics()
+            if self.metrics_parameters.compute_energies:
+                self.energy_ks_metric = KolmogorovSmirnovMetrics()
 
     def configure_optimizers(self):
         """Returns the combination of optimizer(s) and learning rate scheduler(s) to train with.
@@ -83,8 +111,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         output = dict(optimizer=optimizer)
 
         if self.hyper_params.scheduler_parameters is not None:
-            scheduler_dict = load_scheduler_dictionary(scheduler_parameters=self.hyper_params.scheduler_parameters,
-                                                       optimizer=optimizer)
+            scheduler_dict = load_scheduler_dictionary(
+                scheduler_parameters=self.hyper_params.scheduler_parameters,
+                optimizer=optimizer,
+            )
             output.update(scheduler_dict)
 
         return output
@@ -100,16 +130,18 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             batch_size: the size of the batch.
         """
         # The RELATIVE_COORDINATES have dimensions [batch_size, number_of_atoms, spatial_dimension].
-        assert RELATIVE_COORDINATES in batch, f"The field '{RELATIVE_COORDINATES}' is missing from the input."
+        assert (
+            RELATIVE_COORDINATES in batch
+        ), f"The field '{RELATIVE_COORDINATES}' is missing from the input."
         batch_size = batch[RELATIVE_COORDINATES].shape[0]
         return batch_size
 
     def _generic_step(
         self,
-        batch: typing.Any,
+        batch: Any,
         batch_idx: int,
         no_conditional: bool = False,
-    ) -> typing.Any:
+    ) -> Any:
         """Generic step.
 
         This "generic step" computes the loss for any of the possible lightning "steps".
@@ -139,10 +171,12 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             no_conditional (optional): if True, do not use the conditional option of the forward. Used for validation.
 
         Returns:
-            loss : the computed loss.
+            output_dictionary : contains the loss, the predictions and various other useful tensors.
         """
         # The RELATIVE_COORDINATES have dimensions [batch_size, number_of_atoms, spatial_dimension].
-        assert RELATIVE_COORDINATES in batch, f"The field '{RELATIVE_COORDINATES}' is missing from the input."
+        assert (
+            RELATIVE_COORDINATES in batch
+        ), f"The field '{RELATIVE_COORDINATES}' is missing from the input."
         x0 = batch[RELATIVE_COORDINATES]
         shape = x0.shape
         assert len(shape) == 3, (
@@ -160,36 +194,52 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             batch_values=noise_sample.sigma, final_shape=shape
         )
 
-        xt = self.noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(x0, sigmas)
+        xt = self.noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(
+            x0, sigmas
+        )
 
         # The target is nabla log p_{t|0} (xt | x0): it is NOT the "score", but rather a "conditional" (on x0) score.
-        target_normalized_conditional_scores = self._get_target_normalized_score(xt, x0, sigmas)
+        target_normalized_conditional_scores = self._get_target_normalized_score(
+            xt, x0, sigmas
+        )
 
-        unit_cell = torch.diag_embed(batch["box"])  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
+        unit_cell = torch.diag_embed(
+            batch["box"]
+        )  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
 
         forces = batch[CARTESIAN_FORCES]
 
-        augmented_batch = {NOISY_RELATIVE_COORDINATES: xt,
-                           TIME: noise_sample.time.reshape(-1, 1),
-                           NOISE: noise_sample.sigma.reshape(-1, 1),
-                           UNIT_CELL: unit_cell,
-                           CARTESIAN_FORCES: forces}
+        augmented_batch = {
+            NOISY_RELATIVE_COORDINATES: xt,
+            TIME: noise_sample.time.reshape(-1, 1),
+            NOISE: noise_sample.sigma.reshape(-1, 1),
+            UNIT_CELL: unit_cell,
+            CARTESIAN_FORCES: forces,
+        }
 
         use_conditional = None if no_conditional is False else False
-        predicted_normalized_scores = self.sigma_normalized_score_network(augmented_batch, conditional=use_conditional)
+        predicted_normalized_scores = self.sigma_normalized_score_network(
+            augmented_batch, conditional=use_conditional
+        )
 
-        unreduced_loss = self.loss_calculator.calculate_unreduced_loss(predicted_normalized_scores,
-                                                                       target_normalized_conditional_scores,
-                                                                       sigmas.to(self.device))
+        unreduced_loss = self.loss_calculator.calculate_unreduced_loss(
+            predicted_normalized_scores,
+            target_normalized_conditional_scores,
+            sigmas,
+        )
         loss = torch.mean(unreduced_loss)
 
-        output = dict(loss=loss,
-                      unreduced_loss=unreduced_loss.detach(),
-                      sigmas=sigmas,
-                      predicted_normalized_scores=predicted_normalized_scores.detach(),
-                      target_normalized_conditional_scores=target_normalized_conditional_scores)
+        output = dict(
+            unreduced_loss=unreduced_loss.detach(),
+            loss=loss,
+            sigmas=sigmas,
+            predicted_normalized_scores=predicted_normalized_scores.detach(),
+            target_normalized_conditional_scores=target_normalized_conditional_scores,
+        )
         output[RELATIVE_COORDINATES] = x0
-        output[NOISY_RELATIVE_COORDINATES] = xt
+        output[NOISY_RELATIVE_COORDINATES] = augmented_batch[NOISY_RELATIVE_COORDINATES]
+        output[TIME] = augmented_batch[TIME]
+        output[UNIT_CELL] = augmented_batch[UNIT_CELL]
 
         return output
 
@@ -217,8 +267,9 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         target normalized score: sigma times target score, ie, sigma times nabla_xt log P_{t|0}(xt| x0).
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
         """
-        delta_relative_coordinates = map_relative_coordinates_to_unit_cell(noisy_relative_coordinates
-                                                                           - real_relative_coordinates)
+        delta_relative_coordinates = map_relative_coordinates_to_unit_cell(
+            noisy_relative_coordinates - real_relative_coordinates
+        )
         target_normalized_scores = get_sigma_normalized_score(
             delta_relative_coordinates, sigmas, kmax=self.hyper_params.kmax_target_score
         )
@@ -235,7 +286,13 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         self.log("train_step_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
 
         # The 'train_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
-        self.log("train_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True)
+        self.log(
+            "train_epoch_loss",
+            loss,
+            batch_size=batch_size,
+            on_step=False,
+            on_epoch=True,
+        )
         return output
 
     def validation_step(self, batch, batch_idx):
@@ -245,8 +302,38 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         batch_size = self._get_batch_size(batch)
 
         # The 'validation_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
-        self.log("validation_epoch_loss", loss,
-                 batch_size=batch_size, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "validation_epoch_loss",
+            loss,
+            batch_size=batch_size,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+
+        if not self.draw_samples:
+            return output
+
+        if self.metrics_parameters.compute_energies:
+            reference_energies = batch["potential_energy"]
+            self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
+
+        if self.metrics_parameters.compute_structure_factor:
+            basis_vectors = torch.diag_embed(batch["box"])
+            cartesian_positions = get_positions_from_coordinates(
+                relative_coordinates=batch[RELATIVE_COORDINATES],
+                basis_vectors=basis_vectors,
+            )
+
+            reference_distances = compute_distances_in_batch(
+                cartesian_positions=cartesian_positions,
+                unit_cell=basis_vectors,
+                max_distance=self.metrics_parameters.structure_factor_max_distance,
+            )
+            self.structure_ks_metric.register_reference_samples(
+                reference_distances.cpu()
+            )
+
         return output
 
     def test_step(self, batch, batch_idx):
@@ -254,6 +341,116 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         output = self._generic_step(batch, batch_idx)
         loss = output["loss"]
         batch_size = self._get_batch_size(batch)
+
         # The 'test_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
-        self.log("test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True)
+        self.log(
+            "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True
+        )
+
         return output
+
+    def generate_samples(self):
+        """Generate a batch of samples."""
+        assert (
+            self.hyper_params.diffusion_sampling_parameters is not None
+        ), "sampling parameters must be provided to create a generator."
+        with torch.no_grad():
+            logger.info("Creating Generator for sampling")
+            self.generator = instantiate_generator(
+                sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
+                noise_parameters=self.hyper_params.diffusion_sampling_parameters.noise_parameters,
+                sigma_normalized_score_network=self.sigma_normalized_score_network,
+            )
+            logger.info(f"Generator type : {type(self.generator)}")
+
+            logger.info("       * Drawing samples")
+            samples_batch = create_batch_of_samples(
+                generator=self.generator,
+                sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
+                device=self.device,
+            )
+            logger.info("         Done drawing samples")
+        return samples_batch
+
+    def on_validation_epoch_end(self) -> None:
+        """On validation epoch end."""
+        logger.info("Ending validation.")
+        if not self.draw_samples:
+            return
+
+        logger.info("   - Drawing samples at the end of the validation epoch.")
+        samples_batch = self.generate_samples()
+
+        if self.metrics_parameters.compute_energies:
+            logger.info("       * Computing sample energies")
+            sample_energies = compute_oracle_energies(samples_batch)
+            logger.info("       * Registering sample energies")
+            self.energy_ks_metric.register_predicted_samples(sample_energies.cpu())
+
+            (
+                ks_distance,
+                p_value,
+            ) = self.energy_ks_metric.compute_kolmogorov_smirnov_distance_and_pvalue()
+            self.log(
+                "validation_ks_distance_energy",
+                ks_distance,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                "validation_ks_p_value_energy", p_value, on_step=False, on_epoch=True
+            )
+            logger.info("       * Done logging sample energies")
+
+        if self.metrics_parameters.compute_structure_factor:
+            logger.info("       * Computing sample distances")
+            sample_distances = compute_distances_in_batch(
+                cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
+                unit_cell=samples_batch[UNIT_CELL],
+                max_distance=self.metrics_parameters.structure_factor_max_distance,
+            )
+
+            logger.info("       * Registering sample distances")
+            self.structure_ks_metric.register_predicted_samples(sample_distances.cpu())
+
+            (
+                ks_distance,
+                p_value,
+            ) = (
+                self.structure_ks_metric.compute_kolmogorov_smirnov_distance_and_pvalue()
+            )
+            self.log(
+                "validation_ks_distance_structure",
+                ks_distance,
+                on_step=False,
+                on_epoch=True,
+            )
+            self.log(
+                "validation_ks_p_value_structure", p_value, on_step=False, on_epoch=True
+            )
+            logger.info("       * Done logging sample distances")
+
+    def on_validation_start(self) -> None:
+        """On validation start."""
+        logger.info("Starting validation.")
+
+        logger.info("   - Clearing generator and metrics on validation start.")
+        # Clear out any dangling state.
+        self.generator = None
+        if self.metrics_parameters.compute_energies:
+            self.energy_ks_metric.reset()
+
+        if self.metrics_parameters.compute_structure_factor:
+            self.structure_ks_metric.reset()
+
+    def on_train_start(self) -> None:
+        """On train start."""
+        logger.info("Starting train.")
+        logger.info("   - Clearing generator and metrics.")
+        # Clear out any dangling state.
+        self.generator = None
+        if self.metrics_parameters.compute_energies:
+            self.energy_ks_metric.reset()
+
+        if self.metrics_parameters.compute_structure_factor:
+            self.structure_ks_metric.reset()
