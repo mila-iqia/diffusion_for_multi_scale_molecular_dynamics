@@ -37,8 +37,6 @@ class E_GCL(nn.Module):
         coords_agg: str = "mean",
         message_agg: str = "mean",
         tanh: bool = False,
-        repulsion_max: float = 0.0,
-        repulsion_rcut: float = 0.5
     ):
         """E_GCL layer initialization.
 
@@ -59,8 +57,6 @@ class E_GCL(nn.Module):
             coords_agg: Use a mean or sum aggregation for the coordinates update. Defaults to mean.
             message_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
-            repulsion_max: boosting to repulsion in the coordinates update. Defaults to 0 (no repulsion boosting)
-            repulsion_rcut: minimal distance to boost repulsion
         """
         super(E_GCL, self).__init__()
         self.residual = residual
@@ -69,8 +65,6 @@ class E_GCL(nn.Module):
         self.tanh = tanh
         self.epsilon = 1e-8
 
-        self.repulsion_max = repulsion_max
-        self.repulsion_rcut = repulsion_rcut
 
         if coords_agg not in ["mean", "sum"]:
             raise ValueError(f"coords_agg should be mean or sum. Got {coords_agg}")
@@ -170,7 +164,7 @@ class E_GCL(nn.Module):
         return out
 
     def coord_model(self, coord: torch.Tensor, edge_index: torch.Tensor, coord_diff: torch.Tensor,
-                    messages: torch.Tensor, radial: torch.Tensor) -> torch.Tensor:
+                    messages: torch.Tensor) -> torch.Tensor:
         r"""Update the coordinates.
 
         .. math::
@@ -182,14 +176,12 @@ class E_GCL(nn.Module):
             edge_index: edge indices. size: number of edges, 2
             coord_diff: difference between coordinates, :math:`x_i - x_j`. size: number of edges, spatial dimension
             messages: messages between nodes i and j.  size: number of edges, message_hidden_dimensions_size
-            radial: distances squared between nodes i and j. size: number of edges
 
         Returns:
             updates coordinates. size: number of nodes, spatial dimension
         """
         row = edge_index[:, 0]
         trans = coord_diff * self.coord_mlp(messages)  # (x_i  - x_j) *  \phi_m(m_{ij})
-        trans *= 1 + self.repulsion_max * F.relu(self.repulsion_rcut - torch.sqrt(radial)) / self.repulsion_rcut
         agg = self.coords_agg_fn(trans, row, num_segments=coord.size(0))  # sum over j
         coord += agg
         return coord
@@ -235,7 +227,7 @@ class E_GCL(nn.Module):
         radial, coord_diff = self.coord2radial(edge_index, coord)
 
         messages = self.message_model(h[row], h[col], radial)  # compute m_{ij}
-        coord = self.coord_model(coord, edge_index, coord_diff, messages, radial)  # update x_i
+        coord = self.coord_model(coord, edge_index, coord_diff, messages)  # update x_i
         h = self.node_model(h, edge_index, messages)  # update h_i
 
         return h, coord
@@ -260,8 +252,6 @@ class EGNN(nn.Module):
         coords_agg: str = "mean",
         message_agg: str = "mean",
         n_layers: int = 4,
-        repulsion_max: float = 0.0,
-        repulsion_rcut: float = 0.5
     ):
         """EGNN model stacking multiple E_GCL layers.
 
@@ -282,8 +272,6 @@ class EGNN(nn.Module):
             message_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
             n_layers: number of E_GCL layers. Defaults to 4.
-            repulsion_max: boosting to repulsion in the coordinates update. Defaults to 0 (no repulsion boosting)
-            repulsion_rcut: minimal distance to boost repulsion
         """
         super(EGNN, self).__init__()
         self.n_layers = n_layers
@@ -307,8 +295,6 @@ class EGNN(nn.Module):
                     coords_agg=coords_agg,
                     message_agg=message_agg,
                     tanh=tanh,
-                    repulsion_max=repulsion_max,
-                    repulsion_rcut=repulsion_rcut,
                 )
             )
 
