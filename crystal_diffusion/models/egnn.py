@@ -64,7 +64,6 @@ class E_GCL(nn.Module):
         self.tanh = tanh
         self.epsilon = 1e-8
 
-
         if coords_agg not in ["mean", "sum"]:
             raise ValueError(f"coords_agg should be mean or sum. Got {coords_agg}")
         self.coords_agg_fn = unsorted_segment_sum if coords_agg == "sum" else unsorted_segment_mean
