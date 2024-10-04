@@ -2,8 +2,9 @@ from typing import Tuple
 
 import torch
 
-from crystal_diffusion.utils.neighbors import get_periodic_adjacency_information, \
-    shift_adjacency_matrix_indices_for_graph_batching
+from crystal_diffusion.utils.neighbors import (
+    get_periodic_adjacency_information,
+    shift_adjacency_matrix_indices_for_graph_batching)
 
 
 def get_adj_matrix(positions: torch.Tensor,
