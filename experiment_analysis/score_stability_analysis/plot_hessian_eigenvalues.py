@@ -17,10 +17,6 @@ from experiment_analysis.score_stability_analysis.util import get_normalized_sco
 
 plt.style.use(PLOT_STYLE_PATH)
 
-
-
-
-
 logger = logging.getLogger(__name__)
 setup_analysis_logger()
 
