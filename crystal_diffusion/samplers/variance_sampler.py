@@ -16,6 +16,9 @@ class NoiseParameters:
     # As discussed in Appendix C of "SCORE-BASED GENERATIVE MODELING THROUGH STOCHASTIC DIFFERENTIAL EQUATIONS",
     # the time t = 0 is problematic.
 
+    # choose a type of scheduler
+    scheduler: int = "exploding_variance"
+
     # Default values come from the paper:
     #   "Torsional Diffusion for Molecular Conformer Generation",
     # The original values in the paper are
@@ -78,6 +81,9 @@ class ExplodingVarianceSampler(torch.nn.Module):
         super().__init__()
         self.noise_parameters = noise_parameters
 
+        assert self.noise_parameters.scheduler in ["exploding_variance", "linear"], \
+            f"Variance scheduler should be exploding_variance or linear. Got {self.noise_parameters.scheduler}"
+
         self._time_array = torch.nn.Parameter(self._get_time_array(noise_parameters), requires_grad=False)
 
         self._sigma_array = torch.nn.Parameter(self._create_sigma_array(noise_parameters, self._time_array),
@@ -106,8 +112,12 @@ class ExplodingVarianceSampler(torch.nn.Module):
     ) -> torch.Tensor:
         sigma_min = noise_parameters.sigma_min
         sigma_max = noise_parameters.sigma_max
+        scheduler = noise_parameters.scheduler
 
-        sigma = sigma_min ** (1.0 - time_array) * sigma_max**time_array
+        if scheduler == "exploding_variance":
+            sigma = sigma_min ** (1.0 - time_array) * sigma_max**time_array
+        elif scheduler == "linear":
+            sigma = sigma_min + (sigma_max - sigma_min) * time_array
         return sigma
 
     @staticmethod
