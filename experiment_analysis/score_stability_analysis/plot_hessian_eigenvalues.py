@@ -74,7 +74,6 @@ if __name__ == "__main__":
 
     relative_coordinates = einops.repeat(equilibrium_relative_coordinates, "n s -> b n s", b=nsteps)
 
-
     batch_hessian_function = jacrev(normalized_score_function, argnums=0)
 
     list_flat_hessians = []
@@ -86,7 +85,7 @@ if __name__ == "__main__":
 
     flat_hessian = torch.concat(list_flat_hessians)
 
-    p = einops.repeat(prefactor ,"b 1 -> b d1 d2",
+    p = einops.repeat(prefactor,"b 1 -> b d1 d2",
                       d1=number_of_atoms * spatial_dimension,
                       d2=number_of_atoms * spatial_dimension).to(flat_hessian)
 
@@ -125,3 +124,50 @@ if __name__ == "__main__":
     fig.tight_layout()
 
     plt.show()
+
+    fig2 = plt.figure(figsize=(PLEASANT_FIG_SIZE[0], PLEASANT_FIG_SIZE[0]))
+    fig2.suptitle("Hessian Eigenvalues At Small Time")
+    ax1 = fig2.add_subplot(111)
+
+    ax1.set_xlabel(r'$\sigma(t)$')
+    ax1.set_ylabel('Eigenvalues')
+
+    for list_e in eigenvalues:
+        ax1.loglog(list_sigmas, list_e, '.', color='grey')
+
+    ax1.set_xlim(sigma_min, 1e-2)
+
+    fig2.tight_layout()
+
+    plt.show()
+
+
+    fig3 = plt.figure(figsize=PLEASANT_FIG_SIZE)
+    fig3.suptitle("Hessian Eigenvalues of Normalized Score")
+    ax1 = fig3.add_subplot(121)
+    ax2 = fig3.add_subplot(122)
+
+    ax1.set_xlabel(r'$\sigma(t)$')
+    ax1.set_ylabel('Eigenvalues')
+
+    ax2.set_ylabel(r'$g^2(t) / \sigma(t)$')
+    ax2.set_xlabel(r'$\sigma(t)$')
+
+    label1 = r'$\sigma(t)/g^2 \times \bf H$'
+    label2 = r'$\bf H$'
+    for list_e in eigenvalues:
+        ax1.semilogx(list_sigmas, list_e/(-prefactor.flatten()), '-', color='red', label=label1)
+        ax1.semilogx(list_sigmas, list_e, '-', color='grey', label=label2)
+        label1 = '__nolabel__'
+        label2 = '__nolabel__'
+
+    ax1.legend(loc=0)
+    ax2.semilogx(list_sigmas, (-prefactor.flatten()), '-', color='blue')
+
+    for ax in [ax1, ax2]:
+        ax.set_xlim(sigma_min, sigma_max)
+
+    fig3.tight_layout()
+
+    plt.show()
+
