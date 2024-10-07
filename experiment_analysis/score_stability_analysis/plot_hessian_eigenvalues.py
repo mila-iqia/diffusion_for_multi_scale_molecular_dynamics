@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.func import jacrev
+from tqdm import tqdm
 
 from crystal_diffusion.analysis import PLOT_STYLE_PATH, PLEASANT_FIG_SIZE
 from crystal_diffusion.analysis.analytic_score.utils import get_silicon_supercell
@@ -20,14 +21,26 @@ plt.style.use(PLOT_STYLE_PATH)
 logger = logging.getLogger(__name__)
 setup_analysis_logger()
 
+system = 'Si_1x1x1'
 
-checkpoint_path = Path("/home/mila/r/rousseab/scratch/experiments/oct2_egnn_1x1x1/run1/output/last_model/last_model-epoch=049-step=039100.ckpt")
+if system == 'Si_1x1x1':
+    checkpoint_path = Path("/home/mila/r/rousseab/scratch/experiments/oct2_egnn_1x1x1/run1/output/last_model/last_model-epoch=049-step=039100.ckpt")
+    number_of_atoms = 8
+    acell = 5.43
+    supercell_factor = 1
+
+    hessian_batch_size = 10
+
+
+elif system == 'Si_2x2x2':
+    pickle_path = Path("/home/mila/r/rousseab/scratch/checkpoints/sota_egnn_2x2x2.pkl")
+    number_of_atoms = 64
+    acell = 10.86
+    supercell_factor = 2
+    hessian_batch_size = 1
 
 spatial_dimension = 3
-number_of_atoms = 8
 atom_types = np.ones(number_of_atoms, dtype=int)
-
-acell = 5.43
 
 total_time_steps = 1000
 sigma_min = 0.0001
@@ -41,7 +54,6 @@ noise_parameters = NoiseParameters(
 
 nsteps = 501
 
-hessian_batch_size = 10
 
 device = torch.device('cuda')
 if __name__ == "__main__":
@@ -49,13 +61,17 @@ if __name__ == "__main__":
 
     basis_vectors = torch.diag(torch.tensor([acell, acell, acell])).to(device)
     equilibrium_relative_coordinates = torch.from_numpy(
-        get_silicon_supercell(supercell_factor=1)).to(torch.float32).to(device)
+        get_silicon_supercell(supercell_factor=supercell_factor)).to(torch.float32).to(device)
 
     logger.info("Loading checkpoint...")
-    pl_model = PositionDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
-    pl_model.eval()
 
-    sigma_normalized_score_network = pl_model.sigma_normalized_score_network
+    if system == 'Si_1x1x1':
+        pl_model = PositionDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
+        pl_model.eval()
+        sigma_normalized_score_network = pl_model.sigma_normalized_score_network
+
+    elif system == 'Si_2x2x2':
+        sigma_normalized_score_network = torch.load(pickle_path)
 
     for parameter in sigma_normalized_score_network.parameters():
         parameter.requires_grad_(False)
@@ -64,7 +80,6 @@ if __name__ == "__main__":
         noise_parameters=noise_parameters,
         sigma_normalized_score_network=sigma_normalized_score_network,
         basis_vectors=basis_vectors)
-
 
     times = torch.linspace(1, 0, nsteps).unsqueeze(-1)
     sigmas = variance_calculator.get_sigma(times)
@@ -77,7 +92,8 @@ if __name__ == "__main__":
     batch_hessian_function = jacrev(normalized_score_function, argnums=0)
 
     list_flat_hessians = []
-    for x, t in zip(torch.split(relative_coordinates, hessian_batch_size), torch.split(times, hessian_batch_size)):
+    for x, t in tqdm(zip(torch.split(relative_coordinates, hessian_batch_size),
+                         torch.split(times, hessian_batch_size)), "Hessian"):
         batch_hessian = batch_hessian_function(x, t)
         flat_hessian = einops.rearrange(torch.diagonal(batch_hessian, dim1=0, dim2=3),
                                         "n1 s1 n2 s2 b -> b (n1 s1) (n2 s2)")
@@ -116,7 +132,7 @@ if __name__ == "__main__":
         ax.set_ylabel('Eigenvalue')
 
         for list_e in eigenvalues:
-            ax.semilogx(list_sigmas, list_e, '.', color='grey')
+            ax.semilogx(list_sigmas, list_e, '-', color='grey')
 
     ax2.set_ylim([-2.5e-4, 2.5e-4])
     for ax in [ax1, ax2, ax3]:
@@ -133,7 +149,7 @@ if __name__ == "__main__":
     ax1.set_ylabel('Eigenvalues')
 
     for list_e in eigenvalues:
-        ax1.loglog(list_sigmas, list_e, '.', color='grey')
+        ax1.loglog(list_sigmas, list_e, '-', color='grey')
 
     ax1.set_xlim(sigma_min, 1e-2)
 
@@ -156,8 +172,8 @@ if __name__ == "__main__":
     label1 = r'$\sigma(t)/g^2 \times \bf H$'
     label2 = r'$\bf H$'
     for list_e in eigenvalues:
-        ax1.semilogx(list_sigmas, list_e/(-prefactor.flatten()), '-', color='red', label=label1)
-        ax1.semilogx(list_sigmas, list_e, '-', color='grey', label=label2)
+        ax1.semilogx(list_sigmas, list_e/(-prefactor.flatten()), '-', lw=1, color='red', label=label1)
+        ax1.semilogx(list_sigmas, list_e, '-', color='grey', lw=1, label=label2)
         label1 = '__nolabel__'
         label2 = '__nolabel__'
 
@@ -171,3 +187,4 @@ if __name__ == "__main__":
 
     plt.show()
 
+    jacobian_eig_at_t0 = eigenvalues[:, -1] / (-prefactor[-1])
