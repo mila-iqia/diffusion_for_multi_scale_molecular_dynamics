@@ -1,10 +1,8 @@
 import itertools
-from typing import Callable, Tuple
+from typing import Callable
 
 import einops
-import numpy as np
 import torch
-from torch.func import jacrev
 
 from crystal_diffusion.models.score_networks import ScoreNetwork
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
@@ -12,17 +10,19 @@ from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          UNIT_CELL)
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
-from crystal_diffusion.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
 
-def get_normalized_score_function( noise_parameters: NoiseParameters,
-                                   sigma_normalized_score_network: ScoreNetwork,
-                                   basis_vectors: torch.Tensor)-> Callable:
 
+def get_normalized_score_function(
+    noise_parameters: NoiseParameters,
+    sigma_normalized_score_network: ScoreNetwork,
+    basis_vectors: torch.Tensor,
+) -> Callable:
+    """Get normalizd score function."""
     variance_calculator = ExplodingVariance(noise_parameters)
 
-    def normalized_score_function(relative_coordinates: torch.Tensor, times: torch.Tensor) -> torch.Tensor:
-
+    def normalized_score_function(
+        relative_coordinates: torch.Tensor, times: torch.Tensor
+    ) -> torch.Tensor:
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
         unit_cells = einops.repeat(
             basis_vectors.to(relative_coordinates), "s1 s2 -> b s1 s2", b=batch_size
@@ -47,9 +47,16 @@ def get_normalized_score_function( noise_parameters: NoiseParameters,
 
     return normalized_score_function
 
+
 def get_cubic_point_group_symmetries():
-    permutations = [torch.diag(torch.ones(3))[[idx]] for idx in itertools.permutations([0, 1, 2])]
-    sign_changes = [torch.diag(torch.tensor(diag)) for diag in itertools.product([-1., 1.], repeat=3)]
+    """Get cubic point group symmetries."""
+    permutations = [
+        torch.diag(torch.ones(3))[[idx]] for idx in itertools.permutations([0, 1, 2])
+    ]
+    sign_changes = [
+        torch.diag(torch.tensor(diag))
+        for diag in itertools.product([-1.0, 1.0], repeat=3)
+    ]
     symmetries = []
     for permutation in permutations:
         for sign_change in sign_changes:

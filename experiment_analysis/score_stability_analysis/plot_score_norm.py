@@ -9,7 +9,8 @@ from tqdm import tqdm
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.analysis.analytic_score.utils import \
     get_silicon_supercell
-from crystal_diffusion.models.position_diffusion_lightning_model import PositionDiffusionLightningModel
+from crystal_diffusion.models.position_diffusion_lightning_model import \
+    PositionDiffusionLightningModel
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
@@ -67,7 +68,7 @@ if __name__ == "__main__":
     # Put two particles on top of each other
     dv = equilibrium_relative_coordinates[0] - equilibrium_relative_coordinates[1]
     direction[0] = -0.5 * dv
-    direction[1] =  0.5 * dv
+    direction[1] = 0.5 * dv
     list_delta = torch.linspace(0., 2.0, 201)
 
     relative_coordinates = []
