@@ -314,11 +314,11 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         if not self.draw_samples:
             return output
 
-        if self.metrics_parameters.compute_energies:
+        if self.draw_samples and self.metrics_parameters.compute_energies:
             reference_energies = batch["potential_energy"]
             self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
 
-        if self.metrics_parameters.compute_structure_factor:
+        if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             basis_vectors = torch.diag_embed(batch["box"])
             cartesian_positions = get_positions_from_coordinates(
                 relative_coordinates=batch[RELATIVE_COORDINATES],
@@ -381,7 +381,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         logger.info("   - Drawing samples at the end of the validation epoch.")
         samples_batch = self.generate_samples()
 
-        if self.metrics_parameters.compute_energies:
+        if self.draw_samples and self.metrics_parameters.compute_energies:
             logger.info("       * Computing sample energies")
             sample_energies = compute_oracle_energies(samples_batch)
             logger.info("       * Registering sample energies")
@@ -402,7 +402,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             )
             logger.info("       * Done logging sample energies")
 
-        if self.metrics_parameters.compute_structure_factor:
+        if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             logger.info("       * Computing sample distances")
             sample_distances = compute_distances_in_batch(
                 cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
@@ -437,10 +437,10 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         logger.info("   - Clearing generator and metrics on validation start.")
         # Clear out any dangling state.
         self.generator = None
-        if self.metrics_parameters.compute_energies:
+        if self.draw_samples and self.metrics_parameters.compute_energies:
             self.energy_ks_metric.reset()
 
-        if self.metrics_parameters.compute_structure_factor:
+        if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
 
     def on_train_start(self) -> None:
@@ -449,8 +449,8 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         logger.info("   - Clearing generator and metrics.")
         # Clear out any dangling state.
         self.generator = None
-        if self.metrics_parameters.compute_energies:
+        if self.draw_samples and self.metrics_parameters.compute_energies:
             self.energy_ks_metric.reset()
 
-        if self.metrics_parameters.compute_structure_factor:
+        if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
