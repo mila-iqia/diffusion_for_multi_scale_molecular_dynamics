@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import AnyStr, Dict
+from typing import AnyStr, Dict, Union
 
 import einops
 import torch
@@ -31,7 +31,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     message_agg: str = "mean"
     n_layers: int = 4
     edges: str = 'fully_connected'
-    radial_cutoff: float = 4.0
+    radial_cutoff: Union[float, None] = None
     drop_duplicate_edges: bool = True
 
 
@@ -60,7 +60,15 @@ class EGNNScoreNetwork(ScoreNetwork):
         self.edges = hyper_params.edges
         assert self.edges in ["fully_connected", "radial_cutoff"], \
             f'Edges type should be fully_connected or radial_cutoff. Got {self.edges}'
+
         self.radial_cutoff = hyper_params.radial_cutoff
+
+        if self.edges == "fully_connected":
+            assert self.radial_cutoff is None, "Specifying a radial cutoff is inconsistent with edges=fully_connected."
+        else:
+            assert type(self.radial_cutoff) is float, \
+                "A floating point value for the radial cutoff is needed for edges=radial_cutoff."
+
         self.drop_duplicate_edges = hyper_params.drop_duplicate_edges
 
         self.egnn = EGNN(
