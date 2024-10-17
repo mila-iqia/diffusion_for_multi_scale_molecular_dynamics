@@ -301,7 +301,6 @@ class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
         return DiffusionMACEScoreNetwork(score_network_parameters)
 
 
-@pytest.mark.parametrize("spatial_dimension", [3])
 class TestEGNNScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture(scope="class", autouse=True)
@@ -314,8 +313,21 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
         torch.set_default_dtype(torch.float32)
 
     @pytest.fixture()
-    def score_network_parameters(self):
-        return EGNNScoreNetworkParameters()  # Use the defaults
+    def spatial_dimension(self):
+        return 3
+
+    @pytest.fixture()
+    def basis_vectors(self, batch_size, spatial_dimension):
+        # The basis vectors should form a cube in order to test the equivariance of the current implementation
+        # of the EGNN model. The octaheral point group only applies in this case!
+        acell = 5.5
+        cubes = torch.stack([torch.diag(acell * torch.ones(spatial_dimension)) for _ in range(batch_size)])
+        return cubes
+
+    @pytest.fixture(params=[("fully_connected", None), ("radial_cutoff", 3.0)])
+    def score_network_parameters(self, request):
+        edges, radial_cutoff = request.param
+        return EGNNScoreNetworkParameters(edges=edges, radial_cutoff=radial_cutoff)
 
     @pytest.fixture()
     def score_network(self, score_network_parameters):
@@ -333,6 +345,13 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
                 symmetries.append(permutation @ sign_change)
 
         return symmetries
+
+    @pytest.mark.parametrize("edges, radial_cutoff", [("fully_connected", 3.0), ("radial_cutoff", None)])
+    def test_score_network_parameters(self, edges, radial_cutoff):
+        score_network_parameters = EGNNScoreNetworkParameters(edges=edges, radial_cutoff=radial_cutoff)
+        with pytest.raises(AssertionError):
+            # Check that the code crashes when inconsistent parameters are fed in.
+            EGNNScoreNetwork(score_network_parameters)
 
     def test_create_block_diagonal_projection_matrices(self, score_network, spatial_dimension):
         expected_matrices = []
