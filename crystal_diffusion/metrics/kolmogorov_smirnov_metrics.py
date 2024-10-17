@@ -7,23 +7,37 @@ from torchmetrics import CatMetric
 class KolmogorovSmirnovMetrics:
     """Kolmogorov Smirnov metrics."""
 
-    def __init__(self):
-        """Init method."""
+    def __init__(self, maximum_number_of_samples: int = 1_000_000):
+        """Init method.
+
+        Args:
+            maximum_number_of_samples : maximum number of samples that will be aggregated. This is to avoid
+                memory use explosion.
+        """
         self.reference_samples_metric = CatMetric()
         self.predicted_samples_metric = CatMetric()
+        self.maximum_count = maximum_number_of_samples
+        self.reference_count = 0
+        self.predicted_count = 0
 
     def register_reference_samples(self, reference_samples):
         """Register reference samples."""
-        self.reference_samples_metric.update(reference_samples)
+        if self.reference_count < self.maximum_count:
+            self.reference_count += len(reference_samples)
+            self.reference_samples_metric.update(reference_samples)
 
     def register_predicted_samples(self, predicted_samples):
         """Register predicted samples."""
-        self.predicted_samples_metric.update(predicted_samples)
+        if self.predicted_count < self.maximum_count:
+            self.predicted_count += len(predicted_samples)
+            self.predicted_samples_metric.update(predicted_samples)
 
     def reset(self):
         """reset."""
         self.reference_samples_metric.reset()
         self.predicted_samples_metric.reset()
+        self.reference_count = 0
+        self.predicted_count = 0
 
     def compute_kolmogorov_smirnov_distance_and_pvalue(self) -> Tuple[float, float]:
         """Compute Kolmogorov Smirnov Distance.
