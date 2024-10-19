@@ -49,7 +49,7 @@ class EnergyCalculator:
 
         logger.info("Compute energy from Oracle")
         with tempfile.TemporaryDirectory() as tmp_work_dir:
-            for positions, box in zip(batch_cartesian_positions.numpy(), batched_unit_cells.numpy()):
+            for positions, box in zip(batch_cartesian_positions.cpu().numpy(), batched_unit_cells.cpu().numpy()):
                 energy, forces = get_energy_and_forces_from_lammps(positions,
                                                                    box,
                                                                    self.atom_types,
