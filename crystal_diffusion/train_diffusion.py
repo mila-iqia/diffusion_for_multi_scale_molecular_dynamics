@@ -18,7 +18,8 @@ from crystal_diffusion.main_utils import (MetricResult,
                                           get_optimized_metric_name_and_mode,
                                           load_and_backup_hyperparameters,
                                           report_to_orion_if_on)
-from crystal_diffusion.models.model_loader import load_diffusion_model
+from crystal_diffusion.models.instantiate_diffusion_model import \
+    load_diffusion_model
 from crystal_diffusion.utils.hp_utils import check_and_log_hp
 from crystal_diffusion.utils.logging_utils import (log_exp_details,
                                                    setup_console_logger)
@@ -154,7 +155,7 @@ def train(model,
         devices=devices,
         logger=pl_loggers,
         gradient_clip_val=hyper_params.get('gradient_clipping', 0),
-        accumulate_grad_batches=hyper_params.get('accumulate_grad_batches', 1)
+        accumulate_grad_batches=hyper_params.get('accumulate_grad_batches', 1),
     )
 
     # Using the keyword ckpt_path="last" tells the trainer to resume from the last
@@ -181,6 +182,6 @@ if __name__ == '__main__':
     # Uncomment the following in order to use Pycharm's Remote Debugging server, which allows to
     # launch python commands through a bash script (and through Orion!). VERY useful for debugging.
     # This requires a professional edition of Pycharm and installing the pydevd_pycharm package with pip.
-    #  import pydevd_pycharm
-    #  pydevd_pycharm.settrace('localhost', port=50528, stdoutToServer=True, stderrToServer=True)
+    # import pydevd_pycharm
+    # pydevd_pycharm.settrace('localhost', port=56636, stdoutToServer=True, stderrToServer=True)
     main()

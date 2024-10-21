@@ -1,7 +1,7 @@
 # general
 exp_name: mlp_example
-run_name: run2
-max_epoch: 500
+run_name: run1
+max_epoch: 10
 log_every_n_steps: 1
 gradient_clipping: 0
 accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
@@ -25,15 +25,42 @@ model:
     architecture: mlp
     number_of_atoms: 8
     n_hidden_dimensions: 2
-    embedding_dimension_size: 16
+    embedding_dimensions_size: 16
     hidden_dimensions_size: 64
     conditional_prob: 0.0
     conditional_gamma: 2
     condition_embedding_size: 64
   noise:
     total_time_steps: 100
-    sigma_min: 0.005  # default value
-    sigma_max: 0.5  # default value'
+    sigma_min: 0.0001
+    sigma_max: 0.25  
+
+# Sampling from the generative model
+diffusion_sampling:
+  noise:
+    total_time_steps: 10
+    sigma_min: 0.0001  
+    sigma_max: 0.1 
+  sampling:
+    algorithm: predictor_corrector
+    spatial_dimension: 3
+    number_of_atoms: 8
+    number_of_samples: 16
+    sample_batchsize: 16
+    record_samples: True
+    cell_dimensions: [5.43, 5.43, 5.43]
+  metrics:
+    compute_energies: True
+    compute_structure_factor: True
+    structure_factor_max_distance: 5.0  
+
+
+sampling_visualization:
+  record_every_n_epochs:  1
+  first_record_epoch: 0
+  record_trajectories: True
+  record_energies: True
+  record_structure: True
 
 # optimizer and scheduler
 optimizer:
@@ -60,22 +87,6 @@ model_checkpoint:
 loss_monitoring: 
   number_of_bins: 50
   sample_every_n_epochs: 25
-
-# Sampling from the generative model
-diffusion_sampling:
-  noise:
-    total_time_steps: 100
-    sigma_min: 0.001  # default value
-    sigma_max: 0.5  # default value
-  sampling:
-    algorithm: ode
-    spatial_dimension: 3
-    number_of_atoms: 8
-    number_of_samples: 16
-    sample_batchsize: 16
-    sample_every_n_epochs: 25
-    record_samples: True
-    cell_dimensions: [5.43, 5.43, 5.43]
 
 logging:
 #  - comet

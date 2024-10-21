@@ -5,96 +5,142 @@ from pathlib import Path
 import einops
 import numpy as np
 import torch
+from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 
 from crystal_diffusion.analysis.generator_sample_analysis_utils import \
     PartialODEPositionGenerator
+from crystal_diffusion.data.diffusion.data_loader import (
+    LammpsForDiffusionDataModule, LammpsLoaderParameters)
+from crystal_diffusion.generators.ode_position_generator import \
+    ODESamplingParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import \
     PositionDiffusionLightningModel
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
 logger = logging.getLogger(__name__)
 
+setup_analysis_logger()
 # Some hardcoded paths and parameters. Change as needed!
-base_data_dir = Path("/Users/bruno/courtois/difface_ode/run1")
-position_samples_dir = base_data_dir / "diffusion_position_samples"
-energy_data_directory = base_data_dir / "energy_samples"
-model_path = base_data_dir / "best_model" / "best_model-epoch=016-step=001666.ckpt"
 
-partial_samples_dir = base_data_dir / "partial_samples"
+data_directory = Path("/home/mila/r/rousseab/scratch/data/")
+dataset_name = "si_diffusion_2x2x2"
+lammps_run_dir = data_directory / dataset_name
+processed_dataset_dir = lammps_run_dir / "processed"
+cache_dir = lammps_run_dir / "cache"
+
+data_params = LammpsLoaderParameters(batch_size=1024, max_atom=64)
+
+checkpoint_path = "/network/scratch/r/rousseab/checkpoints/EGNN_Sept_10/last_model-epoch=045-step=035972.ckpt"
+
+partial_samples_dir = Path("/network/scratch/r/rousseab/partial_samples_EGNN_Sept_10/")
 partial_samples_dir.mkdir(exist_ok=True)
-
-# Some position from the Si 1x1x1 training dataset
-reference_relative_coordinates = torch.tensor([[0.0166, 0.0026, 0.9913],
-                                               [0.9936, 0.4954, 0.5073],
-                                               [0.4921, 0.9992, 0.4994],
-                                               [0.4954, 0.5009, 0.9965],
-                                               [0.2470, 0.2540, 0.2664],
-                                               [0.2481, 0.7434, 0.7445],
-                                               [0.7475, 0.2483, 0.7489],
-                                               [0.7598, 0.7563, 0.2456]])
 
 sigma_min = 0.001
 sigma_max = 0.5
 total_time_steps = 100
 
-noise_parameters = NoiseParameters(total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=sigma_max)
-
-
-cell_dimensions = torch.tensor([5.43, 5.43, 5.43])
-
-number_of_atoms = 8
-spatial_dimension = 3
-batch_size = 100
+noise_parameters = NoiseParameters(
+    total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=sigma_max
+)
 
 absolute_solver_tolerance = 1.0e-3
 relative_solver_tolerance = 1.0e-2
 
-if __name__ == '__main__':
+spatial_dimension = 3
+batch_size = 32
+device = torch.device("cuda")
+
+if __name__ == "__main__":
+    logger.info("Extracting a validation configuration")
+    # Extract a configuration from the validation set
+    datamodule = LammpsForDiffusionDataModule(
+        lammps_run_dir=lammps_run_dir,
+        processed_dataset_dir=processed_dataset_dir,
+        hyper_params=data_params,
+        working_cache_dir=cache_dir,
+    )
+    datamodule.setup()
+
+    validation_example = datamodule.valid_dataset[0]
+    reference_relative_coordinates = validation_example["relative_coordinates"]
+    number_of_atoms = int(validation_example["natom"])
+    cell_dimensions = validation_example["box"]
+
+    logger.info("Writing validation configuration to cif file")
+    a, b, c = cell_dimensions.numpy()
+    lattice = Lattice.from_parameters(a=a, b=b, c=c, alpha=90, beta=90, gamma=90)
+
+    reference_structure = Structure(
+        lattice=lattice,
+        species=number_of_atoms * ["Si"],
+        coords=reference_relative_coordinates.numpy(),
+    )
+
+    reference_structure.to(
+        str(partial_samples_dir / "reference_validation_structure.cif")
+    )
+
+    logger.info("Extracting checkpoint")
     noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
-    unit_cell = torch.diag(torch.Tensor(cell_dimensions)).unsqueeze(0).repeat(batch_size, 1, 1)
+
+    unit_cell = (
+        torch.diag(torch.Tensor(cell_dimensions)).unsqueeze(0).repeat(batch_size, 1, 1)
+    )
     box = unit_cell[0].numpy()
 
     x0 = einops.repeat(reference_relative_coordinates, "n d -> b n d", b=batch_size)
 
-    model = PositionDiffusionLightningModel.load_from_checkpoint(model_path)
+    model = PositionDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
     model.eval()
 
-    list_tf = np.linspace(0.1, 1, 10)
-
+    list_tf = np.linspace(0.1, 1, 20)
     atom_types = np.ones(number_of_atoms, dtype=int)
 
-    on_manifold_dataset = []
-    off_manifold_dataset = []
+    logger.info("Draw samples")
     with torch.no_grad():
-        for tf in tqdm(list_tf, 'times'):
+        for tf in tqdm(list_tf, "times"):
             times = torch.ones(batch_size) * tf
-            sigmas = sigma_min ** (1.0 - times) * sigma_max ** times
+            sigmas = sigma_min ** (1.0 - times) * sigma_max**times
 
-            broadcast_sigmas = broadcast_batch_tensor_to_all_dimensions(batch_values=sigmas, final_shape=x0.shape)
-            xt = noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(x0, broadcast_sigmas)
+            broadcast_sigmas = broadcast_batch_tensor_to_all_dimensions(
+                batch_values=sigmas, final_shape=x0.shape
+            )
+            xt = noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(
+                x0, broadcast_sigmas
+            )
 
-            noise_parameters.total_time_steps = int(100 * tf) + 1
-            generator = PartialODEPositionGenerator(noise_parameters,
-                                                    number_of_atoms,
-                                                    spatial_dimension,
-                                                    model.sigma_normalized_score_network,
-                                                    initial_relative_coordinates=xt,
-                                                    record_samples=True,
-                                                    absolute_solver_tolerance=absolute_solver_tolerance,
-                                                    relative_solver_tolerance=relative_solver_tolerance,
-                                                    tf=tf)
+            noise_parameters.total_time_steps = int(1000 * tf) + 1
+            sampling_parameters = ODESamplingParameters(
+                number_of_atoms=number_of_atoms,
+                number_of_samples=batch_size,
+                record_samples=True,
+                cell_dimensions=list(cell_dimensions.cpu().numpy()),
+                absolute_solver_tolerance=absolute_solver_tolerance,
+                relative_solver_tolerance=relative_solver_tolerance,
+            )
+
+            generator = PartialODEPositionGenerator(
+                noise_parameters=noise_parameters,
+                sampling_parameters=sampling_parameters,
+                sigma_normalized_score_network=model.sigma_normalized_score_network,
+                initial_relative_coordinates=xt,
+                tf=tf,
+            )
 
             logger.info("Generating Samples")
-            batch_relative_coordinates = generator.sample(number_of_samples=batch_size,
-                                                          device=torch.device('cpu'),
-                                                          unit_cell=unit_cell)
-            sample_output_path = str(partial_samples_dir / f"diffusion_position_sample_time={tf:2.1f}.pt")
+            batch_relative_coordinates = generator.sample(
+                number_of_samples=batch_size, device=device, unit_cell=unit_cell
+            ).cpu()
+            sample_output_path = str(
+                partial_samples_dir / f"diffusion_position_sample_time={tf:4.3f}.pt"
+            )
             generator.sample_trajectory_recorder.write_to_pickle(sample_output_path)
             logger.info("Done Generating Samples")
 
@@ -104,15 +150,16 @@ if __name__ == '__main__':
             logger.info("Compute energy from Oracle")
             with tempfile.TemporaryDirectory() as tmp_work_dir:
                 for positions in batch_cartesian_positions.numpy():
-                    energy, forces = get_energy_and_forces_from_lammps(positions,
-                                                                       box,
-                                                                       atom_types,
-                                                                       tmp_work_dir=tmp_work_dir)
+                    energy, forces = get_energy_and_forces_from_lammps(
+                        positions, box, atom_types, tmp_work_dir=tmp_work_dir
+                    )
                     list_energy.append(energy)
 
             energies = torch.tensor(list_energy)
             logger.info("Done Computing energy from Oracle")
 
-            energy_output_path = str(partial_samples_dir / f"diffusion_energies_sample_time={tf:2.1f}.pt")
-            with open(energy_output_path, 'wb') as fd:
+            energy_output_path = str(
+                partial_samples_dir / f"diffusion_energies_sample_time={tf:4.3f}.pt"
+            )
+            with open(energy_output_path, "wb") as fd:
                 torch.save(energies, fd)
