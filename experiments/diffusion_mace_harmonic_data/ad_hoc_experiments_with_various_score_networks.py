@@ -8,10 +8,6 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
-from crystal_diffusion.analysis.analytic_score.utils import (
-    get_exact_samples, get_relative_harmonic_energy)
-from crystal_diffusion.callbacks.analysis_callbacks import \
-    HarmonicEnergyDiffusionSamplingCallback
 from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
 from crystal_diffusion.generators.position_generator import SamplingParameters
 from crystal_diffusion.models.optimizer import OptimizerParameters
@@ -29,6 +25,10 @@ from crystal_diffusion.models.score_networks.score_prediction_head import \
     MaceEquivariantScorePredictionHeadParameters
 from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from experiments.analysis.analytic_score import (get_exact_samples,
+                                                 get_relative_harmonic_energy)
+from experiments.diffusion_mace_harmonic_data.analysis_callbacks import \
+    HarmonicEnergyDiffusionSamplingCallback
 
 logger = logging.getLogger(__name__)
 

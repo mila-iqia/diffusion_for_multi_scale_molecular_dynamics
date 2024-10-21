@@ -12,8 +12,6 @@ from tqdm import tqdm
 
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
-from crystal_diffusion.analysis.analytic_score.utils import (
-    get_exact_samples, get_silicon_supercell)
 from crystal_diffusion.callbacks.loss_monitoring_callback import \
     LossMonitoringCallback
 from crystal_diffusion.callbacks.sampling_visualization_callback import \
@@ -38,6 +36,8 @@ from crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
+from experiments.analysis.analytic_score.utils import (get_exact_samples,
+                                                       get_silicon_supercell)
 
 logger = logging.getLogger(__name__)
 

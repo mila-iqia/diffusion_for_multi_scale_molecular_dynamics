@@ -11,8 +11,6 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch import optim
 from torch.utils.data import DataLoader
 
-from crystal_diffusion.analysis.analytic_score.utils import (get_exact_samples,
-                                                             get_unit_cells)
 from crystal_diffusion.callbacks.standard_callbacks import CustomProgressBar
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
@@ -29,6 +27,8 @@ from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
+from experiments.analysis.analytic_score import (get_exact_samples,
+                                                 get_unit_cells)
 
 torch.set_default_dtype(torch.float64)
 

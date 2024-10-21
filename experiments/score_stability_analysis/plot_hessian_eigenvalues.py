@@ -9,14 +9,13 @@ from torch.func import jacrev
 from tqdm import tqdm
 
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.analysis.analytic_score.utils import \
-    get_silicon_supercell
 from crystal_diffusion.models.position_diffusion_lightning_model import \
     PositionDiffusionLightningModel
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 from experiments import get_normalized_score_function
+from experiments.analysis.analytic_score.utils import get_silicon_supercell
 
 plt.style.use(PLOT_STYLE_PATH)
 

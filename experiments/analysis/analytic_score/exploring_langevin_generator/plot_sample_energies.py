@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
-from crystal_diffusion.analysis.analytic_score.exploring_langevin_generator import \
+from experiments.analysis.analytic_score.exploring_langevin_generator import \
     LANGEVIN_EXPLORATION_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)

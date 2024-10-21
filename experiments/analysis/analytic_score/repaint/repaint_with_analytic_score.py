@@ -6,8 +6,6 @@ import torch
 
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLOT_STYLE_PATH
-from crystal_diffusion.analysis.analytic_score.utils import (
-    get_samples_harmonic_energy, get_silicon_supercell, get_unit_cells)
 from crystal_diffusion.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from crystal_diffusion.models.score_networks.analytical_score_network import (
@@ -15,6 +13,9 @@ from crystal_diffusion.models.score_networks.analytical_score_network import (
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 from crystal_diffusion.utils.structure_utils import create_structure
+from experiments.analysis.analytic_score import (get_samples_harmonic_energy,
+                                                 get_silicon_supercell,
+                                                 get_unit_cells)
 
 logger = logging.getLogger(__name__)
 setup_analysis_logger()

@@ -9,9 +9,10 @@ from einops import einops
 
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.analysis.analytic_score.utils import (
-    get_exact_samples, get_samples_harmonic_energy, get_silicon_supercell)
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from experiments.analysis.analytic_score import (get_exact_samples,
+                                                 get_samples_harmonic_energy,
+                                                 get_silicon_supercell)
 
 logger = logging.getLogger(__name__)
 setup_analysis_logger()
