@@ -1,4 +1,5 @@
 .idea
+.DS_Store
 mlruns
 analysis_results/
 
