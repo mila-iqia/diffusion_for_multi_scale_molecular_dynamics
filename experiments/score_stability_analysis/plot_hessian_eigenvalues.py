@@ -16,8 +16,7 @@ from crystal_diffusion.models.position_diffusion_lightning_model import \
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
-from experiment_analysis.score_stability_analysis.util import \
-    get_normalized_score_function
+from experiments import get_normalized_score_function
 
 plt.style.use(PLOT_STYLE_PATH)
 

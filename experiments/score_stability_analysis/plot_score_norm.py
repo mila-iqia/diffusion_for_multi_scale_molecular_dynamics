@@ -16,8 +16,7 @@ from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
-from experiment_analysis.score_stability_analysis.util import \
-    create_fixed_time_normalized_score_function
+from experiments import create_fixed_time_normalized_score_function
 
 plt.style.use(PLOT_STYLE_PATH)
 

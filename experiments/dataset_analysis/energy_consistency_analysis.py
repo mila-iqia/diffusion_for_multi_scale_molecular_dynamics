@@ -21,7 +21,7 @@ from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
-from experiment_analysis import EXPERIMENT_ANALYSIS_DIR
+from experiments import EXPERIMENT_ANALYSIS_DIR
 from experiments.analysis_utils import get_thermo_dataset
 
 plt.style.use(PLOT_STYLE_PATH)

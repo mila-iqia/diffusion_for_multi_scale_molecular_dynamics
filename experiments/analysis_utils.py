@@ -7,7 +7,7 @@ import pandas as pd
 
 from crystal_diffusion import DATA_DIR
 from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_thermo_log
-from experiment_analysis import EXPERIMENT_ANALYSIS_DIR
+from experiments import EXPERIMENT_ANALYSIS_DIR
 
 logger = logging.getLogger(__name__)
 
