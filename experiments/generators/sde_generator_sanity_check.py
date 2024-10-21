@@ -17,7 +17,7 @@ from crystal_diffusion.models.score_networks.analytical_score_network import (
 from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from sanity_checks.generators import GENERATOR_SANITY_CHECK_DIRECTORY
+from experiments.generators import GENERATOR_SANITY_CHECK_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
