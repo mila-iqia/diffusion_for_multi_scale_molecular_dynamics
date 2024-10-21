@@ -1,7 +1,0 @@
-# Analysis
-
-This folder contains various analysis scripts. These scripts may point to
-data in the data/ folder or the experiment/ folder: these artifacts will not
-be under revision, it will be assumed that these data sources are present
-when executing the scripts.
-
