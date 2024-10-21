@@ -19,7 +19,7 @@ import scipy
 from crystal_diffusion import ANALYSIS_RESULTS_DIR, DATA_DIR
 from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
-from experiment_analysis.analysis_utils import get_thermo_dataset
+from experiments.analysis_utils import get_thermo_dataset
 
 plt.style.use(PLOT_STYLE_PATH)
 
