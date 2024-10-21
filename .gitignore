@@ -3,6 +3,8 @@
 mlruns
 analysis_results/
 
+mlip-3/ 
+
 examples/data/
 examples/*/output/
 examples/*/lightning_logs/
