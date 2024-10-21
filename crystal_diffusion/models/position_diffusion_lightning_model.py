@@ -387,6 +387,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             logger.info("       * Registering sample energies")
             self.energy_ks_metric.register_predicted_samples(sample_energies.cpu())
 
+            logger.info("       * Computing KS distance for energies")
             (
                 ks_distance,
                 p_value,
@@ -400,7 +401,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             self.log(
                 "validation_ks_p_value_energy", p_value, on_step=False, on_epoch=True
             )
-            logger.info("       * Done logging sample energies")
+            logger.info("       * Done logging KS distance for energies")
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             logger.info("       * Computing sample distances")
@@ -413,6 +414,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             logger.info("       * Registering sample distances")
             self.structure_ks_metric.register_predicted_samples(sample_distances.cpu())
 
+            logger.info("       * Computing KS distance for distances")
             (
                 ks_distance,
                 p_value,

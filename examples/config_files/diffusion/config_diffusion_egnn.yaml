@@ -33,6 +33,7 @@ model:
     normalize: True
     residual: True
     tanh: False
+    edges: fully_connected
   noise:
     total_time_steps: 1000
     sigma_min: 0.0001
