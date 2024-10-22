@@ -1,0 +1,59 @@
+[project]
+name = "diffusion-for-multi-scale-molecular-dynamics"
+version = "0.1.0"
+description = "This project trains and samples from diffusion models adapted to periodic materials."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Simon Blackburn", email = "simon.blackburn@mila.quebec"},
+    {name = "Bruno Rousseau", email = "rousseau.bruno@mila.quebec"},
+]
+dependencies = [
+    "black>=24.10.0",
+    "comet-ml>=3.47.0",
+    "datasets==2.17.1",
+    "deepdiff==7.0.1",
+    "einops==0.8.0",
+    "flake8-docstrings==1.6.0",
+    "flake8==4.0.1",
+    "gitpython==3.1.27",
+    "hydra-core==1.3.2",
+    "isort==5.13.2",
+    "jinja2==3.1.2",
+    "jupyter==1.0.0",
+    "kaleido==0.2.1",
+    "lammps>=2024.8.29.1.0",
+    "mace-torch==0.3.4",
+    "maml==2023.9.9",
+    "matplotlib==3.8.3",
+    "monty==2024.2.2",
+    "myst-parser==2.0.0",
+    "orion>=0.2.7",
+    "ovito==3.10.6.post2",
+    "pip>=24.2",
+    "pyarrow==15.0.1",
+    "pykeops==2.2.3",
+    "pymatgen==2024.2.23",
+    "pytest-cov==3.0.0",
+    "pytest-mock==3.12.0",
+    "pytest==7.1.2",
+    "pytorch-lightning>=2.4.0",
+    "pytype==2024.2.13",
+    "pyyaml==6.0.1",
+    "rich==13.7.1",
+    "sphinx-autoapi==3.0.0",
+    "sphinx-rtd-theme==2.0.0",
+    "sphinx==7.2.6",
+    "sphinxcontrib-katex==0.8.6",
+    "sphinxcontrib-napoleon==0.7",
+    "tensorboard==2.16.2",
+    "torch-geometric==2.5.3",
+    "torch==2.2.0",
+    "torchode==0.2.0",
+    "torchsde==0.2.6",
+    "tqdm==4.64.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
