@@ -8,14 +8,13 @@ import logging
 
 import einops
 import torch
-from tqdm import tqdm
-
 from crystal_diffusion import ANALYSIS_RESULTS_DIR, DATA_DIR
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 dataset_name = 'si_diffusion_2x2x2'

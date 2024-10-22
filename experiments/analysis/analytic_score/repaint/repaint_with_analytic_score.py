@@ -3,16 +3,16 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
-from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
 from crystal_diffusion.utils.structure_utils import create_structure
+from src.crystal_diffusion.analysis import PLOT_STYLE_PATH
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+
 from experiments.analysis.analytic_score import (get_samples_harmonic_energy,
                                                  get_silicon_supercell,
                                                  get_unit_cells)

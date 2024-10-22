@@ -1,9 +1,9 @@
 import einops
 import pytest
 import torch
-
 from crystal_diffusion.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
+
 from tests.generators.test_langevin_generator import TestLangevinGenerator
 
 

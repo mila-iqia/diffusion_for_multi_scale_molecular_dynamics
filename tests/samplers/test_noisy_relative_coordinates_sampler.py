@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 import torch
-
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 

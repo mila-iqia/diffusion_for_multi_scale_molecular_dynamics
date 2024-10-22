@@ -6,7 +6,6 @@ import einops
 import numpy as np
 import pytest
 import torch
-
 from crystal_diffusion.models.score_networks.diffusion_mace_score_network import (
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
 from crystal_diffusion.models.score_networks.egnn_score_network import (

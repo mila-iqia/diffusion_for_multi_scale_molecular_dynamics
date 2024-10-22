@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from crystal_diffusion.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,

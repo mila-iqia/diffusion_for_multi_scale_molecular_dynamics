@@ -6,13 +6,13 @@ import logging
 
 import matplotlib.pyplot as plt
 import torch
-from einops import einops
-
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
                                          TIME, UNIT_CELL)
+from einops import einops
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+
 from experiments.analysis.analytic_score import ANALYTIC_SCORE_RESULTS_DIR
 from experiments.analysis.analytic_score.utils import get_unit_cells
 

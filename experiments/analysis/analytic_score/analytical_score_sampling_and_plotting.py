@@ -11,9 +11,6 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from einops import einops
-
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
@@ -21,8 +18,11 @@ from crystal_diffusion.generators.predictor_corrector_position_generator import 
     PredictorCorrectorSamplingParameters
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from einops import einops
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+
 from experiments.analysis.analytic_score import ANALYTIC_SCORE_RESULTS_DIR
 from experiments.analysis.analytic_score.utils import (
     get_exact_samples, get_samples_harmonic_energy, get_silicon_supercell,

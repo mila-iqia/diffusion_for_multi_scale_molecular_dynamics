@@ -15,10 +15,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy
-
 from crystal_diffusion import ANALYSIS_RESULTS_DIR, DATA_DIR
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+
 from experiments.analysis_utils import get_thermo_dataset
 
 plt.style.use(PLOT_STYLE_PATH)

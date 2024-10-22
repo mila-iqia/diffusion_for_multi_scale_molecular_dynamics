@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 

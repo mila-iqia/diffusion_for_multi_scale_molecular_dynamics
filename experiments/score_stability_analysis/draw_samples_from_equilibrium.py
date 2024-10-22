@@ -4,8 +4,6 @@ import einops
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
@@ -16,8 +14,10 @@ from crystal_diffusion.generators.sde_position_generator import (
 from crystal_diffusion.models.position_diffusion_lightning_model import \
     PositionDiffusionLightningModel
 from crystal_diffusion.models.score_networks import ScoreNetwork
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+
 from experiments.analysis.analytic_score.exploring_langevin_generator.generate_sample_energies import \
     EnergyCalculator
 from experiments.analysis.analytic_score.utils import get_silicon_supercell

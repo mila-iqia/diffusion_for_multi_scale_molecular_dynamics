@@ -6,11 +6,10 @@ some distributions.
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-
 from crystal_diffusion import TOP_DIR
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.utils.sample_trajectory import \
     PredictorCorrectorSampleTrajectory
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 
 plt.style.use(PLOT_STYLE_PATH)
 

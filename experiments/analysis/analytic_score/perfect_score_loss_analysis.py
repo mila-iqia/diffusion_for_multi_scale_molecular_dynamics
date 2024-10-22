@@ -6,12 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.loggers import CSVLogger
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
-from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.callbacks.loss_monitoring_callback import \
     LossMonitoringCallback
 from crystal_diffusion.callbacks.sampling_visualization_callback import \
@@ -32,10 +27,15 @@ from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
-from crystal_diffusion.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
+from pytorch_lightning.loggers import CSVLogger
+from src.crystal_diffusion.analysis import PLOT_STYLE_PATH
+from src.crystal_diffusion.samplers.variance_sampler import (
+    ExplodingVarianceSampler, NoiseParameters)
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 from experiments.analysis.analytic_score.utils import (get_exact_samples,
                                                        get_silicon_supercell)
 

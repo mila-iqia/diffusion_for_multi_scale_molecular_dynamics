@@ -4,17 +4,17 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 import torch
-from e3nn import o3
-from mace.data import AtomicData, Configuration
-from mace.tools import get_atomic_number_table_from_zs
-from mace.tools.torch_geometric.dataloader import Collater
-
 from crystal_diffusion.models.mace_utils import (
     get_normalized_irreps_permutation_indices, get_pretrained_mace,
     input_to_mace, reshape_from_e3nn_to_mace, reshape_from_mace_to_e3nn)
 from crystal_diffusion.namespace import NOISY_CARTESIAN_POSITIONS, UNIT_CELL
 from crystal_diffusion.utils.basis_transformations import \
     get_positions_from_coordinates
+from e3nn import o3
+from mace.data import AtomicData, Configuration
+from mace.tools import get_atomic_number_table_from_zs
+from mace.tools.torch_geometric.dataloader import Collater
+
 from tests.fake_data_utils import find_aligning_permutation
 
 

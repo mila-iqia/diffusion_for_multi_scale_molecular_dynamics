@@ -12,10 +12,10 @@ from typing import Union
 import numpy as np
 import pytest
 import yaml
-
 from crystal_diffusion import train_diffusion
 from crystal_diffusion.callbacks.standard_callbacks import (BEST_MODEL_NAME,
                                                             LAST_MODEL_NAME)
+
 from tests.conftest import TestDiffusionDataBase
 
 best_model_regex = re.compile(r"best_model-epoch=(?P<epoch>(\d+)).*.ckpt")

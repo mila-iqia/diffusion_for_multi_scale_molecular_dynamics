@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from crystal_diffusion.models.score_networks.force_field_augmented_score_network import (
     ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
 from crystal_diffusion.models.score_networks.mlp_score_network import (

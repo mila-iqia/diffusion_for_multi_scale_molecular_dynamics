@@ -2,7 +2,6 @@ import itertools
 
 import pytest
 import torch
-
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters,
     TargetScoreBasedAnalyticalScoreNetwork)

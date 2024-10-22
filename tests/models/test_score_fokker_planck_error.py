@@ -3,9 +3,6 @@ from typing import Callable
 import einops
 import pytest
 import torch
-
-from crystal_diffusion.models.normalized_score_fokker_planck_error import \
-    NormalizedScoreFokkerPlanckError
 from crystal_diffusion.models.score_networks.egnn_score_network import \
     EGNNScoreNetworkParameters
 from crystal_diffusion.models.score_networks.score_network_factory import \
@@ -13,7 +10,9 @@ from crystal_diffusion.models.score_networks.score_network_factory import \
 from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
                                          TIME, UNIT_CELL)
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from src.crystal_diffusion.models.normalized_score_fokker_planck_error import \
+    NormalizedScoreFokkerPlanckError
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 
 def get_finite_difference_time_derivative(

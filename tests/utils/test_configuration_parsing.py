@@ -1,7 +1,6 @@
 from dataclasses import asdict, dataclass
 
 import pytest
-
 from crystal_diffusion.utils.configuration_parsing import \
     create_parameters_from_configuration_dictionary
 

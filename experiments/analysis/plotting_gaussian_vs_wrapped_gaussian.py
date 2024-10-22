@@ -5,10 +5,9 @@ This script plots a comparison between a 1D Gaussian centered at 0.5 and the sum
 """
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import norm
-
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from scipy.stats import norm
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 
 plt.style.use(PLOT_STYLE_PATH)
 

@@ -8,10 +8,9 @@ from typing import Dict
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 from crystal_diffusion import ANALYSIS_RESULTS_DIR, DATA_DIR
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from src.crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
 
 DATASET_NAME = 'si_diffusion_v1'
 

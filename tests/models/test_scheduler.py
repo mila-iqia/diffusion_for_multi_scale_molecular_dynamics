@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from crystal_diffusion.models.optimizer import (OptimizerParameters,
                                                 load_optimizer)
 from crystal_diffusion.models.scheduler import (

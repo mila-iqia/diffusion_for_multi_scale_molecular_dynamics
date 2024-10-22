@@ -5,14 +5,13 @@ import numpy as np
 import pandas as pd
 import pytest
 import yaml
-from pymatgen.core import Structure
-from sklearn.metrics import mean_absolute_error
-
 from crystal_diffusion.mlip.mtp_utils import (
     MTPInputs, extract_energy_from_thermo_log,
     extract_structure_and_forces_from_file, get_metrics_from_pred,
     prepare_mtp_inputs_from_lammps)
 from crystal_diffusion.models.mlip.mtp import MTPArguments, MTPWithMLIP3
+from pymatgen.core import Structure
+from sklearn.metrics import mean_absolute_error
 
 
 class FakeStructure:

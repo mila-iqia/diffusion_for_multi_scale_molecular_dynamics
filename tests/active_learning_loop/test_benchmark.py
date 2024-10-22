@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, mock_open
 
 import pandas as pd
 import pytest
-
 from crystal_diffusion.active_learning_loop.benchmark import ActiveLearningLoop
 
 

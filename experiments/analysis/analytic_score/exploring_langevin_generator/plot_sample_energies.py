@@ -2,8 +2,8 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
+from src.crystal_diffusion.analysis import PLOT_STYLE_PATH
 
-from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from experiments.analysis.analytic_score.exploring_langevin_generator import \
     LANGEVIN_EXPLORATION_DIRECTORY
 

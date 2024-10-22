@@ -1,14 +1,13 @@
 import einops
 import pytest
 import torch
-
-from crystal_diffusion.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
 from crystal_diffusion.namespace import (CARTESIAN_POSITIONS,
                                          RELATIVE_COORDINATES, UNIT_CELL)
-from crystal_diffusion.samples.sampling import create_batch_of_samples
 from crystal_diffusion.utils.basis_transformations import \
     get_positions_from_coordinates
+from src.crystal_diffusion.generators.position_generator import (
+    PositionGenerator, SamplingParameters)
+from src.crystal_diffusion.samples.sampling import create_batch_of_samples
 
 
 class DummyGenerator(PositionGenerator):

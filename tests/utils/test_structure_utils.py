@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from crystal_diffusion.utils.basis_transformations import \
     get_positions_from_coordinates
 from crystal_diffusion.utils.structure_utils import (

@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
                                                  unsorted_segment_sum)
 

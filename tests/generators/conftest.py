@@ -2,7 +2,6 @@ from typing import AnyStr, Dict
 
 import pytest
 import torch
-
 from crystal_diffusion.models.score_networks import (ScoreNetwork,
                                                      ScoreNetworkParameters)
 from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES

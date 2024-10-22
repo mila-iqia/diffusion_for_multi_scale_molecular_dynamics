@@ -8,12 +8,13 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-
-from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.callbacks.sampling_visualization_callback import \
     SamplingVisualizationCallback
-from crystal_diffusion.generators.position_generator import SamplingParameters
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from src.crystal_diffusion.analysis import PLOT_STYLE_PATH
+from src.crystal_diffusion.generators.position_generator import \
+    SamplingParameters
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+
 from experiments.analysis.analytic_score import get_relative_harmonic_energy
 
 logger = logging.getLogger(__name__)

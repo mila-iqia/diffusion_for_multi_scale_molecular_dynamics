@@ -3,7 +3,6 @@ from copy import deepcopy
 import einops
 import pytest
 import torch
-
 from crystal_diffusion.utils.sample_trajectory import \
     PredictorCorrectorSampleTrajectory
 

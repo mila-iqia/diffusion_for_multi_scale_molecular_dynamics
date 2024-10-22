@@ -4,12 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.loggers import TensorBoardLogger
-from torch.utils.data import DataLoader
-
-from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.callbacks.callback_loader import create_all_callbacks
-from crystal_diffusion.generators.position_generator import SamplingParameters
 from crystal_diffusion.models.optimizer import OptimizerParameters
 from crystal_diffusion.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
@@ -24,7 +19,13 @@ from crystal_diffusion.models.score_networks.mlp_score_network import \
 from crystal_diffusion.models.score_networks.score_prediction_head import \
     MaceEquivariantScorePredictionHeadParameters
 from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from pytorch_lightning.loggers import TensorBoardLogger
+from src.crystal_diffusion.analysis import PLOT_STYLE_PATH
+from src.crystal_diffusion.generators.position_generator import \
+    SamplingParameters
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from torch.utils.data import DataLoader
+
 from experiments.analysis.analytic_score import (get_exact_samples,
                                                  get_relative_harmonic_energy)
 from experiments.diffusion_mace_harmonic_data.analysis_callbacks import \

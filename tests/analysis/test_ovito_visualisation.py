@@ -4,9 +4,8 @@ import os
 import numpy as np
 import pandas as pd
 import pytest
-
-from crystal_diffusion.analysis.ovito_visualisation import (
-    get_lattice_from_lammps, mtp_predictions_to_ovito)
+from src.crystal_diffusion.analysis import (get_lattice_from_lammps,
+                                            mtp_predictions_to_ovito)
 
 
 class TestMTP2Ovito:

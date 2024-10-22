@@ -3,8 +3,6 @@ from collections import namedtuple
 import numpy as np
 import pytest
 import torch
-from pymatgen.core import Lattice, Structure
-
 from crystal_diffusion.utils.basis_transformations import \
     get_positions_from_coordinates
 from crystal_diffusion.utils.neighbors import (
@@ -12,6 +10,8 @@ from crystal_diffusion.utils.neighbors import (
     _get_shifted_positions, _get_shortest_distance_that_crosses_unit_cell,
     _get_vectors_from_multiple_indices, get_periodic_adjacency_information,
     shift_adjacency_matrix_indices_for_graph_batching)
+from pymatgen.core import Lattice, Structure
+
 from tests.fake_data_utils import find_aligning_permutation
 
 Neighbors = namedtuple("Neighbors", ["source_index", "destination_index", "displacement", "shift"])

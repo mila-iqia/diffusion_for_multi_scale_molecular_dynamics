@@ -5,8 +5,6 @@ import tempfile
 import einops
 import numpy as np
 import torch
-from tqdm import tqdm
-
 from crystal_diffusion.callbacks.sampling_visualization_callback import logger
 from crystal_diffusion.generators.langevin_generator import LangevinGenerator
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
@@ -14,9 +12,11 @@ from crystal_diffusion.generators.predictor_corrector_position_generator import 
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetworkParameters, TargetScoreBasedAnalyticalScoreNetwork)
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.utils.basis_transformations import (
     get_positions_from_coordinates, map_relative_coordinates_to_unit_cell)
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from tqdm import tqdm
+
 from experiments.analysis.analytic_score.exploring_langevin_generator import \
     LANGEVIN_EXPLORATION_DIRECTORY
 from experiments.analysis.analytic_score.utils import (get_exact_samples,

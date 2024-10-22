@@ -1,10 +1,10 @@
 import pytest
 import torch
-
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorPositionGenerator
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
+
 from tests.generators.conftest import BaseTestGenerator
 
 

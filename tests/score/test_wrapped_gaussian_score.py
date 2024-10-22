@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 import torch
-
 from crystal_diffusion.score.wrapped_gaussian_score import (
     SIGMA_THRESHOLD, _get_large_sigma_mask, _get_s1a_exponential,
     _get_s1b_exponential, _get_sigma_normalized_s2,

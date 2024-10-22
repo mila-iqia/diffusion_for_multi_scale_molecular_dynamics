@@ -11,16 +11,16 @@ import tempfile
 
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
-
 from crystal_diffusion import DATA_DIR
-from crystal_diffusion.analysis import PLOT_STYLE_PATH
 from crystal_diffusion.callbacks.sampling_visualization_callback import (
     LOGGER_FIGSIZE, SamplingVisualizationCallback)
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from src.crystal_diffusion.analysis import PLOT_STYLE_PATH
+from tqdm import tqdm
+
 from experiments import EXPERIMENT_ANALYSIS_DIR
 from experiments.analysis_utils import get_thermo_dataset
 

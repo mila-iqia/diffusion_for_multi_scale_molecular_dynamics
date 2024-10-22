@@ -3,11 +3,11 @@ from typing import Dict, List
 
 import pytest
 import torch
-
 from crystal_diffusion.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
                                          RELATIVE_COORDINATES)
+
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import Configuration, find_aligning_permutation
 

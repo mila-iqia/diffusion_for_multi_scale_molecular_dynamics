@@ -3,7 +3,6 @@ import dataclasses
 import pytest
 import torch
 import yaml
-
 from crystal_diffusion import sample_diffusion
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
@@ -14,7 +13,7 @@ from crystal_diffusion.models.position_diffusion_lightning_model import (
 from crystal_diffusion.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from crystal_diffusion.namespace import RELATIVE_COORDINATES
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 
 @pytest.fixture()

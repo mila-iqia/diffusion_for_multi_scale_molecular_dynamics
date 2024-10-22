@@ -1,8 +1,5 @@
 import pytest
 import torch
-from e3nn import o3
-from mace.modules import gate_dict, interaction_classes
-
 from crystal_diffusion.models.diffusion_mace import (DiffusionMACE,
                                                      LinearVectorReadoutBlock,
                                                      input_to_diffusion_mace)
@@ -14,6 +11,8 @@ from crystal_diffusion.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,
     map_relative_coordinates_to_unit_cell)
+from e3nn import o3
+from mace.modules import gate_dict, interaction_classes
 
 
 def test_linear_vector_readout_block():

@@ -1,8 +1,5 @@
 import pytest
 import torch
-from pytorch_lightning import LightningDataModule, Trainer
-from torch.utils.data import DataLoader, random_split
-
 from crystal_diffusion.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
 from crystal_diffusion.metrics.sampling_metrics_parameters import \
@@ -16,13 +13,15 @@ from crystal_diffusion.models.scheduler import (
 from crystal_diffusion.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from crystal_diffusion.namespace import CARTESIAN_FORCES, RELATIVE_COORDINATES
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from crystal_diffusion.samples.diffusion_sampling_parameters import \
     DiffusionSamplingParameters
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
+from pytorch_lightning import LightningDataModule, Trainer
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from torch.utils.data import DataLoader, random_split
 
 
 class FakePositionsDataModule(LightningDataModule):

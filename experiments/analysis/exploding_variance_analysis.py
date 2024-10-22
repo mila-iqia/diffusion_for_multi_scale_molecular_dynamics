@@ -5,13 +5,12 @@ the relative positions.
 """
 import matplotlib.pyplot as plt
 import torch
-
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from crystal_diffusion.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from src.crystal_diffusion.samplers.variance_sampler import (
+    ExplodingVarianceSampler, NoiseParameters)
 
 plt.style.use(PLOT_STYLE_PATH)
 

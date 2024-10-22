@@ -3,7 +3,6 @@ from copy import copy
 
 import pytest
 import torch
-
 from crystal_diffusion.models.egnn import E_GCL, EGNN
 
 

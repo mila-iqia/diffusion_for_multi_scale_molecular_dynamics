@@ -1,10 +1,10 @@
 import pytest
 import torch
-
 from crystal_diffusion.generators.sde_position_generator import (
     SDE, ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
-from crystal_diffusion.samplers.variance_sampler import (
+from src.crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+
 from tests.generators.conftest import BaseTestGenerator
 
 

@@ -1,5 +1,4 @@
 import pytest
-
 from crystal_diffusion.utils.hp_utils import check_hp
 
 

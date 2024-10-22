@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
 
 

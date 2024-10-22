@@ -1,10 +1,9 @@
 import torch
-from matplotlib import pyplot as plt
-
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.models.score_networks.force_field_augmented_score_network import (
     ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
 from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES, UNIT_CELL
+from matplotlib import pyplot as plt
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 
 plt.style.use(PLOT_STYLE_PATH)
 

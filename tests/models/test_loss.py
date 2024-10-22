@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from crystal_diffusion.models.loss import (MSELossParameters,
                                            WeightedMSELossParameters,
                                            create_loss_calculator)

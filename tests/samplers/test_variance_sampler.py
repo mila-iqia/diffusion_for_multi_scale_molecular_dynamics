@@ -1,7 +1,6 @@
 import pytest
 import torch
-
-from crystal_diffusion.samplers.variance_sampler import (
+from src.crystal_diffusion.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 
 

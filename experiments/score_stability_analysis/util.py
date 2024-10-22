@@ -3,13 +3,12 @@ from typing import Callable
 
 import einops
 import torch
-
 from crystal_diffusion.models.score_networks import ScoreNetwork
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          NOISY_RELATIVE_COORDINATES, TIME,
                                          UNIT_CELL)
 from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
 
 def get_normalized_score_function(

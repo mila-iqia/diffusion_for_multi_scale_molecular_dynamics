@@ -7,10 +7,6 @@ from pathlib import Path
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.loggers import TensorBoardLogger
-from torch import optim
-from torch.utils.data import DataLoader
-
 from crystal_diffusion.callbacks.standard_callbacks import CustomProgressBar
 from crystal_diffusion.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
@@ -21,12 +17,16 @@ from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
                                          UNIT_CELL)
 from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
-from crystal_diffusion.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
 from crystal_diffusion.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from crystal_diffusion.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
+from pytorch_lightning.loggers import TensorBoardLogger
+from src.crystal_diffusion.samplers.variance_sampler import (
+    ExplodingVarianceSampler, NoiseParameters)
+from torch import optim
+from torch.utils.data import DataLoader
+
 from experiments.analysis.analytic_score import (get_exact_samples,
                                                  get_unit_cells)
 

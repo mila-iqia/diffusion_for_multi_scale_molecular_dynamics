@@ -6,12 +6,11 @@ that the 'smart' implementation converges quickly and is equal to the expected b
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-
 from crystal_diffusion import ANALYSIS_RESULTS_DIR
-from crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from crystal_diffusion.score.wrapped_gaussian_score import (
     SIGMA_THRESHOLD, get_sigma_normalized_score,
     get_sigma_normalized_score_brute_force)
+from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 
 plt.style.use(PLOT_STYLE_PATH)
 

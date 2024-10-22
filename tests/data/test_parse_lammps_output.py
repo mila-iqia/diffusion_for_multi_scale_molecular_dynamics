@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 import yaml
-
-from crystal_diffusion.data.parse_lammps_outputs import (
+from src.crystal_diffusion.data.parse_lammps_outputs import (
     parse_lammps_dump, parse_lammps_output, parse_lammps_thermo_log)
+
 from tests.fake_data_utils import (create_dump_yaml_documents,
                                    generate_fake_configuration,
                                    generate_parse_dump_output_dataframe,

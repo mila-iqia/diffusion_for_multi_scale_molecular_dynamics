@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-
 from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
                                          RELATIVE_COORDINATES)
 

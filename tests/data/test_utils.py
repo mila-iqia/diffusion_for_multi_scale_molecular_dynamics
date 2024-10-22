@@ -1,6 +1,5 @@
 import pytest
 import yaml
-
 from crystal_diffusion.data.utils import crop_lammps_yaml
 
 # Sample data for dump and thermo YAML files
