@@ -16,7 +16,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'crystal_diffusion'
+project = 'diffusion_for_multi_scale_molecular_dynamics'
 copyright = '2023, amlrt_team'
 author = 'amlrt_team'
 
@@ -39,7 +39,7 @@ extensions.append('sphinxcontrib.katex')
 # autoapi extension for doc strings
 extensions.append('autoapi.extension')
 autoapi_type = 'python'
-autoapi_dirs = ['../crystal_diffusion/']
+autoapi_dirs = ['../src/']
 
 
 # Skip docstrings for loggers and tests

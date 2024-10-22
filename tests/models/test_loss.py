@@ -1,10 +1,9 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.loss import (MSELossParameters,
-                                           WeightedMSELossParameters,
-                                           create_loss_calculator)
-from crystal_diffusion.utils.tensor_utils import \
+from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
+    MSELossParameters, WeightedMSELossParameters, create_loss_calculator)
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
 
@@ -44,7 +43,9 @@ def predicted_normalized_scores(batch_size, number_of_atoms, spatial_dimension):
 
 
 @pytest.fixture()
-def target_normalized_conditional_scores(batch_size, number_of_atoms, spatial_dimension):
+def target_normalized_conditional_scores(
+    batch_size, number_of_atoms, spatial_dimension
+):
     return torch.rand(batch_size, number_of_atoms, spatial_dimension)
 
 
@@ -52,7 +53,9 @@ def target_normalized_conditional_scores(batch_size, number_of_atoms, spatial_di
 def sigmas(batch_size, number_of_atoms, spatial_dimension):
     batch_sigmas = torch.rand(batch_size)
     shape = (batch_size, number_of_atoms, spatial_dimension)
-    sigmas = broadcast_batch_tensor_to_all_dimensions(batch_values=batch_sigmas, final_shape=shape)
+    sigmas = broadcast_batch_tensor_to_all_dimensions(
+        batch_values=batch_sigmas, final_shape=shape
+    )
     return sigmas
 
 
@@ -61,7 +64,7 @@ def weights(sigmas, sigma0, exponent):
     return 1.0 + torch.exp(exponent * (sigmas - sigma0))
 
 
-@pytest.fixture(params=['mse', 'weighted_mse'])
+@pytest.fixture(params=["mse", "weighted_mse"])
 def algorithm(request):
     return request.param
 
@@ -69,12 +72,12 @@ def algorithm(request):
 @pytest.fixture()
 def loss_parameters(algorithm, sigma0, exponent):
     match algorithm:
-        case 'mse':
+        case "mse":
             parameters = MSELossParameters()
-        case 'weighted_mse':
+        case "weighted_mse":
             parameters = WeightedMSELossParameters(sigma0=sigma0, exponent=exponent)
         case _:
-            raise ValueError(f'Unknown loss algorithm {algorithm}')
+            raise ValueError(f"Unknown loss algorithm {algorithm}")
     return parameters
 
 
@@ -84,24 +87,41 @@ def loss_calculator(loss_parameters):
 
 
 @pytest.fixture()
-def computed_loss(loss_calculator, predicted_normalized_scores, target_normalized_conditional_scores, sigmas):
-    unreduced_loss = loss_calculator.calculate_unreduced_loss(predicted_normalized_scores,
-                                                              target_normalized_conditional_scores,
-                                                              sigmas)
+def computed_loss(
+    loss_calculator,
+    predicted_normalized_scores,
+    target_normalized_conditional_scores,
+    sigmas,
+):
+    unreduced_loss = loss_calculator.calculate_unreduced_loss(
+        predicted_normalized_scores, target_normalized_conditional_scores, sigmas
+    )
     return torch.mean(unreduced_loss)
 
 
 @pytest.fixture()
-def expected_loss(algorithm, weights, predicted_normalized_scores, target_normalized_conditional_scores, sigmas):
+def expected_loss(
+    algorithm,
+    weights,
+    predicted_normalized_scores,
+    target_normalized_conditional_scores,
+    sigmas,
+):
     match algorithm:
-        case 'mse':
+        case "mse":
             loss = torch.nn.functional.mse_loss(
-                predicted_normalized_scores, target_normalized_conditional_scores, reduction="mean"
+                predicted_normalized_scores,
+                target_normalized_conditional_scores,
+                reduction="mean",
             )
-        case 'weighted_mse':
-            loss = torch.mean(weights * (predicted_normalized_scores - target_normalized_conditional_scores)**2)
+        case "weighted_mse":
+            loss = torch.mean(
+                weights
+                * (predicted_normalized_scores - target_normalized_conditional_scores)
+                ** 2
+            )
         case _:
-            raise ValueError(f'Unknown loss algorithm {algorithm}')
+            raise ValueError(f"Unknown loss algorithm {algorithm}")
     return loss
 
 

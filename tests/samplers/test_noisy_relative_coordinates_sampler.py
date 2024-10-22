@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
 
 
@@ -48,8 +48,10 @@ class TestNoisyRelativeCoordinatesSampler:
             return_value=fake_gaussian_sample,
         )
 
-        computed_samples = NoisyRelativeCoordinatesSampler.get_noisy_relative_coordinates_sample(
-            real_relative_coordinates, sigmas
+        computed_samples = (
+            NoisyRelativeCoordinatesSampler.get_noisy_relative_coordinates_sample(
+                real_relative_coordinates, sigmas
+            )
         )
 
         flat_sigmas = sigmas.flatten()

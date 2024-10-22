@@ -4,17 +4,21 @@ import pytest
 import torch
 import yaml
 
-from crystal_diffusion import sample_diffusion
-from crystal_diffusion.generators.predictor_corrector_position_generator import \
+from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
-from crystal_diffusion.models.loss import MSELossParameters
-from crystal_diffusion.models.optimizer import OptimizerParameters
-from crystal_diffusion.models.position_diffusion_lightning_model import (
+from diffusion_for_multi_scale_molecular_dynamics.models.loss import \
+    MSELossParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
+    OptimizerParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import (
     PositionDiffusionLightningModel, PositionDiffusionParameters)
-from crystal_diffusion.models.score_networks.mlp_score_network import \
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
-from crystal_diffusion.namespace import RELATIVE_COORDINATES
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.namespace import \
+    RELATIVE_COORDINATES
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
 
 
 @pytest.fixture()
@@ -140,7 +144,7 @@ def test_sample_diffusion(
     record_samples,
 ):
     mocker.patch(
-        "crystal_diffusion.sample_diffusion.get_sigma_normalized_score_network",
+        "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion.get_sigma_normalized_score_network",
         return_value=sigma_normalized_score_network,
     )
 

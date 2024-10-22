@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from crystal_diffusion.score.wrapped_gaussian_score import (
+from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
     SIGMA_THRESHOLD, _get_large_sigma_mask, _get_s1a_exponential,
     _get_s1b_exponential, _get_sigma_normalized_s2,
     _get_sigma_square_times_score_1_from_exponential,
@@ -45,7 +45,9 @@ def expected_sigma_normalized_scores(relative_coordinates, sigmas):
     shape = relative_coordinates.shape
 
     list_sigma_normalized_scores = []
-    for u, sigma in zip(relative_coordinates.numpy().flatten(), sigmas.numpy().flatten()):
+    for u, sigma in zip(
+        relative_coordinates.numpy().flatten(), sigmas.numpy().flatten()
+    ):
         s = get_sigma_normalized_score_brute_force(u, sigma)
         list_sigma_normalized_scores.append(s)
 
@@ -163,10 +165,14 @@ def test_get_sigma_normalized_s2(list_u, list_sigma, list_k, numerical_type):
         deriv_z2 = torch.tensor(0.0, dtype=numerical_type)
 
         for k in list_k:
-            g_term = torch.sqrt(2.0 * pi) * sigma * (-2.0 * pi**2 * sigma**2 * k**2).exp() - (-pi * k**2).exp()
+            g_term = (
+                torch.sqrt(2.0 * pi) * sigma * (-2.0 * pi**2 * sigma**2 * k**2).exp()
+                - (-pi * k**2).exp()
+            )
             z2 += (-pi * (u + k) ** 2).exp() + g_term * torch.cos(2 * pi * k * u)
-            deriv_z2 += (-2.0 * pi * (u + k) * (-pi * (u + k) ** 2).exp()
-                         - 2.0 * pi * k * g_term * torch.sin(2.0 * pi * k * u))
+            deriv_z2 += -2.0 * pi * (u + k) * (
+                -pi * (u + k) ** 2
+            ).exp() - 2.0 * pi * k * g_term * torch.sin(2.0 * pi * k * u)
 
         expected_value = sigma * deriv_z2 / z2
         list_expected_s2.append(expected_value)
@@ -179,11 +185,13 @@ def test_get_sigma_normalized_s2(list_u, list_sigma, list_k, numerical_type):
 @pytest.mark.parametrize("kmax", [4])
 @pytest.mark.parametrize("shape", test_shapes)
 def test_get_sigma_normalized_score(
-        relative_coordinates, sigmas, kmax, expected_sigma_normalized_scores
+    relative_coordinates, sigmas, kmax, expected_sigma_normalized_scores
 ):
     sigma_normalized_score_small_sigma = get_sigma_normalized_score(
         relative_coordinates, sigmas, kmax
     )
     torch.testing.assert_close(
-        sigma_normalized_score_small_sigma, expected_sigma_normalized_scores, check_dtype=False
+        sigma_normalized_score_small_sigma,
+        expected_sigma_normalized_scores,
+        check_dtype=False,
     )

@@ -2,13 +2,14 @@ import einops
 import pytest
 import torch
 
-from crystal_diffusion.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
-from crystal_diffusion.namespace import (CARTESIAN_POSITIONS,
-                                         RELATIVE_COORDINATES, UNIT_CELL)
-from crystal_diffusion.samples.sampling import create_batch_of_samples
-from crystal_diffusion.utils.basis_transformations import \
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    CARTESIAN_POSITIONS, RELATIVE_COORDINATES, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_positions_from_coordinates
+from src.diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
+    PositionGenerator, SamplingParameters)
+from src.diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
+    create_batch_of_samples
 
 
 class DummyGenerator(PositionGenerator):
@@ -23,7 +24,9 @@ class DummyGenerator(PositionGenerator):
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
     ) -> torch.Tensor:
         self._counter += number_of_samples
-        return self._relative_coordinates[self._counter - number_of_samples:self._counter]
+        return self._relative_coordinates[
+            self._counter - number_of_samples: self._counter
+        ]
 
 
 @pytest.fixture

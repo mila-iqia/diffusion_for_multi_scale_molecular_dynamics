@@ -35,9 +35,9 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip)
 
 
-_available_devices = [torch.device('cpu')]
+_available_devices = [torch.device("cpu")]
 if torch.cuda.is_available():
-    _available_devices.append(torch.device('cuda'))
+    _available_devices.append(torch.device("cuda"))
 
 
 @pytest.fixture(params=_available_devices)
@@ -47,10 +47,10 @@ def device(request):
 
 @pytest.fixture()
 def accelerator(device):
-    if str(device) == 'cpu':
-        return 'cpu'
-    elif str(device) == 'cuda':
-        return 'gpu'
+    if str(device) == "cpu":
+        return "cpu"
+    elif str(device) == "cuda":
+        return "gpu"
     else:
         raise ValueError("Wrong device")
 
@@ -58,7 +58,9 @@ def accelerator(device):
 @pytest.fixture
 def basis_vectors(batch_size):
     # orthogonal boxes with dimensions between 5 and 10.
-    orthogonal_boxes = torch.stack([torch.diag(5. + 5. * torch.rand(3)) for _ in range(batch_size)])
+    orthogonal_boxes = torch.stack(
+        [torch.diag(5.0 + 5.0 * torch.rand(3)) for _ in range(batch_size)]
+    )
     # add a bit of noise to make the vectors not quite orthogonal
     basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, 3, 3)
     return basis_vectors
@@ -66,6 +68,7 @@ def basis_vectors(batch_size):
 
 class TestDiffusionDataBase:
     """This base class creates fake data and writes it to disk for testing."""
+
     @pytest.fixture(scope="class", autouse=True)
     def set_seed(self):
         """Set the random seed."""
@@ -92,9 +95,13 @@ class TestDiffusionDataBase:
         return 3
 
     @pytest.fixture
-    def train_configuration_runs(self, number_of_train_runs, spatial_dimension, number_of_atoms):
+    def train_configuration_runs(
+        self, number_of_train_runs, spatial_dimension, number_of_atoms
+    ):
         """Generate multiple fake 'data' runs and return their configurations."""
-        return get_configuration_runs(number_of_train_runs, spatial_dimension, number_of_atoms)
+        return get_configuration_runs(
+            number_of_train_runs, spatial_dimension, number_of_atoms
+        )
 
     @pytest.fixture
     def all_train_configurations(self, train_configuration_runs):
@@ -105,9 +112,13 @@ class TestDiffusionDataBase:
         return all_configurations
 
     @pytest.fixture
-    def valid_configuration_runs(self, number_of_valid_runs, spatial_dimension, number_of_atoms):
+    def valid_configuration_runs(
+        self, number_of_valid_runs, spatial_dimension, number_of_atoms
+    ):
         """Generate multiple fake 'data' runs and return their configurations."""
-        return get_configuration_runs(number_of_valid_runs, spatial_dimension, number_of_atoms)
+        return get_configuration_runs(
+            number_of_valid_runs, spatial_dimension, number_of_atoms
+        )
 
     @pytest.fixture
     def all_valid_configurations(self, valid_configuration_runs):
@@ -128,17 +139,21 @@ class TestDiffusionDataBase:
         raw_data_dir = tmp_path / "raw_data"
         raw_data_dir.mkdir()
 
-        for mode, list_configurations in zip(['train', 'valid'], [train_configuration_runs, valid_configuration_runs]):
+        for mode, list_configurations in zip(
+            ["train", "valid"], [train_configuration_runs, valid_configuration_runs]
+        ):
             for i, configurations in enumerate(list_configurations, 1):
-                run_directory = raw_data_dir / f'{mode}_run_{i}'
+                run_directory = raw_data_dir / f"{mode}_run_{i}"
                 run_directory.mkdir()
                 dump_docs = create_dump_yaml_documents(configurations)
                 thermo_docs = create_thermo_yaml_documents(configurations)
 
-                write_to_yaml(dump_docs, str(run_directory / f'dump_{mode}.yaml'))
-                write_to_yaml(thermo_docs, str(run_directory / 'thermo_logs.yaml'))
+                write_to_yaml(dump_docs, str(run_directory / f"dump_{mode}.yaml"))
+                write_to_yaml(thermo_docs, str(run_directory / "thermo_logs.yaml"))
 
         processed_data_dir = tmp_path / "processed_data"
         processed_data_dir.mkdir()
 
-        return dict(raw_data_dir=str(raw_data_dir), processed_data_dir=str(processed_data_dir))
+        return dict(
+            raw_data_dir=str(raw_data_dir), processed_data_dir=str(processed_data_dir)
+        )

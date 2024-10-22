@@ -5,8 +5,10 @@ import os
 
 import yaml
 
-from crystal_diffusion.data.utils import crop_lammps_yaml
-from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from diffusion_for_multi_scale_molecular_dynamics.data.utils import \
+    crop_lammps_yaml
+from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
+    setup_analysis_logger
 
 logger = logging.getLogger(__name__)
 

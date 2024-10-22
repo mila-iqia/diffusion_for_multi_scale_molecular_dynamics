@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
-                                                 unsorted_segment_sum)
+from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
+    unsorted_segment_mean, unsorted_segment_sum)
 
 
 @pytest.fixture()
@@ -30,7 +30,9 @@ def messages(num_messages, num_message_features):
     return torch.randn(num_messages, num_message_features)
 
 
-def test_unsorted_segment_sum(num_messages, num_ids, message_ids, num_message_features, messages):
+def test_unsorted_segment_sum(
+    num_messages, num_ids, message_ids, num_message_features, messages
+):
     expected_message_sums = torch.zeros(num_ids, num_message_features)
     for i in range(num_messages):
         m_id = message_ids[i]
@@ -42,7 +44,9 @@ def test_unsorted_segment_sum(num_messages, num_ids, message_ids, num_message_fe
     assert torch.allclose(message_summed, expected_message_sums)
 
 
-def test_unsorted_segment_mean(num_messages, num_ids, message_ids, num_message_features, messages):
+def test_unsorted_segment_mean(
+    num_messages, num_ids, message_ids, num_message_features, messages
+):
     expected_message_sums = torch.zeros(num_ids, num_message_features)
     expected_counts = torch.zeros(num_ids, 1)
     for i in range(num_messages):
@@ -50,7 +54,9 @@ def test_unsorted_segment_mean(num_messages, num_ids, message_ids, num_message_f
         message = messages[i]
         expected_message_sums[m_id] += message
         expected_counts[m_id] += 1
-    expected_message_average = expected_message_sums / torch.maximum(expected_counts, torch.ones_like(expected_counts))
+    expected_message_average = expected_message_sums / torch.maximum(
+        expected_counts, torch.ones_like(expected_counts)
+    )
 
     message_averaged = unsorted_segment_mean(messages, message_ids, num_ids)
     assert message_averaged.size() == torch.Size((num_ids, num_message_features))

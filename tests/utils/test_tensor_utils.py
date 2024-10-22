@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from crystal_diffusion.utils.tensor_utils import \
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
 
@@ -24,8 +24,12 @@ def final_shape(batch_size, number_of_dimensions):
 
 @pytest.mark.parametrize("batch_size", [4, 8])
 @pytest.mark.parametrize("number_of_dimensions", [1, 2, 3])
-def test_broadcast_batch_tensor_to_all_dimensions(batch_size, batch_values, final_shape):
-    broadcast_values = broadcast_batch_tensor_to_all_dimensions(batch_values, final_shape)
+def test_broadcast_batch_tensor_to_all_dimensions(
+    batch_size, batch_values, final_shape
+):
+    broadcast_values = broadcast_batch_tensor_to_all_dimensions(
+        batch_values, final_shape
+    )
 
     value_arrays = broadcast_values.reshape(batch_size, -1)
 

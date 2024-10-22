@@ -4,16 +4,18 @@ import einops
 import pytest
 import torch
 
-from crystal_diffusion.models.normalized_score_fokker_planck_error import \
-    NormalizedScoreFokkerPlanckError
-from crystal_diffusion.models.score_networks.egnn_score_network import \
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import \
     EGNNScoreNetworkParameters
-from crystal_diffusion.models.score_networks.score_network_factory import \
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
     create_score_network
-from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
-                                         TIME, UNIT_CELL)
-from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
-from crystal_diffusion.samplers.variance_sampler import NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.samplers.exploding_variance import \
+    ExplodingVariance
+from src.diffusion_for_multi_scale_molecular_dynamics.models.normalized_score_fokker_planck_error import \
+    NormalizedScoreFokkerPlanckError
+from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
 
 
 def get_finite_difference_time_derivative(

@@ -1,11 +1,12 @@
 """Unit tests for outputs to ovito."""
+
 import os
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from crystal_diffusion.analysis.ovito_visualisation import (
+from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_visualisation import (
     get_lattice_from_lammps, mtp_predictions_to_ovito)
 
 
@@ -33,9 +34,7 @@ box:
         # Get the lattice array from the function using the test file
         lattice = get_lattice_from_lammps(lammps_output)
 
-        expected_lattice = np.array([[4.0, 0.0, 0.0],
-                                     [0.0, 5.0, 0.0],
-                                     [0.0, 0.0, 6.0]])
+        expected_lattice = np.array([[4.0, 0.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 6.0]])
 
         # Assert that the returned lattice is as expected
         np.testing.assert_array_equal(lattice, expected_lattice)
@@ -43,13 +42,15 @@ box:
     @pytest.fixture
     def fake_prediction_csv(self, tmpdir):
         # Create a DataFrame with mock prediction data
-        df = pd.DataFrame({
-            'structure_index': [1, 1, 2, 2],
-            'x': [0.0, 1.0, 2.0, 3.0],
-            'y': [0.1, 1.1, 2.1, 3.1],
-            'z': [0.2, 1.2, 2.2, 3.2],
-            'nbh_grades': [0.3, 1.3, 2.3, 3.3]
-        })
+        df = pd.DataFrame(
+            {
+                "structure_index": [1, 1, 2, 2],
+                "x": [0.0, 1.0, 2.0, 3.0],
+                "y": [0.1, 1.1, 2.1, 3.1],
+                "z": [0.2, 1.2, 2.2, 3.2],
+                "nbh_grades": [0.3, 1.3, 2.3, 3.3],
+            }
+        )
         file_path = os.path.join(tmpdir, "mock_predictions.csv")
         df.to_csv(file_path, index=False)
 
@@ -57,11 +58,7 @@ box:
 
     def test_mtp_predictions_to_ovito(self, fake_prediction_csv, tmpdir):
         # Define the lattice
-        lattice = np.array([
-            [10.0, 0.0, 0.0],
-            [0.0, 10.0, 0.0],
-            [0.0, 0.0, 10.0]
-        ])
+        lattice = np.array([[10.0, 0.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 10.0]])
         # output file name
         output_name = os.path.join(tmpdir, "test_output")
         # Run the conversion function
@@ -79,10 +76,14 @@ box:
 
         assert int(lines[0]) == int(lines[len(lines) // 2]) == 2
 
-        expected_lattice_line = 'Lattice=\"10.0 0.0 0.0 0.0 10.0 0.0 0.0 0.0 10.0\" Origin=\"0 0 0\" '
-        expected_lattice_line += 'pbc=\"T T T\" Properties=pos:R:3:MaxVolGamma:R:1\n'
+        expected_lattice_line = (
+            'Lattice="10.0 0.0 0.0 0.0 10.0 0.0 0.0 0.0 10.0" Origin="0 0 0" '
+        )
+        expected_lattice_line += 'pbc="T T T" Properties=pos:R:3:MaxVolGamma:R:1\n'
         assert lines[1] == lines[len(lines) // 2 + 1] == expected_lattice_line
 
         # check the atom values
         for x, y in enumerate([2, 3, 6, 7]):
-            assert np.array_equal(list(map(float, lines[y].split())), [x, x + 0.1, x + 0.2, x + 0.3])
+            assert np.array_equal(
+                list(map(float, lines[y].split())), [x, x + 0.1, x + 0.2, x + 0.3]
+            )
