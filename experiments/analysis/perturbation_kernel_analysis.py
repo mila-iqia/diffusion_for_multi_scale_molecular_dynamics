@@ -3,23 +3,26 @@
 This script computes and plots the conditional target score based on the perturbation kernel K for various values of
 sigma, showing the behavior for different normalizations.
 """
+
 import matplotlib.pyplot as plt
 import torch
-from crystal_diffusion import ANALYSIS_RESULTS_DIR
-from crystal_diffusion.score.wrapped_gaussian_score import \
+
+from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
-from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 
 plt.style.use(PLOT_STYLE_PATH)
 
 sigma_max = 0.5
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     coordinates = torch.linspace(start=0, end=1, steps=1001)[:-1]
     sigmas = torch.linspace(start=0, end=sigma_max, steps=101)[1:]
 
-    X, SIG = torch.meshgrid(coordinates, sigmas, indexing='xy')
+    X, SIG = torch.meshgrid(coordinates, sigmas, indexing="xy")
 
     # Avoid non-contiguous bjorks
     X = X.clone()
@@ -33,7 +36,7 @@ if __name__ == '__main__':
     fig = plt.figure(figsize=fig_size)
     fig.suptitle(r"$\alpha$ Component of Conditional Score")
 
-    left, right, bottom, top = 0, 1., 0., sigma_max
+    left, right, bottom, top = 0, 1.0, 0.0, sigma_max
     extent = [left, right, bottom, top]
 
     ax1 = fig.add_subplot(221)
@@ -49,18 +52,30 @@ if __name__ == '__main__':
 
     xlabel = r"$x^\alpha - x_0^\alpha$"
 
-    for label, scores, ax in zip([label1, label2], [sigma_normalized_scores, sigma2_normalized_scores], [ax1, ax3]):
+    for label, scores, ax in zip(
+        [label1, label2],
+        [sigma_normalized_scores, sigma2_normalized_scores],
+        [ax1, ax3],
+    ):
 
         ax.set_title(label)
-        image = ax.imshow(scores, origin="lower", cmap='jet', extent=extent)
+        image = ax.imshow(scores, origin="lower", cmap="jet", extent=extent)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(r"$\sigma$")
         _ = fig.colorbar(image, shrink=0.75, ax=ax)
 
     for index in [19, 39, 99]:
         sigma = sigmas[index]
-        for ax, scores in zip([ax2, ax4], [sigma_normalized_scores, sigma2_normalized_scores]):
-            ax.plot(coordinates, scores[index], ls='-', lw=2, label=f'$\\sigma = {sigma:4.3f}$')
+        for ax, scores in zip(
+            [ax2, ax4], [sigma_normalized_scores, sigma2_normalized_scores]
+        ):
+            ax.plot(
+                coordinates,
+                scores[index],
+                ls="-",
+                lw=2,
+                label=f"$\\sigma = {sigma:4.3f}$",
+            )
 
     for ax in [ax2, ax4]:
         ax.legend(loc=0)
@@ -70,4 +85,8 @@ if __name__ == '__main__':
     ax4.set_ylabel(label2)
 
     fig.tight_layout()
-    fig.savefig(ANALYSIS_RESULTS_DIR.joinpath("perturbation_kernel_with_different_normalizations.png"))
+    fig.savefig(
+        ANALYSIS_RESULTS_DIR.joinpath(
+            "perturbation_kernel_with_different_normalizations.png"
+        )
+    )

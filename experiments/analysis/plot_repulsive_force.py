@@ -1,9 +1,12 @@
 import torch
-from crystal_diffusion.models.score_networks.force_field_augmented_score_network import (
-    ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
-from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES, UNIT_CELL
 from matplotlib import pyplot as plt
-from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import (
+    ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    NOISY_RELATIVE_COORDINATES, UNIT_CELL)
 
 plt.style.use(PLOT_STYLE_PATH)
 

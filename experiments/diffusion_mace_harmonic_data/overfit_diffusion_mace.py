@@ -3,30 +3,31 @@
 This script helps in the exploration of the Diffusion MACE architecture, trying different ideas
 quickly to see if we can overfit the analytical score for a single example.
 """
+
 from pathlib import Path
 
 import pytorch_lightning as pl
 import torch
-from crystal_diffusion.callbacks.standard_callbacks import CustomProgressBar
-from crystal_diffusion.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from crystal_diffusion.models.score_networks.diffusion_mace_score_network import (
-    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
-from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
-                                         NOISY_RELATIVE_COORDINATES, TIME,
-                                         UNIT_CELL)
-from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
-from crystal_diffusion.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
-from crystal_diffusion.utils.tensor_utils import \
-    broadcast_batch_tensor_to_all_dimensions
 from pytorch_lightning.loggers import TensorBoardLogger
-from src.crystal_diffusion.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
 from torch import optim
 from torch.utils.data import DataLoader
 
+from diffusion_for_multi_scale_molecular_dynamics.callbacks.standard_callbacks import \
+    CustomProgressBar
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusion_mace_score_network import (
+    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
+    NoisyRelativeCoordinatesSampler
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
+    ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
+    broadcast_batch_tensor_to_all_dimensions
 from experiments.analysis.analytic_score import (get_exact_samples,
                                                  get_unit_cells)
 
@@ -44,21 +45,27 @@ root_dir = Path(__file__).parent / "overfitting_experiments"
 
 output_directory = root_dir / experiment_name
 
-tensorboard_logger = TensorBoardLogger(save_dir=str(output_directory),
-                                       default_hp_metric=False,
-                                       name=experiment_name,
-                                       version=0,
-                                       )
+tensorboard_logger = TensorBoardLogger(
+    save_dir=str(output_directory),
+    default_hp_metric=False,
+    name=experiment_name,
+    version=0,
+)
 
 
 class DevDiffusionMaceLightningModel(pl.LightningModule):
     """This is a stub lightning module for the purpose of trying to overfit Diffusion Mace to the analytical score."""
 
-    def __init__(self, diffusion_mace_score_network_parameters: DiffusionMACEScoreNetworkParameters):
+    def __init__(
+        self,
+        diffusion_mace_score_network_parameters: DiffusionMACEScoreNetworkParameters,
+    ):
         """Init method."""
         super().__init__()
         self.save_hyperparameters(logger=True)
-        self.sigma_normalized_score_network = DiffusionMACEScoreNetwork(diffusion_mace_score_network_parameters)
+        self.sigma_normalized_score_network = DiffusionMACEScoreNetwork(
+            diffusion_mace_score_network_parameters
+        )
 
     def configure_optimizers(self):
         """Configure optimizers."""
@@ -69,8 +76,10 @@ class DevDiffusionMaceLightningModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         """Training step."""
         predicted_normalized_scores = self.sigma_normalized_score_network(batch)
-        target_normalized_scores = batch['TARGET']
-        loss = torch.nn.functional.mse_loss(predicted_normalized_scores, target_normalized_scores, reduction="mean")
+        target_normalized_scores = batch["TARGET"]
+        loss = torch.nn.functional.mse_loss(
+            predicted_normalized_scores, target_normalized_scores, reduction="mean"
+        )
         output = dict(loss=loss)
         self.log("train_step_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
         return output
@@ -98,7 +107,8 @@ diffusion_mace_score_network_parameters = DiffusionMACEScoreNetworkParameters(
     correlation=2,
     gate="silu",
     radial_MLP=[dim, dim, dim],
-    radial_type="gaussian")
+    radial_type="gaussian",
+)
 
 
 max_epochs = 1000
@@ -110,30 +120,39 @@ noise_parameters = NoiseParameters(total_time_steps=100, sigma_min=0.001, sigma_
 variance_sampler = ExplodingVarianceSampler(noise_parameters)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     torch.manual_seed(42)
 
     # ======================   Generate Harmonic potential samples ====================================
 
-    spring_constant = 1000.
+    spring_constant = 1000.0
     box = acell * torch.ones(spatial_dimension)
 
-    equilibrium_relative_coordinates = torch.stack([0.25 * torch.ones(spatial_dimension),
-                                                    0.75 * torch.ones(spatial_dimension)])
+    equilibrium_relative_coordinates = torch.stack(
+        [0.25 * torch.ones(spatial_dimension), 0.75 * torch.ones(spatial_dimension)]
+    )
 
-    inverse_covariance = torch.zeros(number_of_atoms, spatial_dimension, number_of_atoms, spatial_dimension)
+    inverse_covariance = torch.zeros(
+        number_of_atoms, spatial_dimension, number_of_atoms, spatial_dimension
+    )
     for atom_i in range(number_of_atoms):
         for alpha in range(spatial_dimension):
             inverse_covariance[atom_i, alpha, atom_i, alpha] = spring_constant
 
     # ======================   Generate Random Data ====================================
 
-    x0 = get_exact_samples(equilibrium_relative_coordinates, inverse_covariance, dataset_size)
+    x0 = get_exact_samples(
+        equilibrium_relative_coordinates, inverse_covariance, dataset_size
+    )
     noise_sample = variance_sampler.get_random_noise_sample(dataset_size)
-    sigmas = broadcast_batch_tensor_to_all_dimensions(batch_values=noise_sample.sigma, final_shape=x0.shape)
+    sigmas = broadcast_batch_tensor_to_all_dimensions(
+        batch_values=noise_sample.sigma, final_shape=x0.shape
+    )
     sigmas = torch.ones_like(sigmas)
 
-    xt = noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(x0, sigmas)
+    xt = noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(
+        x0, sigmas
+    )
 
     cm = 0.5 * xt.sum(dim=1)
     xt = map_relative_coordinates_to_unit_cell(xt - cm)
@@ -145,19 +164,26 @@ if __name__ == '__main__':
         spatial_dimension=spatial_dimension,
         kmax=1,
         equilibrium_relative_coordinates=equilibrium_relative_coordinates,
-        inverse_covariance=inverse_covariance)
+        inverse_covariance=inverse_covariance,
+    )
 
-    analytical_score_network = AnalyticalScoreNetwork(analytical_score_network_parameters)
+    analytical_score_network = AnalyticalScoreNetwork(
+        analytical_score_network_parameters
+    )
 
-    unit_cells = get_unit_cells(acell, spatial_dimension, number_of_samples=dataset_size)
+    unit_cells = get_unit_cells(
+        acell, spatial_dimension, number_of_samples=dataset_size
+    )
 
     sigma = noise_sample.sigma.reshape(-1, 1)
     sigma = sigma_value * torch.ones_like(sigma)
-    augmented_batch = {NOISY_RELATIVE_COORDINATES: xt,
-                       TIME: noise_sample.time.reshape(-1, 1),
-                       NOISE: sigma,
-                       UNIT_CELL: unit_cells,
-                       CARTESIAN_FORCES: torch.zeros_like(xt)}
+    augmented_batch = {
+        NOISY_RELATIVE_COORDINATES: xt,
+        TIME: noise_sample.time.reshape(-1, 1),
+        NOISE: sigma,
+        UNIT_CELL: unit_cells,
+        CARTESIAN_FORCES: torch.zeros_like(xt),
+    }
 
     analytical_scores = analytical_score_network(augmented_batch)
 
@@ -176,11 +202,12 @@ if __name__ == '__main__':
 
     callbacks = [CustomProgressBar()]
 
-    trainer = pl.Trainer(callbacks=callbacks,
-                         max_epochs=max_epochs,
-                         log_every_n_steps=1,
-                         fast_dev_run=False,
-                         logger=tensorboard_logger,
-                         )
+    trainer = pl.Trainer(
+        callbacks=callbacks,
+        max_epochs=max_epochs,
+        log_every_n_steps=1,
+        fast_dev_run=False,
+        logger=tensorboard_logger,
+    )
 
     trainer.fit(model, train_dataloaders=train_dataloader)

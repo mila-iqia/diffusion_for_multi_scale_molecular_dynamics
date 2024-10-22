@@ -4,16 +4,20 @@ import einops
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from crystal_diffusion.models.position_diffusion_lightning_model import \
-    PositionDiffusionLightningModel
-from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
-from crystal_diffusion.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
-from crystal_diffusion.utils.logging_utils import setup_analysis_logger
-from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from tqdm import tqdm
 
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
+    PositionDiffusionLightningModel
+from diffusion_for_multi_scale_molecular_dynamics.samplers.exploding_variance import \
+    ExplodingVariance
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
+    setup_analysis_logger
 from experiments import create_fixed_time_normalized_score_function
 from experiments.analysis.analytic_score.utils import get_silicon_supercell
 
@@ -23,8 +27,10 @@ logger = logging.getLogger(__name__)
 setup_analysis_logger()
 
 
-checkpoint_path = ("/home/mila/r/rousseab/scratch/experiments/oct2_egnn_1x1x1/run1/"
-                   "output/last_model/last_model-epoch=049-step=039100.ckpt")
+checkpoint_path = (
+    "/home/mila/r/rousseab/scratch/experiments/oct2_egnn_1x1x1/run1/"
+    "output/last_model/last_model-epoch=049-step=039100.ckpt"
+)
 
 spatial_dimension = 3
 number_of_atoms = 8
@@ -67,7 +73,7 @@ if __name__ == "__main__":
     dv = equilibrium_relative_coordinates[0] - equilibrium_relative_coordinates[1]
     direction[0] = -0.5 * dv
     direction[1] = 0.5 * dv
-    list_delta = torch.linspace(0., 2.0, 201)
+    list_delta = torch.linspace(0.0, 2.0, 201)
 
     relative_coordinates = []
     for delta in list_delta:

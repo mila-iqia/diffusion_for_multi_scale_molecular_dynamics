@@ -4,20 +4,25 @@ import einops
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from crystal_diffusion.generators.langevin_generator import LangevinGenerator
-from crystal_diffusion.generators.ode_position_generator import (
-    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from crystal_diffusion.generators.predictor_corrector_position_generator import \
-    PredictorCorrectorSamplingParameters
-from crystal_diffusion.generators.sde_position_generator import (
-    ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
-from crystal_diffusion.models.position_diffusion_lightning_model import \
-    PositionDiffusionLightningModel
-from crystal_diffusion.models.score_networks import ScoreNetwork
-from crystal_diffusion.utils.logging_utils import setup_analysis_logger
-from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
 
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
+    LangevinGenerator
+from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
+    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
+    PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import (
+    ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
+    PositionDiffusionLightningModel
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
+    ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
+    setup_analysis_logger
 from experiments.analysis.analytic_score.exploring_langevin_generator.generate_sample_energies import \
     EnergyCalculator
 from experiments.analysis.analytic_score.utils import get_silicon_supercell
@@ -30,6 +35,7 @@ setup_analysis_logger()
 
 class ForcedStartingPointLangevinGenerator(LangevinGenerator):
     """Langevin Generator with Forced Starting point."""
+
     def __init__(
         self,
         noise_parameters: NoiseParameters,
@@ -56,6 +62,7 @@ class ForcedStartingPointLangevinGenerator(LangevinGenerator):
 
 class ForcedStartingPointODEPositionGenerator(ExplodingVarianceODEPositionGenerator):
     """Forced starting point ODE position generator."""
+
     def __init__(
         self,
         noise_parameters: NoiseParameters,
@@ -82,6 +89,7 @@ class ForcedStartingPointODEPositionGenerator(ExplodingVarianceODEPositionGenera
 
 class ForcedStartingPointSDEPositionGenerator(ExplodingVarianceSDEPositionGenerator):
     """Forced Starting Point SDE position generator."""
+
     def __init__(
         self,
         noise_parameters: NoiseParameters,

@@ -3,18 +3,21 @@
 This script computes and plots the variance schedule used to noise and denoise
 the relative positions.
 """
+
 import matplotlib.pyplot as plt
 import torch
-from crystal_diffusion import ANALYSIS_RESULTS_DIR
-from crystal_diffusion.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
-from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from src.crystal_diffusion.samplers.variance_sampler import (
+
+from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
+    get_sigma_normalized_score
 
 plt.style.use(PLOT_STYLE_PATH)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     noise_parameters = NoiseParameters(total_time_steps=1000)
     variance_sampler = ExplodingVarianceSampler(noise_parameters=noise_parameters)
@@ -27,14 +30,21 @@ if __name__ == '__main__':
     ax1 = fig1.add_subplot(121)
     ax2 = fig1.add_subplot(122)
 
-    ax1.plot(noise.time, noise.sigma, '-', c='b', lw=2, label='$\\sigma(t)$')
-    ax1.plot(noise.time, noise.g, '-', c='g', lw=2, label="$g(t)$")
+    ax1.plot(noise.time, noise.sigma, "-", c="b", lw=2, label="$\\sigma(t)$")
+    ax1.plot(noise.time, noise.g, "-", c="g", lw=2, label="$g(t)$")
 
     shifted_time = torch.cat([torch.tensor([0]), noise.time[:-1]])
-    ax1.plot(shifted_time, langevin_dynamics.epsilon, '-', c='r', lw=2, label="$\\epsilon(t)$")
+    ax1.plot(
+        shifted_time,
+        langevin_dynamics.epsilon,
+        "-",
+        c="r",
+        lw=2,
+        label="$\\epsilon(t)$",
+    )
     ax1.legend(loc=0)
 
-    ax1.set_xlabel('time')
+    ax1.set_xlabel("time")
     ax1.set_xlim([-0.01, 1.01])
 
     ax1.set_title("$\\sigma, g, \\epsilon$ schedules")
@@ -49,10 +59,12 @@ if __name__ == '__main__':
     gs_squared = noise.g_squared.take(indices)
 
     for t, sigma in zip(times, sigmas):
-        target_sigma_normalized_scores = get_sigma_normalized_score(relative_positions,
-                                                                    torch.ones_like(relative_positions) * sigma,
-                                                                    kmax=kmax)
-        ax2.plot(relative_positions, target_sigma_normalized_scores, label=f"t = {t:3.2f}")
+        target_sigma_normalized_scores = get_sigma_normalized_score(
+            relative_positions, torch.ones_like(relative_positions) * sigma, kmax=kmax
+        )
+        ax2.plot(
+            relative_positions, target_sigma_normalized_scores, label=f"t = {t:3.2f}"
+        )
 
     ax2.set_title("Target Normalized Score")
     ax2.set_xlabel("relative position, u")

@@ -5,15 +5,19 @@ import einops
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from crystal_diffusion.models.position_diffusion_lightning_model import \
-    PositionDiffusionLightningModel
-from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
-from crystal_diffusion.utils.logging_utils import setup_analysis_logger
-from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
-from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from torch.func import jacrev
 from tqdm import tqdm
 
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
+    PositionDiffusionLightningModel
+from diffusion_for_multi_scale_molecular_dynamics.samplers.exploding_variance import \
+    ExplodingVariance
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
+    setup_analysis_logger
 from experiments import get_normalized_score_function
 from experiments.analysis.analytic_score.utils import get_silicon_supercell
 

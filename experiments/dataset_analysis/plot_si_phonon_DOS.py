@@ -4,10 +4,13 @@ The displacement covariance is related to the phonon dynamical matrix.
 Here we extract the corresponding phonon density of state, based on this covariance,
 to see if the energy scales match up.
 """
+
 import matplotlib.pyplot as plt
 import torch
-from crystal_diffusion import ANALYSIS_RESULTS_DIR
-from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+
+from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 
 plt.style.use(PLOT_STYLE_PATH)
 

@@ -31,8 +31,9 @@ def get_thermo_dataset(dataset_name: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     """
     lammps_dataset_dir = DATA_DIR.joinpath(dataset_name)
-    assert lammps_dataset_dir.is_dir(), \
-        f"The folder {lammps_dataset_dir} does not exist! Data must be present to execute this function."
+    assert (
+        lammps_dataset_dir.is_dir()
+    ), f"The folder {lammps_dataset_dir} does not exist! Data must be present to execute this function."
 
     cache_dir = EXPERIMENT_ANALYSIS_DIR.joinpath(f"cache/{dataset_name}")
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -41,7 +42,7 @@ def get_thermo_dataset(dataset_name: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     list_valid_df = []
 
     logging.info("Parsing the thermo logs")
-    run_directories = glob.glob(str(lammps_dataset_dir.joinpath('*_run_*')))
+    run_directories = glob.glob(str(lammps_dataset_dir.joinpath("*_run_*")))
 
     for run_directory in run_directories:
         basename = os.path.basename(run_directory)
@@ -50,13 +51,15 @@ def get_thermo_dataset(dataset_name: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
             logging.info(f"Pickle file {pickle_path} exists. Reading in...")
         else:
             logging.info(f"Pickle file {pickle_path} does not exist: creating...")
-            lammps_thermo_log = lammps_dataset_dir.joinpath(f"{basename}/lammps_thermo.yaml")
+            lammps_thermo_log = lammps_dataset_dir.joinpath(
+                f"{basename}/lammps_thermo.yaml"
+            )
             df = pd.DataFrame(parse_lammps_thermo_log(lammps_thermo_log))
             df.to_pickle(pickle_path)
             logging.info("Done creating pickle file")
 
         df = pd.read_pickle(pickle_path)
-        if 'train' in basename:
+        if "train" in basename:
             list_train_df.append(df)
         else:
             list_valid_df.append(df)
