@@ -1,10 +1,30 @@
-# Crystal Diffusion
+# Diffusion for Multiscale Molecular Dynamics
 
-Replace this line with a short description about your project!
+This project implements diffusion-based generative models for periodic atomistic systems (i.e., crystals).
+The aim of this project is to be able to train such a model and use it as part of an active learning
+framework, where a Machine Learning Interatomic Potential (MLIP) is continually fine-tuned on labels obtained
+from a costly oracle such as Density Functional Theory (DFT). The generative model is used to create
+few-atom configurations that are computationally tractable for the costly oracle by inpainting 
+around problematic atomic configurations. 
 
-## Instructions to setup the project
+# Instructions to set up the project for development
 
-### Install the dependencies:
+## Creating a Virtual Environment
+The project dependencies are stated in the `pyproject.toml` file. They must be installed in a virtual environment.
+
+### uv
+The recommended way of creating a virtual environment is to use the tool [`uv`](https://docs.astral.sh/uv/). 
+Once `uv` is installed locally, the virtual environment can be created with the command
+    
+    uv sync
+
+which will install the exact environment described in file `uv.lock`. The environment can then be activated with
+the command
+
+    source .venv/bin/activate
+
+
+### pip
 First, activate a virtual environment (recommended).
 Install the package in `editable` mode so you can modify the source directly:
 
