@@ -27,6 +27,7 @@ Relevant papers:
 
     "Generative Modeling by Estimating Gradients of the Data Distribution", Song & Ermon
 """
+
 from typing import Optional
 
 import numpy as np
@@ -36,7 +37,9 @@ SIGMA_THRESHOLD = torch.Tensor([1.0 / np.sqrt(2.0 * np.pi)])
 U_THRESHOLD = torch.Tensor([0.5])
 
 
-def get_sigma_normalized_score_brute_force(u: float, sigma: float, kmax: Optional[int] = None) -> float:
+def get_sigma_normalized_score_brute_force(
+    u: float, sigma: float, kmax: Optional[int] = None
+) -> float:
     """Brute force implementation.
 
     A brute force implementation of the sigma normalized score to check that the main code is correct.
@@ -93,11 +96,14 @@ def get_sigma_normalized_score(
     assert torch.logical_and(
         relative_coordinates >= 0, relative_coordinates < 1
     ).all(), "the relative coordinates should all be in [0, 1)"
-    assert sigmas.shape == relative_coordinates.shape, \
-        "The relative_coordinates and sigmas inputs should have the same shape"
+    assert (
+        sigmas.shape == relative_coordinates.shape
+    ), "The relative_coordinates and sigmas inputs should have the same shape"
 
     device = relative_coordinates.device
-    assert sigmas.device == device, "relative_coordinates and sigmas should be on the same device."
+    assert (
+        sigmas.device == device
+    ), "relative_coordinates and sigmas should be on the same device."
 
     total_number_of_elements = relative_coordinates.nelement()
     list_u = relative_coordinates.view(total_number_of_elements)
@@ -131,7 +137,9 @@ def get_sigma_normalized_score(
     return sigma_normalized_scores
 
 
-def _get_small_sigma_small_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> torch.Tensor:
+def _get_small_sigma_small_u_mask(
+    list_u: torch.Tensor, list_sigma: torch.Tensor
+) -> torch.Tensor:
     """Get the boolean mask for small sigma and small u.
 
     Args:
@@ -142,10 +150,15 @@ def _get_small_sigma_small_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor
         mask_1a : an array of booleans of shape [Nu]
     """
     device = list_u.device
-    return torch.logical_and(list_sigma.to(device) <= SIGMA_THRESHOLD.to(device), list_u < U_THRESHOLD.to(device))
+    return torch.logical_and(
+        list_sigma.to(device) <= SIGMA_THRESHOLD.to(device),
+        list_u < U_THRESHOLD.to(device),
+    )
 
 
-def _get_small_sigma_large_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> torch.Tensor:
+def _get_small_sigma_large_u_mask(
+    list_u: torch.Tensor, list_sigma: torch.Tensor
+) -> torch.Tensor:
     """Get the boolean mask for small sigma and large u.
 
     Args:
@@ -156,10 +169,15 @@ def _get_small_sigma_large_u_mask(list_u: torch.Tensor, list_sigma: torch.Tensor
         mask_1b : an array of booleans of shape [Nu]
     """
     device = list_u.device
-    return torch.logical_and(list_sigma.to(device) <= SIGMA_THRESHOLD.to(device), list_u >= U_THRESHOLD.to(device))
+    return torch.logical_and(
+        list_sigma.to(device) <= SIGMA_THRESHOLD.to(device),
+        list_u >= U_THRESHOLD.to(device),
+    )
 
 
-def _get_large_sigma_mask(list_u: torch.Tensor, list_sigma: torch.Tensor) -> torch.Tensor:
+def _get_large_sigma_mask(
+    list_u: torch.Tensor, list_sigma: torch.Tensor
+) -> torch.Tensor:
     """Get the boolean mask for large sigma.
 
     Args:
@@ -214,9 +232,7 @@ def _get_s1b_exponential(
     column_sigma = list_sigma.view(list_u.nelement(), 1)
 
     exponential = torch.exp(
-        -0.5
-        * ((list_k**2 - 1.0) + 2.0 * column_u * (list_k + 1.0))
-        / column_sigma**2
+        -0.5 * ((list_k**2 - 1.0) + 2.0 * column_u * (list_k + 1.0)) / column_sigma**2
     )
     return exponential
 
@@ -259,7 +275,9 @@ def _get_sigma_normalized_score_1a(
         list_sigma_normalized_score : the sigma x s1a scores, with shape [Nu].
     """
     exponential = _get_s1a_exponential(list_u, list_sigma, list_k)
-    list_sigma_square_times_score = _get_sigma_square_times_score_1_from_exponential(exponential, list_u, list_k)
+    list_sigma_square_times_score = _get_sigma_square_times_score_1_from_exponential(
+        exponential, list_u, list_k
+    )
     list_normalized_score = list_sigma_square_times_score / list_sigma
     return list_normalized_score
 
@@ -280,7 +298,9 @@ def _get_sigma_normalized_score_1b(
         list_sigma_normalized_score : the sigma x s1b scores, with shape [Nu].
     """
     exponential = _get_s1b_exponential(list_u, list_sigma, list_k)
-    list_sigma_square_times_score = _get_sigma_square_times_score_1_from_exponential(exponential, list_u, list_k)
+    list_sigma_square_times_score = _get_sigma_square_times_score_1_from_exponential(
+        exponential, list_u, list_k
+    )
     list_normalized_score = list_sigma_square_times_score / list_sigma
     return list_normalized_score
 
@@ -325,7 +345,14 @@ def _get_sigma_normalized_s2(
 
     # The sum is over Nk, leaving arrays of dimensions [Nu]
     z2 = exp_upk.sum(dim=1) + (g_exponential_combination * cos).sum(dim=1)
-    deriv_z2 = -2.0 * pi * ((upk * exp_upk).sum(dim=1) + (g * g_exponential_combination * sin).sum(dim=1))
+    deriv_z2 = (
+        -2.0
+        * pi
+        * (
+            (upk * exp_upk).sum(dim=1)
+            + (g * g_exponential_combination * sin).sum(dim=1)
+        )
+    )
     list_sigma_normalized_scores_s2 = list_sigma * deriv_z2 / z2
 
     return list_sigma_normalized_scores_s2

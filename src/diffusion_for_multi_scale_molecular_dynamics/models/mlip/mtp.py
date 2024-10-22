@@ -4,6 +4,7 @@ This script defines a MTP model in a lightning like manner, with a train() and e
 However, it cannot be called as a standard lightning module as it relies on the MLIP-3 library for the model
 implementation.
 """
+
 import itertools
 import os
 import re
@@ -15,34 +16,50 @@ from typing import Any, Dict, List, Optional, TextIO, Tuple
 
 import numpy as np
 import pandas as pd
-from crystal_diffusion.mlip.mtp_utils import (MTPInputs, concat_mtp_inputs,
-                                              crawl_lammps_directory,
-                                              prepare_mtp_inputs_from_lammps)
 from maml.apps.pes import MTPotential
 from maml.utils import check_structures_forces_stresses, pool_from
 from monty.io import zopen
 from monty.tempfile import ScratchDir
 from pymatgen.core import Structure
 
+from diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils import (
+    MTPInputs, concat_mtp_inputs, crawl_lammps_directory,
+    prepare_mtp_inputs_from_lammps)
+
 
 @dataclass(kw_only=True)
 class MTPArguments:
     """Arguments to train an MTP with the MLIP3 library."""
+
     mlip_path: str  # path to MLIP3 library
     name: Optional[str] = None  # MTP
     param: Optional[Dict[Any, Any]] = None
     unfitted_mtp: str = "08.almtp"  # Define the initial mtp file. Default to 08g.amltp
-    fitted_mtp_savedir: str = '../'  # save directory for the fitted MTP. Defaults to '../' (current wd)
+    fitted_mtp_savedir: str = (
+        "../"  # save directory for the fitted MTP. Defaults to '../' (current wd)
+    )
     max_dist: float = 5  # The actual radial cutoff. Defaults to 5.
-    radial_basis_size: int = 8  # Relevant to number of radial basis function. Defaults to 8.
+    radial_basis_size: int = (
+        8  # Relevant to number of radial basis function. Defaults to 8.
+    )
     max_iter: int = 1000  # The number of maximum iteration. Defaults to 1000.
     energy_weight: float = 1  # The weight of energy. Defaults to 1
     force_weight: float = 1e-2  # The weight of forces. Defaults to 1e-2
-    stress_weight: float = 1e-3  # The weight of stresses. Zero-weight can be assigned. Defaults to 1e-3.
-    init_params: str = "same"  # how to initialize parameters if a potential was not pre-fitted: "same" or "random".
-    scale_by_force: float = 0  # If > 0 then configurations near equilibrium get more weight. Defaults to 0.
-    bfgs_conv_tol: float = 1e-3  # Stop training if error dropped by a factor smaller than this over 50 BFGS iterations.
-    weighting: str = "vibration"  # How to weight configuration with different sizes relative to each other.
+    stress_weight: float = (
+        1e-3  # The weight of stresses. Zero-weight can be assigned. Defaults to 1e-3.
+    )
+    init_params: str = (
+        "same"  # how to initialize parameters if a potential was not pre-fitted: "same" or "random".
+    )
+    scale_by_force: float = (
+        0  # If > 0 then configurations near equilibrium get more weight. Defaults to 0.
+    )
+    bfgs_conv_tol: float = (
+        1e-3  # Stop training if error dropped by a factor smaller than this over 50 BFGS iterations.
+    )
+    weighting: str = (
+        "vibration"  # How to weight configuration with different sizes relative to each other.
+    )
     # Choose from "vibrations", "molecules" and "structures". Defaults to "vibration".
 
 
@@ -57,9 +74,13 @@ class MTPWithMLIP3(MTPotential):
         """
         super().__init__(mtp_args.name, mtp_args.param)
         self.mlp_command = os.path.join(mtp_args.mlip_path, "build", "mlp")
-        assert os.path.exists(self.mlp_command), "mlp command not found in mlip-3 build folder"
+        assert os.path.exists(
+            self.mlp_command
+        ), "mlp command not found in mlip-3 build folder"
         self.mlp_templates = os.path.join(mtp_args.mlip_path, "MTP_templates")
-        assert os.path.exists(self.mlp_templates), "MTP templates not found in mlip-3 folder"
+        assert os.path.exists(
+            self.mlp_templates
+        ), "MTP templates not found in mlip-3 folder"
         self.fitted_mtp = None
         self.elements = None
         self.mtp_args = mtp_args
@@ -80,10 +101,9 @@ class MTPWithMLIP3(MTPotential):
         # )
         pass
 
-    def evaluate(self,
-                 dataset: MTPInputs,
-                 mlip_name: str = 'mtp_fitted.almtp'
-                 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def evaluate(
+        self, dataset: MTPInputs, mlip_name: str = "mtp_fitted.almtp"
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Evaluate energies, forces, stresses and MaxVol gamma factor of structures with trained MTP.
 
         Args:
@@ -98,8 +118,8 @@ class MTPWithMLIP3(MTPotential):
             dataframe with ground truth energies, forces
             dataframe with predicted energies, forces, MaxVol gamma (nbh grades)
         """
-        if not mlip_name.endswith('.almtp'):
-            mlip_name += '.almtp'
+        if not mlip_name.endswith(".almtp"):
+            mlip_name += ".almtp"
         assert os.path.exists(mlip_name), f"Trained MTP does not exists: {mlip_name}"
 
         original_file = "original.cfgs"
@@ -112,17 +132,27 @@ class MTPWithMLIP3(MTPotential):
         predict_pool = pool_from(test_structures, dataset.energy, test_forces)
         local_mtp_name = "mtp.almtp"
 
-        with ScratchDir("."):  # mlip needs a tmp_work_dir - we will manually copy relevant outputs elsewhere
+        with ScratchDir(
+            "."
+        ):  # mlip needs a tmp_work_dir - we will manually copy relevant outputs elsewhere
             # write the structures to evaluate in a mlp compatible format
             original_file = self.write_cfg(original_file, cfg_pool=predict_pool)
             # TODO how to handle when GT is not available
-            df_orig = self.read_cfgs(original_file, nbh_grade=False)  # read original values as a DataFrame
+            df_orig = self.read_cfgs(
+                original_file, nbh_grade=False
+            )  # read original values as a DataFrame
 
             # copy the trained mtp in the scratchdir
             shutil.copyfile(mlip_name, os.path.join(os.getcwd(), local_mtp_name))
             # calculate_grade is the method to get the forces, energy & maxvol values
-            cmd = [self.mlp_command, "calculate_grade", local_mtp_name, original_file, predict_file]
-            predict_file += '.0'  # added by mlp...
+            cmd = [
+                self.mlp_command,
+                "calculate_grade",
+                local_mtp_name,
+                original_file,
+                predict_file,
+            ]
+            predict_file += ".0"  # added by mlp...
             stdout, rc = self._call_mlip(cmd)
 
             # check that MTP was called properly
@@ -130,7 +160,9 @@ class MTPWithMLIP3(MTPotential):
                 error_msg = f"mlp exited with return code {rc}"
                 msg = stdout.decode("utf-8").split("\n")[:-1]
                 try:
-                    error_line = next(i for i, m in enumerate(msg) if m.startswith("ERROR"))
+                    error_line = next(
+                        i for i, m in enumerate(msg) if m.startswith("ERROR")
+                    )
                     error_msg += ", ".join(msg[error_line:])
                 except Exception:
                     error_msg += msg[-1]
@@ -150,6 +182,7 @@ class MTPWithMLIP3(MTPotential):
         Returns:
             dataframe with energies, forces, optional nbh grades (MaxVol gamma)
         """
+
         def formatify(string: str) -> List[float]:
             """Convert string to a list of float."""
             return [float(s) for s in string.split()]
@@ -216,22 +249,28 @@ class MTPWithMLIP3(MTPotential):
         """
         df = defaultdict(list)
         for s_idx, d in enumerate(docs):
-            n_atom = d['num_atoms']
+            n_atom = d["num_atoms"]
             outputs = d["outputs"]
             pos_arr = np.array(outputs["position"])
-            assert n_atom == pos_arr.shape[0], "Number of positions do not match number of atoms"
+            assert (
+                n_atom == pos_arr.shape[0]
+            ), "Number of positions do not match number of atoms"
             force_arr = np.array(outputs["forces"])
-            assert n_atom == force_arr.shape[0], "Number of forces do not match number of atoms"
-            for i, x in enumerate(['x', 'y', 'z']):
+            assert (
+                n_atom == force_arr.shape[0]
+            ), "Number of forces do not match number of atoms"
+            for i, x in enumerate(["x", "y", "z"]):
                 df[x] += pos_arr[:, i].tolist()
-                df[f'f{x}'] += force_arr[:, i].tolist()
-            df['energy'] += [outputs['energy']] * n_atom  # copy the value to all atoms
+                df[f"f{x}"] += force_arr[:, i].tolist()
+            df["energy"] += [outputs["energy"]] * n_atom  # copy the value to all atoms
             if "nbh_grades" in outputs.keys():
                 nbh_grades = outputs["nbh_grades"]
-                assert n_atom == len(nbh_grades), "Number of gamma values do not match number of atoms"
-                df['nbh_grades'] += nbh_grades
-            df['atom_index'] += list(range(n_atom))
-            df['structure_index'] += [s_idx] * n_atom
+                assert n_atom == len(
+                    nbh_grades
+                ), "Number of gamma values do not match number of atoms"
+                df["nbh_grades"] += nbh_grades
+            df["atom_index"] += list(range(n_atom))
+            df["structure_index"] += [s_idx] * n_atom
 
         df = pd.DataFrame(df)
         return df
@@ -265,10 +304,10 @@ class MTPWithMLIP3(MTPotential):
 
     @staticmethod
     def prepare_dataset_from_lammps(
-            root_data_dir: str,
-            atom_dict: Dict[int, str],
-            mode: str = "train",
-            get_forces: bool = True,
+        root_data_dir: str,
+        atom_dict: Dict[int, str],
+        mode: str = "train",
+        get_forces: bool = True,
     ) -> MTPInputs:
         """Get the LAMMPS in a folder and organize them as inputs for a MTP.
 
@@ -282,17 +321,19 @@ class MTPWithMLIP3(MTPotential):
             inputs for MTP in the MTPInputs dataclass
         """
         lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
-        mtp_dataset = prepare_mtp_inputs_from_lammps(lammps_outputs, thermo_outputs, atom_dict, get_forces=get_forces)
+        mtp_dataset = prepare_mtp_inputs_from_lammps(
+            lammps_outputs, thermo_outputs, atom_dict, get_forces=get_forces
+        )
         return mtp_dataset
 
     @staticmethod
     def prepare_dataset_from_numpy(
-            cartesian_positions: np.ndarray,
-            box: np.ndarray,
-            forces: np.ndarray,
-            energy: float,
-            atom_type: np.ndarray,
-            atom_dict: Dict[int, str] = {1: 'Si'}
+        cartesian_positions: np.ndarray,
+        box: np.ndarray,
+        forces: np.ndarray,
+        energy: float,
+        atom_type: np.ndarray,
+        atom_dict: Dict[int, str] = {1: "Si"},
     ) -> MTPInputs:
         """Convert numpy array variables to a format compatible with MTP.
 
@@ -311,9 +352,11 @@ class MTPWithMLIP3(MTPotential):
             lattice=box,
             species=[atom_dict[x] for x in atom_type],
             coords=cartesian_positions,
-            coords_are_cartesian=True
+            coords_are_cartesian=True,
         )
-        forces = forces.tolist()  # from Nx3 np array to a list of length N where each element is a list of 3 forces
+        forces = (
+            forces.tolist()
+        )  # from Nx3 np array to a list of length N where each element is a list of 3 forces
         return MTPInputs(structure=[structure], forces=[forces], energy=[energy])
 
     @staticmethod
@@ -331,7 +374,7 @@ class MTPWithMLIP3(MTPotential):
             merged_inputs = concat_mtp_inputs(merged_inputs, x)
         return merged_inputs
 
-    def train(self, dataset: MTPInputs, mlip_name: str = 'mtp_fitted.almtp') -> str:
+    def train(self, dataset: MTPInputs, mlip_name: str = "mtp_fitted.almtp") -> str:
         """Training data with moment tensor method using MLIP-3.
 
         Override the base class method.
@@ -347,24 +390,30 @@ class MTPWithMLIP3(MTPotential):
         Returns:
             fitted_mtp: path to the fitted MTP
         """
-        train_structures, train_forces, train_stresses = check_structures_forces_stresses(
-            dataset.structure, dataset.forces, None
+        train_structures, train_forces, train_stresses = (
+            check_structures_forces_stresses(dataset.structure, dataset.forces, None)
         )
         # last argument is for stresses - not used currently
         train_pool = pool_from(train_structures, dataset.energy, train_forces)
 
-        elements = sorted(set(itertools.chain(*[struct.species for struct in train_structures])))
+        elements = sorted(
+            set(itertools.chain(*[struct.species for struct in train_structures]))
+        )
         self.elements = [str(element) for element in elements]  # TODO move to __init__
 
         atoms_filename = "train.cfgs"
 
-        with ((ScratchDir("."))):  # create a tmpdir - deleted afterwards
-            atoms_filename = self.write_cfg(filename=atoms_filename, cfg_pool=train_pool)
+        with ScratchDir("."):  # create a tmpdir - deleted afterwards
+            atoms_filename = self.write_cfg(
+                filename=atoms_filename, cfg_pool=train_pool
+            )
 
             if not self.mtp_args.unfitted_mtp:
                 raise RuntimeError("No specific parameter file provided.")
             mtp_file_path = os.path.join(self.mlp_templates, self.mtp_args.unfitted_mtp)
-            shutil.copyfile(mtp_file_path, os.path.join(os.getcwd(), self.mtp_args.unfitted_mtp))
+            shutil.copyfile(
+                mtp_file_path, os.path.join(os.getcwd(), self.mtp_args.unfitted_mtp)
+            )
             commands = [self.mlp_command, "mindist", atoms_filename]
             with open("min_dist", "w") as f:
                 self._call_cmd_to_stdout(commands, f)
@@ -376,8 +425,8 @@ class MTPWithMLIP3(MTPotential):
             # min_dist = float(lines[-1].split(split_symbol)[1])
 
             save_fitted_mtp = mlip_name
-            if not save_fitted_mtp.endswith('.almtp'):
-                save_fitted_mtp += '.almtp'
+            if not save_fitted_mtp.endswith(".almtp"):
+                save_fitted_mtp += ".almtp"
 
             cmds_list = [
                 self.mlp_command,
@@ -401,7 +450,9 @@ class MTPWithMLIP3(MTPotential):
                 error_msg = f"MLP exited with return code {rc}"
                 msg = stdout.decode("utf-8").split("\n")[:-1]
                 try:
-                    error_line = next(i for i, m in enumerate(msg) if m.startswith("ERROR"))
+                    error_line = next(
+                        i for i, m in enumerate(msg) if m.startswith("ERROR")
+                    )
                     error_msg += ", ".join(msg[error_line:])
                 except Exception:
                     error_msg += msg[-1]

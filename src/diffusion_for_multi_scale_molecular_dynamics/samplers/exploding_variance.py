@@ -1,5 +1,7 @@
 import torch
-from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
 
 
 class ExplodingVariance(torch.nn.Module):
@@ -17,11 +19,19 @@ class ExplodingVariance(torch.nn.Module):
         """
         super().__init__()
 
-        self.sigma_min = torch.nn.Parameter(torch.tensor(noise_parameters.sigma_min), requires_grad=False)
-        self.sigma_max = torch.nn.Parameter(torch.tensor(noise_parameters.sigma_max), requires_grad=False)
+        self.sigma_min = torch.nn.Parameter(
+            torch.tensor(noise_parameters.sigma_min), requires_grad=False
+        )
+        self.sigma_max = torch.nn.Parameter(
+            torch.tensor(noise_parameters.sigma_max), requires_grad=False
+        )
 
-        self.ratio = torch.nn.Parameter(self.sigma_max / self.sigma_min, requires_grad=False)
-        self.log_ratio = torch.nn.Parameter(torch.log(self.sigma_max / self.sigma_min), requires_grad=False)
+        self.ratio = torch.nn.Parameter(
+            self.sigma_max / self.sigma_min, requires_grad=False
+        )
+        self.log_ratio = torch.nn.Parameter(
+            torch.log(self.sigma_max / self.sigma_min), requires_grad=False
+        )
 
     def get_sigma(self, times: torch.Tensor) -> torch.Tensor:
         """Get sigma.
@@ -34,7 +44,7 @@ class ExplodingVariance(torch.nn.Module):
         Returns:
             sigmas: the standard deviation in the exploding variance scheme.
         """
-        return self.sigma_min * self.ratio ** times
+        return self.sigma_min * self.ratio**times
 
     def get_sigma_time_derivative(self, times: torch.Tensor) -> torch.Tensor:
         """Get sigma time derivative.

@@ -31,11 +31,11 @@ def check_hp(names, hps, allow_extra=True):
 
     msgs = []
     if len(missing) > 0:
-        msgs.append(f'please add the missing hyper-parameters: {missing}')
+        msgs.append(f"please add the missing hyper-parameters: {missing}")
     if len(extra) > 0 and not allow_extra:
-        msgs.append(f'please remove the extra hyper-parameters: {extra}')
+        msgs.append(f"please remove the extra hyper-parameters: {extra}")
     if len(msgs) > 0:
-        raise ValueError('\n'.join(msgs))
+        raise ValueError("\n".join(msgs))
 
 
 def log_hp(names, hps):  # pragma: no cover
@@ -47,4 +47,4 @@ def log_hp(names, hps):  # pragma: no cover
     """
     for name in sorted(names):
         logger.info('\thp "{}" => "{}"'.format(name, hps[name]))
-    logger.info('\n')
+    logger.info("\n")

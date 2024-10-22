@@ -2,6 +2,7 @@
 
 This script is the entry point to draw samples from a pre-trained model checkpoint.
 """
+
 import argparse
 import logging
 import os
@@ -10,21 +11,27 @@ from pathlib import Path
 from typing import Any, AnyStr, Dict, Optional, Union
 
 import torch
-from crystal_diffusion.generators.instantiate_generator import \
+
+from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
-from crystal_diffusion.generators.load_sampling_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
     load_sampling_parameters
-from crystal_diffusion.main_utils import load_and_backup_hyperparameters
-from crystal_diffusion.models.position_diffusion_lightning_model import \
-    PositionDiffusionLightningModel
-from crystal_diffusion.models.score_networks import ScoreNetwork
-from crystal_diffusion.oracle.energies import compute_oracle_energies
-from crystal_diffusion.utils.logging_utils import (get_git_hash,
-                                                   setup_console_logger)
-from src.crystal_diffusion.generators.position_generator import \
+from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
     SamplingParameters
-from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
-from src.crystal_diffusion.samples.sampling import create_batch_of_samples
+from diffusion_for_multi_scale_molecular_dynamics.main_utils import \
+    load_and_backup_hyperparameters
+from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
+    PositionDiffusionLightningModel
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
+    ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
+    compute_oracle_energies
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
+    create_batch_of_samples
+from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
+    get_git_hash, setup_console_logger)
 
 logger = logging.getLogger(__name__)
 

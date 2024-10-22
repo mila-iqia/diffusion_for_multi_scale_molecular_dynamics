@@ -26,7 +26,9 @@ def setup_console_logger(experiment_dir: str):
     """
     logging.captureWarnings(capture=True)
 
-    logging_format = "%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s"
+    logging_format = (
+        "%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s"
+    )
     root = logging.getLogger()
     root.setLevel(logging.INFO)
 
@@ -54,7 +56,9 @@ def setup_analysis_logger():
     root = logging.getLogger()
     root.setLevel(logging.INFO)
 
-    analysis_logging_format = "%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s"
+    analysis_logging_format = (
+        "%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s"
+    )
     formatter = logging.Formatter(analysis_logging_format)
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
@@ -84,7 +88,7 @@ class LoggerWriter:
         Args:
             message: (str) message to print.
         """
-        if message != '\n':
+        if message != "\n":
             self.printer(message)
 
     def flush(self):
@@ -98,14 +102,14 @@ def get_git_hash(script_location):
     :param script_location: (str) path to the script inside the git repos we want to find.
     :return: (str) the git hash for the repository of the provided script.
     """
-    if not script_location.endswith('.py'):
-        raise ValueError('script_location should point to a python script')
+    if not script_location.endswith(".py"):
+        raise ValueError("script_location should point to a python script")
     repo_folder = os.path.dirname(script_location)
     try:
         repo = Repo(repo_folder, search_parent_directories=True)
         commit_hash = repo.head.commit
     except (InvalidGitRepositoryError, ValueError):
-        commit_hash = 'git repository not found'
+        commit_hash = "git repository not found"
     return commit_hash
 
 
@@ -118,8 +122,14 @@ def log_exp_details(script_location, args):
     git_hash = get_git_hash(script_location)
     hostname = socket.gethostname()
     dependencies = freeze.freeze()
-    details = "\nhostname: {}\ngit code hash: {}\ndata folder: {}\ndata folder (abs): {}\n\n" \
-              "dependencies:\n{}".format(
-                  hostname, git_hash, args.data, os.path.abspath(args.data),
-                  '\n'.join(dependencies))
-    logger.info('Experiment info:' + details + '\n')
+    details = (
+        "\nhostname: {}\ngit code hash: {}\ndata folder: {}\ndata folder (abs): {}\n\n"
+        "dependencies:\n{}".format(
+            hostname,
+            git_hash,
+            args.data,
+            os.path.abspath(args.data),
+            "\n".join(dependencies),
+        )
+    )
+    logger.info("Experiment info:" + details + "\n")

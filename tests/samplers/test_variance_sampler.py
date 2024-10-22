@@ -1,6 +1,7 @@
 import pytest
 import torch
-from src.crystal_diffusion.samplers.variance_sampler import (
+
+from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 
 
@@ -10,11 +11,15 @@ from src.crystal_diffusion.samplers.variance_sampler import (
 @pytest.mark.parametrize("corrector_step_epsilon", [2e-5, 0.1])
 class TestExplodingVarianceSampler:
     @pytest.fixture()
-    def noise_parameters(self, total_time_steps, time_delta, sigma_min, corrector_step_epsilon):
-        return NoiseParameters(total_time_steps=total_time_steps,
-                               time_delta=time_delta,
-                               sigma_min=sigma_min,
-                               corrector_step_epsilon=corrector_step_epsilon)
+    def noise_parameters(
+        self, total_time_steps, time_delta, sigma_min, corrector_step_epsilon
+    ):
+        return NoiseParameters(
+            total_time_steps=total_time_steps,
+            time_delta=time_delta,
+            sigma_min=sigma_min,
+            corrector_step_epsilon=corrector_step_epsilon,
+        )
 
     @pytest.fixture()
     def variance_sampler(self, noise_parameters):
@@ -24,7 +29,7 @@ class TestExplodingVarianceSampler:
     def expected_times(self, total_time_steps, time_delta):
         times = []
         for i in range(total_time_steps):
-            t = i / (total_time_steps - 1) * (1. - time_delta) + time_delta
+            t = i / (total_time_steps - 1) * (1.0 - time_delta) + time_delta
             times.append(t)
         times = torch.tensor(times)
         return times
@@ -60,7 +65,9 @@ class TestExplodingVarianceSampler:
 
     def test_sigma_and_sigma_squared_arrays(self, variance_sampler, expected_sigmas):
         torch.testing.assert_close(variance_sampler._sigma_array, expected_sigmas)
-        torch.testing.assert_close(variance_sampler._sigma_squared_array, expected_sigmas**2)
+        torch.testing.assert_close(
+            variance_sampler._sigma_squared_array, expected_sigmas**2
+        )
 
     def test_g_and_g_square_array(self, variance_sampler, expected_sigmas, sigma_min):
         expected_sigmas_square = expected_sigmas**2
@@ -78,11 +85,16 @@ class TestExplodingVarianceSampler:
         expected_g_array = torch.sqrt(expected_g_squared_array)
 
         torch.testing.assert_close(variance_sampler._g_array, expected_g_array)
-        torch.testing.assert_close(variance_sampler._g_squared_array, expected_g_squared_array)
+        torch.testing.assert_close(
+            variance_sampler._g_squared_array, expected_g_squared_array
+        )
 
     def test_epsilon_arrays(self, variance_sampler, expected_epsilons):
         torch.testing.assert_close(variance_sampler._epsilon_array, expected_epsilons)
-        torch.testing.assert_close(variance_sampler._sqrt_two_epsilon_array, torch.sqrt(2. * expected_epsilons))
+        torch.testing.assert_close(
+            variance_sampler._sqrt_two_epsilon_array,
+            torch.sqrt(2.0 * expected_epsilons),
+        )
 
     def test_get_random_time_step_indices(self, variance_sampler, total_time_steps):
         random_indices = variance_sampler._get_random_time_step_indices(shape=(1000,))
@@ -120,9 +132,15 @@ class TestExplodingVarianceSampler:
         noise, langevin_dynamics = variance_sampler.get_all_sampling_parameters()
         torch.testing.assert_close(noise.time, variance_sampler._time_array)
         torch.testing.assert_close(noise.sigma, variance_sampler._sigma_array)
-        torch.testing.assert_close(noise.sigma_squared, variance_sampler._sigma_squared_array)
+        torch.testing.assert_close(
+            noise.sigma_squared, variance_sampler._sigma_squared_array
+        )
         torch.testing.assert_close(noise.g, variance_sampler._g_array)
         torch.testing.assert_close(noise.g_squared, variance_sampler._g_squared_array)
 
-        torch.testing.assert_close(langevin_dynamics.epsilon, variance_sampler._epsilon_array)
-        torch.testing.assert_close(langevin_dynamics.sqrt_2_epsilon, variance_sampler._sqrt_two_epsilon_array)
+        torch.testing.assert_close(
+            langevin_dynamics.epsilon, variance_sampler._epsilon_array
+        )
+        torch.testing.assert_close(
+            langevin_dynamics.sqrt_2_epsilon, variance_sampler._sqrt_two_epsilon_array
+        )

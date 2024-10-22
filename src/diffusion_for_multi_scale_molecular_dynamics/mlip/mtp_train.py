@@ -2,20 +2,24 @@
 
 Running the main() runs a debugging example. Entry points are train_mtp.
 """
+
 import argparse
 from typing import Dict, Tuple
 
 import pandas as pd
-from crystal_diffusion.mlip.mtp_utils import (MTPInputs,
-                                              crawl_lammps_directory,
-                                              prepare_mtp_inputs_from_lammps)
-from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3
 from sklearn.metrics import mean_absolute_error
 
-atom_dict = {1: 'Si'}
+from diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils import (
+    MTPInputs, crawl_lammps_directory, prepare_mtp_inputs_from_lammps)
+from diffusion_for_multi_scale_molecular_dynamics.models.mlip.mtp import \
+    MTPWithMLIP3
+
+atom_dict = {1: "Si"}
 
 
-def prepare_dataset(root_data_dir: str, atom_dict: Dict[int, str], mode: str = "train") -> MTPInputs:
+def prepare_dataset(
+    root_data_dir: str, atom_dict: Dict[int, str], mode: str = "train"
+) -> MTPInputs:
     """Prepare the dataset in a given directory into a MTP format.
 
     Args:
@@ -28,11 +32,15 @@ def prepare_dataset(root_data_dir: str, atom_dict: Dict[int, str], mode: str = "
         data in the MTPInputs dataclass
     """
     lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
-    mtp_dataset = prepare_mtp_inputs_from_lammps(lammps_outputs, thermo_outputs, atom_dict)
+    mtp_dataset = prepare_mtp_inputs_from_lammps(
+        lammps_outputs, thermo_outputs, atom_dict
+    )
     return mtp_dataset
 
 
-def train_mtp(train_inputs: MTPInputs, mlip_folder_path: str, save_dir: str) -> MTPWithMLIP3:
+def train_mtp(
+    train_inputs: MTPInputs, mlip_folder_path: str, save_dir: str
+) -> MTPWithMLIP3:
     """Create and train an MTP potential.
 
     Args:
@@ -60,7 +68,9 @@ def train_mtp(train_inputs: MTPInputs, mlip_folder_path: str, save_dir: str) -> 
     return mtp
 
 
-def evaluate_mtp(eval_inputs: MTPInputs, mtp: MTPWithMLIP3) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def evaluate_mtp(
+    eval_inputs: MTPInputs, mtp: MTPWithMLIP3
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Evaluate a trained MTP potential.
 
     Args:
@@ -80,7 +90,9 @@ def evaluate_mtp(eval_inputs: MTPInputs, mtp: MTPWithMLIP3) -> Tuple[pd.DataFram
     return df_orig, df_predict
 
 
-def get_metrics_from_pred(df_orig: pd.DataFrame, df_predict: pd.DataFrame) -> Tuple[float, float]:
+def get_metrics_from_pred(
+    df_orig: pd.DataFrame, df_predict: pd.DataFrame
+) -> Tuple[float, float]:
     """Get mean absolute error on energy and forces from the outputs of MTP.
 
     Args:
@@ -92,33 +104,53 @@ def get_metrics_from_pred(df_orig: pd.DataFrame, df_predict: pd.DataFrame) -> Tu
     """
     # from demo in maml
     # get a single predicted energy per structure
-    predicted_energy = df_predict.groupby('structure_index').agg({'energy': 'mean', 'atom_index': 'count'})
+    predicted_energy = df_predict.groupby("structure_index").agg(
+        {"energy": "mean", "atom_index": "count"}
+    )
     # normalize by number of atoms
-    predicted_energy = (predicted_energy['energy'] / predicted_energy['atom_index']).to_numpy()
+    predicted_energy = (
+        predicted_energy["energy"] / predicted_energy["atom_index"]
+    ).to_numpy()
     # same for ground truth
-    gt_energy = df_orig.groupby('structure_index').agg({'energy': 'mean', 'atom_index': 'count'})
-    gt_energy = (gt_energy['energy'] / gt_energy['atom_index']).to_numpy()
+    gt_energy = df_orig.groupby("structure_index").agg(
+        {"energy": "mean", "atom_index": "count"}
+    )
+    gt_energy = (gt_energy["energy"] / gt_energy["atom_index"]).to_numpy()
 
-    predicted_forces = (df_predict[['fx', 'fy', 'fz']].to_numpy().flatten())
-    gt_forces = (df_orig[['fx', 'fy', 'fz']].to_numpy().flatten())
+    predicted_forces = df_predict[["fx", "fy", "fz"]].to_numpy().flatten()
+    gt_forces = df_orig[["fx", "fy", "fz"]].to_numpy().flatten()
 
-    return mean_absolute_error(predicted_energy, gt_energy), mean_absolute_error(predicted_forces, gt_forces)
+    return mean_absolute_error(predicted_energy, gt_energy), mean_absolute_error(
+        predicted_forces, gt_forces
+    )
 
 
 def main():
     """Train and evaluate an example for MTP."""
     parser = argparse.ArgumentParser()
-    parser.add_argument('--lammps_yaml', help='path to LAMMPS yaml file', required=True, nargs='+')
-    parser.add_argument('--lammps_thermo', help='path to LAMMPS thermo output', required=True, nargs='+')
-    parser.add_argument('--mlip_dir', help='directory to MLIP compilation folder', required=True)
-    parser.add_argument('--output_dir', help='path to folder where outputs will be saved', required=True)
+    parser.add_argument(
+        "--lammps_yaml", help="path to LAMMPS yaml file", required=True, nargs="+"
+    )
+    parser.add_argument(
+        "--lammps_thermo", help="path to LAMMPS thermo output", required=True, nargs="+"
+    )
+    parser.add_argument(
+        "--mlip_dir", help="directory to MLIP compilation folder", required=True
+    )
+    parser.add_argument(
+        "--output_dir", help="path to folder where outputs will be saved", required=True
+    )
     args = parser.parse_args()
 
     lammps_yaml = args.lammps_yaml
     lammps_thermo_yaml = args.lammps_thermo
-    assert len(lammps_yaml) == len(lammps_thermo_yaml), "LAMMPS outputs yaml should match thermodynamics output."
+    assert len(lammps_yaml) == len(
+        lammps_thermo_yaml
+    ), "LAMMPS outputs yaml should match thermodynamics output."
 
-    mtp_inputs = prepare_mtp_inputs_from_lammps(lammps_yaml, lammps_thermo_yaml, atom_dict)
+    mtp_inputs = prepare_mtp_inputs_from_lammps(
+        lammps_yaml, lammps_thermo_yaml, atom_dict
+    )
     mtp = train_mtp(mtp_inputs, args.mlip_dir, args.output_dir)
     print("Training is done")
     df_orig, df_predict = evaluate_mtp(mtp_inputs, mtp)
@@ -127,5 +159,5 @@ def main():
     print(f"MAE of training force prediction is {force_mae} eV/Å")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

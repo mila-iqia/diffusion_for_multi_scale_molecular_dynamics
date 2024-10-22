@@ -6,10 +6,13 @@ from typing import Any, AnyStr, Dict
 
 import numpy as np
 import torch
-from crystal_diffusion.loggers.logger_loader import log_figure
 from matplotlib import pyplot as plt
 from pytorch_lightning import Callback, LightningModule, Trainer
-from src.crystal_diffusion.analysis import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.loggers.logger_loader import \
+    log_figure
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,7 @@ plt.style.use(PLOT_STYLE_PATH)
 @dataclass(kw_only=True)
 class SamplingVisualizationParameters:
     """Parameters to decide what to plot and write to disk."""
+
     record_every_n_epochs: int = 1
     first_record_epoch: int = 1
     record_trajectories: bool = True

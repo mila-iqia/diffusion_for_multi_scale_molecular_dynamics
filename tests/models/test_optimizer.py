@@ -1,11 +1,13 @@
 import pytest
 import torch
-from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                load_optimizer)
+
+from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
+    OptimizerParameters, load_optimizer)
 
 
 class FakeNeuralNet(torch.nn.Module):
     """A fake neural net for testing that we can attach an optimizer."""
+
     def __init__(self):
         super(FakeNeuralNet, self).__init__()
         self.linear_layer = torch.nn.Linear(in_features=4, out_features=1)
@@ -24,7 +26,7 @@ def weight_decay(request):
     return request.param
 
 
-@pytest.fixture(params=['adam', 'adamw'])
+@pytest.fixture(params=["adam", "adamw"])
 def optimizer_name(request):
     return request.param
 
@@ -32,7 +34,9 @@ def optimizer_name(request):
 @pytest.fixture()
 def optimizer_parameters(optimizer_name, weight_decay):
     if weight_decay:
-        return OptimizerParameters(name=optimizer_name, learning_rate=0.01, weight_decay=weight_decay)
+        return OptimizerParameters(
+            name=optimizer_name, learning_rate=0.01, weight_decay=weight_decay
+        )
     else:
         return OptimizerParameters(name=optimizer_name, learning_rate=0.01)
 

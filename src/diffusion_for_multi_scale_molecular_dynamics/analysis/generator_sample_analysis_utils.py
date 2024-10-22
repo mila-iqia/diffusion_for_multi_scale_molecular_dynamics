@@ -1,10 +1,14 @@
 import torch
-from crystal_diffusion.generators.ode_position_generator import (
-    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from crystal_diffusion.models.mace_utils import get_adj_matrix
-from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
 from einops import einops
-from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+
+from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
+    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.graph_utils import \
+    get_adj_matrix
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
+    ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
 
 
 class PartialODEPositionGenerator(ExplodingVarianceODEPositionGenerator):

@@ -3,12 +3,15 @@ from typing import AnyStr, Dict, Optional
 
 import einops
 import torch
-from crystal_diffusion.models.score_networks import ScoreNetwork
-from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES, UNIT_CELL
-from crystal_diffusion.utils.basis_transformations import (
+
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
+    ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    NOISY_RELATIVE_COORDINATES, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions)
-from crystal_diffusion.utils.neighbors import (
+from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
     AdjacencyInfo, get_periodic_adjacency_information)
 
 
@@ -37,6 +40,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
     to such proximity: a repulsive force field will encourage atoms to separate during
     diffusion.
     """
+
     def __init__(
         self, score_network: ScoreNetwork, force_field_parameters: ForceFieldParameters
     ):
@@ -163,7 +167,9 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         list_pseudo_force_components = []
 
         for space_idx in range(spatial_dimension):
-            pseudo_force_component = torch.zeros(natoms * batch_size).to(cartesian_pseudo_force_contributions)
+            pseudo_force_component = torch.zeros(natoms * batch_size).to(
+                cartesian_pseudo_force_contributions
+            )
             pseudo_force_component.scatter_add_(
                 dim=0,
                 index=node_idx,

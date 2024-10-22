@@ -5,17 +5,21 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import yaml
-from crystal_diffusion.active_learning_loop.utils import (
-    extract_target_region, get_structures_for_retraining)
-from crystal_diffusion.models.mlip.mtp import MTPWithMLIP3
 from hydra.utils import instantiate
+
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.utils import (
+    extract_target_region, get_structures_for_retraining)
+from diffusion_for_multi_scale_molecular_dynamics.models.mlip.mtp import \
+    MTPWithMLIP3
 
 
 class ActiveLearningLoop:
     """Method to train, evaluate and fine-tune a MLIP."""
-    def __init__(self,
-                 meta_config: str,
-                 ):
+
+    def __init__(
+        self,
+        meta_config: str,
+    ):
         """Active learning benchmark.
 
         Includes methods to train & evaluate a MLIP, isolate bad sub-structures, repaint new structures and retrain
@@ -24,14 +28,23 @@ class ActiveLearningLoop:
         Args:
             meta_config: path to a yaml configuration with the parameters for the modules in the class
         """
-        assert os.path.exists(meta_config), "configuration file for active learning loop does not exist."
+        assert os.path.exists(
+            meta_config
+        ), "configuration file for active learning loop does not exist."
         # define the modules in the __init__ function
-        self.data_paths, self.mlip_model, self.eval_config, self.structure_generation = None, None, None, None
+        (
+            self.data_paths,
+            self.mlip_model,
+            self.eval_config,
+            self.structure_generation,
+        ) = (None, None, None, None)
         self.oracle = None
         # use hydra to convert the yaml into modules and other data classes
         self.parse_config(meta_config)
         self.atom_dict = {1: "Si"}  # TODO this should be define somewhere smart
-        self.trained_mlips = []  # history of trained MLIPs (optional - not sure if we should keep this)
+        self.trained_mlips = (
+            []
+        )  # history of trained MLIPs (optional - not sure if we should keep this)
         self.training_sets = []  # history of training sets
 
     def parse_config(self, meta_config: str):
@@ -45,18 +58,18 @@ class ActiveLearningLoop:
         Args:
             meta_config: path to configuration yaml file
         """
-        with open(meta_config, 'r') as stream:
+        with open(meta_config, "r") as stream:
             meta_config = yaml.load(stream, Loader=yaml.FullLoader)
         # paths to the training & evaluation datasets
-        self.data_paths = instantiate(meta_config['active_learning_data'])
+        self.data_paths = instantiate(meta_config["active_learning_data"])
         # MLIP model - for example MTP
-        self.mlip_model = instantiate(meta_config['mlip'])
+        self.mlip_model = instantiate(meta_config["mlip"])
         # parameters to find and isolate the problematic regions in the evaluation dataset
-        self.eval_config = instantiate(meta_config['structure_evaluation'])
+        self.eval_config = instantiate(meta_config["structure_evaluation"])
         # structure generation module
-        self.structure_generation = instantiate(meta_config['repainting_model'])
+        self.structure_generation = instantiate(meta_config["repainting_model"])
         # force labeling module
-        self.oracle = instantiate(meta_config['oracle'])
+        self.oracle = instantiate(meta_config["oracle"])
 
     def train_mlip(self, round: int = 1, training_set: Optional[Any] = None) -> str:
         """Train a MLIP using the parameters specified in the configuration file.
@@ -72,19 +85,29 @@ class ActiveLearningLoop:
         """
         if training_set is None:
             if len(self.training_sets) == 0:
-                self.training_sets = [self.mlip_model.prepare_dataset_from_lammps(
-                    root_data_dir=self.data_paths.training_data_dir,
-                    atom_dict=self.atom_dict,
-                    mode="train"
-                )]
+                self.training_sets = [
+                    self.mlip_model.prepare_dataset_from_lammps(
+                        root_data_dir=self.data_paths.training_data_dir,
+                        atom_dict=self.atom_dict,
+                        mode="train",
+                    )
+                ]
             training_set = self.mlip_model.merge_inputs(self.training_sets)
 
-        trained_mtp = self.mlip_model.train(training_set, mlip_name=f'mlip_round_{round}')
-        self.trained_mlips.append(trained_mtp)  # history of trained MLIPs ... not sure if useful
+        trained_mtp = self.mlip_model.train(
+            training_set, mlip_name=f"mlip_round_{round}"
+        )
+        self.trained_mlips.append(
+            trained_mtp
+        )  # history of trained MLIPs ... not sure if useful
         return trained_mtp
 
-    def evaluate_mlip(self, round: int = 1, mlip_name: Optional[str] = None, forces_available: bool = True
-                      ) -> pd.DataFrame:
+    def evaluate_mlip(
+        self,
+        round: int = 1,
+        mlip_name: Optional[str] = None,
+        forces_available: bool = True,
+    ) -> pd.DataFrame:
         """Evaluate a MLIP using the parameters specified in the configuration file.
 
         Args:
@@ -99,13 +122,17 @@ class ActiveLearningLoop:
             root_data_dir=self.data_paths.evaluation_data_dir,
             atom_dict=self.atom_dict,
             mode="evaluation",
-            get_forces=forces_available
+            get_forces=forces_available,
         )
         # first returned element is the ground truth DF
         # TODO make sure this works even if the GT is not available...
         if mlip_name is None:
-            mlip_name = os.path.join(self.mlip_model.savedir, f'mlip_round_{round}.almtp')
-        _, prediction_df = self.mlip_model.evaluate(evaluation_dataset, mlip_name=mlip_name)
+            mlip_name = os.path.join(
+                self.mlip_model.savedir, f"mlip_round_{round}.almtp"
+            )
+        _, prediction_df = self.mlip_model.evaluate(
+            evaluation_dataset, mlip_name=mlip_name
+        )
 
         return prediction_df
 
@@ -120,13 +147,17 @@ class ActiveLearningLoop:
             list of structures with a high uncertainty criteria.
         """
         num_structures = self.eval_config.number_of_structures
-        structures_to_retrain = get_structures_for_retraining(prediction_df,
-                                                              criteria_threshold=self.eval_config.criteria_threshold,
-                                                              number_of_structures=num_structures,
-                                                              evaluation_criteria=self.eval_config.evaluation_criteria)
+        structures_to_retrain = get_structures_for_retraining(
+            prediction_df,
+            criteria_threshold=self.eval_config.criteria_threshold,
+            number_of_structures=num_structures,
+            evaluation_criteria=self.eval_config.evaluation_criteria,
+        )
         return structures_to_retrain
 
-    def excise_worst_atom(self, structures_to_retrain: List[pd.DataFrame]) -> List[pd.DataFrame]:
+    def excise_worst_atom(
+        self, structures_to_retrain: List[pd.DataFrame]
+    ) -> List[pd.DataFrame]:
         """For a given structure, isolate the atom with the highest uncertainty criteria.
 
         Args:
@@ -138,16 +169,19 @@ class ActiveLearningLoop:
         # we assume the extraction region to be a sphere of radius extraction_radius around the worst atoms
         # if more than 1 atom are bad in a structure, we only extract the worst
         # TODO implement other extraction methods
-        bad_regions = [extract_target_region(s,
-                                             extraction_radius=self.eval_config.extraction_radius,
-                                             evaluation_criteria=self.eval_config.evaluation_criteria)
-                       for s in structures_to_retrain]
+        bad_regions = [
+            extract_target_region(
+                s,
+                extraction_radius=self.eval_config.extraction_radius,
+                evaluation_criteria=self.eval_config.evaluation_criteria,
+            )
+            for s in structures_to_retrain
+        ]
         return bad_regions
 
-    def get_structure_candidate_from_generative_model(self,
-                                                      fixed_atoms: pd.DataFrame,
-                                                      number_of_candidates: int = 1
-                                                      ) -> pd.DataFrame:
+    def get_structure_candidate_from_generative_model(
+        self, fixed_atoms: pd.DataFrame, number_of_candidates: int = 1
+    ) -> pd.DataFrame:
         """Generate new structures around the specified fixed atoms.
 
         Args:
@@ -159,11 +193,13 @@ class ActiveLearningLoop:
 
         """
         # TODO: call the diffusion model and get number_of_candidates samples with repaint using the fixed_atoms
-        if self.structure_generation.model == 'dev_dummy':  # replace with a wrapper around the diffusion model
+        if (
+            self.structure_generation.model == "dev_dummy"
+        ):  # replace with a wrapper around the diffusion model
             # and hydra instantiate
             return fixed_atoms
         else:
-            raise NotImplementedError('Only dev_dummy is supported at the moment.')
+            raise NotImplementedError("Only dev_dummy is supported at the moment.")
 
     def new_structure_to_csv(self, new_structures: List[pd.DataFrame], round: int = 1):
         """Save the generated structures in a csv format in the output dir.
@@ -172,10 +208,14 @@ class ActiveLearningLoop:
             new_structures: structures proposed by the generative model
             round: current round of training. Defaults to 1.
         """
-        root_data_dir = os.path.join(self.data_paths.output_dir, f'new_structures_round_{round}')
+        root_data_dir = os.path.join(
+            self.data_paths.output_dir, f"new_structures_round_{round}"
+        )
         os.makedirs(root_data_dir, exist_ok=True)
         for i, new_struc in enumerate(new_structures):
-            new_struc.to_csv(os.path.join(root_data_dir, f'structure_{i}.csv'), index=False)
+            new_struc.to_csv(
+                os.path.join(root_data_dir, f"structure_{i}.csv"), index=False
+            )
 
     def get_labels_from_oracle(self, round: int = 1) -> Any:
         """Compute energy and forces from an oracle such as LAMMPS for the new candidates generated in a round of AL.
@@ -187,11 +227,19 @@ class ActiveLearningLoop:
             mlip data input (for example, MTPInputs)
         """
         new_labeled_samples = []
-        for file in os.listdir(os.path.join(self.data_paths.output_dir, f'new_structures_round_{round}')):
-            if file.endswith('.csv'):
-                new_labeled_samples.append(self.call_oracle(
-                    os.path.join(self.data_paths.output_dir, f'new_structures_round_{round}', file)
-                ))
+        for file in os.listdir(
+            os.path.join(self.data_paths.output_dir, f"new_structures_round_{round}")
+        ):
+            if file.endswith(".csv"):
+                new_labeled_samples.append(
+                    self.call_oracle(
+                        os.path.join(
+                            self.data_paths.output_dir,
+                            f"new_structures_round_{round}",
+                            file,
+                        )
+                    )
+                )
         new_labeled_samples = self.mlip_model.merge_inputs(new_labeled_samples)
         return new_labeled_samples
 
@@ -205,9 +253,11 @@ class ActiveLearningLoop:
             mlip data inputs (for example, MTPInputs)
         """
         data = pd.read_csv(path_to_file)
-        cartesian_positions = data[['x', 'y', 'z']].to_numpy()
+        cartesian_positions = data[["x", "y", "z"]].to_numpy()
         box = np.eye(3, 3) * 5.43  # TODO this is bad - fix this
-        atom_type = np.ones(cartesian_positions.shape[0], dtype=np.integer)  # TODO also bad
+        atom_type = np.ones(
+            cartesian_positions.shape[0], dtype=np.integer
+        )  # TODO also bad
         energy, forces = self.oracle(cartesian_positions, box, atom_type)
         labels_as_mtp = self.mlip_model.prepare_dataset_from_numpy(
             cartesian_positions,
@@ -218,8 +268,9 @@ class ActiveLearningLoop:
         )
         return labels_as_mtp
 
-    def round_of_active_learning_loop(self, trained_mlip: Optional[MTPWithMLIP3] = None
-                                      ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def round_of_active_learning_loop(
+        self, trained_mlip: Optional[MTPWithMLIP3] = None
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Do a full loop of activate learning.
 
         The following steps are done in sequence:
@@ -248,16 +299,22 @@ class ActiveLearningLoop:
         pred_df = self.evaluate_mlip(mlip_name=trained_mlip)
         bad_structures = self.get_bad_structures(pred_df)
         bad_regions = self.excise_worst_atom(bad_structures)
-        new_candidates = [self.get_structure_candidate_from_generative_model(x) for x in bad_regions]
+        new_candidates = [
+            self.get_structure_candidate_from_generative_model(x) for x in bad_regions
+        ]
         self.new_structure_to_csv(new_candidates)
         new_labeled_candidates = self.get_labels_from_oracle()
-        new_training_set = self.mlip_model.merge_inputs([self.training_sets[-1], new_labeled_candidates])
+        new_training_set = self.mlip_model.merge_inputs(
+            [self.training_sets[-1], new_labeled_candidates]
+        )
         self.training_sets.append(new_training_set)
         new_mtp = self.train_mlip()
         new_pred_df = self.evaluate_mlip(mlip_name=new_mtp)
         return pred_df, new_pred_df
 
-    def evaluate_mtp_update(self, original_predictions: pd.DataFrame, updated_predictions) -> Tuple[float, float]:
+    def evaluate_mtp_update(
+        self, original_predictions: pd.DataFrame, updated_predictions
+    ) -> Tuple[float, float]:
         """Find the evaluation criteria in the original predictions and the corresponding value after retraining.
 
         Args:
@@ -272,10 +329,13 @@ class ActiveLearningLoop:
         # TODO we assume a max - but it could be a min i
         criteria = self.eval_config.evaluation_criteria
         atom_index, structure_index, original_value = original_predictions.iloc[
-            original_predictions[criteria].argmax()][['atom_index', 'structure_index', criteria]]
+            original_predictions[criteria].argmax()
+        ][["atom_index", "structure_index", criteria]]
         updated_value = updated_predictions.loc[
-            (updated_predictions['atom_index'] == atom_index)
-            & (updated_predictions['structure_index'] == structure_index), criteria].values.item()
+            (updated_predictions["atom_index"] == atom_index)
+            & (updated_predictions["structure_index"] == structure_index),
+            criteria,
+        ].values.item()
         return original_value, updated_value
 
 
@@ -286,7 +346,7 @@ def get_arguments() -> argparse.Namespace:
         args: arguments
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', help='path to data directory', required=True)
+    parser.add_argument("--config", help="path to data directory", required=True)
     args = parser.parse_args()
     return args
 
@@ -301,5 +361,5 @@ def main():
     al_loop.evaluate_mtp_update(initial_df, new_df)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

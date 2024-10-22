@@ -1,4 +1,5 @@
 """Convert results of LAMMPS simulation into dataloader friendly format."""
+
 import itertools
 import logging
 import os
@@ -7,9 +8,11 @@ from functools import partial
 from typing import List, Optional, Tuple, Union
 
 import pandas as pd
-from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
-                                         RELATIVE_COORDINATES)
-from src.crystal_diffusion.data.parse_lammps_outputs import parse_lammps_output
+
+from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import \
+    parse_lammps_output
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +31,10 @@ class LammpsProcessorForDiffusion:
             os.makedirs(processed_data_dir)  # create the dir if it doesn't exist
         self.data_dir = processed_data_dir
         # TODO revisit data splits
-        self.train_files = self.prepare_data(raw_data_dir, mode='train')
-        self.valid_files = self.prepare_data(raw_data_dir, mode='valid')
+        self.train_files = self.prepare_data(raw_data_dir, mode="train")
+        self.valid_files = self.prepare_data(raw_data_dir, mode="valid")
 
-    def prepare_data(self, raw_data_dir: str, mode: str = 'train') -> List[str]:
+    def prepare_data(self, raw_data_dir: str, mode: str = "train") -> List[str]:
         """Read data in raw_data_dir and write to a parquet file for Datasets.
 
         Args:
@@ -44,18 +47,32 @@ class LammpsProcessorForDiffusion:
         # TODO split is assumed from data generation. We might revisit this.
         # we assume that raw_data_dir contains subdirectories named train_run_N for N>=1
         # get the list of runs to parse
-        assert mode in ['train', 'valid', 'test'], f"Mode should be train, valid or test. Got {mode}."
-        list_runs = [d for d in os.listdir(raw_data_dir) if os.path.isdir(os.path.join(raw_data_dir, d))
-                     and d.startswith(f"{mode}_run")]
+        assert mode in [
+            "train",
+            "valid",
+            "test",
+        ], f"Mode should be train, valid or test. Got {mode}."
+        list_runs = [
+            d
+            for d in os.listdir(raw_data_dir)
+            if os.path.isdir(os.path.join(raw_data_dir, d))
+            and d.startswith(f"{mode}_run")
+        ]
         list_files = []
         for count, d in enumerate(list_runs, 1):
-            logging.info(f"Processing run directory {d} ({count} of {len(list_runs)})...")
+            logging.info(
+                f"Processing run directory {d} ({count} of {len(list_runs)})..."
+            )
             if f"{d}.parquet" not in os.listdir(self.data_dir):
                 logging.info("     * parquet file is absent. Generating...")
                 df = self.parse_lammps_run(os.path.join(raw_data_dir, d))
                 if df is not None:
                     logging.info("     * writing parquet file to disk...")
-                    df.to_parquet(os.path.join(self.data_dir, f"{d}.parquet"), engine='pyarrow', index=False)
+                    df.to_parquet(
+                        os.path.join(self.data_dir, f"{d}.parquet"),
+                        engine="pyarrow",
+                        index=False,
+                    )
             if f"{d}.parquet" in os.listdir(self.data_dir):
                 list_files.append(os.path.join(self.data_dir, f"{d}.parquet"))
         return list_files
@@ -70,10 +87,17 @@ class LammpsProcessorForDiffusion:
         Returns:
             x, y and z in relative (reduced) coordinates
         """
-        x_lim, y_lim, z_lim = row['box']
+        x_lim, y_lim, z_lim = row["box"]
         # Cast the coordinates to float in case they are read in as strings
-        coord_red = [coord for triple in zip(row['x'], row['y'], row['z']) for coord in
-                     ((float(triple[0]) / x_lim) % 1, (float(triple[1]) / y_lim) % 1, (float(triple[2]) / z_lim) % 1)]
+        coord_red = [
+            coord
+            for triple in zip(row["x"], row["y"], row["z"])
+            for coord in (
+                (float(triple[0]) / x_lim) % 1,
+                (float(triple[1]) / y_lim) % 1,
+                (float(triple[2]) / z_lim) % 1,
+            )
+        ]
         return coord_red
 
     def get_x_relative(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -85,11 +109,15 @@ class LammpsProcessorForDiffusion:
         Returns:
             dataframe with added column of relative positions [x1, y1, z1, x2, y2, ...]
         """
-        df[RELATIVE_COORDINATES] = df.apply(lambda x: self._convert_coords_to_relative(x), axis=1)
+        df[RELATIVE_COORDINATES] = df.apply(
+            lambda x: self._convert_coords_to_relative(x), axis=1
+        )
         return df
 
     @staticmethod
-    def get_dump_and_thermo_files(run_dir: str) -> Tuple[Union[str, None], Union[str, None]]:
+    def get_dump_and_thermo_files(
+        run_dir: str,
+    ) -> Tuple[Union[str, None], Union[str, None]]:
         """Get dump and thermo files.
 
         Args:
@@ -100,20 +128,26 @@ class LammpsProcessorForDiffusion:
                 one data file for each of (dump, thermo).
         """
         # find the LAMMPS dump file and thermo file
-        dump_file = [d for d in os.listdir(run_dir) if 'dump' in d]
+        dump_file = [d for d in os.listdir(run_dir) if "dump" in d]
         if len(dump_file) == 1:
             dump_file_path = os.path.join(run_dir, dump_file[0])
         else:
-            warnings.warn(f"Found {len(dump_file)} files with dump in the name in {run_dir}. "
-                          f"Expected exactly one.", UserWarning)
+            warnings.warn(
+                f"Found {len(dump_file)} files with dump in the name in {run_dir}. "
+                f"Expected exactly one.",
+                UserWarning,
+            )
             dump_file_path = None
 
-        thermo_file = [d for d in os.listdir(run_dir) if 'thermo' in d]
+        thermo_file = [d for d in os.listdir(run_dir) if "thermo" in d]
         if len(thermo_file) == 1:
             thermo_file_path = os.path.join(run_dir, thermo_file[0])
         else:
-            warnings.warn(f"Found {len(thermo_file)} files with thermo in the name in {run_dir}. "
-                          f"Expected exactly one.", UserWarning)
+            warnings.warn(
+                f"Found {len(thermo_file)} files with thermo in the name in {run_dir}. "
+                f"Expected exactly one.",
+                UserWarning,
+            )
             thermo_file_path = None
 
         return dump_file_path, thermo_file_path
@@ -155,19 +189,32 @@ class LammpsProcessorForDiffusion:
         # Each row is a different MD step / usable example for diffusion model
         # TODO consider filtering out samples with large forces and MD steps that are too similar
         # TODO large force and similar are to be defined
-        df = df[['type', 'x', 'y', 'z', 'box', 'potential_energy', 'fx', 'fy', 'fz']]
+        df = df[["type", "x", "y", "z", "box", "potential_energy", "fx", "fy", "fz"]]
         df = self.get_x_relative(df)  # add relative coordinates
-        df['natom'] = df['type'].apply(lambda x: len(x))  # count number of atoms in a structure
+        df["natom"] = df["type"].apply(
+            lambda x: len(x)
+        )  # count number of atoms in a structure
 
         # Parquet cannot handle a list of list; flattening positions.
         df[CARTESIAN_POSITIONS] = df.apply(self._flatten_positions_in_row, axis=1)
         # position is natom * 3 array
-        df[CARTESIAN_FORCES] = df.apply(partial(self._flatten_positions_in_row, keys=['fx', 'fy', 'fz']), axis=1)
-        return df[['natom', 'box', 'type', 'potential_energy', CARTESIAN_POSITIONS, RELATIVE_COORDINATES,
-                   CARTESIAN_FORCES]]
+        df[CARTESIAN_FORCES] = df.apply(
+            partial(self._flatten_positions_in_row, keys=["fx", "fy", "fz"]), axis=1
+        )
+        return df[
+            [
+                "natom",
+                "box",
+                "type",
+                "potential_energy",
+                CARTESIAN_POSITIONS,
+                RELATIVE_COORDINATES,
+                CARTESIAN_FORCES,
+            ]
+        ]
 
     @staticmethod
-    def _flatten_positions_in_row(row: pd.Series, keys=['x', 'y', 'z']) -> List[float]:
+    def _flatten_positions_in_row(row: pd.Series, keys=["x", "y", "z"]) -> List[float]:
         """Function to flatten the positions in a dataframe row.
 
         Args:
@@ -180,6 +227,10 @@ class LammpsProcessorForDiffusion:
         list_y = row[keys[1]]
         list_z = row[keys[2]]
 
-        flat_positions = list(itertools.chain.from_iterable([[x, y, z] for x, y, z in zip(list_x, list_y, list_z)]))
+        flat_positions = list(
+            itertools.chain.from_iterable(
+                [[x, y, z] for x, y, z in zip(list_x, list_y, list_z)]
+            )
+        )
 
         return flat_positions

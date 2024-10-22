@@ -4,10 +4,10 @@ import os
 from typing import Tuple
 
 import pandas as pd
-from crystal_diffusion import DATA_DIR
-from src.crystal_diffusion.data.parse_lammps_outputs import \
-    parse_lammps_thermo_log
 
+from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR
+from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import \
+    parse_lammps_thermo_log
 from experiments import EXPERIMENT_ANALYSIS_DIR
 
 logger = logging.getLogger(__name__)

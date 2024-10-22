@@ -3,10 +3,13 @@ import urllib
 from typing import AnyStr, Dict, Tuple
 
 import torch
-from crystal_diffusion.models.graph_utils import get_adj_matrix
-from crystal_diffusion.namespace import NOISY_CARTESIAN_POSITIONS, UNIT_CELL
 from e3nn import o3
 from torch_geometric.data import Data
+
+from diffusion_for_multi_scale_molecular_dynamics.models.graph_utils import \
+    get_adj_matrix
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
 
 
 def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
@@ -24,31 +27,41 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
 
     batch_size, n_atom_per_graph, spatial_dimension = noisy_cartesian_positions.shape
     device = noisy_cartesian_positions.device
-    adj_matrix, shift_matrix, batch_tensor, _ = get_adj_matrix(positions=noisy_cartesian_positions,
-                                                               basis_vectors=cell,
-                                                               radial_cutoff=radial_cutoff)
+    adj_matrix, shift_matrix, batch_tensor, _ = get_adj_matrix(
+        positions=noisy_cartesian_positions,
+        basis_vectors=cell,
+        radial_cutoff=radial_cutoff,
+    )
     # node features are int corresponding to atom type
     # TODO handle different atom types
-    node_attrs = torch.nn.functional.one_hot((torch.ones(batch_size * n_atom_per_graph) * 14).long(),
-                                             num_classes=89).float()
-    flat_positions = noisy_cartesian_positions.view(-1, spatial_dimension)  # [batchsize * natoms, spatial dimension]
+    node_attrs = torch.nn.functional.one_hot(
+        (torch.ones(batch_size * n_atom_per_graph) * 14).long(), num_classes=89
+    ).float()
+    flat_positions = noisy_cartesian_positions.view(
+        -1, spatial_dimension
+    )  # [batchsize * natoms, spatial dimension]
     # pointer tensor that yields the first node index for each batch - this is a fixed tensor in our case
-    ptr = torch.arange(0, n_atom_per_graph * batch_size + 1, step=n_atom_per_graph)  # 0, natoms, 2 * natoms, ...
+    ptr = torch.arange(
+        0, n_atom_per_graph * batch_size + 1, step=n_atom_per_graph
+    )  # 0, natoms, 2 * natoms, ...
 
     cell = cell.view(-1, cell.size(-1))  # batch * spatial_dimension, spatial_dimension
     # create the pytorch-geometric graph
-    graph_data = Data(edge_index=adj_matrix,
-                      node_attrs=node_attrs.to(device),
-                      positions=flat_positions,
-                      ptr=ptr.to(device),
-                      batch=batch_tensor.to(device),
-                      shifts=shift_matrix,
-                      cell=cell
-                      )
+    graph_data = Data(
+        edge_index=adj_matrix,
+        node_attrs=node_attrs.to(device),
+        positions=flat_positions,
+        ptr=ptr.to(device),
+        batch=batch_tensor.to(device),
+        shifts=shift_matrix,
+        cell=cell,
+    )
     return graph_data
 
 
-def build_mace_output_nodes_irreducible_representation(hidden_irreps_string: str, num_interactions: int) -> o3.Irreps:
+def build_mace_output_nodes_irreducible_representation(
+    hidden_irreps_string: str, num_interactions: int
+) -> o3.Irreps:
     """Build the mace output node irreps.
 
     Args:
@@ -66,7 +79,9 @@ def build_mace_output_nodes_irreducible_representation(hidden_irreps_string: str
     # E3NN irreps gymnastics is a bit fragile. We have to build the scalar representation explicitly
     scalar_hidden_irreps = o3.Irreps(f"{hidden_irreps[0].mul}x{hidden_irreps[0].ir}")
 
-    total_irreps = o3.Irreps('')  # An empty irrep to start the "sum", which is really a concatenation
+    total_irreps = o3.Irreps(
+        ""
+    )  # An empty irrep to start the "sum", which is really a concatenation
     for _ in range(num_interactions - 1):
         total_irreps += hidden_irreps
 
@@ -86,21 +101,28 @@ def get_pretrained_mace_output_node_features_irreps(model_name: str) -> o3.Irrep
     """
     match model_name:
         case "small":
-            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e",
-                                                                        num_interactions=2)
+            irreps = build_mace_output_nodes_irreducible_representation(
+                hidden_irreps_string="128x0e", num_interactions=2
+            )
         case "medium":
-            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e + 128x1o",
-                                                                        num_interactions=2)
+            irreps = build_mace_output_nodes_irreducible_representation(
+                hidden_irreps_string="128x0e + 128x1o", num_interactions=2
+            )
         case "large":
-            irreps = build_mace_output_nodes_irreducible_representation(hidden_irreps_string="128x0e + 128x1o + 128x2e",
-                                                                        num_interactions=2)
+            irreps = build_mace_output_nodes_irreducible_representation(
+                hidden_irreps_string="128x0e + 128x1o + 128x2e", num_interactions=2
+            )
         case _:
-            raise ValueError(f"Model name should be small, medium or large. Got {model_name}")
+            raise ValueError(
+                f"Model name should be small, medium or large. Got {model_name}"
+            )
 
     return irreps
 
 
-def get_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch.nn.Module, int]:
+def get_pretrained_mace(
+    model_name: str, model_savedir_path: str
+) -> Tuple[torch.nn.Module, int]:
     """Download and load a pre-trained MACE network.
 
     Based on the mace-torch library.
@@ -114,15 +136,25 @@ def get_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch
         model: the pre-trained MACE model as a torch.nn.Module
         node_feats_output_size: size of the node features embedding in the model's output
     """
-    assert model_name in ["small", "medium", "large"], f"Model name should be small, medium or large. Got {model_name}"
+    assert model_name in [
+        "small",
+        "medium",
+        "large",
+    ], f"Model name should be small, medium or large. Got {model_name}"
 
     # from mace library code
     urls = dict(
-        small=("https://tinyurl.com/46jrkm3v", 256),  # 2023-12-10-mace-128-L0_energy_epoch-249.model
-        medium=("https://tinyurl.com/5yyxdm76", 640),  # 2023-12-03-mace-128-L1_epoch-199.model
+        small=(
+            "https://tinyurl.com/46jrkm3v",
+            256,
+        ),  # 2023-12-10-mace-128-L0_energy_epoch-249.model
+        medium=(
+            "https://tinyurl.com/5yyxdm76",
+            640,
+        ),  # 2023-12-03-mace-128-L1_epoch-199.model
         large=("https://tinyurl.com/5f5yavf3", 1280),  # MACE_MPtrj_2022.9.model
     )
-    checkpoint_url, node_feats_output_size = (urls.get(model_name, urls["medium"]))
+    checkpoint_url, node_feats_output_size = urls.get(model_name, urls["medium"])
 
     checkpoint_url_name = "".join(
         c for c in os.path.basename(checkpoint_url) if c.isalnum() or c in "_"
@@ -134,14 +166,18 @@ def get_pretrained_mace(model_name: str, model_savedir_path: str) -> Tuple[torch
         # download and save to disk
         _, http_msg = urllib.request.urlretrieve(checkpoint_url, cached_model_path)
         if "Content-Type: text/html" in http_msg:
-            raise RuntimeError(f"Model download failed, please check the URL {checkpoint_url}")
+            raise RuntimeError(
+                f"Model download failed, please check the URL {checkpoint_url}"
+            )
 
     model = torch.load(f=cached_model_path).float()
 
     return model, node_feats_output_size
 
 
-def get_normalized_irreps_permutation_indices(irreps: o3.Irreps) -> Tuple[o3.Irreps, torch.Tensor]:
+def get_normalized_irreps_permutation_indices(
+    irreps: o3.Irreps,
+) -> Tuple[o3.Irreps, torch.Tensor]:
     """Get normalized irreps and permutation indices.
 
     Args:
@@ -192,7 +228,9 @@ def reshape_from_mace_to_e3nn(x: torch.Tensor, irreps: o3.Irreps) -> torch.Tenso
     x_ = []
     for ell in range(irreps.lmax + 1):
         # for example, for l=1, take indices 1, 2, 3 (in the last index) and flatten as a channel * 3 tensor
-        x_l = x[:, :, (ell ** 2):(ell + 1)**2].reshape(node, -1)  # node, channel * (2l + 1)
+        x_l = x[:, :, (ell**2): (ell + 1) ** 2].reshape(
+            node, -1
+        )  # node, channel * (2l + 1)
         x_.append(x_l)
     # stack the flatten irrep tensors together
     return torch.cat(x_, dim=-1)

@@ -14,13 +14,18 @@ logger = logging.getLogger(__name__)
 @dataclass(kw_only=True)
 class MetricResult:
     """Metric result class that is self documenting."""
+
     report: bool = False  # is there something to report
-    metric_name: Union[str, None] = None  # default to None, if there is nothing to report
+    metric_name: Union[str, None] = (
+        None  # default to None, if there is nothing to report
+    )
     mode: Union[str, None]  # default to None, if there is nothing to report
     metric_value: float = np.NaN  # default to NaN, if there is nothing to report
 
 
-def get_optimized_metric_name_and_mode(hyper_params: Dict[AnyStr, Any]) -> Tuple[Union[str, None], Union[str, None]]:
+def get_optimized_metric_name_and_mode(
+    hyper_params: Dict[AnyStr, Any]
+) -> Tuple[Union[str, None], Union[str, None]]:
     """Get optimized metric name and mode.
 
     Args:
@@ -30,9 +35,9 @@ def get_optimized_metric_name_and_mode(hyper_params: Dict[AnyStr, Any]) -> Tuple
         metric_name, metric_mode: the name and mode (min or max) for the metric to be optimized.
     """
     # By convention, it is assumed that the metric to be reported is the early stopping metric.
-    if 'early_stopping' in hyper_params:
-        early_stopping_params = hyper_params['early_stopping']
-        return early_stopping_params['metric'], early_stopping_params['mode']
+    if "early_stopping" in hyper_params:
+        early_stopping_params = hyper_params["early_stopping"]
+        return early_stopping_params["metric"], early_stopping_params["mode"]
 
     else:
         return None, None
@@ -52,12 +57,18 @@ def get_crash_metric_result(hyper_params: Dict[AnyStr, Any]) -> MetricResult:
     metric_name, mode = get_optimized_metric_name_and_mode(hyper_params)
 
     if metric_name is None:
-        return MetricResult(report=False, metric_name=None, mode=None, metric_value=np.NaN)
+        return MetricResult(
+            report=False, metric_name=None, mode=None, metric_value=np.NaN
+        )
     else:
-        return MetricResult(report=True, metric_name=metric_name, mode=mode, metric_value=np.NaN)
+        return MetricResult(
+            report=True, metric_name=metric_name, mode=mode, metric_value=np.NaN
+        )
 
 
-def get_name_and_sign_of_orion_optimization_objective(metric_name: str, mode: str) -> Tuple[str, int]:
+def get_name_and_sign_of_orion_optimization_objective(
+    metric_name: str, mode: str
+) -> Tuple[str, int]:
     """Names and signs.
 
     The Orion optimizer seeks to minimize an objective. Some metrics must be maximized,
@@ -84,7 +95,9 @@ def get_name_and_sign_of_orion_optimization_objective(metric_name: str, mode: st
     return optimization_objective_name, optimization_sign
 
 
-def report_to_orion_if_on(metric_result: MetricResult, run_time_error: Union[None, RuntimeError]):
+def report_to_orion_if_on(
+    metric_result: MetricResult, run_time_error: Union[None, RuntimeError]
+):
     """Report to Orion if on.
 
     This function manages how to report the metric to Orion. If Orion is not turned on, or if there
@@ -103,26 +116,35 @@ def report_to_orion_if_on(metric_result: MetricResult, run_time_error: Union[Non
 
     if orion.client.cli.IS_ORION_ON:
         optimization_objective_name, optimization_sign = (
-            get_name_and_sign_of_orion_optimization_objective(metric_result.metric_name, metric_result.mode))
+            get_name_and_sign_of_orion_optimization_objective(
+                metric_result.metric_name, metric_result.mode
+            )
+        )
 
         report_value = optimization_sign * metric_result.metric_value
 
         if run_time_error is None:
             logger.info("Reporting Results to ORION...")
-            results = dict(name=optimization_objective_name, type="objective", value=report_value)
+            results = dict(
+                name=optimization_objective_name, type="objective", value=report_value
+            )
             orion.client.report_results([results])
 
             logger.info(" Done reporting Results to ORION.")
-        elif 'CUDA out of memory' in str(run_time_error):
-            logger.error('model was out of memory - reporting a bad trial so '
-                         'that Orion avoids models that are too large')
+        elif "CUDA out of memory" in str(run_time_error):
+            logger.error(
+                "model was out of memory - reporting a bad trial so "
+                "that Orion avoids models that are too large"
+            )
             orion.client.report_bad_trial(name=optimization_objective_name)
         else:
             logger.error(f"Run time error : {run_time_error}- interrupting Orion trial")
             orion.client.interrupt_trial()
 
 
-def load_and_backup_hyperparameters(config_file_path: Union[str, None], output_directory: str) -> Dict[str, Any]:
+def load_and_backup_hyperparameters(
+    config_file_path: Union[str, None], output_directory: str
+) -> Dict[str, Any]:
     """Load and process hyperparameters.
 
     If a configuration file is provided, this method reads in the hyperparameters. It either makes a copy of the
@@ -142,7 +164,9 @@ def load_and_backup_hyperparameters(config_file_path: Union[str, None], output_d
     hyper_params = _get_hyperparameters(config_file_path)
 
     if orion.client.cli.IS_ORION_ON:
-        logging.info("The Orion client is ON: Orion will manage configuration file copies.")
+        logging.info(
+            "The Orion client is ON: Orion will manage configuration file copies."
+        )
     else:
         config_backup_path = os.path.join(output_directory, "config_backup.yaml")
         _create_or_validate_backup_configuration(config_backup_path, hyper_params)
@@ -150,33 +174,45 @@ def load_and_backup_hyperparameters(config_file_path: Union[str, None], output_d
     return hyper_params
 
 
-def _create_or_validate_backup_configuration(config_backup_path: str, hyper_params: Dict[str, Any]) -> None:
+def _create_or_validate_backup_configuration(
+    config_backup_path: str, hyper_params: Dict[str, Any]
+) -> None:
     """Create or validate a backup of the hyperparameters."""
     if os.path.exists(config_backup_path):
-        logging.info(f"The backup configuration file {config_backup_path} already exists. "
-                     f"Validating hyperparameters are identical...")
+        logging.info(
+            f"The backup configuration file {config_backup_path} already exists. "
+            f"Validating hyperparameters are identical..."
+        )
 
-        with open(config_backup_path, 'r') as stream:
-            logging.info(f"Reading backup hyperparameters from file {config_backup_path}")
+        with open(config_backup_path, "r") as stream:
+            logging.info(
+                f"Reading backup hyperparameters from file {config_backup_path}"
+            )
             backup_hyper_params = yaml.load(stream, Loader=yaml.FullLoader)
 
         hp_differences = deepdiff.DeepDiff(backup_hyper_params, hyper_params)
-        assert hp_differences == {}, (f"Incompatible backup configuration file already present in output directory! "
-                                      f"The configuration difference is {hp_differences}. Manual clean up is needed.")
+        assert hp_differences == {}, (
+            f"Incompatible backup configuration file already present in output directory! "
+            f"The configuration difference is {hp_differences}. Manual clean up is needed."
+        )
 
     else:
-        logging.info(f"Writing a copy of the configuration file to backup configuration file {config_backup_path}.")
-        with open(config_backup_path, 'w') as steam:
+        logging.info(
+            f"Writing a copy of the configuration file to backup configuration file {config_backup_path}."
+        )
+        with open(config_backup_path, "w") as steam:
             yaml.dump(hyper_params, steam)
 
 
 def _get_hyperparameters(config_file_path: Union[str, None]) -> Dict[str, Any]:
     """Get the hyperparameters."""
     if config_file_path is None:
-        logging.info("No configuration file was provided. The hyperparameters are set to an empty dictionary.")
+        logging.info(
+            "No configuration file was provided. The hyperparameters are set to an empty dictionary."
+        )
         hyper_params = dict()
     else:
         logging.info(f"Reading in hyperparameters from file {config_file_path}")
-        with open(config_file_path, 'r') as stream:
+        with open(config_file_path, "r") as stream:
             hyper_params = yaml.load(stream, Loader=yaml.FullLoader)
     return hyper_params

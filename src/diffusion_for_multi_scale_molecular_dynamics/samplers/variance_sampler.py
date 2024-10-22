@@ -11,6 +11,7 @@ LangevinDynamics = namedtuple("LangevinDynamics", ["epsilon", "sqrt_2_epsilon"])
 @dataclass
 class NoiseParameters:
     """Noise schedule parameters."""
+
     total_time_steps: int
     time_delta: float = 1e-5  # the time schedule will cover the range [time_delta, 1]
     # As discussed in Appendix C of "SCORE-BASED GENERATIVE MODELING THROUGH STOCHASTIC DIFFERENTIAL EQUATIONS",
@@ -78,27 +79,46 @@ class ExplodingVarianceSampler(torch.nn.Module):
         super().__init__()
         self.noise_parameters = noise_parameters
 
-        self._time_array = torch.nn.Parameter(self._get_time_array(noise_parameters), requires_grad=False)
+        self._time_array = torch.nn.Parameter(
+            self._get_time_array(noise_parameters), requires_grad=False
+        )
 
-        self._sigma_array = torch.nn.Parameter(self._create_sigma_array(noise_parameters, self._time_array),
-                                               requires_grad=False)
-        self._sigma_squared_array = torch.nn.Parameter(self._sigma_array**2, requires_grad=False)
+        self._sigma_array = torch.nn.Parameter(
+            self._create_sigma_array(noise_parameters, self._time_array),
+            requires_grad=False,
+        )
+        self._sigma_squared_array = torch.nn.Parameter(
+            self._sigma_array**2, requires_grad=False
+        )
 
         self._g_squared_array = torch.nn.Parameter(
-            self._create_g_squared_array(noise_parameters, self._sigma_squared_array), requires_grad=False)
-        self._g_array = torch.nn.Parameter(torch.sqrt(self._g_squared_array), requires_grad=False)
+            self._create_g_squared_array(noise_parameters, self._sigma_squared_array),
+            requires_grad=False,
+        )
+        self._g_array = torch.nn.Parameter(
+            torch.sqrt(self._g_squared_array), requires_grad=False
+        )
 
         self._epsilon_array = torch.nn.Parameter(
-            self._create_epsilon_array(noise_parameters, self._sigma_squared_array), requires_grad=False)
-        self._sqrt_two_epsilon_array = torch.nn.Parameter(torch.sqrt(2. * self._epsilon_array), requires_grad=False)
+            self._create_epsilon_array(noise_parameters, self._sigma_squared_array),
+            requires_grad=False,
+        )
+        self._sqrt_two_epsilon_array = torch.nn.Parameter(
+            torch.sqrt(2.0 * self._epsilon_array), requires_grad=False
+        )
 
-        self._maximum_random_index = torch.nn.Parameter(torch.tensor(noise_parameters.total_time_steps - 1),
-                                                        requires_grad=False)
-        self._minimum_random_index = torch.nn.Parameter(torch.tensor(0), requires_grad=False)
+        self._maximum_random_index = torch.nn.Parameter(
+            torch.tensor(noise_parameters.total_time_steps - 1), requires_grad=False
+        )
+        self._minimum_random_index = torch.nn.Parameter(
+            torch.tensor(0), requires_grad=False
+        )
 
     @staticmethod
     def _get_time_array(noise_parameters: NoiseParameters) -> torch.Tensor:
-        return torch.linspace(noise_parameters.time_delta, 1., noise_parameters.total_time_steps)
+        return torch.linspace(
+            noise_parameters.time_delta, 1.0, noise_parameters.total_time_steps
+        )
 
     @staticmethod
     def _create_sigma_array(
@@ -111,7 +131,9 @@ class ExplodingVarianceSampler(torch.nn.Module):
         return sigma
 
     @staticmethod
-    def _create_g_squared_array(noise_parameters: NoiseParameters, sigma_squared_array: torch.Tensor) -> torch.Tensor:
+    def _create_g_squared_array(
+        noise_parameters: NoiseParameters, sigma_squared_array: torch.Tensor
+    ) -> torch.Tensor:
         # g^2_{i} = sigma^2_{i} - sigma^2_{i-1}. For the first element (i=1), we set sigma_{0} = sigma_min.
         sigma_min = noise_parameters.sigma_min
         zeroth_value_tensor = torch.tensor([sigma_squared_array[0] - sigma_min**2])
@@ -120,15 +142,22 @@ class ExplodingVarianceSampler(torch.nn.Module):
         )
 
     @staticmethod
-    def _create_epsilon_array(noise_parameters: NoiseParameters, sigma_squared_array: torch.Tensor) -> torch.Tensor:
+    def _create_epsilon_array(
+        noise_parameters: NoiseParameters, sigma_squared_array: torch.Tensor
+    ) -> torch.Tensor:
 
         sigma_squared_0 = noise_parameters.sigma_min**2
         sigma_squared_1 = sigma_squared_array[0]
         eps = noise_parameters.corrector_step_epsilon
 
-        zeroth_value_tensor = torch.tensor([0.5 * eps * sigma_squared_0 / sigma_squared_1])
+        zeroth_value_tensor = torch.tensor(
+            [0.5 * eps * sigma_squared_0 / sigma_squared_1]
+        )
         return torch.cat(
-            [zeroth_value_tensor, 0.5 * eps * sigma_squared_array[:-1] / sigma_squared_1]
+            [
+                zeroth_value_tensor,
+                0.5 * eps * sigma_squared_array[:-1] / sigma_squared_1,
+            ]
         )
 
     def _get_random_time_step_indices(self, shape: Tuple[int]) -> torch.Tensor:
@@ -147,7 +176,7 @@ class ExplodingVarianceSampler(torch.nn.Module):
             self._maximum_random_index
             + 1,  # +1 because the maximum value is not sampled
             size=shape,
-            device=self._minimum_random_index.device
+            device=self._minimum_random_index.device,
         )
         return random_indices
 
@@ -198,8 +227,10 @@ class ExplodingVarianceSampler(torch.nn.Module):
             sigma=self._sigma_array,
             sigma_squared=self._sigma_squared_array,
             g=self._g_array,
-            g_squared=self._g_squared_array)
-        langevin_dynamics = LangevinDynamics(epsilon=self._epsilon_array,
-                                             sqrt_2_epsilon=self._sqrt_two_epsilon_array)
+            g_squared=self._g_squared_array,
+        )
+        langevin_dynamics = LangevinDynamics(
+            epsilon=self._epsilon_array, sqrt_2_epsilon=self._sqrt_two_epsilon_array
+        )
 
         return noise, langevin_dynamics

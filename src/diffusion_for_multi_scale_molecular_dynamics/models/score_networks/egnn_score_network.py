@@ -3,18 +3,22 @@ from typing import AnyStr, Dict, Union
 
 import einops
 import torch
-from crystal_diffusion.models.egnn import EGNN
-from crystal_diffusion.models.egnn_utils import (get_edges_batch,
-                                                 get_edges_with_radial_cutoff)
-from crystal_diffusion.models.score_networks import ScoreNetworkParameters
-from crystal_diffusion.models.score_networks.score_network import ScoreNetwork
-from crystal_diffusion.namespace import (NOISE, NOISY_RELATIVE_COORDINATES,
-                                         UNIT_CELL)
+
+from diffusion_for_multi_scale_molecular_dynamics.models.egnn import EGNN
+from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
+    get_edges_batch, get_edges_with_radial_cutoff)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
+    ScoreNetworkParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
+    ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    NOISE, NOISY_RELATIVE_COORDINATES, UNIT_CELL)
 
 
 @dataclass(kw_only=True)
 class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for ENN score networks."""
+
     architecture: str = "egnn"
     message_n_hidden_dimensions: int = 1
     message_hidden_dimensions_size: int = 16
@@ -29,7 +33,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     coords_agg: str = "mean"
     message_agg: str = "mean"
     n_layers: int = 4
-    edges: str = 'fully_connected'
+    edges: str = "fully_connected"
     radial_cutoff: Union[float, None] = None
     drop_duplicate_edges: bool = True
 
@@ -52,21 +56,30 @@ class EGNNScoreNetwork(ScoreNetwork):
         self.number_of_features_per_node = 1
         self.spatial_dimension = hyper_params.spatial_dimension
 
-        projection_matrices = self._create_block_diagonal_projection_matrices(self.spatial_dimension)
-        self.register_parameter('projection_matrices',
-                                torch.nn.Parameter(projection_matrices, requires_grad=False))
+        projection_matrices = self._create_block_diagonal_projection_matrices(
+            self.spatial_dimension
+        )
+        self.register_parameter(
+            "projection_matrices",
+            torch.nn.Parameter(projection_matrices, requires_grad=False),
+        )
 
         self.edges = hyper_params.edges
-        assert self.edges in ["fully_connected", "radial_cutoff"], \
-            f'Edges type should be fully_connected or radial_cutoff. Got {self.edges}'
+        assert self.edges in [
+            "fully_connected",
+            "radial_cutoff",
+        ], f"Edges type should be fully_connected or radial_cutoff. Got {self.edges}"
 
         self.radial_cutoff = hyper_params.radial_cutoff
 
         if self.edges == "fully_connected":
-            assert self.radial_cutoff is None, "Specifying a radial cutoff is inconsistent with edges=fully_connected."
+            assert (
+                self.radial_cutoff is None
+            ), "Specifying a radial cutoff is inconsistent with edges=fully_connected."
         else:
-            assert type(self.radial_cutoff) is float, \
-                "A floating point value for the radial cutoff is needed for edges=radial_cutoff."
+            assert (
+                type(self.radial_cutoff) is float
+            ), "A floating point value for the radial cutoff is needed for edges=radial_cutoff."
 
         self.drop_duplicate_edges = hyper_params.drop_duplicate_edges
 
@@ -88,7 +101,9 @@ class EGNNScoreNetwork(ScoreNetwork):
         )
 
     @staticmethod
-    def _create_block_diagonal_projection_matrices(spatial_dimension: int) -> torch.Tensor:
+    def _create_block_diagonal_projection_matrices(
+        spatial_dimension: int,
+    ) -> torch.Tensor:
         """Create block diagonal projection matrices.
 
         This method creates the "Gamma" matrices that are needed to project the higher dimensional
@@ -108,11 +123,15 @@ class EGNNScoreNetwork(ScoreNetwork):
                 dimension [spatial_dimension, 2 x spatial_dimension, 2 x spatial_dimension].
         """
         zeros = torch.zeros(2, 2)
-        dimensional_projector = torch.tensor([[0., -1.], [1., 0.]])
+        dimensional_projector = torch.tensor([[0.0, -1.0], [1.0, 0.0]])
 
         projection_matrices = []
         for space_idx in range(spatial_dimension):
-            blocks = space_idx * [zeros] + [dimensional_projector] + (spatial_dimension - space_idx - 1) * [zeros]
+            blocks = (
+                space_idx * [zeros]
+                + [dimensional_projector]
+                + (spatial_dimension - space_idx - 1) * [zeros]
+            )
             projection_matrices.append(torch.block_diag(*blocks))
 
         return torch.stack(projection_matrices)
@@ -138,7 +157,9 @@ class EGNNScoreNetwork(ScoreNetwork):
         return repeated_sigmas
 
     @staticmethod
-    def _get_euclidean_positions(flat_relative_coordinates: torch.Tensor) -> torch.Tensor:
+    def _get_euclidean_positions(
+        flat_relative_coordinates: torch.Tensor,
+    ) -> torch.Tensor:
         """Get Euclidean positions.
 
         Get the positions that take points on the torus into a higher dimensional
@@ -168,19 +189,20 @@ class EGNNScoreNetwork(ScoreNetwork):
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         if self.edges == "fully_connected":
-            edges = get_edges_batch(
-                n_nodes=number_of_atoms, batch_size=batch_size
-            )
+            edges = get_edges_batch(n_nodes=number_of_atoms, batch_size=batch_size)
         else:
             edges = get_edges_with_radial_cutoff(
-                relative_coordinates, batch[UNIT_CELL], self.radial_cutoff,
-                drop_duplicate_edges=self.drop_duplicate_edges
+                relative_coordinates,
+                batch[UNIT_CELL],
+                self.radial_cutoff,
+                drop_duplicate_edges=self.drop_duplicate_edges,
             )
 
         edges = edges.to(relative_coordinates.device)
 
         flat_relative_coordinates = einops.rearrange(
-            relative_coordinates, "batch natom spatial_dimension -> (batch natom) spatial_dimension"
+            relative_coordinates,
+            "batch natom spatial_dimension -> (batch natom) spatial_dimension",
         )
 
         # Uplift the relative coordinates to the embedding Euclidean space.
@@ -201,13 +223,17 @@ class EGNNScoreNetwork(ScoreNetwork):
         #       - z is  the uplifted "positions" in the 2 x spatial_dimension Euclidean space
         #       - hat_z is the output of the EGNN model, also in 2 x spatial_dimension
         #       - Gamma^alpha are the projection matrices
-        flat_normalized_scores = einops.einsum(euclidean_positions, self.projection_matrices, raw_normalized_score,
-                                               "nodes i, alpha i j, nodes j-> nodes alpha")
+        flat_normalized_scores = einops.einsum(
+            euclidean_positions,
+            self.projection_matrices,
+            raw_normalized_score,
+            "nodes i, alpha i j, nodes j-> nodes alpha",
+        )
 
         normalized_scores = einops.rearrange(
             flat_normalized_scores,
             "(batch natoms) spatial_dimension -> batch natoms spatial_dimension",
             batch=batch_size,
-            natoms=number_of_atoms
+            natoms=number_of_atoms,
         )
         return normalized_scores

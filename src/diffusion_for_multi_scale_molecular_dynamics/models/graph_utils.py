@@ -1,14 +1,15 @@
 from typing import Tuple
 
 import torch
-from crystal_diffusion.utils.neighbors import (
+
+from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
     get_periodic_adjacency_information,
     shift_adjacency_matrix_indices_for_graph_batching)
 
 
-def get_adj_matrix(positions: torch.Tensor,
-                   basis_vectors: torch.Tensor,
-                   radial_cutoff: float = 4.0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def get_adj_matrix(
+    positions: torch.Tensor, basis_vectors: torch.Tensor, radial_cutoff: float = 4.0
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Create the adjacency and shift matrices.
 
     Args:
@@ -30,15 +31,17 @@ def get_adj_matrix(positions: torch.Tensor,
     """
     batch_size, number_of_atoms, spatial_dimensions = positions.shape
 
-    adjacency_info = get_periodic_adjacency_information(positions, basis_vectors, radial_cutoff)
+    adjacency_info = get_periodic_adjacency_information(
+        positions, basis_vectors, radial_cutoff
+    )
 
     # The indices in the adjacency matrix must be shifted to account for the batching
     # of multiple distinct structures into a single disconnected graph.
     adjacency_matrix = adjacency_info.adjacency_matrix
     number_of_edges = adjacency_info.number_of_edges
-    shifted_adjacency_matrix = shift_adjacency_matrix_indices_for_graph_batching(adjacency_matrix,
-                                                                                 number_of_edges,
-                                                                                 number_of_atoms)
+    shifted_adjacency_matrix = shift_adjacency_matrix_indices_for_graph_batching(
+        adjacency_matrix, number_of_edges, number_of_atoms
+    )
     shifts = adjacency_info.shifts
     batch_indices = adjacency_info.node_batch_indices
 

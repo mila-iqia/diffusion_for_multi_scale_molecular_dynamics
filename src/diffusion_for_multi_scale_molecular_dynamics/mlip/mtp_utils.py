@@ -13,13 +13,15 @@ from sklearn.metrics import mean_absolute_error
 @dataclass(kw_only=True)
 class MTPInputs:
     """Create a dataclass to train or evaluate a MTP model."""
+
     structure: List[Structure]
     forces: List[List[List[float]]]  # num samples x num atoms x spatial dimension
     energy: List[float]
 
 
-def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, Any], forces_avail: bool = True) -> \
-        Tuple[List[Structure], Optional[List[List[float]]]]:
+def extract_structure_and_forces_from_file(
+    filename: str, atom_dict: Dict[int, Any], forces_avail: bool = True
+) -> Tuple[List[Structure], Optional[List[List[float]]]]:
     """Convert LAMMPS yaml output in a format compatible with MTP training and evaluation methods.
 
     Args:
@@ -33,26 +35,34 @@ def extract_structure_and_forces_from_file(filename: str, atom_dict: Dict[int, A
     """
     structures = []
     forces = [] if forces_avail else None
-    with (open(filename, 'r') as f):
+    with open(filename, "r") as f:
         l_yaml = yaml.safe_load_all(f)
-        for d in l_yaml:  # loop over LAMMPS outputs and convert in pymatgen Structure objects
+        for (
+            d
+        ) in (
+            l_yaml
+        ):  # loop over LAMMPS outputs and convert in pymatgen Structure objects
             # lattice in yaml is 3 x 2 [0, x_lim]
             # we assume a rectangular lattice for now with the 2nd coordinates as the lattice vectors
             lattice = np.zeros((3, 3))
-            for i, x in enumerate(d['box']):
+            for i, x in enumerate(d["box"]):
                 lattice[i, i] = x[1]
-            type_idx = d['keywords'].index('type')
-            species = [atom_dict[x[type_idx]] for x in d['data']]  # convert to atom type
-            coords_idx = [d['keywords'].index(x) for x in ['x', 'y', 'z']]
-            coords = [[x[i] for i in coords_idx] for x in d['data']]
-            pm_structure = Structure(lattice=lattice,
-                                     species=species,
-                                     coords=coords,
-                                     coords_are_cartesian=True)
+            type_idx = d["keywords"].index("type")
+            species = [
+                atom_dict[x[type_idx]] for x in d["data"]
+            ]  # convert to atom type
+            coords_idx = [d["keywords"].index(x) for x in ["x", "y", "z"]]
+            coords = [[x[i] for i in coords_idx] for x in d["data"]]
+            pm_structure = Structure(
+                lattice=lattice,
+                species=species,
+                coords=coords,
+                coords_are_cartesian=True,
+            )
             structures.append(pm_structure)
             if forces_avail:
-                force_idx = [d['keywords'].index(x) for x in ['fx', 'fy', 'fz']]
-                structure_forces = [[x[i] for i in force_idx] for x in d['data']]
+                force_idx = [d["keywords"].index(x) for x in ["fx", "fy", "fz"]]
+                structure_forces = [[x[i] for i in force_idx] for x in d["data"]]
                 forces.append(structure_forces)
     return structures, forces
 
@@ -66,19 +76,20 @@ def extract_energy_from_thermo_log(filename: str) -> List[float]:
     Returns:
         list of energies (1 value per configuration)
     """
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         log_yaml = yaml.safe_load(f)
-        kin_idx = log_yaml['keywords'].index('KinEng')
-        pot_idx = log_yaml['keywords'].index('PotEng')
-        energies = [x[kin_idx] + x[pot_idx] for x in log_yaml['data']]
+        kin_idx = log_yaml["keywords"].index("KinEng")
+        pot_idx = log_yaml["keywords"].index("PotEng")
+        energies = [x[kin_idx] + x[pot_idx] for x in log_yaml["data"]]
     return energies
 
 
-def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
-                                   thermo_yaml: List[str],
-                                   atom_dict: Dict[int, Any],
-                                   get_forces: bool = True,
-                                   ) -> MTPInputs:
+def prepare_mtp_inputs_from_lammps(
+    output_yaml: List[str],
+    thermo_yaml: List[str],
+    atom_dict: Dict[int, Any],
+    get_forces: bool = True,
+) -> MTPInputs:
     """Convert a list of LAMMPS output files and thermodynamic output files to MTP input format.
 
     Args:
@@ -90,24 +101,26 @@ def prepare_mtp_inputs_from_lammps(output_yaml: List[str],
     Returns:
         dataclass used as inputs to train and evaluation a MTP model
     """
-    mtp_inputs = {
-        'structure': [],
-        'energy': [],
-        'forces': []
-    }
+    mtp_inputs = {"structure": [], "energy": [], "forces": []}
     for filename in output_yaml:
-        structures, forces = extract_structure_and_forces_from_file(filename, atom_dict, get_forces)
-        mtp_inputs['structure'] += structures
-        mtp_inputs['forces'] += forces  # will be None if get_forces is False
+        structures, forces = extract_structure_and_forces_from_file(
+            filename, atom_dict, get_forces
+        )
+        mtp_inputs["structure"] += structures
+        mtp_inputs["forces"] += forces  # will be None if get_forces is False
     for filename in thermo_yaml:
-        mtp_inputs['energy'] += extract_energy_from_thermo_log(filename)
-    mtp_inputs = MTPInputs(structure=mtp_inputs['structure'],
-                           energy=mtp_inputs['energy'],
-                           forces=mtp_inputs['forces'])
+        mtp_inputs["energy"] += extract_energy_from_thermo_log(filename)
+    mtp_inputs = MTPInputs(
+        structure=mtp_inputs["structure"],
+        energy=mtp_inputs["energy"],
+        forces=mtp_inputs["forces"],
+    )
     return mtp_inputs
 
 
-def crawl_lammps_directory(folder_name: str, folder_name_pattern: str = "train") -> Tuple[List[str], List[str]]:
+def crawl_lammps_directory(
+    folder_name: str, folder_name_pattern: str = "train"
+) -> Tuple[List[str], List[str]]:
     """Crawl through a folder and find the LAMMPS output files in folders containing a specified pattern in their name.
 
     LAMMPS outputs should end with dump.yaml and Thermondynamics variables files should end with thermo.yaml
@@ -124,8 +137,16 @@ def crawl_lammps_directory(folder_name: str, folder_name_pattern: str = "train")
     lammps_output_files, thermo_output_files = [], []
     for dirpath, _, filenames in os.walk(folder_name):
         if re.search(folder_name_pattern, dirpath):
-            lammps_output_files.extend([os.path.join(dirpath, f) for f in filenames if f.endswith("dump.yaml")])
-            thermo_output_files.extend([os.path.join(dirpath, f) for f in filenames if f.endswith("thermo.yaml")])
+            lammps_output_files.extend(
+                [os.path.join(dirpath, f) for f in filenames if f.endswith("dump.yaml")]
+            )
+            thermo_output_files.extend(
+                [
+                    os.path.join(dirpath, f)
+                    for f in filenames
+                    if f.endswith("thermo.yaml")
+                ]
+            )
     return lammps_output_files, thermo_output_files
 
 
@@ -142,12 +163,14 @@ def concat_mtp_inputs(input1: MTPInputs, input2: MTPInputs) -> MTPInputs:
     concat_inputs = MTPInputs(
         structure=input1.structure + input2.structure,
         forces=input1.forces + input2.forces,
-        energy=input1.energy + input2.energy
+        energy=input1.energy + input2.energy,
     )
     return concat_inputs
 
 
-def get_metrics_from_pred(df_orig: pd.DataFrame, df_predict: pd.DataFrame) -> Tuple[float, float]:
+def get_metrics_from_pred(
+    df_orig: pd.DataFrame, df_predict: pd.DataFrame
+) -> Tuple[float, float]:
     """Get mean absolute error on energy and forces from the outputs of MTP.
 
     Args:
@@ -159,14 +182,22 @@ def get_metrics_from_pred(df_orig: pd.DataFrame, df_predict: pd.DataFrame) -> Tu
     """
     # from demo in maml
     # get a single predicted energy per structure
-    predicted_energy = df_predict.groupby('structure_index').agg({'energy': 'mean', 'atom_index': 'count'})
+    predicted_energy = df_predict.groupby("structure_index").agg(
+        {"energy": "mean", "atom_index": "count"}
+    )
     # normalize by number of atoms
-    predicted_energy = (predicted_energy['energy'] / predicted_energy['atom_index']).to_numpy()
+    predicted_energy = (
+        predicted_energy["energy"] / predicted_energy["atom_index"]
+    ).to_numpy()
     # same for ground truth
-    gt_energy = df_orig.groupby('structure_index').agg({'energy': 'mean', 'atom_index': 'count'})
-    gt_energy = (gt_energy['energy'] / gt_energy['atom_index']).to_numpy()
+    gt_energy = df_orig.groupby("structure_index").agg(
+        {"energy": "mean", "atom_index": "count"}
+    )
+    gt_energy = (gt_energy["energy"] / gt_energy["atom_index"]).to_numpy()
 
-    predicted_forces = (df_predict[['fx', 'fy', 'fz']].to_numpy().flatten())
-    gt_forces = (df_orig[['fx', 'fy', 'fz']].to_numpy().flatten())
+    predicted_forces = df_predict[["fx", "fy", "fz"]].to_numpy().flatten()
+    gt_forces = df_orig[["fx", "fy", "fz"]].to_numpy().flatten()
 
-    return mean_absolute_error(predicted_energy, gt_energy), mean_absolute_error(predicted_forces, gt_forces)
+    return mean_absolute_error(predicted_energy, gt_energy), mean_absolute_error(
+        predicted_forces, gt_forces
+    )

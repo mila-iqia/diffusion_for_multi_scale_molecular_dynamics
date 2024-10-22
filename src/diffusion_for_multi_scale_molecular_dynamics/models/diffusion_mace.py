@@ -1,11 +1,6 @@
 from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 
 import torch
-from crystal_diffusion.models.mace_utils import (get_adj_matrix,
-                                                 reshape_from_e3nn_to_mace,
-                                                 reshape_from_mace_to_e3nn)
-from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
-                                         NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
 from e3nn import o3
 from e3nn.nn import Activation, BatchNorm, NormActivation
 from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
@@ -13,9 +8,15 @@ from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
 from mace.modules.utils import get_edge_vectors_and_lengths
 from torch_geometric.data import Data
 
+from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import (
+    get_adj_matrix, reshape_from_e3nn_to_mace, reshape_from_mace_to_e3nn)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    CARTESIAN_FORCES, NOISE, NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
+
 
 class LinearVectorReadoutBlock(torch.nn.Module):
     """Linear readout block for vector representation."""
+
     def __init__(self, irreps_in: o3.Irreps):
         """Init method."""
         super().__init__()
@@ -26,7 +27,9 @@ class LinearVectorReadoutBlock(torch.nn.Module):
         return self.linear(x)
 
 
-def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
+def input_to_diffusion_mace(
+    batch: Dict[AnyStr, torch.Tensor], radial_cutoff: float
+) -> Data:
     """Convert score network input to Diffusion MACE input.
 
     Args:
@@ -42,44 +45,61 @@ def input_to_diffusion_mace(batch: Dict[AnyStr, torch.Tensor], radial_cutoff: fl
 
     basis_vectors = batch[UNIT_CELL]  # batch, spatial_dimension, spatial_dimension
 
-    adj_matrix, shift_matrix, batch_tensor, num_edges = get_adj_matrix(positions=cartesian_positions,
-                                                                       basis_vectors=basis_vectors,
-                                                                       radial_cutoff=radial_cutoff)
+    adj_matrix, shift_matrix, batch_tensor, num_edges = get_adj_matrix(
+        positions=cartesian_positions,
+        basis_vectors=basis_vectors,
+        radial_cutoff=radial_cutoff,
+    )
 
     # node features are int corresponding to atom type
     # TODO handle different atom types
     atom_types = torch.zeros(batch_size * n_atom_per_graph)
-    node_attrs = torch.nn.functional.one_hot(atom_types.long(), num_classes=1).to(atom_types)
+    node_attrs = torch.nn.functional.one_hot(atom_types.long(), num_classes=1).to(
+        atom_types
+    )
     # The node diffusion scalars will be the diffusion noise sigma, which is constant for each structure in the batch.
     # We broadcast to each node to avoid complex broadcasting logic within the model itself.
     # TODO: it might be better to define the noise as a 'global' graph attribute, and find 'the right way' of
     #   mixing it with bona fide node features within the model.
-    noises = batch[NOISE] + 1  # [batch_size, 1]  - add 1 to avoid getting a zero at sigma=0 (initialization issues)
-    node_diffusion_scalars = noises.repeat_interleave(n_atom_per_graph, dim=0)  # [flat_batch_size, 1]
-    edge_diffusion_scalars = noises.repeat_interleave(num_edges.long().to(device=noises.device), dim=0)
+    noises = (
+        batch[NOISE] + 1
+    )  # [batch_size, 1]  - add 1 to avoid getting a zero at sigma=0 (initialization issues)
+    node_diffusion_scalars = noises.repeat_interleave(
+        n_atom_per_graph, dim=0
+    )  # [flat_batch_size, 1]
+    edge_diffusion_scalars = noises.repeat_interleave(
+        num_edges.long().to(device=noises.device), dim=0
+    )
 
     # [batchsize * natoms, spatial dimension]
     flat_cartesian_positions = cartesian_positions.view(-1, spatial_dimension)
 
     # pointer tensor that yields the first node index for each batch - this is a fixed tensor in our case
-    ptr = torch.arange(0, n_atom_per_graph * batch_size + 1, step=n_atom_per_graph)  # 0, natoms, 2 * natoms, ...
+    ptr = torch.arange(
+        0, n_atom_per_graph * batch_size + 1, step=n_atom_per_graph
+    )  # 0, natoms, 2 * natoms, ...
 
-    flat_basis_vectors = basis_vectors.view(-1, spatial_dimension)  # batch * spatial_dimension, spatial_dimension
+    flat_basis_vectors = basis_vectors.view(
+        -1, spatial_dimension
+    )  # batch * spatial_dimension, spatial_dimension
     # create the pytorch-geometric graph
 
-    forces = batch[CARTESIAN_FORCES].view(-1, spatial_dimension)  # batch * n_atom_per_graph, spatial dimension
+    forces = batch[CARTESIAN_FORCES].view(
+        -1, spatial_dimension
+    )  # batch * n_atom_per_graph, spatial dimension
 
-    graph_data = Data(edge_index=adj_matrix,
-                      node_attrs=node_attrs.to(device),
-                      node_diffusion_scalars=node_diffusion_scalars.to(device),
-                      edge_diffusion_scalars=edge_diffusion_scalars.to(device),
-                      positions=flat_cartesian_positions,
-                      ptr=ptr.to(device),
-                      batch=batch_tensor.to(device),
-                      shifts=shift_matrix,
-                      cell=flat_basis_vectors,
-                      forces=forces,
-                      )
+    graph_data = Data(
+        edge_index=adj_matrix,
+        node_attrs=node_attrs.to(device),
+        node_diffusion_scalars=node_diffusion_scalars.to(device),
+        edge_diffusion_scalars=edge_diffusion_scalars.to(device),
+        positions=flat_cartesian_positions,
+        ptr=ptr.to(device),
+        batch=batch_tensor.to(device),
+        shifts=shift_matrix,
+        cell=flat_basis_vectors,
+        forces=forces,
+    )
     return graph_data
 
 
@@ -90,6 +110,7 @@ class DiffusionMACE(torch.nn.Module):
         "MACE: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields"
     will be referenced in the comments as the PAPER.
     """
+
     def __init__(
         self,
         r_max: float,
@@ -116,9 +137,12 @@ class DiffusionMACE(torch.nn.Module):
         tanh_after_interaction: bool = True,
     ):
         """Init method."""
-        assert num_elements == 1, "only a single element can be used at this time. Set 'num_elements' to 1."
-        assert len(atomic_numbers) == 1, \
-            "only a single element can be used at this time. Set 'atomic_numbers' to length 1."
+        assert (
+            num_elements == 1
+        ), "only a single element can be used at this time. Set 'num_elements' to 1."
+        assert (
+            len(atomic_numbers) == 1
+        ), "only a single element can be used at this time. Set 'atomic_numbers' to length 1."
         super().__init__()
         self.register_buffer(
             "atomic_numbers", torch.tensor(atomic_numbers, dtype=torch.int64)
@@ -146,35 +170,47 @@ class DiffusionMACE(torch.nn.Module):
         number_of_node_scalar_dimensions = 1
         number_of_hidden_diffusion_scalar_dimensions = mlp_irreps.count(scalar_irrep)
 
-        diffusion_scalar_irreps_in = o3.Irreps([(number_of_node_scalar_dimensions, scalar_irrep)])
-        diffusion_scalar_irreps_out = o3.Irreps([(number_of_hidden_diffusion_scalar_dimensions, scalar_irrep)])
+        diffusion_scalar_irreps_in = o3.Irreps(
+            [(number_of_node_scalar_dimensions, scalar_irrep)]
+        )
+        diffusion_scalar_irreps_out = o3.Irreps(
+            [(number_of_hidden_diffusion_scalar_dimensions, scalar_irrep)]
+        )
 
         self.diffusion_scalar_embedding = torch.nn.Sequential()
-        linear = o3.Linear(irreps_in=diffusion_scalar_irreps_in,
-                           irreps_out=diffusion_scalar_irreps_out,
-                           biases=True)
+        linear = o3.Linear(
+            irreps_in=diffusion_scalar_irreps_in,
+            irreps_out=diffusion_scalar_irreps_out,
+            biases=True,
+        )
         self.diffusion_scalar_embedding.append(linear)
         non_linearity = Activation(irreps_in=diffusion_scalar_irreps_out, acts=[gate])
         for _ in range(number_of_mlp_layers):
             self.diffusion_scalar_embedding.append(non_linearity)
 
-            linear = o3.Linear(irreps_in=diffusion_scalar_irreps_out,
-                               irreps_out=diffusion_scalar_irreps_out,
-                               biases=True)
+            linear = o3.Linear(
+                irreps_in=diffusion_scalar_irreps_out,
+                irreps_out=diffusion_scalar_irreps_out,
+                biases=True,
+            )
             self.diffusion_scalar_embedding.append(linear)
 
         # The node_attr is the one-hot version of the atom types.
         node_attr_irreps = o3.Irreps([(num_elements, scalar_irrep)])
 
         # Perform a tensor product to mix the diffusion scalar and node attributes
-        self.attribute_mixing = o3.FullyConnectedTensorProduct(irreps_in1=diffusion_scalar_irreps_out,
-                                                               irreps_in2=node_attr_irreps,
-                                                               irreps_out=node_attr_irreps,
-                                                               irrep_normalization='norm')
+        self.attribute_mixing = o3.FullyConnectedTensorProduct(
+            irreps_in1=diffusion_scalar_irreps_out,
+            irreps_in2=node_attr_irreps,
+            irreps_out=node_attr_irreps,
+            irrep_normalization="norm",
+        )
 
         number_of_hidden_scalar_dimensions = hidden_irreps.count(scalar_irrep)
 
-        node_feats_irreps = o3.Irreps([(number_of_hidden_scalar_dimensions, scalar_irrep)])
+        node_feats_irreps = o3.Irreps(
+            [(number_of_hidden_scalar_dimensions, scalar_irrep)]
+        )
         # The "node embedding" corresponds to W^{(1)} in the definition of A^{(1)}, eq. 9 of the PAPER.
         self.node_embedding = LinearNodeEmbeddingBlock(
             irreps_in=node_attr_irreps, irreps_out=node_feats_irreps
@@ -190,18 +226,22 @@ class DiffusionMACE(torch.nn.Module):
         edge_feats_irreps = o3.Irreps([(self.radial_embedding.out_dim, scalar_irrep)])
 
         if num_edge_hidden_layers > 0:
-            self.edge_attribute_mixing = o3.FullyConnectedTensorProduct(irreps_in1=diffusion_scalar_irreps_out,
-                                                                        irreps_in2=edge_feats_irreps,
-                                                                        irreps_out=edge_hidden_irreps,
-                                                                        irrep_normalization='norm')
+            self.edge_attribute_mixing = o3.FullyConnectedTensorProduct(
+                irreps_in1=diffusion_scalar_irreps_out,
+                irreps_in2=edge_feats_irreps,
+                irreps_out=edge_hidden_irreps,
+                irrep_normalization="norm",
+            )
             self.edge_hidden_layers = torch.nn.Sequential()
             edge_non_linearity = Activation(irreps_in=edge_hidden_irreps, acts=[gate])
             for i in range(num_edge_hidden_layers):
                 if i != 0:
                     self.edge_hidden_layers.append(edge_non_linearity)
-                edge_hidden_layer = o3.Linear(irreps_in=edge_hidden_irreps,
-                                              irreps_out=edge_hidden_irreps,
-                                              biases=False)
+                edge_hidden_layer = o3.Linear(
+                    irreps_in=edge_hidden_irreps,
+                    irreps_out=edge_hidden_irreps,
+                    biases=False,
+                )
                 self.edge_hidden_layers.append(edge_hidden_layer)
         else:
             self.edge_attribute_mixing, self.edge_hidden_layers = None, None
@@ -209,7 +249,9 @@ class DiffusionMACE(torch.nn.Module):
 
         # The "spherical harmonics" correspond to Y_{lm} in the definition of A^{(1)}, eq. 9 of the PAPER.
         sh_irreps = o3.Irreps.spherical_harmonics(max_ell)
-        interaction_irreps = (sh_irreps * number_of_hidden_scalar_dimensions).sort()[0].simplify()
+        interaction_irreps = (
+            (sh_irreps * number_of_hidden_scalar_dimensions).sort()[0].simplify()
+        )
         self.spherical_harmonics = o3.SphericalHarmonics(
             sh_irreps, normalize=True, normalization="component"
         )
@@ -233,7 +275,9 @@ class DiffusionMACE(torch.nn.Module):
         self.interactions = torch.nn.ModuleList([inter])
 
         if tanh_after_interaction:
-            self.interactions_tanh = torch.nn.ModuleList([NormActivation(inter.target_irreps, torch.tanh)])
+            self.interactions_tanh = torch.nn.ModuleList(
+                [NormActivation(inter.target_irreps, torch.tanh)]
+            )
         else:
             self.interactions_tanh = None
 
@@ -261,9 +305,7 @@ class DiffusionMACE(torch.nn.Module):
 
         self.use_batchnorm = use_batchnorm
         if self.use_batchnorm:
-            self.batch_norms = torch.nn.ModuleList([
-                BatchNorm(node_feats_irreps)
-            ])
+            self.batch_norms = torch.nn.ModuleList([BatchNorm(node_feats_irreps)])
 
         hidden_irreps_out = hidden_irreps
 
@@ -282,7 +324,9 @@ class DiffusionMACE(torch.nn.Module):
             self.interactions.append(inter)
 
             if self.interactions_tanh is not None:
-                self.interactions_tanh.append(NormActivation(interaction_irreps, torch.tanh))
+                self.interactions_tanh.append(
+                    NormActivation(interaction_irreps, torch.tanh)
+                )
 
             # prod compute h^{(t+1)} from A^{(t)} and h^{(t)}, computing B and the messages internally.
             prod = EquivariantProductBasisBlock(
@@ -304,9 +348,9 @@ class DiffusionMACE(torch.nn.Module):
         # Apply a MLP with a bias on the forces as a conditional feature. This would be a 1o irrep
         forces_irreps_in = o3.Irreps("1x1o")
         forces_irreps_embedding = o3.Irreps(f"{condition_embedding_size}x1o")
-        self.condition_embedding_layer = o3.Linear(irreps_in=forces_irreps_in,
-                                                   irreps_out=forces_irreps_embedding,
-                                                   biases=False)  # can't have biases with 1o irreps
+        self.condition_embedding_layer = o3.Linear(
+            irreps_in=forces_irreps_in, irreps_out=forces_irreps_embedding, biases=False
+        )  # can't have biases with 1o irreps
 
         # conditional layers for the forces as a conditional feature to guide the diffusion
         self.conditional_layers = torch.nn.ModuleList([])
@@ -314,18 +358,24 @@ class DiffusionMACE(torch.nn.Module):
             cond_layer = o3.Linear(
                 irreps_in=forces_irreps_embedding,
                 irreps_out=hidden_irreps_out,
-                biases=False
+                biases=False,
             )
             self.conditional_layers.append(cond_layer)
 
-    def forward(self, data: Dict[str, torch.Tensor], conditional: bool = False) -> torch.Tensor:
+    def forward(
+        self, data: Dict[str, torch.Tensor], conditional: bool = False
+    ) -> torch.Tensor:
         """Forward method."""
         # Setup
 
         # Augment the node attributes with information from the diffusion scalar.
-        diffusion_scalar_embeddings = self.diffusion_scalar_embedding(data["node_diffusion_scalars"])
+        diffusion_scalar_embeddings = self.diffusion_scalar_embedding(
+            data["node_diffusion_scalars"]
+        )
         raw_node_attributes = data["node_attrs"]
-        augmented_node_attributes = self.attribute_mixing(diffusion_scalar_embeddings, raw_node_attributes)
+        augmented_node_attributes = self.attribute_mixing(
+            diffusion_scalar_embeddings, raw_node_attributes
+        )
 
         # Embeddings
         node_feats = self.node_embedding(augmented_node_attributes)
@@ -337,14 +387,20 @@ class DiffusionMACE(torch.nn.Module):
         edge_attrs = self.spherical_harmonics(vectors)
         edge_feats = self.radial_embedding(lengths)
         if self.edge_attribute_mixing is not None:
-            edge_diffusion_scalar_embeddings = self.diffusion_scalar_embedding(data["edge_diffusion_scalars"])
-            augmented_edge_attributes = self.edge_attribute_mixing(edge_diffusion_scalar_embeddings, edge_feats)
+            edge_diffusion_scalar_embeddings = self.diffusion_scalar_embedding(
+                data["edge_diffusion_scalars"]
+            )
+            augmented_edge_attributes = self.edge_attribute_mixing(
+                edge_diffusion_scalar_embeddings, edge_feats
+            )
             edge_feats = self.edge_hidden_layers(augmented_edge_attributes)
 
-        forces_embedding = self.condition_embedding_layer(data["forces"])  # 0e + 1o embedding
+        forces_embedding = self.condition_embedding_layer(
+            data["forces"]
+        )  # 0e + 1o embedding
 
         for i, (interaction, product, cond_layer) in enumerate(
-                zip(self.interactions, self.products, self.conditional_layers)
+            zip(self.interactions, self.products, self.conditional_layers)
         ):
             if self.use_batchnorm:
                 node_feats = self.batch_norms[i](node_feats)
@@ -359,18 +415,24 @@ class DiffusionMACE(torch.nn.Module):
 
             if self.interactions_tanh is not None:
                 # reshape from (node, channels, (l_max + 1)**2) to a (node, -1) tensor compatible with e3nn
-                node_feats = reshape_from_mace_to_e3nn(node_feats, self.interactions_tanh[i].irreps_in)
+                node_feats = reshape_from_mace_to_e3nn(
+                    node_feats, self.interactions_tanh[i].irreps_in
+                )
                 # apply non-linearity
                 node_feats = self.interactions_tanh[i](node_feats)
                 # reshape from e3nn shape to mace format (node, channels, (l_max+1)**2)
-                node_feats = reshape_from_e3nn_to_mace(node_feats, self.interactions_tanh[i].irreps_out)
+                node_feats = reshape_from_e3nn_to_mace(
+                    node_feats, self.interactions_tanh[i].irreps_out
+                )
 
             node_feats = product(
                 node_feats=node_feats,
                 sc=sc,
                 node_attrs=augmented_node_attributes,
             )
-            if conditional:  # modify the node features to account for the conditional features i.e. forces
+            if (
+                conditional
+            ):  # modify the node features to account for the conditional features i.e. forces
                 force_embed = cond_layer(forces_embedding)
                 node_feats += force_embed
 

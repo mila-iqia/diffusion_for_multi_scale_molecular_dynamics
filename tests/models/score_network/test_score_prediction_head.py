@@ -1,11 +1,12 @@
 import pytest
 import torch
-from crystal_diffusion.models.mace_utils import \
+from e3nn import o3
+
+from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import \
     build_mace_output_nodes_irreducible_representation
-from crystal_diffusion.models.score_networks.score_prediction_head import (
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHead,
     MaceEquivariantScorePredictionHeadParameters)
-from e3nn import o3
 
 
 class TestMaceEquivariantScorePredictionHead:
@@ -33,17 +34,23 @@ class TestMaceEquivariantScorePredictionHead:
     @pytest.fixture()
     def output_node_features_irreps(self, hidden_irreps_string, num_interactions):
         output_node_features_irreps = (
-            build_mace_output_nodes_irreducible_representation(hidden_irreps_string, num_interactions))
+            build_mace_output_nodes_irreducible_representation(
+                hidden_irreps_string, num_interactions
+            )
+        )
         return output_node_features_irreps
 
     @pytest.fixture()
     def parameters(self):
-        return MaceEquivariantScorePredictionHeadParameters(time_embedding_irreps="4x0e",
-                                                            number_of_layers=2)
+        return MaceEquivariantScorePredictionHeadParameters(
+            time_embedding_irreps="4x0e", number_of_layers=2
+        )
 
     @pytest.fixture()
     def prediction_head(self, output_node_features_irreps, parameters):
-        head = MaceEquivariantScorePredictionHead(output_node_features_irreps, parameters)
+        head = MaceEquivariantScorePredictionHead(
+            output_node_features_irreps, parameters
+        )
         head.eval()
         return head
 
@@ -56,12 +63,19 @@ class TestMaceEquivariantScorePredictionHead:
         return torch.repeat_interleave(times, number_of_atoms).reshape(-1, 1)
 
     @pytest.fixture()
-    def flat_node_features(self, batch_size, number_of_atoms, output_node_features_irreps):
+    def flat_node_features(
+        self, batch_size, number_of_atoms, output_node_features_irreps
+    ):
         flat_batch_size = batch_size * number_of_atoms
         return output_node_features_irreps.randn(flat_batch_size, -1)
 
-    def test_predictions_are_equivariant(self, prediction_head, flat_node_features,
-                                         flat_times, output_node_features_irreps):
+    def test_predictions_are_equivariant(
+        self,
+        prediction_head,
+        flat_node_features,
+        flat_times,
+        output_node_features_irreps,
+    ):
 
         vector_irreps = o3.Irreps("1x1o")
         random_rotation = o3.rand_matrix()

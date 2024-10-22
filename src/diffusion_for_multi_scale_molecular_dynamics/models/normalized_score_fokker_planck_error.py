@@ -2,13 +2,16 @@ from typing import Callable
 
 import einops
 import torch
-from crystal_diffusion.models.score_networks import ScoreNetwork
-from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
-                                         NOISY_RELATIVE_COORDINATES, TIME,
-                                         UNIT_CELL)
-from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
-from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
 from torch.func import jacrev
+
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
+    ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.samplers.exploding_variance import \
+    ExplodingVariance
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
 
 
 class NormalizedScoreFokkerPlanckError(torch.nn.Module):
@@ -253,9 +256,9 @@ class NormalizedScoreFokkerPlanckError(torch.nn.Module):
         list_errors = []
         for x, t, c in zip(relative_coordinates, times, unit_cells):
             # Iterate over the elements of the batch. In effect, compute over "batch_size = 1" tensors.
-            errors = self.get_normalized_score_fokker_planck_error(x.unsqueeze(0),
-                                                                   t.unsqueeze(0),
-                                                                   c.unsqueeze(0)).squeeze(0)
+            errors = self.get_normalized_score_fokker_planck_error(
+                x.unsqueeze(0), t.unsqueeze(0), c.unsqueeze(0)
+            ).squeeze(0)
             list_errors.append(errors)
 
         return torch.stack(list_errors)

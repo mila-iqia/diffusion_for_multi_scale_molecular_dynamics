@@ -1,9 +1,10 @@
 from dataclasses import asdict, dataclass
 from typing import Any, AnyStr, Dict, Union
 
-from crystal_diffusion.utils.configuration_parsing import \
-    create_parameters_from_configuration_dictionary
 from torch import optim
+
+from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing import \
+    create_parameters_from_configuration_dictionary
 
 
 @dataclass(kw_only=True)

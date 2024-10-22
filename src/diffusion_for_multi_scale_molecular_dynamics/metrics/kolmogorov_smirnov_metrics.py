@@ -56,9 +56,12 @@ class KolmogorovSmirnovMetrics:
         reference_samples = self.reference_samples_metric.compute()
         predicted_samples = self.predicted_samples_metric.compute()
 
-        test_result = ss.ks_2samp(predicted_samples.detach().cpu().numpy(),
-                                  reference_samples.detach().cpu().numpy(),
-                                  alternative='two-sided', method='auto')
+        test_result = ss.ks_2samp(
+            predicted_samples.detach().cpu().numpy(),
+            reference_samples.detach().cpu().numpy(),
+            alternative="two-sided",
+            method="auto",
+        )
 
         # The "test statistic" of the two-sided KS test is the largest vertical distance between
         # the empirical CDFs of the two samples. The larger this is, the less likely the two

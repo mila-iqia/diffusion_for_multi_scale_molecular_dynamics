@@ -3,7 +3,9 @@ from typing import Tuple
 import torch
 
 
-def broadcast_batch_tensor_to_all_dimensions(batch_values: torch.Tensor, final_shape: Tuple[int, ...]) -> torch.Tensor:
+def broadcast_batch_tensor_to_all_dimensions(
+    batch_values: torch.Tensor, final_shape: Tuple[int, ...]
+) -> torch.Tensor:
     """Broadcast batch tensor to all dimensions.
 
     A data batch is typically a tensor of shape [batch_size, n1, n2, ...] where n1, n2, etc constitute
@@ -21,10 +23,14 @@ def broadcast_batch_tensor_to_all_dimensions(batch_values: torch.Tensor, final_s
         broadcast_values : tensor of shape [batch_size, n1, n2, ...], where all entries are identical
             along non-batch dimensions.
     """
-    assert len(batch_values.shape) == 1, "The batch values should be a one-dimensional tensor."
+    assert (
+        len(batch_values.shape) == 1
+    ), "The batch values should be a one-dimensional tensor."
     batch_size = len(batch_values)
 
-    assert final_shape[0] == batch_size, "The final shape should have the batch_size as its first dimension."
+    assert (
+        final_shape[0] == batch_size
+    ), "The final shape should have the batch_size as its first dimension."
 
     # reshape the batch_values array to have the same dimension as final_shape, with all values identical
     # for a given batch index.

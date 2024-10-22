@@ -29,7 +29,9 @@ def get_run_name(hyper_params: Dict[AnyStr, Any]) -> str:
     return run_name
 
 
-def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -> List[Logger]:
+def create_all_loggers(
+    hyper_params: Dict[AnyStr, Any], output_directory: str
+) -> List[Logger]:
     """Create all loggers.
 
     This method instantiates all machine learning loggers defined in `hyper_params`.
@@ -49,18 +51,18 @@ def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -
 
     full_run_name = f"{experiment_name}/{run_name}"
 
-    for logger_name in hyper_params.get('logging', []):
+    for logger_name in hyper_params.get("logging", []):
 
         match logger_name:
             case "csv":
-                logger = CSVLogger(save_dir=output_directory,
-                                   name="csv_logs")
+                logger = CSVLogger(save_dir=output_directory, name="csv_logs")
             case "tensorboard":
-                logger = TensorBoardLogger(save_dir=output_directory,
-                                           default_hp_metric=False,
-                                           name="tensorboard_logs",
-                                           version=0,  # Necessary to resume tensorboard logging
-                                           )
+                logger = TensorBoardLogger(
+                    save_dir=output_directory,
+                    default_hp_metric=False,
+                    name="tensorboard_logs",
+                    version=0,  # Necessary to resume tensorboard logging
+                )
             case "comet":
                 # The comet logger will read the API key from ~/.comet.logger.
 
@@ -73,20 +75,25 @@ def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -
                 #   - when resuming an experiment, read the experiment key from the yaml file.
                 #   --> The presence or absence of this yaml file will serve as a signal of whether are starting
                 #       from scratch or resuming.
-                experiment_key = read_and_validate_comet_experiment_key(full_run_name=full_run_name,
-                                                                        output_directory=output_directory)
+                experiment_key = read_and_validate_comet_experiment_key(
+                    full_run_name=full_run_name, output_directory=output_directory
+                )
 
                 # if 'experiment_key' is None, a new Comet Experiment will be created. If it is not None,
                 # an ExistingExperiment will be created in order to resume logging.
-                logger = CometLogger(project_name='institut-courtois',      # hardcoding the project.
-                                     save_dir=output_directory,
-                                     experiment_key=experiment_key,
-                                     experiment_name=full_run_name)
+                logger = CometLogger(
+                    project_name="institut-courtois",  # hardcoding the project.
+                    save_dir=output_directory,
+                    experiment_key=experiment_key,
+                    experiment_name=full_run_name,
+                )
                 if experiment_key is None:
                     experiment_key = logger.version
-                    write_comet_experiment_key(experiment_key=experiment_key,
-                                               full_run_name=full_run_name,
-                                               output_directory=output_directory)
+                    write_comet_experiment_key(
+                        experiment_key=experiment_key,
+                        full_run_name=full_run_name,
+                        output_directory=output_directory,
+                    )
 
             case other:
                 raise ValueError(f"Logger {other} is not implemented. Review input")
@@ -96,7 +103,9 @@ def create_all_loggers(hyper_params: Dict[AnyStr, Any], output_directory: str) -
     return all_loggers
 
 
-def write_comet_experiment_key(experiment_key: str, full_run_name: str, output_directory: str):
+def write_comet_experiment_key(
+    experiment_key: str, full_run_name: str, output_directory: str
+):
     """Write comet experiment key.
 
     Args:
@@ -108,11 +117,13 @@ def write_comet_experiment_key(experiment_key: str, full_run_name: str, output_d
         No returns.
     """
     data = {full_run_name: experiment_key}
-    with open(os.path.join(output_directory, "comet_experiment_key.yaml"), 'w') as fd:
+    with open(os.path.join(output_directory, "comet_experiment_key.yaml"), "w") as fd:
         yaml.dump(data, fd)
 
 
-def read_and_validate_comet_experiment_key(full_run_name: str, output_directory: str) -> Union[str, None]:
+def read_and_validate_comet_experiment_key(
+    full_run_name: str, output_directory: str
+) -> Union[str, None]:
     """Read and validate Comet's experiment key.
 
     Args:
@@ -127,16 +138,23 @@ def read_and_validate_comet_experiment_key(full_run_name: str, output_directory:
     if os.path.isfile(key_file):
         with open(key_file) as fd:
             data = yaml.load(fd, Loader=yaml.FullLoader)
-            assert full_run_name in data, (f"The experiment full name is {full_run_name}; this is not the full name "
-                                           f"that was used to initially generate this experiment. "
-                                           f"Something is inconsistent and requires a manual fix.")
+            assert full_run_name in data, (
+                f"The experiment full name is {full_run_name}; this is not the full name "
+                f"that was used to initially generate this experiment. "
+                f"Something is inconsistent and requires a manual fix."
+            )
             experiment_key = data[full_run_name]
 
     return experiment_key
 
 
-def log_figure(figure: plt.figure, global_step: int, pl_logger: Logger,
-               dataset: str = "train", name: str = "samples") -> None:
+def log_figure(
+    figure: plt.figure,
+    global_step: int,
+    pl_logger: Logger,
+    dataset: str = "train",
+    name: str = "samples",
+) -> None:
     """Log figure.
 
     Args:
@@ -150,14 +168,20 @@ def log_figure(figure: plt.figure, global_step: int, pl_logger: Logger,
         No return
     """
     if type(pl_logger) is CometLogger:
-        pl_logger.experiment.log_figure(figure_name=f"{dataset}/{name}", figure=figure, step=global_step)
+        pl_logger.experiment.log_figure(
+            figure_name=f"{dataset}/{name}", figure=figure, step=global_step
+        )
     elif type(pl_logger) is TensorBoardLogger:
-        pl_logger.experiment.add_figure(f"{dataset}/{name}", figure, global_step=global_step)
+        pl_logger.experiment.add_figure(
+            f"{dataset}/{name}", figure, global_step=global_step
+        )
     elif type(pl_logger) is CSVLogger:
         # perform a deepcopy to prevent blanking the figure after writing to disk
         fig = deepcopy(figure)
-        figure_directory = os.path.join(pl_logger.root_dir, 'figures')
+        figure_directory = os.path.join(pl_logger.root_dir, "figures")
         os.makedirs(figure_directory, exist_ok=True)
-        figure_path = os.path.join(figure_directory, f"{dataset}_{name}_step={global_step}.png")
+        figure_path = os.path.join(
+            figure_directory, f"{dataset}_{name}_step={global_step}.png"
+        )
         fig.savefig(figure_path)
         del fig

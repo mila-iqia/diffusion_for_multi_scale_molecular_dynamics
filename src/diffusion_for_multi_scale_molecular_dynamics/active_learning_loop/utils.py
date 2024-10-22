@@ -3,12 +3,13 @@ from typing import List, Optional
 import pandas as pd
 
 
-def get_structures_for_retraining(prediction_df: pd.DataFrame,
-                                  criteria_threshold: Optional[float] = None,
-                                  number_of_structures: Optional[int] = None,
-                                  evaluation_criteria: str = 'nbh_grades',
-                                  structure_index: str = 'structure_index'
-                                  ) -> List[pd.DataFrame]:
+def get_structures_for_retraining(
+    prediction_df: pd.DataFrame,
+    criteria_threshold: Optional[float] = None,
+    number_of_structures: Optional[int] = None,
+    evaluation_criteria: str = "nbh_grades",
+    structure_index: str = "structure_index",
+) -> List[pd.DataFrame]:
     """Find the structures with the worst value of the evaluation criteria.
 
     Args:
@@ -27,26 +28,39 @@ def get_structures_for_retraining(prediction_df: pd.DataFrame,
         list of the structures with a bad evaluation criteria. Length of the list depends on criteria_threhold and
             number_of_structures.
     """
-    assert criteria_threshold is not None or number_of_structures is not None, \
-        "criteria_threshold or number_of_structures should be set."
+    assert (
+        criteria_threshold is not None or number_of_structures is not None
+    ), "criteria_threshold or number_of_structures should be set."
     # get the highest evaluation_criteria for each structure i.e. only the worst atom counts for structure selection
-    criteria_by_structure = prediction_df[[evaluation_criteria, structure_index]].groupby(structure_index).max()
+    criteria_by_structure = (
+        prediction_df[[evaluation_criteria, structure_index]]
+        .groupby(structure_index)
+        .max()
+    )
     # find the top number_of_structures
-    structures_indices = criteria_by_structure.sort_values(by=evaluation_criteria, ascending=False)
+    structures_indices = criteria_by_structure.sort_values(
+        by=evaluation_criteria, ascending=False
+    )
     if criteria_threshold is not None:
-        structures_indices = structures_indices[structures_indices[evaluation_criteria] >= criteria_threshold]
+        structures_indices = structures_indices[
+            structures_indices[evaluation_criteria] >= criteria_threshold
+        ]
     structures_indices = structures_indices.index.to_list()
     if number_of_structures is not None:
         structures_indices = structures_indices[:number_of_structures]
     structures_to_retrain = []
     for idx in structures_indices:
-        structures_to_retrain.append(prediction_df[prediction_df[structure_index] == idx])
+        structures_to_retrain.append(
+            prediction_df[prediction_df[structure_index] == idx]
+        )
     return structures_to_retrain
 
 
-def extract_target_region(structure_df: pd.DataFrame,
-                          extraction_radius: float,
-                          evaluation_criteria: str = 'nbh_grades') -> pd.DataFrame:
+def extract_target_region(
+    structure_df: pd.DataFrame,
+    extraction_radius: float,
+    evaluation_criteria: str = "nbh_grades",
+) -> pd.DataFrame:
     """Extract the atom with the worst evaluation criteria and all the atoms within a distance extraction_radious.
 
     Args:
@@ -60,9 +74,13 @@ def extract_target_region(structure_df: pd.DataFrame,
     # extract the worst ato and a region around of radius extraction_radius
     # TODO better method to determine radius: number of atoms ?
     target_atom = structure_df[evaluation_criteria].idxmax()
-    target_position = structure_df.loc[target_atom][['x', 'y', 'z']]
+    target_position = structure_df.loc[target_atom][["x", "y", "z"]]
     # TODO periodicity...
-    structure_df.loc[:, 'distance_squared'] = structure_df.apply(
-        lambda x: sum([(x[i] - target_position[i]) ** 2 for i in ['x', 'y', 'z']]), axis=1)
-    atom_positions = structure_df.loc[structure_df['distance_squared'] <= extraction_radius ** 2, ['x', 'y', 'z']]
+    structure_df.loc[:, "distance_squared"] = structure_df.apply(
+        lambda x: sum([(x[i] - target_position[i]) ** 2 for i in ["x", "y", "z"]]),
+        axis=1,
+    )
+    atom_positions = structure_df.loc[
+        structure_df["distance_squared"] <= extraction_radius**2, ["x", "y", "z"]
+    ]
     return atom_positions

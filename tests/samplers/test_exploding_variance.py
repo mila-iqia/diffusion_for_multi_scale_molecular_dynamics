@@ -1,7 +1,10 @@
 import pytest
 import torch
-from crystal_diffusion.samplers.exploding_variance import ExplodingVariance
-from src.crystal_diffusion.samplers.variance_sampler import NoiseParameters
+
+from diffusion_for_multi_scale_molecular_dynamics.samplers.exploding_variance import \
+    ExplodingVariance
+from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    NoiseParameters
 
 
 class TestExplodingVariance:
@@ -20,9 +23,9 @@ class TestExplodingVariance:
 
     @pytest.fixture()
     def noise_parameters(self, sigma_min, sigma_max):
-        return NoiseParameters(total_time_steps=10,
-                               sigma_min=sigma_min,
-                               sigma_max=sigma_max)
+        return NoiseParameters(
+            total_time_steps=10, sigma_min=sigma_min, sigma_max=sigma_max
+        )
 
     @pytest.fixture()
     def times(self):
@@ -36,7 +39,9 @@ class TestExplodingVariance:
     def expected_sigmas(self, noise_parameters, times):
         expected_sigmas = []
         for t in times:
-            sigma = noise_parameters.sigma_min**(1. - t) * noise_parameters.sigma_max**t
+            sigma = (
+                noise_parameters.sigma_min ** (1.0 - t) * noise_parameters.sigma_max**t
+            )
             expected_sigmas.append(sigma)
 
         return torch.tensor(expected_sigmas)
@@ -63,7 +68,7 @@ class TestExplodingVariance:
         t = torch.tensor(times, requires_grad=True)
         sigma = exploding_variance.get_sigma(t)
 
-        sigma_squared = sigma ** 2
+        sigma_squared = sigma**2
 
         gradients = torch.ones_like(sigma_squared)
         sigma_squared.backward(gradients)

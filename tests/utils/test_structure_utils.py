@@ -1,8 +1,9 @@
 import pytest
 import torch
-from crystal_diffusion.utils.basis_transformations import \
+
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_positions_from_coordinates
-from crystal_diffusion.utils.structure_utils import (
+from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import (
     compute_distances, compute_distances_in_batch,
     get_orthogonal_basis_vectors)
 

@@ -4,31 +4,36 @@ The goal of this module is to compute list of neighbors within a given cutoff fo
 for positions in the unit cell of a periodic structure. The aim is to do this
 efficiently on the GPU without CPU-GPU communications.
 """
+
 import itertools
 from collections import namedtuple
 
 import numpy as np
 import torch
-from crystal_diffusion.utils.basis_transformations import \
-    get_positions_from_coordinates
 from pykeops.torch import LazyTensor
+
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    get_positions_from_coordinates
 
 INDEX_PADDING_VALUE = -1
 POSITION_PADDING_VALUE = np.NaN
 
 
-AdjacencyInfo = namedtuple(typename="AdjacencyInfo",
-                           field_names=["adjacency_matrix",  # Adjacency matrix, in  COO format
-                                        "shifts",  # lattice vector shifts when computing neighbor distances
-                                        "edge_batch_indices",  # original batch index of each edge.
-                                        "node_batch_indices",  # original batch index of each node.
-                                        "number_of_edges",  # number of edges in each batch element.
-                                        ])
+AdjacencyInfo = namedtuple(
+    typename="AdjacencyInfo",
+    field_names=[
+        "adjacency_matrix",  # Adjacency matrix, in  COO format
+        "shifts",  # lattice vector shifts when computing neighbor distances
+        "edge_batch_indices",  # original batch index of each edge.
+        "node_batch_indices",  # original batch index of each node.
+        "number_of_edges",  # number of edges in each batch element.
+    ],
+)
 
 
-def get_periodic_adjacency_information(cartesian_positions: torch.Tensor,
-                                       basis_vectors: torch.Tensor,
-                                       radial_cutoff: float) -> AdjacencyInfo:
+def get_periodic_adjacency_information(
+    cartesian_positions: torch.Tensor, basis_vectors: torch.Tensor, radial_cutoff: float
+) -> AdjacencyInfo:
     """Get periodic adjacency information.
 
     This method computes all the neighbors within the radial cutoff, accounting for periodicity, and returns
@@ -73,15 +78,23 @@ def get_periodic_adjacency_information(cartesian_positions: torch.Tensor,
             * the batch indices for each node
             * the number of edges for each structure in the batch.
     """
-    assert len(cartesian_positions.shape) == 3, "Wrong number of dimensions for relative_coordinates"
+    assert (
+        len(cartesian_positions.shape) == 3
+    ), "Wrong number of dimensions for relative_coordinates"
     assert len(basis_vectors.shape) == 3, "Wrong number of dimensions for basis_vectors"
 
     spatial_dimension = 3  # We define this to avoid "magic numbers" in the code below.
     batch_size, max_natom, spatial_dimension_ = cartesian_positions.shape
-    assert spatial_dimension_ == spatial_dimension, "Wrong spatial dimension for relative_coordinates "
-    assert basis_vectors.shape == (batch_size, spatial_dimension, spatial_dimension), "Wrong shape for basis vectors"
+    assert (
+        spatial_dimension_ == spatial_dimension
+    ), "Wrong spatial dimension for relative_coordinates "
+    assert basis_vectors.shape == (
+        batch_size,
+        spatial_dimension,
+        spatial_dimension,
+    ), "Wrong shape for basis vectors"
 
-    assert radial_cutoff > 0., "The radial cutoff should be greater than zero"
+    assert radial_cutoff > 0.0, "The radial cutoff should be greater than zero"
 
     device = cartesian_positions.device
 
@@ -89,19 +102,26 @@ def get_periodic_adjacency_information(cartesian_positions: torch.Tensor,
     zero = torch.tensor(0.0).to(device)
 
     # Check that the radial cutoff does not lead to possible neighbors beyond the first shell.
-    shortest_cell_crossing_distances = _get_shortest_distance_that_crosses_unit_cell(basis_vectors)
-    assert torch.all(shortest_cell_crossing_distances > radial_cutoff), \
-        ("The radial cutoff is so large that neighbors could be located "
-         "beyond the first shell of periodic unit cell images.")
+    shortest_cell_crossing_distances = _get_shortest_distance_that_crosses_unit_cell(
+        basis_vectors
+    )
+    assert torch.all(shortest_cell_crossing_distances > radial_cutoff), (
+        "The radial cutoff is so large that neighbors could be located "
+        "beyond the first shell of periodic unit cell images."
+    )
 
     # The relative coordinates lattice vectors have dimensions [number of lattice vectors, spatial_dimension]
-    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(number_of_shells=1).to(device)
+    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(
+        number_of_shells=1
+    ).to(device)
     number_of_relative_lattice_vectors = len(relative_lattice_vectors)
 
     # Repeat the relative lattice vectors along the batch dimension; the basis vectors could potentially be
     # different for every batch element.
     batched_relative_lattice_vectors = relative_lattice_vectors.repeat(batch_size, 1, 1)
-    lattice_vectors = get_positions_from_coordinates(batched_relative_lattice_vectors, basis_vectors)
+    lattice_vectors = get_positions_from_coordinates(
+        batched_relative_lattice_vectors, basis_vectors
+    )
 
     # The shifted_positions are composed of the positions, which are located within the unit cell, shifted by
     # the various lattice vectors.
@@ -130,9 +150,18 @@ def get_periodic_adjacency_information(cartesian_positions: torch.Tensor,
     #
     # From the point of view of KeOps, the first 2 dimensions are "batch dimensions". The KeOps 'virtual' dimensions
     # are dim 2 and 3, which both corresponds to 'max_natom'.
-    x_i = LazyTensor(cartesian_positions.view(batch_size, 1, max_natom, 1, spatial_dimension))
-    x_j = LazyTensor(shifted_positions.view(batch_size, number_of_relative_lattice_vectors, 1,
-                                            max_natom, spatial_dimension))
+    x_i = LazyTensor(
+        cartesian_positions.view(batch_size, 1, max_natom, 1, spatial_dimension)
+    )
+    x_j = LazyTensor(
+        shifted_positions.view(
+            batch_size,
+            number_of_relative_lattice_vectors,
+            1,
+            max_natom,
+            spatial_dimension,
+        )
+    )
 
     # Symbolic matrix of squared distances
     #  Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_natom]
@@ -141,20 +170,26 @@ def get_periodic_adjacency_information(cartesian_positions: torch.Tensor,
     # Identify the number of neighbors within the cutoff distance for every atom.
     # This triggers a real computation, which involves a 'compilation' the first time around.
     # This compilation time is only paid once per code execution.
-    max_k_array = (d_ij <= radial_cutoff**2).sum_reduction(dim=3)  # sum on "j", the second 'virtual' dimension.
+    max_k_array = (d_ij <= radial_cutoff**2).sum_reduction(
+        dim=3
+    )  # sum on "j", the second 'virtual' dimension.
 
     # This is the maximum number of neighbors for any atom in any structure in the batch.
     # Going forward, there is no need to look beyond this number of neighbors.
     max_number_of_neighbors = int(max_k_array.max())
 
     # Use KeOps KNN functionalities to find neighbors and their indices.
-    squared_distances, dst_indices = d_ij.Kmin_argKmin(K=max_number_of_neighbors, dim=3)  # find neighbors along "j"
+    squared_distances, dst_indices = d_ij.Kmin_argKmin(
+        K=max_number_of_neighbors, dim=3
+    )  # find neighbors along "j"
     # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
     # The 'dst_indices' array corresponds to KeOps first 'virtual' dimension (the "i" dimension). This goes from
     # 0 to max_atom - 1 and correspond to atom indices (specifically, destination indices!).
 
     # Identify neighbors within the radial_cutoff, but avoiding self.
-    valid_neighbor_mask = torch.logical_and(zero < squared_distances, squared_distances <= radial_cutoff**2)
+    valid_neighbor_mask = torch.logical_and(
+        zero < squared_distances, squared_distances <= radial_cutoff**2
+    )
     # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
 
     # Combine all the non-batch dimensions to obtain the maximum number of edges per batch element
@@ -174,19 +209,22 @@ def get_periodic_adjacency_information(cartesian_positions: torch.Tensor,
 
     adjacency_matrix_coo_format = torch.stack([source_indices, destination_indices])
 
-    lattice_vector_shifts = _get_vectors_from_multiple_indices(lattice_vectors,
-                                                               edge_batch_indices,
-                                                               lattice_vector_indices)
+    lattice_vector_shifts = _get_vectors_from_multiple_indices(
+        lattice_vectors, edge_batch_indices, lattice_vector_indices
+    )
 
-    return AdjacencyInfo(adjacency_matrix=adjacency_matrix_coo_format,
-                         shifts=lattice_vector_shifts,
-                         edge_batch_indices=edge_batch_indices,
-                         node_batch_indices=torch.repeat_interleave(torch.arange(batch_size), max_natom),
-                         number_of_edges=number_of_edges)
+    return AdjacencyInfo(
+        adjacency_matrix=adjacency_matrix_coo_format,
+        shifts=lattice_vector_shifts,
+        edge_batch_indices=edge_batch_indices,
+        node_batch_indices=torch.repeat_interleave(torch.arange(batch_size), max_natom),
+        number_of_edges=number_of_edges,
+    )
 
 
-def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1,
-                                              spatial_dimension: int = 3) -> torch.Tensor:
+def _get_relative_coordinates_lattice_vectors(
+    number_of_shells: int = 1, spatial_dimension: int = 3
+) -> torch.Tensor:
     """Get relative coordinates lattice vectors.
 
     Get all the lattice vectors in relative coordinates from -number_of_shells to +number_of_shells,
@@ -199,12 +237,16 @@ def _get_relative_coordinates_lattice_vectors(number_of_shells: int = 1,
         list_relative_lattice_vectors : all the lattice vectors in relative coordinates (ie, integers).
     """
     shifts = range(-number_of_shells, number_of_shells + 1)
-    list_relative_lattice_vectors = 1.0 * torch.tensor(list(itertools.product(shifts, repeat=spatial_dimension)))
+    list_relative_lattice_vectors = 1.0 * torch.tensor(
+        list(itertools.product(shifts, repeat=spatial_dimension))
+    )
 
     return list_relative_lattice_vectors
 
 
-def _get_shifted_positions(cartesian_positions: torch.Tensor, lattice_vectors: torch.Tensor) -> torch.Tensor:
+def _get_shifted_positions(
+    cartesian_positions: torch.Tensor, lattice_vectors: torch.Tensor
+) -> torch.Tensor:
     """Get shifted positions.
 
     Args:
@@ -217,11 +259,15 @@ def _get_shifted_positions(cartesian_positions: torch.Tensor, lattice_vectors: t
         shifted_positions:  the positions within the unit cell, shifted by the lattice vectors.
             Dimension [batch_size, number of relative lattice vectors, max_number_of_atoms, 3].
     """
-    shifted_positions = cartesian_positions[:, None, :, :] + lattice_vectors[:, :, None, :]
+    shifted_positions = (
+        cartesian_positions[:, None, :, :] + lattice_vectors[:, :, None, :]
+    )
     return shifted_positions
 
 
-def _get_shortest_distance_that_crosses_unit_cell(basis_vectors: torch.Tensor) -> torch.Tensor:
+def _get_shortest_distance_that_crosses_unit_cell(
+    basis_vectors: torch.Tensor,
+) -> torch.Tensor:
     """Get the shortest distance that crosses unit cell.
 
     This method computes the shortest distance that crosses the unit cell.
@@ -250,8 +296,12 @@ def _get_shortest_distance_that_crosses_unit_cell(basis_vectors: torch.Tensor) -
     # This idea must be repeated for the three pairs of planes bounding the unit cell.
     spatial_dimension = 3
     assert len(basis_vectors.shape) == 3, "basis_vectors has wrong shape."
-    assert basis_vectors.shape[1] == spatial_dimension, "Basis vectors in wrong spatial dimension."
-    assert basis_vectors.shape[2] == spatial_dimension, "Basis vectors in wrong spatial dimension."
+    assert (
+        basis_vectors.shape[1] == spatial_dimension
+    ), "Basis vectors in wrong spatial dimension."
+    assert (
+        basis_vectors.shape[2] == spatial_dimension
+    ), "Basis vectors in wrong spatial dimension."
     a1 = basis_vectors[:, 0, :]
     a2 = basis_vectors[:, 1, :]
     a3 = basis_vectors[:, 2, :]
@@ -266,14 +316,16 @@ def _get_shortest_distance_that_crosses_unit_cell(basis_vectors: torch.Tensor) -
     distances_13 = cell_volume / torch.linalg.norm(cross_product_13, dim=1)
     distances_23 = cell_volume / torch.linalg.norm(cross_product_23, dim=1)
 
-    distances = torch.stack([distances_12, distances_13, distances_23], dim=1).min(dim=1).values
+    distances = (
+        torch.stack([distances_12, distances_13, distances_23], dim=1).min(dim=1).values
+    )
 
     return distances
 
 
-def _get_vectors_from_multiple_indices(vectors: torch.Tensor,
-                                       batch_indices: torch.Tensor,
-                                       vector_indices: torch.Tensor) -> torch.Tensor:
+def _get_vectors_from_multiple_indices(
+    vectors: torch.Tensor, batch_indices: torch.Tensor, vector_indices: torch.Tensor
+) -> torch.Tensor:
     """Get vectors from multiple indices.
 
     Extract vectors in higher dimensional tensor from multiple indices array.
@@ -298,11 +350,13 @@ def _get_vectors_from_multiple_indices(vectors: torch.Tensor,
     return vectors[batch_indices, vector_indices]
 
 
-def shift_adjacency_matrix_indices_for_graph_batching(adjacency_matrix: torch.Tensor,
-                                                      num_edges: torch.Tensor,
-                                                      number_of_atoms: int) -> torch.Tensor:
+def shift_adjacency_matrix_indices_for_graph_batching(
+    adjacency_matrix: torch.Tensor, num_edges: torch.Tensor, number_of_atoms: int
+) -> torch.Tensor:
     """Shift the node indices in the adjacency matrix for graph batching."""
-    index_shifts = torch.arange(len(num_edges)).to(adjacency_matrix.device) * number_of_atoms
+    index_shifts = (
+        torch.arange(len(num_edges)).to(adjacency_matrix.device) * number_of_atoms
+    )
     adj_shifts = torch.repeat_interleave(index_shifts, num_edges).repeat(2, 1)
 
     return adjacency_matrix + adj_shifts

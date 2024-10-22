@@ -8,24 +8,26 @@ from pytorch_lightning.callbacks import (EarlyStopping, ModelCheckpoint,
 
 logger = logging.getLogger(__name__)
 
-BEST_MODEL_NAME = 'best_model'
-LAST_MODEL_NAME = 'last_model'
+BEST_MODEL_NAME = "best_model"
+LAST_MODEL_NAME = "last_model"
 
 
-def instantiate_early_stopping_callback(callback_params: Dict[AnyStr, Any],
-                                        output_directory: str,
-                                        verbose: bool) -> Dict[str, Callback]:
+def instantiate_early_stopping_callback(
+    callback_params: Dict[AnyStr, Any], output_directory: str, verbose: bool
+) -> Dict[str, Callback]:
     """Instantiate early stopping callback."""
-    early_stopping = EarlyStopping(callback_params['metric'],
-                                   mode=callback_params['mode'],
-                                   patience=callback_params['patience'],
-                                   verbose=verbose)
+    early_stopping = EarlyStopping(
+        callback_params["metric"],
+        mode=callback_params["mode"],
+        patience=callback_params["patience"],
+        verbose=verbose,
+    )
     return dict(early_stopping=early_stopping)
 
 
-def instantiate_model_checkpoint_callbacks(callback_params: Dict[AnyStr, Any],
-                                           output_directory: str,
-                                           verbose: bool) -> Dict[str, Callback]:
+def instantiate_model_checkpoint_callbacks(
+    callback_params: Dict[AnyStr, Any], output_directory: str, verbose: bool
+) -> Dict[str, Callback]:
     """Instantiate best and last checkpoint callbacks."""
     best_model_path = os.path.join(output_directory, BEST_MODEL_NAME)
     best_checkpoint_callback = ModelCheckpoint(
@@ -45,11 +47,15 @@ def instantiate_model_checkpoint_callbacks(callback_params: Dict[AnyStr, Any],
         verbose=verbose,
         every_n_epochs=1,
     )
-    return dict(best_checkpoint=best_checkpoint_callback, last_checkpoint=last_checkpoint_callback)
+    return dict(
+        best_checkpoint=best_checkpoint_callback,
+        last_checkpoint=last_checkpoint_callback,
+    )
 
 
 class CustomProgressBar(RichProgressBar):
     """A custom progress bar based on Rich that doesn't log the v_num stuff."""
+
     def get_metrics(self, *args, **kwargs):
         """Get metrics."""
         # don't show the version number

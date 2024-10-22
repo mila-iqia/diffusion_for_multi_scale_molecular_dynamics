@@ -7,12 +7,14 @@ It implements EGNN as described in the paper "E(n) Equivariant Graph Neural Netw
 
 The file is modified from the original download to fit our own linting style and add additional controls.
 """
+
 from typing import Callable, Tuple
 
 import torch
-from crystal_diffusion.models.egnn_utils import (unsorted_segment_mean,
-                                                 unsorted_segment_sum)
 from torch import nn
+
+from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
+    unsorted_segment_mean, unsorted_segment_sum)
 
 
 class E_GCL(nn.Module):
@@ -65,19 +67,26 @@ class E_GCL(nn.Module):
 
         if coords_agg not in ["mean", "sum"]:
             raise ValueError(f"coords_agg should be mean or sum. Got {coords_agg}")
-        self.coords_agg_fn = unsorted_segment_sum if coords_agg == "sum" else unsorted_segment_mean
-        self.msg_agg_fn = unsorted_segment_sum if message_agg == "sum" else unsorted_segment_mean
+        self.coords_agg_fn = (
+            unsorted_segment_sum if coords_agg == "sum" else unsorted_segment_mean
+        )
+        self.msg_agg_fn = (
+            unsorted_segment_sum if message_agg == "sum" else unsorted_segment_mean
+        )
 
         # message update MLP i.e. message m_{ij} used in the graph neural network.
         # \phi_e is eq. (3) in https://arxiv.org/pdf/2102.09844
         # Input is a concatenation of the two node features and distance
         message_input_size = input_size * 2 + 1
         self.message_mlp = nn.Sequential(
-            nn.Linear(message_input_size, message_hidden_dimensions_size),
-            act_fn
+            nn.Linear(message_input_size, message_hidden_dimensions_size), act_fn
         )
         for _ in range(message_n_hidden_dimensions):
-            self.message_mlp.append(nn.Linear(message_hidden_dimensions_size, message_hidden_dimensions_size))
+            self.message_mlp.append(
+                nn.Linear(
+                    message_hidden_dimensions_size, message_hidden_dimensions_size
+                )
+            )
             self.message_mlp.append(act_fn)
 
         # node update mlp. Input is the node feature (size input_size) and the aggregated messages from neighbors
@@ -85,11 +94,12 @@ class E_GCL(nn.Module):
         # \phi_h in eq. (6) in https://arxiv.org/pdf/2102.09844
         node_input_size = input_size + message_hidden_dimensions_size
         self.node_mlp = nn.Sequential(
-            nn.Linear(node_input_size, node_hidden_dimensions_size),
-            act_fn
+            nn.Linear(node_input_size, node_hidden_dimensions_size), act_fn
         )
         for _ in range(node_n_hidden_dimensions):
-            self.node_mlp.append(nn.Linear(node_hidden_dimensions_size, node_hidden_dimensions_size))
+            self.node_mlp.append(
+                nn.Linear(node_hidden_dimensions_size, node_hidden_dimensions_size)
+            )
             self.node_mlp.append(act_fn)
         self.node_mlp.append(nn.Linear(node_hidden_dimensions_size, output_size))
 
@@ -97,12 +107,20 @@ class E_GCL(nn.Module):
         # \phi_x in eq.(4) in https://arxiv.org/pdf/2102.09844
 
         coordinate_input_size = message_hidden_dimensions_size
-        self.coord_mlp = nn.Sequential(nn.Linear(coordinate_input_size, coordinate_hidden_dimensions_size))
+        self.coord_mlp = nn.Sequential(
+            nn.Linear(coordinate_input_size, coordinate_hidden_dimensions_size)
+        )
         self.coord_mlp.append(act_fn)
         for _ in range(coordinate_n_hidden_dimensions):
-            self.coord_mlp.append(nn.Linear(coordinate_hidden_dimensions_size, coordinate_hidden_dimensions_size))
+            self.coord_mlp.append(
+                nn.Linear(
+                    coordinate_hidden_dimensions_size, coordinate_hidden_dimensions_size
+                )
+            )
             self.coord_mlp.append(act_fn)
-        final_coordinate_layer = nn.Linear(coordinate_hidden_dimensions_size, 1, bias=False)
+        final_coordinate_layer = nn.Linear(
+            coordinate_hidden_dimensions_size, 1, bias=False
+        )
         # based on the original implementation - multiply the random initialization by 0.001 (default is 1)
         # torch.nn.init.xavier_uniform_(final_coordinate_layer.weight, gain=0.001)
         self.coord_mlp.append(final_coordinate_layer)  # initialized with a different
@@ -110,9 +128,13 @@ class E_GCL(nn.Module):
             self.coord_mlp.append(nn.Tanh())
 
         if self.attention:
-            self.att_mlp = nn.Sequential(nn.Linear(message_hidden_dimensions_size, 1), nn.Sigmoid())
+            self.att_mlp = nn.Sequential(
+                nn.Linear(message_hidden_dimensions_size, 1), nn.Sigmoid()
+            )
 
-    def message_model(self, source: torch.Tensor, target: torch.Tensor, radial: torch.Tensor) -> torch.Tensor:
+    def message_model(
+        self, source: torch.Tensor, target: torch.Tensor, radial: torch.Tensor
+    ) -> torch.Tensor:
         r"""Constructs the message m_{ij} from source (j) to target (i).
 
         .. math::
@@ -136,8 +158,9 @@ class E_GCL(nn.Module):
             out = out * att_val
         return out
 
-    def node_model(self, x: torch.Tensor, edge_index: torch.Tensor, messages: torch.Tensor
-                   ) -> torch.Tensor:
+    def node_model(
+        self, x: torch.Tensor, edge_index: torch.Tensor, messages: torch.Tensor
+    ) -> torch.Tensor:
         r"""Update the node features.
 
         .. math::
@@ -153,15 +176,22 @@ class E_GCL(nn.Module):
             updated node features. size: number of nodes, output_size
         """
         row = edge_index[:, 0]
-        agg = self.msg_agg_fn(messages, row, num_segments=x.size(0))  # sum messages m_i = \sum_j m_{ij}
+        agg = self.msg_agg_fn(
+            messages, row, num_segments=x.size(0)
+        )  # sum messages m_i = \sum_j m_{ij}
         agg = torch.cat([x, agg], dim=1)  # concat h_i and m_i
         out = self.node_mlp(agg)
         if self.residual:  # optional skip connection
             out = x + out
         return out
 
-    def coord_model(self, coord: torch.Tensor, edge_index: torch.Tensor, coord_diff: torch.Tensor,
-                    messages: torch.Tensor) -> torch.Tensor:
+    def coord_model(
+        self,
+        coord: torch.Tensor,
+        edge_index: torch.Tensor,
+        coord_diff: torch.Tensor,
+        messages: torch.Tensor,
+    ) -> torch.Tensor:
         r"""Update the coordinates.
 
         .. math::
@@ -183,7 +213,9 @@ class E_GCL(nn.Module):
         coord += agg
         return coord
 
-    def coord2radial(self, edge_index: torch.Tensor, coord: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def coord2radial(
+        self, edge_index: torch.Tensor, coord: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute distances between linked nodes.
 
         Args:
@@ -206,8 +238,9 @@ class E_GCL(nn.Module):
 
         return radial, coord_diff
 
-    def forward(self, h: torch.Tensor, edge_index: torch.Tensor, coord: torch.Tensor
-                ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, h: torch.Tensor, edge_index: torch.Tensor, coord: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute node embeddings and coordinates.
 
         Args:
@@ -232,6 +265,7 @@ class E_GCL(nn.Module):
 
 class EGNN(nn.Module):
     """EGNN model."""
+
     def __init__(
         self,
         input_size: int,
@@ -295,7 +329,9 @@ class EGNN(nn.Module):
                 )
             )
 
-    def forward(self, h: torch.Tensor, edges: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, h: torch.Tensor, edges: torch.Tensor, x: torch.Tensor
+    ) -> torch.Tensor:
         """Forward instructions for the model.
 
         Args:

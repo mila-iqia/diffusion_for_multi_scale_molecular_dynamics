@@ -1,6 +1,8 @@
 import pytest
 import yaml
-from crystal_diffusion.data.utils import crop_lammps_yaml
+
+from diffusion_for_multi_scale_molecular_dynamics.data.utils import \
+    crop_lammps_yaml
 
 # Sample data for dump and thermo YAML files
 DUMP_YAML_CONTENT = """
@@ -49,7 +51,7 @@ def test_crop_lammps_yaml(dump_file, thermo_file):
 
     # Verify the function output
     assert len(cropped_dump) == len(dump_yaml_content) - crop_step
-    assert len(cropped_thermo['data']) == len(thermo_yaml_content['data']) - crop_step
+    assert len(cropped_thermo["data"]) == len(thermo_yaml_content["data"]) - crop_step
 
     # Testing exception for too large crop_step
     with pytest.raises(ValueError):

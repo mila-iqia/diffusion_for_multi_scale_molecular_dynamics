@@ -2,23 +2,28 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 import numpy as np
-from crystal_diffusion import DATA_DIR
-from crystal_diffusion.oracle.lammps import get_energy_and_forces_from_lammps
+
+from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR
+from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
+    get_energy_and_forces_from_lammps
 
 
 class LAMMPS_for_active_learning:
     """Oracle using LAMMPS to get the energy and forces on atoms."""
+
     def __init__(self):
         """Initialize the class."""
         pass
 
-    def __call__(self,
-                 cartesian_positions: np.ndarray,
-                 box: np.ndarray,
-                 atom_types: np.ndarray,
-                 atom_type_map: Dict[int, str] = {1: 'Si'},
-                 tmp_work_dir: str = './',
-                 pair_coeff_dir: Path = DATA_DIR) -> Tuple[float, np.ndarray]:
+    def __call__(
+        self,
+        cartesian_positions: np.ndarray,
+        box: np.ndarray,
+        atom_types: np.ndarray,
+        atom_type_map: Dict[int, str] = {1: "Si"},
+        tmp_work_dir: str = "./",
+        pair_coeff_dir: Path = DATA_DIR,
+    ) -> Tuple[float, np.ndarray]:
         """Call LAMMPS to get energy and forces for a given set of atoms.
 
         Args:
@@ -33,11 +38,19 @@ class LAMMPS_for_active_learning:
             energy and forces on each atom (n_atom x 3)
         """
         shifted_positions = self.shift_positions(cartesian_positions, box)
-        energy, forces = get_energy_and_forces_from_lammps(shifted_positions, box, atom_types, atom_type_map,
-                                                           tmp_work_dir, pair_coeff_dir)
-        return energy, forces[['fx', 'fy', 'fz']].to_numpy()
+        energy, forces = get_energy_and_forces_from_lammps(
+            shifted_positions,
+            box,
+            atom_types,
+            atom_type_map,
+            tmp_work_dir,
+            pair_coeff_dir,
+        )
+        return energy, forces[["fx", "fy", "fz"]].to_numpy()
 
-    def shift_positions(self, cartesian_positions: np.ndarray, box: np.ndarray) -> np.ndarray:
+    def shift_positions(
+        self, cartesian_positions: np.ndarray, box: np.ndarray
+    ) -> np.ndarray:
         """Shift the positions of the atoms so all coordinates are positives.
 
         This is because LAMMPS will ignore atoms with coordinates outside the [0, a] range (a = size of the unit cell).

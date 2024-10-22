@@ -26,7 +26,9 @@ def get_reciprocal_basis_vectors(basis_vectors: torch.Tensor) -> torch.Tensor:
     return reciprocal_basis_vectors
 
 
-def get_positions_from_coordinates(relative_coordinates: torch.Tensor, basis_vectors: torch.Tensor) -> torch.Tensor:
+def get_positions_from_coordinates(
+    relative_coordinates: torch.Tensor, basis_vectors: torch.Tensor
+) -> torch.Tensor:
     """Get cartesian positions from relative coordinates.
 
     This method computes the positions in Euclidean space given the unitless coordinates and the basis vectors
@@ -50,8 +52,9 @@ def get_positions_from_coordinates(relative_coordinates: torch.Tensor, basis_vec
     return cartesian_positions
 
 
-def get_relative_coordinates_from_cartesian_positions(cartesian_positions: torch.Tensor,
-                                                      reciprocal_basis_vectors: torch.Tensor) -> torch.Tensor:
+def get_relative_coordinates_from_cartesian_positions(
+    cartesian_positions: torch.Tensor, reciprocal_basis_vectors: torch.Tensor
+) -> torch.Tensor:
     """Get relative coordinates from cartesian positions.
 
     This method computes the relative coordinates from the positions in Euclidean space and the reciprocal
@@ -84,7 +87,9 @@ def get_relative_coordinates_from_cartesian_positions(cartesian_positions: torch
     return relative_coordinates
 
 
-def map_relative_coordinates_to_unit_cell(relative_coordinates: torch.Tensor) -> torch.Tensor:
+def map_relative_coordinates_to_unit_cell(
+    relative_coordinates: torch.Tensor,
+) -> torch.Tensor:
     """Map relative coordinates back to unit cell.
 
     The function torch.remainder does not always bring back the relative coordinates in the range [0, 1).
@@ -105,5 +110,5 @@ def map_relative_coordinates_to_unit_cell(relative_coordinates: torch.Tensor) ->
         normalized_relative_coordinates: relative coordinates in the unit cell, ie, in the range [0, 1).
     """
     normalized_relative_coordinates = torch.remainder(relative_coordinates, 1.0)
-    normalized_relative_coordinates[normalized_relative_coordinates == 1.] = 0.
+    normalized_relative_coordinates[normalized_relative_coordinates == 1.0] = 0.0
     return normalized_relative_coordinates

@@ -2,15 +2,19 @@ from typing import AnyStr, Dict
 
 import pytest
 import torch
-from crystal_diffusion.models.score_networks import (ScoreNetwork,
-                                                     ScoreNetworkParameters)
-from crystal_diffusion.namespace import NOISY_RELATIVE_COORDINATES
+
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
+    ScoreNetwork, ScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import \
+    NOISY_RELATIVE_COORDINATES
 
 
 class FakeScoreNetwork(ScoreNetwork):
     """A fake, smooth score network for the ODE solver."""
 
-    def _forward_unchecked(self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False) -> torch.Tensor:
+    def _forward_unchecked(
+        self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
+    ) -> torch.Tensor:
         return batch[NOISY_RELATIVE_COORDINATES]
 
 
@@ -35,7 +39,9 @@ class BaseTestGenerator:
 
     @pytest.fixture()
     def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples):
-        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(number_of_samples, 1, 1)
+        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(
+            number_of_samples, 1, 1
+        )
 
     @pytest.fixture()
     def cell_dimensions(self, unit_cell_size, spatial_dimension):
@@ -43,4 +49,8 @@ class BaseTestGenerator:
 
     @pytest.fixture()
     def sigma_normalized_score_network(self, spatial_dimension):
-        return FakeScoreNetwork(ScoreNetworkParameters(architecture='dummy', spatial_dimension=spatial_dimension))
+        return FakeScoreNetwork(
+            ScoreNetworkParameters(
+                architecture="dummy", spatial_dimension=spatial_dimension
+            )
+        )

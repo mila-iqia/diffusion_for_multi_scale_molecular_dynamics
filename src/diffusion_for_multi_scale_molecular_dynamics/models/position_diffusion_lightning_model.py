@@ -4,38 +4,42 @@ from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch
-from crystal_diffusion.generators.instantiate_generator import \
+
+from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
-from crystal_diffusion.metrics.kolmogorov_smirnov_metrics import \
+from diffusion_for_multi_scale_molecular_dynamics.metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
-from crystal_diffusion.models.loss import (LossParameters,
-                                           create_loss_calculator)
-from crystal_diffusion.models.optimizer import (OptimizerParameters,
-                                                load_optimizer)
-from crystal_diffusion.models.scheduler import (SchedulerParameters,
-                                                load_scheduler_dictionary)
-from crystal_diffusion.models.score_networks.score_network import \
+from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
+    LossParameters, create_loss_calculator)
+from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
+    OptimizerParameters, load_optimizer)
+from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
+    SchedulerParameters, load_scheduler_dictionary)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetworkParameters
-from crystal_diffusion.models.score_networks.score_network_factory import \
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
     create_score_network
-from crystal_diffusion.namespace import (CARTESIAN_FORCES, CARTESIAN_POSITIONS,
-                                         NOISE, NOISY_RELATIVE_COORDINATES,
-                                         RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from crystal_diffusion.oracle.energies import compute_oracle_energies
-from crystal_diffusion.samplers.noisy_relative_coordinates_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    CARTESIAN_FORCES, CARTESIAN_POSITIONS, NOISE, NOISY_RELATIVE_COORDINATES,
+    RELATIVE_COORDINATES, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
+    compute_oracle_energies
+from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
     NoisyRelativeCoordinatesSampler
-from crystal_diffusion.samples.diffusion_sampling_parameters import \
-    DiffusionSamplingParameters
-from crystal_diffusion.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
-from crystal_diffusion.utils.basis_transformations import (
-    get_positions_from_coordinates, map_relative_coordinates_to_unit_cell)
-from crystal_diffusion.utils.structure_utils import compute_distances_in_batch
-from crystal_diffusion.utils.tensor_utils import \
-    broadcast_batch_tensor_to_all_dimensions
-from src.crystal_diffusion.samplers.variance_sampler import (
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
-from src.crystal_diffusion.samples.sampling import create_batch_of_samples
+from diffusion_for_multi_scale_molecular_dynamics.samples.diffusion_sampling_parameters import \
+    DiffusionSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
+    create_batch_of_samples
+from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
+    get_sigma_normalized_score
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    get_positions_from_coordinates, map_relative_coordinates_to_unit_cell)
+from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
+    compute_distances_in_batch
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
+    broadcast_batch_tensor_to_all_dimensions
 
 logger = logging.getLogger(__name__)
 

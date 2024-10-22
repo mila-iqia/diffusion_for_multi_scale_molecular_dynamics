@@ -1,12 +1,16 @@
 from typing import List
 
 import torch
-from crystal_diffusion.models.mace_utils import get_adj_matrix
-from crystal_diffusion.utils.basis_transformations import \
+
+from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import \
+    get_adj_matrix
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_positions_from_coordinates
 
 
-def unsorted_segment_sum(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int) -> torch.Tensor:
+def unsorted_segment_sum(
+    data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int
+) -> torch.Tensor:
     """Sum all the elements in data by their ids.
 
     For example, data could be messages from atoms j to i. We want to sum all messages going to i, i.e. sum all elements
@@ -22,7 +26,9 @@ def unsorted_segment_sum(data: torch.Tensor, segment_ids: torch.Tensor, num_segm
         tensor with the sum of data elements over ids. size: (num_segments, number of features)
     """
     result_shape = (num_segments, data.size(1))  # output size
-    result = torch.zeros(result_shape).to(data)  # results starting as zeros - same dtype and device as data
+    result = torch.zeros(result_shape).to(
+        data
+    )  # results starting as zeros - same dtype and device as data
     # tensor size manipulation to use a scatter_add operation
     # from (number of elements) to (number of elements, number of features) i.e. same size as data
     segment_ids = segment_ids.unsqueeze(-1).expand(-1, data.size(1))
@@ -32,7 +38,9 @@ def unsorted_segment_sum(data: torch.Tensor, segment_ids: torch.Tensor, num_segm
     return result
 
 
-def unsorted_segment_mean(data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int) -> torch.Tensor:
+def unsorted_segment_mean(
+    data: torch.Tensor, segment_ids: torch.Tensor, num_segments: int
+) -> torch.Tensor:
     """Average all the elements in data by their ids.
 
     For example, data could be messages from atoms j to i. We want to average all messages going to i
@@ -48,12 +56,18 @@ def unsorted_segment_mean(data: torch.Tensor, segment_ids: torch.Tensor, num_seg
         tensor with the average of data elements over ids. size: (num_segments, number of features)
     """
     result_shape = (num_segments, data.size(1))  # output size
-    segment_ids = segment_ids.unsqueeze(-1).expand(-1, data.size(1))  # tensor size manipulation for the backward pass
+    segment_ids = segment_ids.unsqueeze(-1).expand(
+        -1, data.size(1)
+    )  # tensor size manipulation for the backward pass
     result = torch.zeros(result_shape).to(data)  # sum the component
-    count = torch.zeros(result_shape).to(data)  # count the number of data elements for each id to take the average
+    count = torch.zeros(result_shape).to(
+        data
+    )  # count the number of data elements for each id to take the average
     result.scatter_add_(0, segment_ids, data)  # sum the data elements
     count.scatter_add_(0, segment_ids, torch.ones_like(data))
-    return result / count.clamp(min=1)  # avoid dividing by zeros by clamping the counts to be at least 1
+    return result / count.clamp(
+        min=1
+    )  # avoid dividing by zeros by clamping the counts to be at least 1
 
 
 def get_edges(n_nodes: int) -> List[List[int]]:
@@ -90,8 +104,12 @@ def get_edges_batch(n_nodes: int, batch_size: int) -> torch.Tensor:
     return edges
 
 
-def get_edges_with_radial_cutoff(relative_coordinates: torch.Tensor, unit_cell: torch.Tensor,
-                                 radial_cutoff: float = 4.0, drop_duplicate_edges: bool = True) -> torch.Tensor:
+def get_edges_with_radial_cutoff(
+    relative_coordinates: torch.Tensor,
+    unit_cell: torch.Tensor,
+    radial_cutoff: float = 4.0,
+    drop_duplicate_edges: bool = True,
+) -> torch.Tensor:
     """Get edges for a batch with a cutoff based on distance.
 
     Args:
@@ -105,8 +123,12 @@ def get_edges_with_radial_cutoff(relative_coordinates: torch.Tensor, unit_cell: 
         long tensor of size [number of edges, 2] with edge indices
     """
     # get cartesian coordinates from relative coordinates
-    cartesian_coordinates = get_positions_from_coordinates(relative_coordinates, unit_cell)
-    adj_matrix, _, _, _ = get_adj_matrix(cartesian_coordinates, unit_cell, radial_cutoff)
+    cartesian_coordinates = get_positions_from_coordinates(
+        relative_coordinates, unit_cell
+    )
+    adj_matrix, _, _, _ = get_adj_matrix(
+        cartesian_coordinates, unit_cell, radial_cutoff
+    )
     # adj_matrix is a n_edges x 2 tensor with duplicates with different shifts.
     # the uplifting in 2 x spatial_dimension manages the shifts in a natural way. This means we can ignore the shifts
     # and possibly ignore the multiplicities i.e. no need to sum twice the contribution of a neighbor that we see

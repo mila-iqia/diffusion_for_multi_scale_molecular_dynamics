@@ -5,6 +5,7 @@ file, which can then be loaded in the free version of Ovito. This
 session state file will already be prepopulated with some common pipeline
 elements.
 """
+
 from pathlib import Path
 
 import numpy as np

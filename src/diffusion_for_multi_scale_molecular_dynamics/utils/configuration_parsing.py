@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from typing import Any, Dict
 
 
-def create_parameters_from_configuration_dictionary(configuration: Dict[str, Any],
-                                                    identifier: str,
-                                                    options: Dict[str, dataclass]) -> dataclass:
+def create_parameters_from_configuration_dictionary(
+    configuration: Dict[str, Any], identifier: str, options: Dict[str, dataclass]
+) -> dataclass:
     """Create Parameters from Configuration Dictionary.
 
     This method will instantiate a dataclass container describing configuration parameters
@@ -21,13 +21,15 @@ def create_parameters_from_configuration_dictionary(configuration: Dict[str, Any
         parameters: a dataclass object of the appropriate type, instantiated with the content of the input
             configuration
     """
-    assert identifier in configuration.keys(), \
-        f"The identifier field '{identifier}' is missing from the configuration dictionary."
+    assert (
+        identifier in configuration.keys()
+    ), f"The identifier field '{identifier}' is missing from the configuration dictionary."
 
     option_id = configuration[identifier]
 
-    assert option_id in options.keys(), \
-        f"The option field '{option_id}' is missing from the options dictionary."
+    assert (
+        option_id in options.keys()
+    ), f"The option field '{option_id}' is missing from the options dictionary."
 
     parameters = options[option_id](**configuration)
     return parameters

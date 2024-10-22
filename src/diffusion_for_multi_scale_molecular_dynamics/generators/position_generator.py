@@ -8,22 +8,31 @@ import torch
 @dataclass(kw_only=True)
 class SamplingParameters:
     """Hyper-parameters for diffusion sampling."""
+
     algorithm: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
-    number_of_atoms: int  # the number of atoms that must be generated in a sampled configuration.
+    number_of_atoms: (
+        int  # the number of atoms that must be generated in a sampled configuration.
+    )
     number_of_samples: int
     # iterate up to number_of_samples with batches of this size
     # if None, use number_of_samples as batchsize
     sample_batchsize: Optional[int] = None
-    cell_dimensions: List[float]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
-    record_samples: bool = False  # should the predictor and corrector steps be recorded to a file
+    cell_dimensions: List[
+        float
+    ]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
+    record_samples: bool = (
+        False  # should the predictor and corrector steps be recorded to a file
+    )
 
 
 class PositionGenerator(ABC):
     """This defines the interface for position generators."""
 
     @abstractmethod
-    def sample(self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor) -> torch.Tensor:
+    def sample(
+        self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
+    ) -> torch.Tensor:
         """Sample.
 
         This method draws a position sample.

@@ -1,12 +1,12 @@
 import pytest
 import torch
-from crystal_diffusion.models.score_networks.force_field_augmented_score_network import (
+
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import (
     ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
-from crystal_diffusion.models.score_networks.mlp_score_network import (
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
     MLPScoreNetwork, MLPScoreNetworkParameters)
-from crystal_diffusion.namespace import (CARTESIAN_FORCES, NOISE,
-                                         NOISY_RELATIVE_COORDINATES, TIME,
-                                         UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
 
 
 @pytest.mark.parametrize("number_of_atoms", [4, 8, 16])
@@ -144,8 +144,7 @@ class TestForceFieldAugmentedScoreNetwork:
             )
         )
         cartesian_pseudo_force_contributions = (
-            force_field_augmented_score_network._get_cartesian_pseudo_forces_contributions(
-                cartesian_displacements))
+            force_field_augmented_score_network._get_cartesian_pseudo_forces_contributions(cartesian_displacements))
 
         computed_cartesian_pseudo_forces = (
             force_field_augmented_score_network._get_cartesian_pseudo_forces(

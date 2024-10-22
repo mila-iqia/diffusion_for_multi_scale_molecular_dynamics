@@ -2,10 +2,12 @@
 
 This module is responsible for sampling relative positions from the perturbation kernel.
 """
+
 from typing import Tuple
 
 import torch
-from crystal_diffusion.utils.basis_transformations import \
+
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
 
@@ -17,6 +19,7 @@ class NoisyRelativeCoordinatesSampler:
 
     The random samples are produced by a separate method to make this code easy to test.
     """
+
     @staticmethod
     def _get_gaussian_noise(shape: Tuple[int]) -> torch.Tensor:
         """Get Gaussian noise.
@@ -32,8 +35,9 @@ class NoisyRelativeCoordinatesSampler:
         return torch.randn(shape)
 
     @staticmethod
-    def get_noisy_relative_coordinates_sample(real_relative_coordinates: torch.Tensor,
-                                              sigmas: torch.Tensor) -> torch.Tensor:
+    def get_noisy_relative_coordinates_sample(
+        real_relative_coordinates: torch.Tensor, sigmas: torch.Tensor
+    ) -> torch.Tensor:
         """Get noisy relative coordinates sample.
 
         This method draws a sample from the perturbation kernel centered on the real_relative_coordinates
@@ -54,10 +58,15 @@ class NoisyRelativeCoordinatesSampler:
             noisy_relative_coordinates: a sample of noised relative coordinates, of the same
                 shape as real_relative_coordinates.
         """
-        assert real_relative_coordinates.shape == sigmas.shape, \
-            "sigmas array is expected to be of the same shape as the real_relative_coordinates array"
+        assert (
+            real_relative_coordinates.shape == sigmas.shape
+        ), "sigmas array is expected to be of the same shape as the real_relative_coordinates array"
 
-        z_scores = NoisyRelativeCoordinatesSampler._get_gaussian_noise(real_relative_coordinates.shape).to(sigmas)
+        z_scores = NoisyRelativeCoordinatesSampler._get_gaussian_noise(
+            real_relative_coordinates.shape
+        ).to(sigmas)
         noise = (sigmas * z_scores).to(real_relative_coordinates)
-        noisy_relative_coordinates = map_relative_coordinates_to_unit_cell(real_relative_coordinates + noise)
+        noisy_relative_coordinates = map_relative_coordinates_to_unit_cell(
+            real_relative_coordinates + noise
+        )
         return noisy_relative_coordinates
