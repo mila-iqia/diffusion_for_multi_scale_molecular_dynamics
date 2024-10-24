@@ -129,3 +129,28 @@ class NoisyAtomTypesSampler:
         noisy_atom_types = torch.log(posterior_xt) + noise
         noisy_atom_types = torch.argmax(noisy_atom_types, dim=-1)
         return noisy_atom_types
+
+
+class NoisyLatticeSampler:
+    """Get noisy lattice vectors.
+
+    This class provides methods to generate noisy relative coordinates, given the real vectors from data samples and
+    a beta noise parameter.
+
+    The random samples are produced by a separate method to make this code easy to test.
+
+    TODO this is a placeholder
+    """
+    @staticmethod
+    def get_noisy_lattice_vectors(real_lattice_vectors: torch.Tensor) -> torch.Tensor:
+        """Get noisy lattice vectors.
+
+        TODO this is a placeholder
+
+        Args:
+            real_lattice_vectors: lattice vectors from the sampled data
+
+        Returns:
+            real_lattice_vectors: a sample of noised lattice vectors. Placeholder for now.
+        """
+        return real_lattice_vectors

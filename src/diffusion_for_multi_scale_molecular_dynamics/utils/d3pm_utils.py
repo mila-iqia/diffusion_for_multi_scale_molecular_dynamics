@@ -29,4 +29,4 @@ def q_xt_bar_xo(one_hot_x0: torch.Tensor, q_bar_t: torch.Tensor) -> torch.Tensor
     Returns:
         matrix-vector product between one_hot_x0 and q_bar_t that defines q(x_t | x_0)
     """
-    return einops.einsum(one_hot_x0, q_bar_t, "...j,...ji->...i")
+    return einops.einsum(one_hot_x0, q_bar_t, "... j, ... j i -> ... i")

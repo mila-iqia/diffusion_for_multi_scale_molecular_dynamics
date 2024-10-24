@@ -4,7 +4,8 @@ from typing import Tuple
 
 import torch
 
-Noise = namedtuple("Noise", ["time", "sigma", "sigma_squared", "g", "g_squared"])
+Noise = namedtuple("Noise", ["time", "sigma", "sigma_squared", "g", "g_squared", "beta",
+                             "alpha_bar", "q_matrix", "q_bar_matrix"])
 LangevinDynamics = namedtuple("LangevinDynamics", ["epsilon", "sqrt_2_epsilon"])
 
 
@@ -29,18 +30,23 @@ class NoiseParameters:
     # Default value comes from "Generative Modeling by Estimating Gradients of the Data Distribution"
     corrector_step_epsilon: float = 2e-5
 
+    # Number of classes for the D3PM transition matrices
+    num_classes: int = 3
 
-class ExplodingVarianceSampler(torch.nn.Module):
-    """Exploding Variance Sampler.
+
+class NoiseScheduler(torch.nn.Module):
+    """Noise Scheduler.
 
     This class is responsible for creating all the quantities needed
     for noise generation for training and sampling.
 
-    This implementation will use "exponential diffusion" as discussed in
+    This implementation will use "exponential diffusion" and a "variance-preserving" diffusion as discussed in
     the following papers (no one paper presents everything clearly)
         - [1] "Torsional Diffusion for Molecular Conformer Generation".
         - [2] "SCORE-BASED GENERATIVE MODELING THROUGH STOCHASTIC DIFFERENTIAL EQUATIONS"
         - [3] "Generative Modeling by Estimating Gradients of the Data Distribution"
+        - [4] "Denoising diffusion probabilistic models"
+        - [5] "Deep unsupervised learning using nonequilibrium thermodynamics"
 
     The following quantities are defined:
         - total number of times steps, N
@@ -68,6 +74,16 @@ class ExplodingVarianceSampler(torch.nn.Module):
                     eps_i = 0.5 epsilon_step * sigma^2_i / sigma^2_1 for i = 0, ..., N-1.
 
                 --> Careful! eps_0 is needed for the corrector steps.
+
+        - beta and alpha_bar:
+            noise schedule following the "variance-preserving scheme",
+                beta(t) = 1 / (t_{max} - t + 1)
+                \bar{\alpha}(t) = \prod_{i=t}^t (1 - beta(i))
+
+        - q_matrix, q_bar_matrix:
+            transition matrix for D3PM - Q_t - and cumulative transition matrix \bar{Q}_t
+            Q_t = (1 - beta(t)) I + beta(t) 1 e^T_m
+            \bar{Q}_t = \prod_{i=i}^t Q_t
     """
 
     def __init__(self, noise_parameters: NoiseParameters):
@@ -112,6 +128,22 @@ class ExplodingVarianceSampler(torch.nn.Module):
         )
         self._minimum_random_index = torch.nn.Parameter(
             torch.tensor(0), requires_grad=False
+        )
+
+        self._beta_array = torch.nn.Parameter(
+            self._create_beta_array(noise_parameters.total_time_steps), requires_grad=False
+        )
+
+        self._alpha_bar_array = torch.nn.Parameter(
+            self._create_bar_alpha_array(self._beta_array)
+        )
+
+        self._q_matrix_array = torch.nn.Parameter(
+            self._create_q_matrix_array(self._beta_array, noise_parameters.num_classes), requires_grad=False
+        )
+
+        self._q_bar_matrix_array = torch.nn.Parameter(
+            self._create_q_bar_matrix_array(self._q_matrix_array), requires_grad=False
         )
 
     @staticmethod
@@ -160,6 +192,39 @@ class ExplodingVarianceSampler(torch.nn.Module):
             ]
         )
 
+    @staticmethod
+    def _create_beta_array(num_time_steps: int) -> torch.Tensor:
+        return 1.0 / (num_time_steps - torch.arange(1, num_time_steps + 1) + 1)
+
+    @staticmethod
+    def _create_alpha_bar_array(
+        beta_array: torch.Tensor
+    ) -> torch.Tensor:
+        return torch.cumprod(1 - beta_array, 0)
+
+    @staticmethod
+    def _create_q_matrix_array(
+        beta_array: torch.Tensor,
+        num_classes: torch.Tensor
+    ) -> torch.Tensor:
+        beta_array_ = beta_array.unsqueeze(-1).unsqueeze(-1)
+        qt = beta_array_ * torch.eye(num_classes)  # time step, num_classes, num_classes
+        qt += (1 - beta_array_) * torch.outer(
+            torch.ones(num_classes),
+            torch.nn.functional.one_hot(torch.LongTensor([num_classes - 1]), num_classes=num_classes)
+        )
+        return qt
+
+    @staticmethod
+    def _create_q_bar_matrix_array(
+        q_matrix_array: torch.Tensor
+    ) -> torch.Tensor:
+        q_bar_matrix_array = torch.empty_like(q_matrix_array)
+        q_bar_matrix_array[0] = q_matrix_array[0]
+        for i in range(1, q_matrix_array.size(0)):
+            q_bar_matrix_array[i] = torch.matmul(q_bar_matrix_array[i - 1], q_matrix_array[i])
+        return q_bar_matrix_array
+
     def _get_random_time_step_indices(self, shape: Tuple[int]) -> torch.Tensor:
         """Random time step indices.
 
@@ -202,6 +267,10 @@ class ExplodingVarianceSampler(torch.nn.Module):
         sigmas_squared = self._sigma_squared_array.take(indices)
         gs = self._g_array.take(indices)
         gs_squared = self._g_squared_array.take(indices)
+        betas = self._beta_array(indices)
+        alpha_bars = self._alpha_bar_array(indices)
+        q_matrices = self._q_matrix_array(indices)
+        q_bar_matrices = self._q_bar_matrix_array(indices)
 
         return Noise(
             time=times,
@@ -209,6 +278,10 @@ class ExplodingVarianceSampler(torch.nn.Module):
             sigma_squared=sigmas_squared,
             g=gs,
             g_squared=gs_squared,
+            beta=betas,
+            alpha_bar=alpha_bars,
+            q_matrix=q_matrices,
+            q_bar_matrix=q_bar_matrices
         )
 
     def get_all_sampling_parameters(self) -> Tuple[Noise, LangevinDynamics]:
@@ -228,6 +301,10 @@ class ExplodingVarianceSampler(torch.nn.Module):
             sigma_squared=self._sigma_squared_array,
             g=self._g_array,
             g_squared=self._g_squared_array,
+            beta=self._beta_array,
+            alpha_bar=self._alpha_bar_array,
+            q_matrix=self._q_matrix_array,
+            q_bar_matrix=self._q_bar_matrix_array
         )
         langevin_dynamics = LangevinDynamics(
             epsilon=self._epsilon_array, sqrt_2_epsilon=self._sqrt_two_epsilon_array
