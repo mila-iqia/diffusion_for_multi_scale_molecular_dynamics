@@ -21,7 +21,7 @@ class NoiseParameters:
     # Default values come from the paper:
     #   "Torsional Diffusion for Molecular Conformer Generation",
     # The original values in the paper are
-    #   sigma_min = 0.01 pi , sigma_σmax = pi
+    #   sigma_min = 0.01 pi , sigma_max = pi
     # However, they consider angles from 0 to 2pi as their coordinates:
     # here we divide by 2pi because our space is in the range [0, 1).
     sigma_min: float = 0.005
