@@ -15,8 +15,6 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import \
     PLOT_STYLE_PATH
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.loss_monitoring_callback import \
     LossMonitoringCallback
-from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
-    PredictorCorrectorDiffusionSamplingCallback
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
@@ -34,8 +32,8 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
-from diffusion_for_multi_scale_molecular_dynamics.noisy_targets.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
+from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
+    RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
     get_energy_and_forces_from_lammps
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
@@ -79,7 +77,7 @@ class AnalyticalScorePositionDiffusionLightningModel(PositionDiffusionLightningM
             )
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
-        self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
+        self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
 
     def on_validation_start(self) -> None:
@@ -164,12 +162,6 @@ if __name__ == "__main__":
         record_samples=False,
     )
 
-    diffusion_sampling_callback = PredictorCorrectorDiffusionSamplingCallback(
-        noise_parameters=noise_parameters,
-        sampling_parameters=sampling_parameters,
-        output_directory=output_dir / experiment_name,
-    )
-
     if use_equilibrium:
         exact_samples = einops.repeat(
             equilibrium_relative_coordinates, "n d -> b n d", b=dataset_size
@@ -228,7 +220,7 @@ if __name__ == "__main__":
     model = AnalyticalScorePositionDiffusionLightningModel(diffusion_params)
 
     trainer = pl.Trainer(
-        callbacks=[loss_monitoring_callback, diffusion_sampling_callback],
+        callbacks=[loss_monitoring_callback],
         max_epochs=1,
         log_every_n_steps=1,
         fast_dev_run=False,

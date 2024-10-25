@@ -15,10 +15,10 @@ import numpy as np
 from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR
-from diffusion_for_multi_scale_molecular_dynamics.analysis import \
-    PLOT_STYLE_PATH
-from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import (
-    LOGGER_FIGSIZE, SamplingVisualizationCallback)
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
+    SamplingVisualizationCallback
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     )
     plt.show()
 
-    fig2 = plt.figure(figsize=LOGGER_FIGSIZE)
+    fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     ax2 = fig2.add_subplot(111)
 
     errors = list_oracle_energies - list_dataset_potential_energies
