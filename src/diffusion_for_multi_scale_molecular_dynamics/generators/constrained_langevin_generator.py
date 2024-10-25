@@ -70,7 +70,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         self.constraint_mask = torch.zeros(self.number_of_atoms, dtype=bool)
         self.constraint_mask[:number_of_constraints] = True
 
-        self.noisy_relative_coordinates_sampler = RelativeCoordinatesNoiser()
+        self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
 
     def _apply_constraint(self, x: torch.Tensor, device: torch.device) -> None:
         """This method applies the coordinate constraint in place on the input configuration."""
@@ -121,7 +121,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
             sigma_i = self.noise.sigma[i]
             broadcast_sigmas_i = sigma_i * broadcasting
             # Noise an example satisfying the constraints from t_0 to t_i
-            x_i_known = self.noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(
+            x_i_known = self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
                 x0_known, broadcast_sigmas_i
             )
             # Denoise from t_{i+1} to t_i

@@ -83,7 +83,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
-        self.noisy_relative_coordinates_factory = RelativeCoordinatesNoiser()
+        self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
 
         self.generator = None
@@ -197,7 +197,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             batch_values=noise_sample.sigma, final_shape=shape
         )
 
-        xt = self.noisy_relative_coordinates_factory.get_noisy_relative_coordinates_sample(
+        xt = self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
             x0, sigmas
         )
 
