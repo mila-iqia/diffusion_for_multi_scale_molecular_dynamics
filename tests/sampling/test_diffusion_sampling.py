@@ -8,7 +8,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     get_positions_from_coordinates
 from src.diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
     PositionGenerator, SamplingParameters)
-from src.diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
+from src.diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 
 
