@@ -3,7 +3,7 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from tests.generators.conftest import BaseTestGenerator
 

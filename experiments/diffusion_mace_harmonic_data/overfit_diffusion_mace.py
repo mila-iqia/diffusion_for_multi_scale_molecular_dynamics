@@ -20,10 +20,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusio
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.noisy_targets.noisy_relative_coordinates_sampler import \
+    NoisyRelativeCoordinatesSampler
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \

@@ -7,7 +7,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
 from tests.generators.conftest import BaseTestGenerator
 

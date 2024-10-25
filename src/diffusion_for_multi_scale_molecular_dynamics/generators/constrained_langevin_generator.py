@@ -10,10 +10,10 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noisy_configurations.noisy_relative_coordinates import \
+    NoisyRelativeCoordinates
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
@@ -70,7 +70,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         self.constraint_mask = torch.zeros(self.number_of_atoms, dtype=bool)
         self.constraint_mask[:number_of_constraints] = True
 
-        self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
+        self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinates()
 
     def _apply_constraint(self, x: torch.Tensor, device: torch.device) -> None:
         """This method applies the coordinate constraint in place on the input configuration."""

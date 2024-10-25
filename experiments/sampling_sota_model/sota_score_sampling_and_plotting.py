@@ -21,10 +21,10 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
     load_diffusion_model
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
     get_energy_and_forces_from_lammps
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
-    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
 

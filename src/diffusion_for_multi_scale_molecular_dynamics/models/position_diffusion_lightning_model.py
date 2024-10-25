@@ -22,12 +22,12 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, CARTESIAN_POSITIONS, NOISE, NOISY_RELATIVE_COORDINATES,
     RELATIVE_COORDINATES, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
+    ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.noisy_configurations.noisy_relative_coordinates import \
+    NoisyRelativeCoordinates
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
     compute_oracle_energies
-from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
@@ -83,7 +83,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
-        self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
+        self.noisy_relative_coordinates_factory = NoisyRelativeCoordinates()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
 
         self.generator = None
@@ -197,7 +197,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             batch_values=noise_sample.sigma, final_shape=shape
         )
 
-        xt = self.noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(
+        xt = self.noisy_relative_coordinates_factory.get_noisy_relative_coordinates_sample(
             x0, sigmas
         )
 

@@ -25,7 +25,7 @@ from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score i
     get_sigma_normalized_score_brute_force
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
     NoiseParameters
 
 

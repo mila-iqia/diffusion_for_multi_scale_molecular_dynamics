@@ -12,9 +12,9 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
     PositionDiffusionLightningModel
-from diffusion_for_multi_scale_molecular_dynamics.samplers.exploding_variance import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     ExplodingVariance
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger

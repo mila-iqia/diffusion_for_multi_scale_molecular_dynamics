@@ -24,10 +24,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_ligh
     PositionDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
     compute_oracle_energies
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
-    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
