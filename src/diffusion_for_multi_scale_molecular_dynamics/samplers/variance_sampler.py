@@ -5,7 +5,7 @@ from typing import Tuple
 import torch
 
 Noise = namedtuple("Noise", ["time", "sigma", "sigma_squared", "g", "g_squared", "beta",
-                             "alpha_bar", "q_matrix", "q_bar_matrix"])
+                             "alpha_bar", "q_matrix", "q_bar_matrix", "q_bar_tm1_matrix"])
 LangevinDynamics = namedtuple("LangevinDynamics", ["epsilon", "sqrt_2_epsilon"])
 
 
@@ -86,14 +86,16 @@ class NoiseScheduler(torch.nn.Module):
             \bar{Q}_t = \prod_{i=i}^t Q_t
     """
 
-    def __init__(self, noise_parameters: NoiseParameters):
+    def __init__(self, noise_parameters: NoiseParameters, num_classes: int):
         """Init method.
 
         Args:
             noise_parameters: parameters that define the noise schedule.
+            num_classes: number of discrete classes for the discrete diffusion
         """
         super().__init__()
         self.noise_parameters = noise_parameters
+        self.num_classes = num_classes
 
         self._time_array = torch.nn.Parameter(
             self._get_time_array(noise_parameters), requires_grad=False
@@ -139,7 +141,7 @@ class NoiseScheduler(torch.nn.Module):
         )
 
         self._q_matrix_array = torch.nn.Parameter(
-            self._create_q_matrix_array(self._beta_array, noise_parameters.num_classes), requires_grad=False
+            self._create_q_matrix_array(self._beta_array, num_classes), requires_grad=False
         )
 
         self._q_bar_matrix_array = torch.nn.Parameter(
@@ -271,6 +273,13 @@ class NoiseScheduler(torch.nn.Module):
         alpha_bars = self._alpha_bar_array(indices)
         q_matrices = self._q_matrix_array(indices)
         q_bar_matrices = self._q_bar_matrix_array(indices)
+        # we also need the q_bar matrices for the previous time index (t-1) to compute the loss. We will use Q_{t-1}=1
+        # for the case t=1 (special case in the loss or the last step of the sampling process
+        q_bar_tm1_matrices = torch.where(
+            indices.view(-1, 1, 1) == 0,  # condition
+            torch.eye(self.num_classes).unsqueeze(-1),  # replace t=0 with identity matrix
+            self._q_bar_matrix_array((indices - 1).clip(min=0))  # \bar{Q}_{t-1} otherwise
+        )
 
         return Noise(
             time=times,
@@ -281,7 +290,8 @@ class NoiseScheduler(torch.nn.Module):
             beta=betas,
             alpha_bar=alpha_bars,
             q_matrix=q_matrices,
-            q_bar_matrix=q_bar_matrices
+            q_bar_matrix=q_bar_matrices,
+            q_bar_tm1_matrix=q_bar_tm1_matrices
         )
 
     def get_all_sampling_parameters(self) -> Tuple[Noise, LangevinDynamics]:
@@ -295,6 +305,8 @@ class NoiseScheduler(torch.nn.Module):
             langevin_dynamics: a collection of all the langevin dynamics parmaters (epsilon, sqrt{2epsilon})
                 needed to apply a langevin dynamics corrector step.
         """
+        q_bar_tm1_matrices = torch.cat(
+            (torch.eye(self.num_classes).unsqueeze(0), self._q_bar_matrix_array[:-1]), dim=0)
         noise = Noise(
             time=self._time_array,
             sigma=self._sigma_array,
@@ -304,7 +316,8 @@ class NoiseScheduler(torch.nn.Module):
             beta=self._beta_array,
             alpha_bar=self._alpha_bar_array,
             q_matrix=self._q_matrix_array,
-            q_bar_matrix=self._q_bar_matrix_array
+            q_bar_matrix=self._q_bar_matrix_array,
+            q_bar_tm1_matrices=q_bar_tm1_matrices
         )
         langevin_dynamics = LangevinDynamics(
             epsilon=self._epsilon_array, sqrt_2_epsilon=self._sqrt_two_epsilon_array
