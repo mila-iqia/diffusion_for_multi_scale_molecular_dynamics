@@ -24,8 +24,8 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     RELATIVE_COORDINATES, TIME, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
-from diffusion_for_multi_scale_molecular_dynamics.noisy_configurations.noisy_relative_coordinates import \
-    NoisyRelativeCoordinates
+from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
+    RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
     compute_oracle_energies
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
@@ -83,7 +83,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
-        self.noisy_relative_coordinates_factory = NoisyRelativeCoordinates()
+        self.noisy_relative_coordinates_factory = RelativeCoordinatesNoiser()
         self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
 
         self.generator = None
