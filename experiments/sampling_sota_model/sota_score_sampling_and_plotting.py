@@ -21,6 +21,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
     load_diffusion_model
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
+    ExplodingVariance
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
@@ -82,6 +84,7 @@ if __name__ == "__main__":
     noise_parameters = NoiseParameters(
         total_time_steps=total_time_steps, sigma_min=0.001, sigma_max=0.5
     )
+    exploding_variance = ExplodingVariance(noise_parameters)
 
     if sampling_algorithm == "ode":
         ode_sampling_parameters = ODESamplingParameters(
@@ -147,7 +150,7 @@ if __name__ == "__main__":
         # Plot the ODE parameters
         logger.info("Plotting ODE parameters")
         times = torch.linspace(0, 1, 1001)
-        sigmas = position_generator._get_exploding_variance_sigma(times)
+        sigmas = exploding_variance.get_sigma(times)
         ode_prefactor = position_generator._get_ode_prefactor(sigmas)
 
         fig0 = plt.figure(figsize=PLEASANT_FIG_SIZE)

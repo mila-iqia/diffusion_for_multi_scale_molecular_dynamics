@@ -62,12 +62,12 @@ class ExplodingVarianceSampler(torch.nn.Module):
         self.noise_parameters = noise_parameters
         self._exploding_variance = ExplodingVariance(noise_parameters)
 
-        self._time_array = torch.nn.Parameter(
-            self._get_time_array(noise_parameters), requires_grad=False
-        )
+        times = self._get_time_array(noise_parameters)
+
+        self._time_array = torch.nn.Parameter(times, requires_grad=False)
 
         self._sigma_array = torch.nn.Parameter(
-            self._create_sigma_array(noise_parameters, self._time_array),
+            self._exploding_variance.get_sigma(times),
             requires_grad=False,
         )
         self._sigma_squared_array = torch.nn.Parameter(
@@ -75,7 +75,7 @@ class ExplodingVarianceSampler(torch.nn.Module):
         )
 
         self._g_squared_array = torch.nn.Parameter(
-            self._create_g_squared_array(noise_parameters, self._sigma_squared_array),
+            self._create_discretized_g_squared_array(self._sigma_squared_array, noise_parameters.sigma_min),
             requires_grad=False,
         )
         self._g_array = torch.nn.Parameter(
@@ -104,21 +104,8 @@ class ExplodingVarianceSampler(torch.nn.Module):
         )
 
     @staticmethod
-    def _create_sigma_array(
-        noise_parameters: NoiseParameters, time_array: torch.Tensor
-    ) -> torch.Tensor:
-        sigma_min = noise_parameters.sigma_min
-        sigma_max = noise_parameters.sigma_max
-
-        sigma = sigma_min ** (1.0 - time_array) * sigma_max**time_array
-        return sigma
-
-    @staticmethod
-    def _create_g_squared_array(
-        noise_parameters: NoiseParameters, sigma_squared_array: torch.Tensor
-    ) -> torch.Tensor:
+    def _create_discretized_g_squared_array(sigma_squared_array: torch.Tensor, sigma_min: float) -> torch.Tensor:
         # g^2_{i} = sigma^2_{i} - sigma^2_{i-1}. For the first element (i=1), we set sigma_{0} = sigma_min.
-        sigma_min = noise_parameters.sigma_min
         zeroth_value_tensor = torch.tensor([sigma_squared_array[0] - sigma_min**2])
         return torch.cat(
             [zeroth_value_tensor, sigma_squared_array[1:] - sigma_squared_array[:-1]]
