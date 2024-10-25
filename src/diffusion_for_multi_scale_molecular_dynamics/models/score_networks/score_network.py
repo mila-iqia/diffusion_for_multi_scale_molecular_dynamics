@@ -12,7 +12,14 @@ from typing import AnyStr, Dict, Optional
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
+    ATOM_TYPES,
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_AXL,
+    RELATIVE_COORDINATES,
+    TIME,
+    UNIT_CELL,
+)
 
 # mac fun time
 # for mace, conflict with mac
@@ -27,6 +34,9 @@ class ScoreNetworkParameters:
 
     architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
+    num_atom_types: int = (
+        2  # number of possible atomic species - not counting the MASK class used in the diffusion
+    )
     conditional_prob: float = (
         0.0  # probability of making a conditional forward - else, do a unconditional forward
     )
@@ -52,6 +62,7 @@ class ScoreNetwork(torch.nn.Module):
         super(ScoreNetwork, self).__init__()
         self._hyper_params = hyper_params
         self.spatial_dimension = hyper_params.spatial_dimension
+        self.num_atom_types = hyper_params.num_atom_types
         self.conditional_prob = hyper_params.conditional_prob
         self.conditional_gamma = hyper_params.conditional_gamma
 
@@ -62,11 +73,15 @@ class ScoreNetwork(torch.nn.Module):
         those inputs have the expected dimensions.
 
         It is expected that:
-            - the relative coordinates are present and of shape [batch_size, number of atoms, spatial_dimension]
+            - an AXL namedtuple is present with
+              - the relative coordinates of shape [batch_size, number of atoms, spatial_dimension]
+              - the atom types of shape [batch_size, number of atoms]
+              - the unit cell vectors  TODO shape
             - all the components of relative coordinates will be in [0, 1)
+            - all the components of atom types are integers between [0, number of atomic species)
             - the time steps are present and of shape [batch_size, 1]
             - the time steps are in range [0, 1].
-            - the 'noise' parameter is present and has the same shape as time.
+            - the 'noise' parameter sigma is present and has the same shape as time.
 
         An assert will fail if the batch does not conform with expectation.
 
@@ -76,12 +91,12 @@ class ScoreNetwork(torch.nn.Module):
         Returns:
             None.
         """
-        assert NOISY_RELATIVE_COORDINATES in batch, (
-            f"The relative coordinates should be present in "
-            f"the batch dictionary with key '{NOISY_RELATIVE_COORDINATES}'"
+        assert NOISY_AXL in batch, (
+            f"The noisy coordinates, atomic types and lattice vectors should be present in "
+            f"the batch dictionary with key '{NOISY_AXL}'"
         )
 
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL][RELATIVE_COORDINATES]
         relative_coordinates_shape = relative_coordinates.shape
         batch_size = relative_coordinates_shape[0]
         assert (
@@ -119,6 +134,7 @@ class ScoreNetwork(torch.nn.Module):
             batch[NOISE].shape == times.shape
         ), "the 'noise' parameter should have the same shape as the 'time'."
 
+        # TODO replace UNIT_CELL with AXL unit cell
         assert (
             UNIT_CELL in batch
         ), f"The unit cell should be present in the batch dictionary with key '{UNIT_CELL}'"
@@ -133,6 +149,15 @@ class ScoreNetwork(torch.nn.Module):
             and unit_cell_shape[1] == self.spatial_dimension
             and unit_cell_shape[2] == self.spatial_dimension
         ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension]."
+
+        atom_types = batch[NOISY_AXL][ATOM_TYPES]
+        assert (
+            len(atom_types) == 2
+        ), "The atoms type are expected to be in a tensor of shape [batch_size, number of atoms]."
+
+        assert torch.logical_and(
+            atom_types >= 0, atom_types < self.num_atom_types
+        ).all(), f"All atom types are expected to be in [0,{self.num_atom_types})."
 
         if self.conditional_prob > 0:
             assert CARTESIAN_FORCES in batch, (
