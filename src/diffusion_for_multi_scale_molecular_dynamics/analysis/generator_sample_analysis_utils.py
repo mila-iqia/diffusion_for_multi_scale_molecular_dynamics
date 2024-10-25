@@ -64,7 +64,7 @@ def get_interatomic_distances(
     Returns:
         distances : all distances up to cutoff.
     """
-    shifted_adjacency_matrix, shifts, batch_indices = get_adj_matrix(
+    shifted_adjacency_matrix, shifts, _, _ = get_adj_matrix(
         positions=cartesian_positions,
         basis_vectors=basis_vectors,
         radial_cutoff=radial_cutoff,
