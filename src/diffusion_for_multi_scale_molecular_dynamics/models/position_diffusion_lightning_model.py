@@ -28,10 +28,10 @@ from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordi
     NoisyRelativeCoordinatesSampler
 from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
     ExplodingVarianceSampler, NoiseParameters)
-from diffusion_for_multi_scale_molecular_dynamics.samples.diffusion_sampling_parameters import \
-    DiffusionSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
+    DiffusionSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (

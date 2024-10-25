@@ -19,7 +19,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_scor
     MLPScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, RELATIVE_COORDINATES)
-from diffusion_for_multi_scale_molecular_dynamics.samples.diffusion_sampling_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
     DiffusionSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force

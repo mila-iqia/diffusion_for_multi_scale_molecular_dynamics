@@ -15,7 +15,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     create_score_network_parameters
 from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.samples.diffusion_sampling_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
     load_diffusion_sampling_parameters
 
 logger = logging.getLogger(__name__)

@@ -28,7 +28,7 @@ from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
     compute_oracle_energies
 from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
     get_git_hash, setup_console_logger)
