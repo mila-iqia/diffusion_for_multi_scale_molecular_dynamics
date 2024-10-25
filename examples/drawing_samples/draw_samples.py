@@ -16,7 +16,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
     PositionDiffusionLightningModel
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
     compute_oracle_energies

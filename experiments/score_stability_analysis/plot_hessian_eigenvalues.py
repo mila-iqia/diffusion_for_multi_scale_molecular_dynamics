@@ -14,7 +14,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_ligh
     PositionDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     ExplodingVariance
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger

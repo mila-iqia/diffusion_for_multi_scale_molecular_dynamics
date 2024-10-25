@@ -6,8 +6,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    ExplodingVarianceSampler
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
     NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
 

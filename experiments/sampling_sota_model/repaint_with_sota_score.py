@@ -14,7 +14,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevi
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
     load_diffusion_model
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
     get_energy_and_forces_from_lammps

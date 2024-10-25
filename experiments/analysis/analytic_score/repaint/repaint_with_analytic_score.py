@@ -11,7 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevi
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger

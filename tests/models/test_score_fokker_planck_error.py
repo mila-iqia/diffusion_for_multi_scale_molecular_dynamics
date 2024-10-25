@@ -12,10 +12,10 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     ExplodingVariance
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 from src.diffusion_for_multi_scale_molecular_dynamics.models.normalized_score_fokker_planck_error import \
     NormalizedScoreFokkerPlanckError
-from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
-    NoiseParameters
 
 
 def get_finite_difference_time_derivative(
