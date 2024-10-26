@@ -147,7 +147,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
                 lattice.
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_AXL][RELATIVE_COORDINATES]
+        xt = batch[NOISY_AXL].X
         xt.requires_grad_(True)
 
         list_unnormalized_log_prob = []
@@ -173,9 +173,9 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         sigma_normalized_scores = broadcast_sigmas * scores
 
         axl_scores = AXL(
-            ATOM_TYPES=torch.zeros_like(sigma_normalized_scores),
-            RELATIVE_COORDINATES=sigma_normalized_scores,
-            UNIT_CELL=torch.zeros_like(sigma_normalized_scores),
+            A=torch.zeros_like(sigma_normalized_scores),
+            X=sigma_normalized_scores,
+            L=torch.zeros_like(sigma_normalized_scores),
         )
 
         return axl_scores
@@ -262,7 +262,7 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_AXL][RELATIVE_COORDINATES]
+        xt = batch[NOISY_AXL].X
 
         broadcast_sigmas = einops.repeat(
             sigmas,
@@ -283,9 +283,9 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
         )
 
         axl_scores = AXL(
-            ATOM_TYPES=torch.zeros_like(sigma_normalized_scores),
-            RELATIVE_COORDINATES=sigma_normalized_scores,
-            UNIT_CELL=torch.zeros_like(sigma_normalized_scores),
+            A=torch.zeros_like(sigma_normalized_scores),
+            X=sigma_normalized_scores,
+            L=torch.zeros_like(sigma_normalized_scores),
         )
 
         return axl_scores

@@ -32,6 +32,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES,
     AXL,
+    AXL_NAME_DICT,
     CARTESIAN_FORCES,
     CARTESIAN_POSITIONS,
     NOISE,
@@ -114,7 +115,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             logger=False
         )  # It is not the responsibility of this class to log its parameters.
 
-        # the score network is expected to produce three outputs:
+        # the score network is expected to produce an output as an AXL namedtuple:
         # atom: unnormalized estimate of p(a_0 | a_t)
         # positions: estimate of \sigma \nabla_{x_t} p_{t|0}(x_t | x_0)
         # lattices: TODO
@@ -125,9 +126,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         # noisy samplers for atom types, coordinates and lattice vectors
         self.noisy_samplers = AXL(
-            ATOM_TYPES=NoisyAtomTypesSampler(),
-            RELATIVE_COORDINATES=NoisyRelativeCoordinatesSampler(),
-            UNIT_CELL=NoisyLatticeSampler(),
+            A=NoisyAtomTypesSampler(),
+            X=NoisyRelativeCoordinatesSampler(),
+            L=NoisyLatticeSampler(),
         )
 
         self.noise_scheduler = NoiseScheduler(
@@ -279,9 +280,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             batch_values=noise_sample.sigma, final_shape=shape
         )
         # we can now get noisy coordinates
-        xt = self.noisy_samplers[
-            RELATIVE_COORDINATES
-        ].get_noisy_relative_coordinates_sample(x0, sigmas)
+        xt = self.noisy_samplers.X.get_noisy_relative_coordinates_sample(x0, sigmas)
 
         # to get noisy atom types, we need to broadcast the transition matrix q_bar from size
         # [num_atom_types, num_atom_types] to [batch_size, number_of_atoms, num_atom_types, num_atom_types]. All the
@@ -300,19 +299,17 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         # we also need the atom types to be one-hot vector and not a class index
         a0_onehot = class_index_to_onehot(a0, self.hyper_params.num_atom_types + 1)
 
-        at = self.noisy_samplers[ATOM_TYPES].get_noisy_atom_types_sample(
+        at = self.noisy_samplers.A.get_noisy_atom_types_sample(
             a0_onehot, q_bar_matrices
         )
         at_onehot = class_index_to_onehot(at, self.hyper_params.num_atom_types + 1)
 
         # TODO do the same for the lattice vectors
-        lvect = self.noisy_samplers[UNIT_CELL].get_noisy_lattice_vectors(lvec0)
+        lvect = self.noisy_samplers.L.get_noisy_lattice_vectors(lvec0)
 
-        noisy_sample = AXL(
-            ATOM_TYPES=at, RELATIVE_COORDINATES=xt, UNIT_CELL=lvec0  # not one-hot
-        )
+        noisy_sample = AXL(A=at, X=xt, L=lvec0)  # not one-hot
 
-        original_sample = AXL(ATOM_TYPES=a0, RELATIVE_COORDINATES=x0, UNIT_CELL=lvect)
+        original_sample = AXL(A=a0, X=x0, L=lvect)
 
         # Get the loss targets
         # Coordinates: The target is nabla log p_{t|0} (xt | x0): it is NOT the "score", but rather a "conditional"
@@ -349,7 +346,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         unreduced_loss_coordinates = self.loss_calculator[
             RELATIVE_COORDINATES
         ].calculate_unreduced_loss(
-            model_predictions[RELATIVE_COORDINATES],
+            model_predictions.X,
             target_coordinates_normalized_conditional_scores,
             sigmas,
         )
@@ -357,7 +354,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         unreduced_loss_atom_types = self.loss_calculator[
             ATOM_TYPES
         ].calculate_unreduced_loss(
-            predicted_unnormalized_probabilities=model_predictions[ATOM_TYPES],
+            predicted_unnormalized_probabilities=model_predictions.A,
             one_hot_real_atom_types=a0_onehot,
             one_hot_noisy_atom_types=at_onehot,
             time_indices=noise_sample.indices,
@@ -367,9 +364,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         )
 
         # TODO placeholder - returns zero
-        unreduced_loss_lattice = self.loss_calculator[
-            UNIT_CELL
-        ].calculate_unreduced_loss(model_predictions[UNIT_CELL])
+        unreduced_loss_lattice = self.loss_calculator.L.calculate_unreduced_loss(
+            model_predictions.L
+        )
 
         # TODO consider having weights in front of each component
         aggregated_loss = (
@@ -381,15 +378,15 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         loss = torch.mean(aggregated_loss)
 
         unreduced_loss = AXL(
-            ATOM_TYPES=unreduced_loss_atom_types.detach(),
-            RELATIVE_COORDINATES=unreduced_loss_coordinates.detach(),
-            UNIT_CELL=unreduced_loss_lattice.detach(),
+            A=unreduced_loss_atom_types.detach(),
+            X=unreduced_loss_coordinates.detach(),
+            L=unreduced_loss_lattice.detach(),
         )
 
         model_predictions_detached = AXL(
-            ATOM_TYPES=model_predictions[ATOM_TYPES].detach(),
-            RELATIVE_COORDINATES=model_predictions[RELATIVE_COORDINATES].detach(),
-            UNIT_CELL=model_predictions[UNIT_CELL].detach(),
+            A=model_predictions.A.detach(),
+            X=model_predictions.X.detach(),
+            L=model_predictions.L.detach(),
         )
 
         output = dict(
@@ -459,13 +456,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             on_epoch=True,
         )
 
-        for axl_key, axl_name in zip(
-            [ATOM_TYPES, RELATIVE_COORDINATES, UNIT_CELL],
-            ["atoms_type", "coordinates", "lattice"],
-        ):
+        for axl_field in output["unreduced_loss"]._fields:
             self.log(
-                f"train_epoch_{axl_name}_loss",
-                output["unreduced_loss"][axl_key].mean(),
+                f"train_epoch_{AXL_NAME_DICT[axl_field]}_loss",
+                getattr(output["unreduced_loss"], axl_field).mean(),
                 batch_size=batch_size,
                 on_step=False,
                 on_epoch=True,
@@ -488,13 +482,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             prog_bar=True,
         )
 
-        for axl_key, axl_name in zip(
-            [ATOM_TYPES, RELATIVE_COORDINATES, UNIT_CELL],
-            ["atoms_type", "coordinates", "lattice"],
-        ):
+        for axl_field in output["unreduced_loss"]._fields:
             self.log(
-                f"validation_epoch_{axl_name}_loss",
-                output["unreduced_loss"][axl_key].mean(),
+                f"validation_epoch_{AXL_NAME_DICT[axl_field]}_loss",
+                getattr(output["unreduced_loss"], axl_field).mean(),
                 batch_size=batch_size,
                 on_step=False,
                 on_epoch=True,
@@ -510,7 +501,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             basis_vectors = torch.diag_embed(batch["box"])  # TODO replace with AXL L
             cartesian_positions = get_positions_from_coordinates(
-                relative_coordinates=batch[ORIGINAL_AXL][RELATIVE_COORDINATES],
+                relative_coordinates=batch[ORIGINAL_AXL].X,
                 basis_vectors=basis_vectors,
             )
 
@@ -536,13 +527,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True
         )
 
-        for axl_key, axl_name in zip(
-            [ATOM_TYPES, RELATIVE_COORDINATES, UNIT_CELL],
-            ["atoms_type", "coordinates", "lattice"],
-        ):
+        for axl_field in output["unreduced_loss"]._fields:
             self.log(
-                f"test_epoch_{axl_name}_loss",
-                output["unreduced_loss"][axl_key].mean(),
+                f"test_epoch_{AXL_NAME_DICT[axl_field]}_loss",
+                getattr(output["unreduced_loss"], axl_field).mean(),
                 batch_size=batch_size,
                 on_step=False,
                 on_epoch=True,

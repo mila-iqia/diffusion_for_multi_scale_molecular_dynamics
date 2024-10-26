@@ -378,7 +378,7 @@ def create_loss_calculator(loss_parameters: LossParameters) -> AXL:
     atom_loss = D3PMLossCalculator(loss_parameters)
 
     return AXL(
-        ATOM_TYPES=atom_loss,
-        RELATIVE_COORDINATES=coordinates_loss,
-        UNIT_CELL=lattice_loss,
+        A=atom_loss,
+        X=coordinates_loss,
+        L=lattice_loss,
     )

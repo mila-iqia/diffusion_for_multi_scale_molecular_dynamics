@@ -96,7 +96,7 @@ class ScoreNetwork(torch.nn.Module):
             f"the batch dictionary with key '{NOISY_AXL}'"
         )
 
-        relative_coordinates = batch[NOISY_AXL][RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL].X
         relative_coordinates_shape = relative_coordinates.shape
         batch_size = relative_coordinates_shape[0]
         assert (
@@ -150,7 +150,7 @@ class ScoreNetwork(torch.nn.Module):
             and unit_cell_shape[2] == self.spatial_dimension
         ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension]."
 
-        atom_types = batch[NOISY_AXL][ATOM_TYPES]
+        atom_types = batch[NOISY_AXL].A
         assert (
             len(atom_types) == 2
         ), "The atoms type are expected to be in a tensor of shape [batch_size, number of atoms]."
@@ -177,7 +177,7 @@ class ScoreNetwork(torch.nn.Module):
 
     def forward(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: Optional[bool] = None
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Model forward.
 
         Args:
@@ -186,7 +186,7 @@ class ScoreNetwork(torch.nn.Module):
                 randomly with probability conditional_prob
 
         Returns:
-            computed_scores : the scores computed by the model.
+            computed_scores : the scores computed by the model in an AXL namedtuple.
         """
         self._check_batch(batch)
         if conditional is None:
@@ -199,6 +199,7 @@ class ScoreNetwork(torch.nn.Module):
         if not conditional:
             return self._forward_unchecked(batch, conditional=False)
         else:
+            # TODO this is not going to work
             return self._forward_unchecked(
                 batch, conditional=True
             ) * self.conditional_gamma + self._forward_unchecked(

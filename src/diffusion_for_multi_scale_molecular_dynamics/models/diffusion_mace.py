@@ -467,8 +467,8 @@ class DiffusionMACE(torch.nn.Module):
         vectors_output = self.vector_readout(node_feats)
         classification_output = self.classification_readout(node_feats)
         axl_output = AXL(
-            ATOM_TYPES=classification_output,
-            RELATIVE_COORDINATES=vectors_output,
-            UNIT_CELL=torch.zeros_like(classification_output),
+            A=classification_output,
+            X=vectors_output,
+            L=torch.zeros_like(classification_output),
         )
         return axl_output

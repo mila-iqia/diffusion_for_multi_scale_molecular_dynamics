@@ -147,7 +147,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
                 atom types: [batch_size, n_atom, num_atom_types + 1] tensor.
                 lattice: [batch_size, n_atom, spatial_dimension * (spatial_dimension -1)] tensor.
         """
-        relative_coordinates = batch[NOISY_AXL][RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L
@@ -159,7 +159,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         )
 
         mace_axl_scores = self.diffusion_mace_network(graph_input, conditional)
-        flat_cartesian_scores = mace_axl_scores[RELATIVE_COORDINATES]
+        flat_cartesian_scores = mace_axl_scores.X
         cartesian_scores = flat_cartesian_scores.reshape(
             batch_size, number_of_atoms, spatial_dimension
         )
@@ -171,14 +171,14 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             cartesian_scores, reciprocal_basis_vectors_as_columns
         )
 
-        atom_types_scores = mace_axl_scores[ATOM_TYPES].reshape(
+        atom_types_scores = mace_axl_scores.A.reshape(
             batch_size, number_of_atoms, self._number_of_elements
         )
 
         axl_scores = AXL(
-            ATOM_TYPES=atom_types_scores,
-            RELATIVE_COORDINATES=coordinates_scores,
-            UNIT_CELL=torch.zeros_like(atom_types_scores),
+            A=atom_types_scores,
+            X=coordinates_scores,
+            L=torch.zeros_like(atom_types_scores),
         )
 
         return axl_scores

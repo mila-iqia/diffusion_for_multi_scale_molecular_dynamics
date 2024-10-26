@@ -4,6 +4,7 @@ This module defines string constants to represent recurring concepts that appear
 throughout the code base. Confusion and errors are reduced by having one and only one string to
 represent these concepts.
 """
+
 from collections import namedtuple
 
 #  r^alpha <-  cartesian position, alpha \in (x,y,z)
@@ -28,4 +29,8 @@ UNIT_CELL = "unit_cell"  # unit cell definition
 ATOM_TYPES = "atom_types"
 NOISY_ATOM_TYPES = "noisy_atom_types"
 
-AXL = namedtuple("AXL_object", [ATOM_TYPES, RELATIVE_COORDINATES, UNIT_CELL])
+AXL = namedtuple("AXL", ["A", "X", "L"])
+AXL_NAME_DICT = {"A": ATOM_TYPES, "X": RELATIVE_COORDINATES, "L": UNIT_CELL}
+
+NOISY_AXL = "noisy_axl"
+ORIGINAL_AXL = "original_axl"
