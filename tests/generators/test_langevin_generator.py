@@ -5,10 +5,12 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator 
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    ExplodingVarianceSampler
 from tests.generators.conftest import BaseTestGenerator
 
 

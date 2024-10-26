@@ -101,7 +101,7 @@ class NoisyAtomTypesSampler:
     def get_noisy_atom_types_sample(
             real_onehot_atom_types: torch.Tensor, q_bar: torch.Tensor
     ) -> torch.Tensor:
-        """Get noisy atom types sample.
+        r"""Get noisy atom types sample.
 
         This method generates a sample using the transition probabilities defined by the q_bar matrices.
 
@@ -115,9 +115,8 @@ class NoisyAtomTypesSampler:
             noisy_atom_types: a sample of noised atom types as classes, not 1-hot, of the same shape as
             real_onehot_atom_types except for the last dimension that is removed.
         """
-        assert (
-                real_onehot_atom_types.shape == q_bar.shape[:-1]
-        ), "q_bar array first dimensions should match real_atom_types array"
+        assert real_onehot_atom_types.shape == q_bar.shape[:-1], \
+            "q_bar array first dimensions should match real_atom_types array"
 
         u_scores = NoisyAtomTypesSampler._get_uniform_noise(
             real_onehot_atom_types.shape

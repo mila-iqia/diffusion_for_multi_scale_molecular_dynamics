@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
+from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
+    RelativeCoordinatesNoiser
 
 
 @pytest.mark.parametrize("shape", [(10, 1), (4, 5, 3), (2, 2, 2, 2)])
@@ -23,7 +23,7 @@ class TestNoisyRelativeCoordinatesSampler:
 
     @pytest.fixture()
     def computed_noisy_relative_coordinates(self, real_relative_coordinates, sigmas):
-        return NoisyRelativeCoordinatesSampler.get_noisy_relative_coordinates_sample(
+        return RelativeCoordinatesNoiser.get_noisy_relative_coordinates_sample(
             real_relative_coordinates, sigmas
         )
 
@@ -43,13 +43,13 @@ class TestNoisyRelativeCoordinatesSampler:
         self, mocker, real_relative_coordinates, sigmas, fake_gaussian_sample
     ):
         mocker.patch.object(
-            NoisyRelativeCoordinatesSampler,
+            RelativeCoordinatesNoiser,
             "_get_gaussian_noise",
             return_value=fake_gaussian_sample,
         )
 
         computed_samples = (
-            NoisyRelativeCoordinatesSampler.get_noisy_relative_coordinates_sample(
+            RelativeCoordinatesNoiser.get_noisy_relative_coordinates_sample(
                 real_relative_coordinates, sigmas
             )
         )

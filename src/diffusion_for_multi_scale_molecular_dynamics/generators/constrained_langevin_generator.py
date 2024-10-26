@@ -10,10 +10,10 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
+    RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
@@ -70,7 +70,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         self.constraint_mask = torch.zeros(self.number_of_atoms, dtype=bool)
         self.constraint_mask[:number_of_constraints] = True
 
-        self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
+        self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
 
     def _apply_constraint(self, x: torch.Tensor, device: torch.device) -> None:
         """This method applies the coordinate constraint in place on the input configuration."""
@@ -121,7 +121,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
             sigma_i = self.noise.sigma[i]
             broadcast_sigmas_i = sigma_i * broadcasting
             # Noise an example satisfying the constraints from t_0 to t_i
-            x_i_known = self.noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(
+            x_i_known = self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
                 x0_known, broadcast_sigmas_i
             )
             # Denoise from t_{i+1} to t_i
