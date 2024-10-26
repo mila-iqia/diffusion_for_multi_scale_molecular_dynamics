@@ -1,8 +1,12 @@
 from collections import namedtuple
-from dataclasses import dataclass
 from typing import Tuple
 
 import torch
+
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
+    ExplodingVariance
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 
 Noise = namedtuple(
     "Noise",
@@ -21,31 +25,6 @@ Noise = namedtuple(
     ],
 )
 LangevinDynamics = namedtuple("LangevinDynamics", ["epsilon", "sqrt_2_epsilon"])
-
-
-@dataclass
-class NoiseParameters:
-    """Noise schedule parameters."""
-
-    total_time_steps: int
-    time_delta: float = 1e-5  # the time schedule will cover the range [time_delta, 1]
-    # As discussed in Appendix C of "SCORE-BASED GENERATIVE MODELING THROUGH STOCHASTIC DIFFERENTIAL EQUATIONS",
-    # the time t = 0 is problematic.
-
-    # Default values come from the paper:
-    #   "Torsional Diffusion for Molecular Conformer Generation",
-    # The original values in the paper are
-    #   sigma_min = 0.01 pi , sigma_max = pi
-    # However, they consider angles from 0 to 2pi as their coordinates:
-    # here we divide by 2pi because our space is in the range [0, 1).
-    sigma_min: float = 0.005
-    sigma_max: float = 0.5
-
-    # Default value comes from "Generative Modeling by Estimating Gradients of the Data Distribution"
-    corrector_step_epsilon: float = 2e-5
-
-    # Number of classes for the D3PM transition matrices
-    num_classes: int = 3
 
 
 class NoiseScheduler(torch.nn.Module):
@@ -120,12 +99,14 @@ class NoiseScheduler(torch.nn.Module):
         self.noise_parameters = noise_parameters
         self.num_classes = num_classes
 
-        self._time_array = torch.nn.Parameter(
-            self._get_time_array(noise_parameters), requires_grad=False
-        )
+        self._exploding_variance = ExplodingVariance(noise_parameters)
+
+        times = self._get_time_array(noise_parameters)
+
+        self._time_array = torch.nn.Parameter(times, requires_grad=False)
 
         self._sigma_array = torch.nn.Parameter(
-            self._create_sigma_array(noise_parameters, self._time_array),
+            self._exploding_variance.get_sigma(times),
             requires_grad=False,
         )
         self._sigma_squared_array = torch.nn.Parameter(
@@ -133,7 +114,7 @@ class NoiseScheduler(torch.nn.Module):
         )
 
         self._g_squared_array = torch.nn.Parameter(
-            self._create_g_squared_array(noise_parameters, self._sigma_squared_array),
+            self._create_discretized_g_squared_array(self._sigma_squared_array, noise_parameters.sigma_min),
             requires_grad=False,
         )
         self._g_array = torch.nn.Parameter(
@@ -180,21 +161,8 @@ class NoiseScheduler(torch.nn.Module):
         )
 
     @staticmethod
-    def _create_sigma_array(
-        noise_parameters: NoiseParameters, time_array: torch.Tensor
-    ) -> torch.Tensor:
-        sigma_min = noise_parameters.sigma_min
-        sigma_max = noise_parameters.sigma_max
-
-        sigma = sigma_min ** (1.0 - time_array) * sigma_max**time_array
-        return sigma
-
-    @staticmethod
-    def _create_g_squared_array(
-        noise_parameters: NoiseParameters, sigma_squared_array: torch.Tensor
-    ) -> torch.Tensor:
+    def _create_discretized_g_squared_array(sigma_squared_array: torch.Tensor, sigma_min: float) -> torch.Tensor:
         # g^2_{i} = sigma^2_{i} - sigma^2_{i-1}. For the first element (i=1), we set sigma_{0} = sigma_min.
-        sigma_min = noise_parameters.sigma_min
         zeroth_value_tensor = torch.tensor([sigma_squared_array[0] - sigma_min**2])
         return torch.cat(
             [zeroth_value_tensor, sigma_squared_array[1:] - sigma_squared_array[:-1]]
