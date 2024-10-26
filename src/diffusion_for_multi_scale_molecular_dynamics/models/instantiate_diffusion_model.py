@@ -41,6 +41,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
     globals_dict = dict(
         max_atom=hyper_params["data"]["max_atom"],
         spatial_dimension=hyper_params.get("spatial_dimension", 3),
+        num_atom_types=hyper_params.get("num_atom_types", 2)
     )
 
     score_network_dict = hyper_params["model"]["score_network"]

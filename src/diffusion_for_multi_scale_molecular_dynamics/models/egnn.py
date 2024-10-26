@@ -356,8 +356,8 @@ class EGNN(nn.Module):
             h, x = graph_layer(h, edges, x)
         node_classification_logits = self.node_classification_layer(h)
         model_outputs = AXL(
-            ATOM_TYPES=node_classification_logits,
-            RELATIVE_COORDINATES=x,
-            UNIT_CELL=torch.zeros_like(x),
+            A=node_classification_logits,
+            X=x,
+            L=torch.zeros_like(x),
         )
         return model_outputs

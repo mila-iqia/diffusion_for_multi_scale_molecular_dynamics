@@ -164,7 +164,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         Returns:
             node_attributes: a tensor of dimension [batch, natoms, num_atom_types + 2]
         """
-        relative_coordinates = batch[NOISY_AXL][RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         sigmas = batch[NOISE].to(relative_coordinates.device)
@@ -172,7 +172,7 @@ class EGNNScoreNetwork(ScoreNetwork):
             sigmas, "batch 1 -> (batch natoms) 1", natoms=number_of_atoms
         )
 
-        atom_types = batch[NOISY_AXL][ATOM_TYPES]
+        atom_types = batch[NOISY_AXL].A
         atom_types_one_hot = torch.nn.functional.one_hot(
             atom_types, num_classes=num_atom_types + 1
         )
@@ -266,9 +266,9 @@ class EGNNScoreNetwork(ScoreNetwork):
         )
 
         axl_scores = AXL(
-            ATOM_TYPES=raw_normalized_score[ATOM_TYPES],
-            RELATIVE_COORDINATES=normalized_scores,
-            UNIT_CELL=raw_normalized_score[UNIT_CELL],
+            A=raw_normalized_score[ATOM_TYPES],
+            X=normalized_scores,
+            L=raw_normalized_score[UNIT_CELL],
         )
 
         return axl_scores
