@@ -42,9 +42,6 @@ class AnalyticalScoreNetworkParameters(ScoreNetworkParameters):
 
     architecture: str = "analytical"
     number_of_atoms: int  # the number of atoms in a configuration.
-    num_atom_types: (
-        int  # number of atomic species excluding the MASK class used in diffusion
-    )
     kmax: int  # the maximum lattice translation along any dimension. Translations will be [-kmax,..,kmax].
     equilibrium_relative_coordinates: (
         torch.Tensor

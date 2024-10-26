@@ -6,13 +6,24 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn import EGNN
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
-    get_edges_batch, get_edges_with_radial_cutoff)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
-    ScoreNetworkParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
-    ScoreNetwork
+    get_edges_batch,
+    get_edges_with_radial_cutoff,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
+    ScoreNetworkParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
+    ScoreNetwork,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISE, NOISY_RELATIVE_COORDINATES, UNIT_CELL)
+    ATOM_TYPES,
+    AXL,
+    NOISE,
+    NOISY_AXL,
+    NOISY_RELATIVE_COORDINATES,
+    RELATIVE_COORDINATES,
+    UNIT_CELL,
+)
 
 
 @dataclass(kw_only=True)
@@ -53,8 +64,11 @@ class EGNNScoreNetwork(ScoreNetwork):
         """
         super(EGNNScoreNetwork, self).__init__(hyper_params)
 
-        self.number_of_features_per_node = 1
         self.spatial_dimension = hyper_params.spatial_dimension
+        self.num_atom_types = hyper_params.num_atom_types
+        self.number_of_features_per_node = (
+            self.num_atom_types + 2
+        )  # +1 for MASK class, + 1 for sigma
 
         projection_matrices = self._create_block_diagonal_projection_matrices(
             self.spatial_dimension
@@ -137,24 +151,36 @@ class EGNNScoreNetwork(ScoreNetwork):
         return torch.stack(projection_matrices)
 
     @staticmethod
-    def _get_node_attributes(batch: Dict[AnyStr, torch.Tensor]) -> torch.Tensor:
+    def _get_node_attributes(
+        batch: Dict[AnyStr, torch.Tensor], num_atom_types: int
+    ) -> torch.Tensor:
         """Get node attributes.
 
-        This method extracts the node atttributes, "h", to be fed as input to the EGNN network.
+        This method extracts the node attributes, "h", to be fed as input to the EGNN network.
         Args:
             batch : the batch dictionary
+            num_atom_types: number of atom types excluding the MASK token
 
         Returns:
-            node_attributes: a tensor of dimension [number_of_nodes, number_for_features_per_node]
+            node_attributes: a tensor of dimension [batch, natoms, num_atom_types + 2]
         """
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL][RELATIVE_COORDINATES]
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         sigmas = batch[NOISE].to(relative_coordinates.device)
         repeated_sigmas = einops.repeat(
             sigmas, "batch 1 -> (batch natoms) 1", natoms=number_of_atoms
         )
-        return repeated_sigmas
+
+        atom_types = batch[NOISY_AXL][ATOM_TYPES]
+        atom_types_one_hot = torch.nn.functional.one_hot(
+            atom_types, num_classes=num_atom_types + 1
+        )
+
+        node_attributes = torch.concatenate(
+            (repeated_sigmas, atom_types_one_hot), dim=1
+        )
+        return node_attributes
 
     @staticmethod
     def _get_euclidean_positions(
@@ -184,7 +210,7 @@ class EGNNScoreNetwork(ScoreNetwork):
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
-    ) -> torch.Tensor:
+    ) -> AXL:
         relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
@@ -209,7 +235,9 @@ class EGNNScoreNetwork(ScoreNetwork):
         #   Dimensions [number_of_nodes, 2 x spatial_dimension]
         euclidean_positions = self._get_euclidean_positions(flat_relative_coordinates)
 
-        node_attributes_h = self._get_node_attributes(batch)
+        node_attributes_h = self._get_node_attributes(
+            batch, num_atom_types=self.num_atom_types
+        )
         # The raw normalized score has dimensions [number_of_nodes, 2 x spatial_dimension]
         # CAREFUL! It is important to pass a clone of the euclidian positions because EGNN will modify its input!
         raw_normalized_score = self.egnn(
@@ -226,7 +254,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         flat_normalized_scores = einops.einsum(
             euclidean_positions,
             self.projection_matrices,
-            raw_normalized_score,
+            raw_normalized_score[RELATIVE_COORDINATES],
             "nodes i, alpha i j, nodes j-> nodes alpha",
         )
 
@@ -236,4 +264,11 @@ class EGNNScoreNetwork(ScoreNetwork):
             batch=batch_size,
             natoms=number_of_atoms,
         )
-        return normalized_scores
+
+        axl_scores = AXL(
+            ATOM_TYPES=raw_normalized_score[ATOM_TYPES],
+            RELATIVE_COORDINATES=normalized_scores,
+            UNIT_CELL=raw_normalized_score[UNIT_CELL],
+        )
+
+        return axl_scores

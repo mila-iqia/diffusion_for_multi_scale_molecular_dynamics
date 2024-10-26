@@ -34,7 +34,6 @@ class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
 
     architecture: str = "diffusion_mace"
     number_of_atoms: int  # the number of atoms in a configuration.
-    num_atom_types: int  # number of atom types
     r_max: float = 5.0
     num_bessel: int = 8
     num_polynomial_cutoff: int = 5
@@ -131,7 +130,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Forward unchecked.
 
         This method assumes that the input data has already been checked with respect to expectations
@@ -143,7 +142,10 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
                 Defaults to False.
 
         Returns:
-            output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
+            output : the scores computed by the model as a AXL
+                coordinates: [batch_size, n_atom, spatial_dimension] tensor.
+                atom types: [batch_size, n_atom, num_atom_types + 1] tensor.
+                lattice: [batch_size, n_atom, spatial_dimension * (spatial_dimension -1)] tensor.
         """
         relative_coordinates = batch[NOISY_AXL][RELATIVE_COORDINATES]
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
