@@ -4,9 +4,10 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
-    ScoreNetwork, ScoreNetworkParameters)
-from diffusion_for_multi_scale_molecular_dynamics.namespace import \
-    NOISY_RELATIVE_COORDINATES
+    ScoreNetwork,
+    ScoreNetworkParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL, NOISY_AXL
 
 
 class FakeScoreNetwork(ScoreNetwork):
@@ -14,8 +15,8 @@ class FakeScoreNetwork(ScoreNetwork):
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
-    ) -> torch.Tensor:
-        return batch[NOISY_RELATIVE_COORDINATES]
+    ) -> AXL:
+        return AXL(A=None, X=batch[NOISY_AXL].X, L=None)
 
 
 class BaseTestGenerator:

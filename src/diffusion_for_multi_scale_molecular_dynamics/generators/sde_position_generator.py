@@ -13,9 +13,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
     ScoreNetwork,
 )
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_RELATIVE_COORDINATES,
+    NOISY_AXL,
     TIME,
     UNIT_CELL,
 )
@@ -183,9 +184,15 @@ class SDE(torch.nn.Module):
             natom=self.number_of_atoms,
             space=self.spatial_dimension,
         )
+        atom_types = torch.zeros_like(
+            relative_coordinates[:, :, 0]
+        ).long()  # TODO placeholder
+
         batch = {
-            NOISY_RELATIVE_COORDINATES: map_relative_coordinates_to_unit_cell(
-                relative_coordinates
+            NOISY_AXL: AXL(
+                A=atom_types,
+                X=map_relative_coordinates_to_unit_cell(relative_coordinates),
+                L=self.unit_cells,  # TODO
             ),
             NOISE: sigmas,
             TIME: times,
@@ -194,9 +201,9 @@ class SDE(torch.nn.Module):
                 relative_coordinates
             ),  # TODO: handle forces correctly.
         }
-        # Shape [batch_size, number of atoms, spatial dimension]
+        # Shape for the coordinates scores [batch_size, number of atoms, spatial dimension]
         sigma_normalized_scores = self.sigma_normalized_score_network(batch)
-        return sigma_normalized_scores
+        return sigma_normalized_scores.X
 
     def g(self, sde_time, y):
         """Diffusion function."""

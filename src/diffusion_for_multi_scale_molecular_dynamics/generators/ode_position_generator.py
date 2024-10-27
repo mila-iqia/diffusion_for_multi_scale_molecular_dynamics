@@ -15,9 +15,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     ScoreNetwork,
 )
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_RELATIVE_COORDINATES,
+    NOISY_AXL,
     TIME,
     UNIT_CELL,
 )
@@ -149,8 +150,10 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             )
 
             batch = {
-                NOISY_RELATIVE_COORDINATES: map_relative_coordinates_to_unit_cell(
-                    relative_coordinates
+                NOISY_AXL: AXL(
+                    A=torch.zeros_like(relative_coordinates[:, :, 0]).long(),
+                    X=map_relative_coordinates_to_unit_cell(relative_coordinates),
+                    L=None,  # TODO
                 ),
                 NOISE: sigmas.unsqueeze(-1),
                 TIME: times.unsqueeze(-1),
@@ -161,7 +164,9 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             }
 
             # Shape [batch_size, number of atoms, spatial dimension]
-            sigma_normalized_scores = self.sigma_normalized_score_network(batch)
+            sigma_normalized_scores = self.sigma_normalized_score_network(
+                batch
+            ).X  # TODO
             flat_sigma_normalized_scores = einops.rearrange(
                 sigma_normalized_scores, "batch natom space -> batch (natom space)"
             )

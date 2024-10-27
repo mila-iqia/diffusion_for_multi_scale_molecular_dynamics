@@ -2,11 +2,16 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import (
-    SDE, ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    ExplodingVariance
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
+    SDE,
+    ExplodingVarianceSDEPositionGenerator,
+    SDESamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import (
+    VarianceScheduler,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
 from tests.generators.conftest import BaseTestGenerator
 
 
@@ -89,7 +94,7 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
             final_diffusion_time - initial_diffusion_time
         )
 
-        sigma = ExplodingVariance(noise_parameters).get_sigma(time_array)[0]
+        sigma = VarianceScheduler(noise_parameters).get_sigma(time_array)[0]
 
         expected_g_squared = (
             2.0

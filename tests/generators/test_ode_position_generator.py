@@ -2,11 +2,15 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
-    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
-    ExplodingVarianceSampler
+    ExplodingVarianceODEPositionGenerator,
+    ODESamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
+    NoiseScheduler,
+)
 from tests.generators.conftest import BaseTestGenerator
 
 
@@ -53,8 +57,11 @@ class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
         return generator
 
     def test_get_ode_prefactor(self, ode_generator, noise_parameters):
-        times = ExplodingVarianceSampler._get_time_array(noise_parameters)
-        sigmas = noise_parameters.sigma_min ** (1.0 - times) * noise_parameters.sigma_max**times
+        times = NoiseScheduler._get_time_array(noise_parameters)
+        sigmas = (
+            noise_parameters.sigma_min ** (1.0 - times)
+            * noise_parameters.sigma_max**times
+        )
 
         sig_ratio = torch.tensor(
             noise_parameters.sigma_max / noise_parameters.sigma_min
