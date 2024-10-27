@@ -5,20 +5,24 @@ import torch
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
-    PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import \
-    MSELossParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
-    OptimizerParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import (
-    PositionDiffusionLightningModel, PositionDiffusionParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
-    MLPScoreNetworkParameters
-from diffusion_for_multi_scale_molecular_dynamics.namespace import \
-    RELATIVE_COORDINATES
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import (
+    PredictorCorrectorSamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
+    AXLDiffusionLightningModel,
+    AXLDiffusionParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.loss import MSELossParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
+    OptimizerParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
+    MLPScoreNetworkParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import RELATIVE_COORDINATES
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
 
 
 @pytest.fixture()
@@ -29,6 +33,11 @@ def spatial_dimension():
 @pytest.fixture()
 def number_of_atoms():
     return 8
+
+
+@pytest.fixture()
+def num_atom_types():
+    return 3
 
 
 @pytest.fixture()
@@ -70,15 +79,17 @@ def sampling_parameters(
 
 
 @pytest.fixture()
-def sigma_normalized_score_network(number_of_atoms, noise_parameters):
+def sigma_normalized_score_network(number_of_atoms, noise_parameters, num_atom_types):
     score_network_parameters = MLPScoreNetworkParameters(
         number_of_atoms=number_of_atoms,
-        embedding_dimensions_size=8,
+        num_atom_types=num_atom_types,
+        noise_embedding_dimensions_size=8,
+        atom_type_embedding_dimensions_size=8,
         n_hidden_dimensions=2,
         hidden_dimensions_size=16,
     )
 
-    diffusion_params = PositionDiffusionParameters(
+    diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,
         loss_parameters=MSELossParameters(),
         optimizer_parameters=OptimizerParameters(name="adam", learning_rate=1e-3),
@@ -87,8 +98,8 @@ def sigma_normalized_score_network(number_of_atoms, noise_parameters):
         diffusion_sampling_parameters=None,
     )
 
-    model = PositionDiffusionLightningModel(diffusion_params)
-    return model.sigma_normalized_score_network
+    model = AXLDiffusionLightningModel(diffusion_params)
+    return model.score_network
 
 
 @pytest.fixture()
