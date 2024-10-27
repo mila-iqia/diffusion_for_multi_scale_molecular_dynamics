@@ -21,7 +21,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_CARTESIAN_POSITIONS,
+    NOISY_AXL,
     UNIT_CELL,
 )
 
@@ -69,7 +69,7 @@ def input_to_diffusion_mace(
     Returns:
         pytorch-geometric graph data compatible with MACE forward
     """
-    cartesian_positions = batch[NOISY_CARTESIAN_POSITIONS]
+    cartesian_positions = batch[NOISY_AXL].X
     batch_size, n_atom_per_graph, spatial_dimension = cartesian_positions.shape
     device = cartesian_positions.device
 
@@ -84,7 +84,7 @@ def input_to_diffusion_mace(
 
     # node features are int corresponding to atom type
     # TODO handle different atom types
-    atom_types = torch.zeros(batch_size * n_atom_per_graph)
+    atom_types = batch[NOISY_AXL].A
     node_attrs = torch.nn.functional.one_hot(
         atom_types.long(), num_classes=num_atom_types
     ).to(atom_types)
