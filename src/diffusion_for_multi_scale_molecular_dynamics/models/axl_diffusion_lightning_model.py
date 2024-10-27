@@ -96,7 +96,6 @@ class AXLDiffusionParameters:
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: Optional[SchedulerParameters] = None
     noise_parameters: NoiseParameters
-    num_atom_types: int  # number of atom types - excluding the MASK class
     # convergence parameter for the Ewald-like sum of the perturbation kernel for coordinates.
     kmax_target_score: int = 4
     diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
@@ -117,6 +116,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         super().__init__()
 
         self.hyper_params = hyper_params
+        self.num_atom_types = hyper_params.score_network_parameters.num_atom_types
         self.save_hyperparameters(
             logger=False
         )  # It is not the responsibility of this class to log its parameters.
@@ -139,7 +139,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         self.noise_scheduler = NoiseScheduler(
             hyper_params.noise_parameters,
-            num_classes=hyper_params.num_atom_types + 1,  # add 1 for the MASK class
+            num_classes=self.num_atom_types + 1,  # add 1 for the MASK class
         )
 
         self.generator = None
@@ -269,12 +269,14 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         a0 = batch[ATOM_TYPES]
         batch_size = self._get_batch_size(batch)
         atom_shape = a0.shape
-        assert len(atom_shape) == (
+        assert len(atom_shape) == 2, (
             f"the shape of the ATOM_TYPES array should be [batch_size, number_of_atoms]. "
             f"Got shape = {atom_shape}"
         )
 
-        lvec0 = batch[UNIT_CELL]
+        lvec0 = batch[
+            "box"
+        ]  # should be batch[UNIT_CELL] - see later comment with batch['box']
         # TODO assert on shape
 
         noise_sample = self.noise_scheduler.get_random_noise_sample(batch_size)
@@ -303,15 +305,15 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         )
 
         # we also need the atom types to be one-hot vector and not a class index
-        a0_onehot = class_index_to_onehot(a0, self.hyper_params.num_atom_types + 1)
+        a0_onehot = class_index_to_onehot(a0, self.num_atom_types + 1)
 
         at = self.noisers.A.get_noisy_atom_types_sample(a0_onehot, q_bar_matrices)
-        at_onehot = class_index_to_onehot(at, self.hyper_params.num_atom_types + 1)
+        at_onehot = class_index_to_onehot(at, self.num_atom_types + 1)
 
         # TODO do the same for the lattice vectors
         lvect = self.noisers.L.get_noisy_lattice_vectors(lvec0)
 
-        noisy_sample = AXL(A=at_onehot, X=xt, L=lvec0)  # not one-hot
+        noisy_sample = AXL(A=at, X=xt, L=lvec0)  # not one-hot
 
         original_sample = AXL(A=a0, X=x0, L=lvect)
 
@@ -347,17 +349,13 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         # A score network output: an unnormalized estimate of p(a_0 | a_t) for the atom types
         # TODO something for the lattice
 
-        unreduced_loss_coordinates = self.loss_calculator[
-            RELATIVE_COORDINATES
-        ].calculate_unreduced_loss(
+        unreduced_loss_coordinates = self.loss_calculator.X.calculate_unreduced_loss(
             model_predictions.X,
             target_coordinates_normalized_conditional_scores,
             sigmas,
         )
 
-        unreduced_loss_atom_types = self.loss_calculator[
-            ATOM_TYPES
-        ].calculate_unreduced_loss(
+        unreduced_loss_atom_types = self.loss_calculator.A.calculate_unreduced_loss(
             predicted_unnormalized_probabilities=model_predictions.A,
             one_hot_real_atom_types=a0_onehot,
             one_hot_noisy_atom_types=at_onehot,
@@ -374,9 +372,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         # TODO consider having weights in front of each component
         aggregated_loss = (
-            unreduced_loss_coordinates
+            unreduced_loss_coordinates.mean(
+                dim=-1
+            )  # batch, num_atoms, spatial_dimension
             + unreduced_loss_lattice
-            + unreduced_loss_atom_types
+            + unreduced_loss_atom_types.mean(dim=-1)  # batch, num_atoms, num_atom_types
         )
 
         loss = torch.mean(aggregated_loss)
@@ -384,7 +384,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         unreduced_loss = AXL(
             A=unreduced_loss_atom_types.detach(),
             X=unreduced_loss_coordinates.detach(),
-            L=unreduced_loss_lattice.detach(),
+            L=torch.zeros_like(
+                unreduced_loss_coordinates
+            ).detach(),  # TODO use unreduced_loss_lattice.detach(),
         )
 
         model_predictions_detached = AXL(
@@ -553,7 +555,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             self.generator = instantiate_generator(
                 sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
                 noise_parameters=self.hyper_params.diffusion_sampling_parameters.noise_parameters,
-                sigma_normalized_score_network=self.sigma_normalized_score_network,
+                sigma_normalized_score_network=self.score_network,  # TODO use A and L too
             )
             logger.info(f"Generator type : {type(self.generator)}")
 

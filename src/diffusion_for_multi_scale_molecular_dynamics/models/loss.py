@@ -164,7 +164,7 @@ class D3PMLossCalculator(torch.nn.Module):
 
     def __init__(self, loss_parameters: LossParameters):
         """Initialize method."""
-        super.__init__()
+        super().__init__()
         # weight of the cross-entropy component
         self.ce_weight = loss_parameters.atom_types_ce_weight
         self.eps = loss_parameters.atom_types_eps
@@ -216,7 +216,7 @@ class D3PMLossCalculator(torch.nn.Module):
         # q(a_t | a_0) = a_0 \bar{Q}_t a_t^T
         q_at_bar_a0 = compute_q_xt_bar_xo(one_hot_real_atom_types, q_bar_matrices)
         q_at_bar_a0 = einops.einsum(
-            q_at_bar_a0, one_hot_noisy_atom_types, "... i , ... i -> ..."
+            q_at_bar_a0, one_hot_noisy_atom_types.float(), "... i , ... i -> ..."
         )
         # dimension of q_at_bar_a0: batch_size, number_of_atoms
         posterior_q = (
@@ -233,7 +233,7 @@ class D3PMLossCalculator(torch.nn.Module):
         # we add a softmax to convert the predictions to normalized probabilities
         p_atpm1_at = q_at_bar_atm1 * einops.einsum(
             q_bar_tm1_matrices,
-            torch.nn.softmax(predicted_unnormalized_probabilities, dim=-1),
+            torch.nn.functional.softmax(predicted_unnormalized_probabilities, dim=-1),
             "... j i, ... j -> ... i",
         )
         # unit test version TODO
@@ -323,7 +323,7 @@ class LatticeLoss(torch.nn.Module):
     """
 
     def __init__(self):
-        super.__init__()
+        super().__init__()
 
     def calculate_unreduced_loss(self, *args):
         return 0
@@ -351,7 +351,7 @@ def create_loss_parameters(model_dictionary: Dict[str, Any]) -> LossParameters:
 
     loss_parameters = create_parameters_from_configuration_dictionary(
         configuration=loss_config_dictionary,
-        identifier="algorithm",
+        identifier="coordinates_algorithm",
         options=LOSS_PARAMETERS_BY_ALGO,
     )
     return loss_parameters

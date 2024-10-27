@@ -55,19 +55,19 @@ class MLPScoreNetwork(ScoreNetwork):
         self.num_atom_types = hyper_params.num_atom_types
 
         coordinate_output_dimension = self.spatial_dimension * self._natoms
-        atom_type_output_dimension = self.spatial_dimension * self.num_atom_types
+        atom_type_output_dimension = self._natoms * (self.num_atom_types + 1)
         input_dimension = (
             coordinate_output_dimension
             + hyper_params.noise_embedding_dimensions_size
-            + hyper_params.atom_type_embedding_dimensions_size
+            + self._natoms * hyper_params.atom_type_embedding_dimensions_size
         )
 
         self.noise_embedding_layer = nn.Linear(
-            1, hyper_params.embedding_dimensions_size
+            1, hyper_params.noise_embedding_dimensions_size
         )
 
         self.atom_type_embedding_layer = nn.Linear(
-            self.num_atom_types, hyper_params.atom_type_embedding_dimensions_size
+            self.num_atom_types + 1, hyper_params.atom_type_embedding_dimensions_size
         )
 
         self.condition_embedding_layer = nn.Linear(
@@ -135,11 +135,15 @@ class MLPScoreNetwork(ScoreNetwork):
             atom_types, num_classes=self.num_atom_types + 1
         )
         atom_type_embedding = self.atom_type_embedding_layer(
-            atom_types_one_hot
+            atom_types_one_hot.float()
         )  # shape [batch_size, atom_type_embedding_dimension
 
         input = torch.cat(
-            [self.flatten(relative_coordinates), noise_embedding, atom_type_embedding],
+            [
+                self.flatten(relative_coordinates),
+                noise_embedding,
+                self.flatten(atom_type_embedding),
+            ],
             dim=1,
         )
 

@@ -2,12 +2,17 @@ from typing import Tuple
 
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
+    compute_q_xt_bar_xo,
+)
+
 
 class AtomTypesNoiser:
     """Atom types noiser.
 
     This class provides methods to generate noisy atom types.
     """
+
     @staticmethod
     def _get_uniform_noise(shape: Tuple[int]) -> torch.Tensor:
         """Get uniform noise.
@@ -24,7 +29,7 @@ class AtomTypesNoiser:
 
     @staticmethod
     def get_noisy_atom_types_sample(
-            real_onehot_atom_types: torch.Tensor, q_bar: torch.Tensor
+        real_onehot_atom_types: torch.Tensor, q_bar: torch.Tensor
     ) -> torch.Tensor:
         r"""Get noisy atom types sample.
 
@@ -40,14 +45,15 @@ class AtomTypesNoiser:
             noisy_atom_types: a sample of noised atom types as classes, not 1-hot, of the same shape as
             real_onehot_atom_types except for the last dimension that is removed.
         """
-        assert real_onehot_atom_types.shape == q_bar.shape[:-1], \
-            "q_bar array first dimensions should match real_atom_types array"
+        assert (
+            real_onehot_atom_types.shape == q_bar.shape[:-1]
+        ), "q_bar array first dimensions should match real_atom_types array"
 
-        u_scores = AtomTypesNoiser._get_uniform_noise(
-            real_onehot_atom_types.shape
-        ).to(q_bar)
+        u_scores = AtomTypesNoiser._get_uniform_noise(real_onehot_atom_types.shape).to(
+            q_bar
+        )
         # we need to sample from q(x_t | x_0)
-        posterior_xt = q_xt_bar_xo(real_onehot_atom_types, q_bar)
+        posterior_xt = compute_q_xt_bar_xo(real_onehot_atom_types, q_bar)
         # gumbel trick to sample from a distribution
         noise = -torch.log(-torch.log(u_scores)).to(real_onehot_atom_types.device)
         noisy_atom_types = torch.log(posterior_xt) + noise

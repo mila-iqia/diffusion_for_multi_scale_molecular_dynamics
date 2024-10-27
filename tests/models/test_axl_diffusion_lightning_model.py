@@ -3,30 +3,46 @@ import torch
 from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
-    PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.metrics.sampling_metrics_parameters import \
-    SamplingMetricsParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import \
-    create_loss_parameters
-from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
-    OptimizerParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import (
-    PositionDiffusionLightningModel, PositionDiffusionParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import (
+    PredictorCorrectorSamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.metrics.sampling_metrics_parameters import (
+    SamplingMetricsParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
+    AXLDiffusionLightningModel,
+    AXLDiffusionParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
+    create_loss_parameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
+    OptimizerParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
-    CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
-    MLPScoreNetworkParameters
+    CosineAnnealingLRSchedulerParameters,
+    ReduceLROnPlateauSchedulerParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
+    MLPScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, RELATIVE_COORDINATES)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
-    DiffusionSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score_brute_force
-from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
-    broadcast_batch_tensor_to_all_dimensions
+    ATOM_TYPES,
+    CARTESIAN_FORCES,
+    RELATIVE_COORDINATES,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import (
+    DiffusionSamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
+    get_sigma_normalized_score_brute_force,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
+    broadcast_batch_tensor_to_all_dimensions,
+)
 
 
 class FakePositionsDataModule(LightningDataModule):
@@ -36,20 +52,27 @@ class FakePositionsDataModule(LightningDataModule):
         dataset_size: int = 33,
         number_of_atoms: int = 8,
         spatial_dimension: int = 2,
+        num_atom_types: int = 2,
     ):
         super().__init__()
         self.batch_size = batch_size
         all_relative_coordinates = torch.rand(
             dataset_size, number_of_atoms, spatial_dimension
         )
+        all_atom_types = torch.randint(
+            0, num_atom_types, (dataset_size, number_of_atoms)
+        )
         box = torch.rand(spatial_dimension)
         self.data = [
             {
-                RELATIVE_COORDINATES: configuration,
+                RELATIVE_COORDINATES: coordinate_configuration,
+                ATOM_TYPES: atom_configuration,
                 "box": box,
-                CARTESIAN_FORCES: torch.zeros_like(configuration),
+                CARTESIAN_FORCES: torch.zeros_like(coordinate_configuration),
             }
-            for configuration in all_relative_coordinates
+            for coordinate_configuration, atom_configuration in zip(
+                all_relative_coordinates, all_atom_types
+            )
         ]
         self.train_data, self.val_data, self.test_data = None, None, None
 
@@ -83,6 +106,10 @@ class TestPositionDiffusionLightningModel:
         return 8
 
     @pytest.fixture()
+    def num_atom_types(self):
+        return 4
+
+    @pytest.fixture()
     def unit_cell_size(self):
         return 10.1
 
@@ -112,7 +139,7 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture(params=["mse", "weighted_mse"])
     def loss_parameters(self, request):
-        model_dict = dict(loss=dict(algorithm=request.param))
+        model_dict = dict(loss=dict(coordinates_algorithm=request.param))
         return create_loss_parameters(model_dictionary=model_dict)
 
     @pytest.fixture()
@@ -152,6 +179,7 @@ class TestPositionDiffusionLightningModel:
     def hyper_params(
         self,
         number_of_atoms,
+        num_atom_types,
         spatial_dimension,
         optimizer_parameters,
         scheduler_parameters,
@@ -161,15 +189,17 @@ class TestPositionDiffusionLightningModel:
     ):
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
+            num_atom_types=num_atom_types,
             n_hidden_dimensions=3,
-            embedding_dimensions_size=8,
+            noise_embedding_dimensions_size=8,
+            atom_type_embedding_dimensions_size=8,
             hidden_dimensions_size=8,
             spatial_dimension=spatial_dimension,
         )
 
         noise_parameters = NoiseParameters(total_time_steps=15)
 
-        hyper_params = PositionDiffusionParameters(
+        hyper_params = AXLDiffusionParameters(
             score_network_parameters=score_network_parameters,
             optimizer_parameters=optimizer_parameters,
             scheduler_parameters=scheduler_parameters,
@@ -196,11 +226,14 @@ class TestPositionDiffusionLightningModel:
         return noisy_relative_coordinates
 
     @pytest.fixture()
-    def fake_datamodule(self, batch_size, number_of_atoms, spatial_dimension):
+    def fake_datamodule(
+        self, batch_size, number_of_atoms, spatial_dimension, num_atom_types
+    ):
         data_module = FakePositionsDataModule(
             batch_size=batch_size,
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
+            num_atom_types=num_atom_types,
         )
         return data_module
 
@@ -219,7 +252,7 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture()
     def lightning_model(self, hyper_params):
-        lightning_model = PositionDiffusionLightningModel(hyper_params)
+        lightning_model = AXLDiffusionLightningModel(hyper_params)
         return lightning_model
 
     @pytest.fixture()

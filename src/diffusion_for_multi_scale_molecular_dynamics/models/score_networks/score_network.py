@@ -147,15 +147,21 @@ class ScoreNetwork(torch.nn.Module):
             len(unit_cell_shape) == 3
             and unit_cell_shape[1] == self.spatial_dimension
             and unit_cell_shape[2] == self.spatial_dimension
-        ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension]."
+        ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension].}"
 
         atom_types = batch[NOISY_AXL].A
+        atom_types_shape = atom_types.shape
         assert (
-            len(atom_types) == 2
+            atom_types_shape[0] == batch_size
+        ), "the batch size dimension is inconsistent between positions and atom types."
+        assert (
+            len(atom_types_shape) == 2
         ), "The atoms type are expected to be in a tensor of shape [batch_size, number of atoms]."
 
         assert torch.logical_and(
-            atom_types >= 0, atom_types < self.num_atom_types
+            atom_types >= 0,
+            atom_types
+            < self.num_atom_types + 1,  # MASK is a possible type in a noised sample
         ).all(), f"All atom types are expected to be in [0,{self.num_atom_types})."
 
         if self.conditional_prob > 0:
