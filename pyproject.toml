@@ -63,4 +63,3 @@ build-backend = "hatchling.build"
 testpaths = ["tests/"]
 norecursedirs = "__pycache__"
 markers = ["slow", "not_on_github"]
-addopts = "-n auto"
