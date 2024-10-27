@@ -3,10 +3,12 @@ from typing import Tuple
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    ExplodingVariance
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import (
+    VarianceScheduler,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
 
 Noise = namedtuple(
     "Noise",
@@ -99,7 +101,7 @@ class NoiseScheduler(torch.nn.Module):
         self.noise_parameters = noise_parameters
         self.num_classes = num_classes
 
-        self._exploding_variance = ExplodingVariance(noise_parameters)
+        self._exploding_variance = VarianceScheduler(noise_parameters)
 
         times = self._get_time_array(noise_parameters)
 
@@ -114,7 +116,9 @@ class NoiseScheduler(torch.nn.Module):
         )
 
         self._g_squared_array = torch.nn.Parameter(
-            self._create_discretized_g_squared_array(self._sigma_squared_array, noise_parameters.sigma_min),
+            self._create_discretized_g_squared_array(
+                self._sigma_squared_array, noise_parameters.sigma_min
+            ),
             requires_grad=False,
         )
         self._g_array = torch.nn.Parameter(
@@ -142,7 +146,7 @@ class NoiseScheduler(torch.nn.Module):
         )
 
         self._alpha_bar_array = torch.nn.Parameter(
-            self._create_bar_alpha_array(self._beta_array)
+            self._create_alpha_bar_array(self._beta_array), requires_grad=False
         )
 
         self._q_matrix_array = torch.nn.Parameter(
@@ -161,7 +165,9 @@ class NoiseScheduler(torch.nn.Module):
         )
 
     @staticmethod
-    def _create_discretized_g_squared_array(sigma_squared_array: torch.Tensor, sigma_min: float) -> torch.Tensor:
+    def _create_discretized_g_squared_array(
+        sigma_squared_array: torch.Tensor, sigma_min: float
+    ) -> torch.Tensor:
         # g^2_{i} = sigma^2_{i} - sigma^2_{i-1}. For the first element (i=1), we set sigma_{0} = sigma_min.
         zeroth_value_tensor = torch.tensor([sigma_squared_array[0] - sigma_min**2])
         return torch.cat(
@@ -261,19 +267,19 @@ class NoiseScheduler(torch.nn.Module):
         sigmas_squared = self._sigma_squared_array.take(indices)
         gs = self._g_array.take(indices)
         gs_squared = self._g_squared_array.take(indices)
-        betas = self._beta_array(indices)
-        alpha_bars = self._alpha_bar_array(indices)
-        q_matrices = self._q_matrix_array(indices)
-        q_bar_matrices = self._q_bar_matrix_array(indices)
+        betas = self._beta_array.take(indices)
+        alpha_bars = self._alpha_bar_array.take(indices)
+        q_matrices = self._q_matrix_array.index_select(dim=0, index=indices)
+        q_bar_matrices = self._q_bar_matrix_array.index_select(dim=0, index=indices)
         # we also need the q_bar matrices for the previous time index (t-1) to compute the loss. We will use Q_{t-1}=1
         # for the case t=1 (special case in the loss or the last step of the sampling process
         q_bar_tm1_matrices = torch.where(
             indices.view(-1, 1, 1) == 0,  # condition
             torch.eye(self.num_classes).unsqueeze(
-                -1
+                0
             ),  # replace t=0 with identity matrix
-            self._q_bar_matrix_array(
-                (indices - 1).clip(min=0)
+            self._q_bar_matrix_array.index_select(
+                dim=0, index=(indices - 1).clip(min=0)
             ),  # \bar{Q}_{t-1} otherwise
         )
 
@@ -316,7 +322,7 @@ class NoiseScheduler(torch.nn.Module):
             alpha_bar=self._alpha_bar_array,
             q_matrix=self._q_matrix_array,
             q_bar_matrix=self._q_bar_matrix_array,
-            q_bar_tm1_matrices=q_bar_tm1_matrices,
+            q_bar_tm1_matrix=q_bar_tm1_matrices,
             indices=torch.arange(
                 self._minimum_random_index, self._maximum_random_index + 1
             ),

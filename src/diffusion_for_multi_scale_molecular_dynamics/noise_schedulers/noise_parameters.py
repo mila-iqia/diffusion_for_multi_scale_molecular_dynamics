@@ -21,6 +21,3 @@ class NoiseParameters:
 
     # Default value comes from "Generative Modeling by Estimating Gradients of the Data Distribution"
     corrector_step_epsilon: float = 2e-5
-
-    # Number of classes for the D3PM transition matrices
-    num_classes: int = 3

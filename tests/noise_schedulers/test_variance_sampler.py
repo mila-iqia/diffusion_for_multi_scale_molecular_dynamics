@@ -1,16 +1,19 @@
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
-    ExplodingVarianceSampler
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
+    NoiseScheduler,
+)
 
 
 @pytest.mark.parametrize("total_time_steps", [3, 10, 17])
 @pytest.mark.parametrize("time_delta", [1e-5, 0.1])
 @pytest.mark.parametrize("sigma_min", [0.005, 0.1])
 @pytest.mark.parametrize("corrector_step_epsilon", [2e-5, 0.1])
+@pytest.mark.parametrize("num_classes", [4])
 class TestExplodingVarianceSampler:
     @pytest.fixture()
     def noise_parameters(
@@ -24,8 +27,10 @@ class TestExplodingVarianceSampler:
         )
 
     @pytest.fixture()
-    def variance_sampler(self, noise_parameters):
-        return ExplodingVarianceSampler(noise_parameters=noise_parameters)
+    def variance_sampler(self, noise_parameters, num_classes):
+        return NoiseScheduler(
+            noise_parameters=noise_parameters, num_classes=num_classes
+        )
 
     @pytest.fixture()
     def expected_times(self, total_time_steps, time_delta):
