@@ -5,9 +5,15 @@ import torch
 from torch import nn
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork, ScoreNetworkParameters)
+    ScoreNetwork,
+    ScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES)
+    AXL,
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_AXL,
+)
 
 
 @dataclass(kw_only=True)
@@ -18,8 +24,11 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
     number_of_atoms: int  # the number of atoms in a configuration.
     n_hidden_dimensions: int  # the number of hidden layers.
     hidden_dimensions_size: int  # the dimensions of the hidden layers.
-    embedding_dimensions_size: (
+    noise_embedding_dimensions_size: (
         int  # the dimension of the embedding of the noise parameter.
+    )
+    atom_type_embedding_dimensions_size: (
+        int  # the dimension of the embedding of the atom types
     )
     condition_embedding_size: int = (
         64  # dimension of the conditional variable embedding
@@ -39,27 +48,37 @@ class MLPScoreNetwork(ScoreNetwork):
             hyper_params : hyper parameters from the config file.
         """
         super(MLPScoreNetwork, self).__init__(hyper_params)
-        hidden_dimensions = [
-            hyper_params.hidden_dimensions_size
-        ] * hyper_params.n_hidden_dimensions
+        hidden_dimensions = [hyper_params.hidden_dimensions_size] * (
+            hyper_params.n_hidden_dimensions
+        )
         self._natoms = hyper_params.number_of_atoms
+        self.num_atom_types = hyper_params.num_atom_types
 
-        output_dimension = self.spatial_dimension * self._natoms
-        input_dimension = output_dimension + hyper_params.embedding_dimensions_size
+        coordinate_output_dimension = self.spatial_dimension * self._natoms
+        atom_type_output_dimension = self.spatial_dimension * self.num_atom_types
+        input_dimension = (
+            coordinate_output_dimension
+            + hyper_params.noise_embedding_dimensions_size
+            + hyper_params.atom_type_embedding_dimensions_size
+        )
 
         self.noise_embedding_layer = nn.Linear(
             1, hyper_params.embedding_dimensions_size
         )
 
+        self.atom_type_embedding_layer = nn.Linear(
+            self.num_atom_types, hyper_params.atom_type_embedding_dimensions_size
+        )
+
         self.condition_embedding_layer = nn.Linear(
-            output_dimension, hyper_params.condition_embedding_size
+            coordinate_output_dimension, hyper_params.condition_embedding_size
         )
 
         self.flatten = nn.Flatten()
         self.mlp_layers = nn.ModuleList()
         self.conditional_layers = nn.ModuleList()
-        input_dimensions = [input_dimension] + hidden_dimensions
-        output_dimensions = hidden_dimensions + [output_dimension]
+        input_dimensions = [input_dimension] + hidden_dimensions[:-1]
+        output_dimensions = hidden_dimensions
 
         for input_dimension, output_dimension in zip(
             input_dimensions, output_dimensions
@@ -70,16 +89,26 @@ class MLPScoreNetwork(ScoreNetwork):
             )
         self.non_linearity = nn.ReLU()
 
+        self.output_layers = AXL(
+            A=nn.Linear(
+                hyper_params.hidden_dimensions_size, atom_type_output_dimension
+            ),
+            X=nn.Linear(
+                hyper_params.hidden_dimensions_size, coordinate_output_dimension
+            ),
+            L=nn.Identity(),  # TODO placeholder
+        )
+
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MLPScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[NOISY_RELATIVE_COORDINATES].shape[1]
+        number_of_atoms = batch[NOISY_AXL].X.shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Forward unchecked.
 
         This method assumes that the input data has already been checked with respect to expectations
@@ -91,17 +120,28 @@ class MLPScoreNetwork(ScoreNetwork):
                 Defaults to False.
 
         Returns:
-            computed_scores : the scores computed by the model.
+            computed_scores : the scores computed by the model in an AXL namedtuple.
         """
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL].X
         # shape [batch_size, number_of_atoms, spatial_dimension]
 
         sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
         noise_embedding = self.noise_embedding_layer(
             sigmas
-        )  # shape [batch_size, embedding_dimension]
+        )  # shape [batch_size, noise_embedding_dimension]
 
-        input = torch.cat([self.flatten(relative_coordinates), noise_embedding], dim=1)
+        atom_types = batch[NOISY_AXL].A
+        atom_types_one_hot = torch.nn.functional.one_hot(
+            atom_types, num_classes=self.num_atom_types + 1
+        )
+        atom_type_embedding = self.atom_type_embedding_layer(
+            atom_types_one_hot
+        )  # shape [batch_size, atom_type_embedding_dimension
+
+        input = torch.cat(
+            [self.flatten(relative_coordinates), noise_embedding, atom_type_embedding],
+            dim=1,
+        )
 
         forces_input = self.condition_embedding_layer(
             self.flatten(batch[CARTESIAN_FORCES])
@@ -117,5 +157,13 @@ class MLPScoreNetwork(ScoreNetwork):
             if conditional:
                 output += condition_layer(forces_input)
 
-        output = output.reshape(relative_coordinates.shape)
-        return output
+        coordinates_output = self.output_layers.X(output).reshape(
+            relative_coordinates.shape
+        )
+        atom_types_output = self.output_layers.A(output).reshape(
+            atom_types_one_hot.shape
+        )
+        lattice_output = torch.zeros_like(atom_types_output)  # TODO placeholder
+
+        axl_output = AXL(A=atom_types_output, X=coordinates_output, L=lattice_output)
+        return axl_output

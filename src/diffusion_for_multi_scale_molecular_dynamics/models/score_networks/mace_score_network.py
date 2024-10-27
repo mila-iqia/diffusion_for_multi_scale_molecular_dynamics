@@ -24,8 +24,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_pr
 )
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
+    NOISY_AXL,
     NOISY_CARTESIAN_POSITIONS,
-    NOISY_RELATIVE_COORDINATES,
     TIME,
     UNIT_CELL,
 )
@@ -151,7 +151,7 @@ class MACEScoreNetwork(ScoreNetwork):
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MACEScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[NOISY_RELATIVE_COORDINATES].shape[1]
+        number_of_atoms = batch[NOISY_AXL].X.shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
@@ -173,7 +173,7 @@ class MACEScoreNetwork(ScoreNetwork):
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
         del conditional  # TODO implement conditional
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL].X
         batch[NOISY_CARTESIAN_POSITIONS] = torch.bmm(
             relative_coordinates, batch[UNIT_CELL]
         )  # positions in Angstrom
