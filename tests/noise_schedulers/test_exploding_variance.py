@@ -1,9 +1,9 @@
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.samplers.exploding_variance import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     ExplodingVariance
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 
 

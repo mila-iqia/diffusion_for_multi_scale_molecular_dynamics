@@ -16,9 +16,10 @@ from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualizati
     SamplingVisualizationCallback
 from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
     SamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from experiments.analysis.analytic_score import get_relative_harmonic_energy
+from experiments.analysis.analytic_score.utils import \
+    get_relative_harmonic_energy
 
 logger = logging.getLogger(__name__)
 

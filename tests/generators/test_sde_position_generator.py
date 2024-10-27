@@ -3,8 +3,10 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import (
     SDE, ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
+    ExplodingVariance
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 from tests.generators.conftest import BaseTestGenerator
 
 
@@ -87,9 +89,7 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
             final_diffusion_time - initial_diffusion_time
         )
 
-        sigma = ExplodingVarianceSampler._create_sigma_array(
-            noise_parameters=noise_parameters, time_array=time_array
-        )[0]
+        sigma = ExplodingVariance(noise_parameters).get_sigma(time_array)[0]
 
         expected_g_squared = (
             2.0

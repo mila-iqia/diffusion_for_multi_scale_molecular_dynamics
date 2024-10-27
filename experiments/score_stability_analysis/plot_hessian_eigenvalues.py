@@ -12,14 +12,15 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
     PositionDiffusionLightningModel
-from diffusion_for_multi_scale_molecular_dynamics.samplers.exploding_variance import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     ExplodingVariance
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
-from experiments import get_normalized_score_function
 from experiments.analysis.analytic_score.utils import get_silicon_supercell
+from experiments.score_stability_analysis.util import \
+    get_normalized_score_function
 
 plt.style.use(PLOT_STYLE_PATH)
 

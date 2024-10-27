@@ -2,9 +2,10 @@
 import argparse
 import tempfile
 
-from crystal_diffusion.data.diffusion.data_loader import (
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
-from crystal_diffusion.utils.logging_utils import setup_analysis_logger
+from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
+    setup_analysis_logger
 
 
 def main():

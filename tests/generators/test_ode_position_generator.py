@@ -3,8 +3,10 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
     ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    ExplodingVarianceSampler
 from tests.generators.conftest import BaseTestGenerator
 
 
@@ -50,23 +52,15 @@ class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
 
         return generator
 
-    def test_get_exploding_variance_sigma(self, ode_generator, noise_parameters):
-        times = ExplodingVarianceSampler._get_time_array(noise_parameters)
-        expected_sigmas = ExplodingVarianceSampler._create_sigma_array(
-            noise_parameters, times
-        )
-        computed_sigmas = ode_generator._get_exploding_variance_sigma(times)
-        torch.testing.assert_close(expected_sigmas, computed_sigmas)
-
     def test_get_ode_prefactor(self, ode_generator, noise_parameters):
         times = ExplodingVarianceSampler._get_time_array(noise_parameters)
-        sigmas = ode_generator._get_exploding_variance_sigma(times)
+        sigmas = noise_parameters.sigma_min ** (1.0 - times) * noise_parameters.sigma_max**times
 
         sig_ratio = torch.tensor(
             noise_parameters.sigma_max / noise_parameters.sigma_min
         )
         expected_ode_prefactor = torch.log(sig_ratio) * sigmas
-        computed_ode_prefactor = ode_generator._get_ode_prefactor(sigmas)
+        computed_ode_prefactor = ode_generator._get_ode_prefactor(times)
         torch.testing.assert_close(expected_ode_prefactor, computed_ode_prefactor)
 
     def test_smoke_sample(

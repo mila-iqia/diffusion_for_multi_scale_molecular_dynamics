@@ -1,8 +1,10 @@
 import pytest
 import torch
 
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    ExplodingVarianceSampler
 
 
 @pytest.mark.parametrize("total_time_steps", [3, 10, 17])

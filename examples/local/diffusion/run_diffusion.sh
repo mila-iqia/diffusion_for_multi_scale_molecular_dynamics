@@ -10,7 +10,7 @@ DATA_WORK_DIR=${DATA_DIR}/cache/
 
 OUTPUT=output/run1
 
-python ../../../crystal_diffusion/train_diffusion.py \
+python ../../../src/diffusion_for_multi_scale_molecular_dynamics/train_diffusion.py \
     --config $CONFIG \
     --data $DATA_DIR \
     --processed_datadir $PROCESSED_DATA \
