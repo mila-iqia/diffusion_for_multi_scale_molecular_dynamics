@@ -4,19 +4,27 @@ import logging
 from typing import Any, AnyStr, Dict
 
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
-    AXLDiffusionLightningModel, AXLDiffusionParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import \
-    create_loss_parameters
-from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
-    create_optimizer_parameters
-from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import \
-    create_scheduler_parameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
-    create_score_network_parameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
-    load_diffusion_sampling_parameters
+    AXLDiffusionLightningModel,
+    AXLDiffusionParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
+    create_loss_parameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
+    create_optimizer_parameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
+    create_scheduler_parameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import (
+    create_score_network_parameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import (
+    load_diffusion_sampling_parameters,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +41,6 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
     globals_dict = dict(
         max_atom=hyper_params["data"]["max_atom"],
         spatial_dimension=hyper_params.get("spatial_dimension", 3),
-        num_atom_types=hyper_params.get("num_atom_types", 2)
     )
 
     score_network_dict = hyper_params["model"]["score_network"]

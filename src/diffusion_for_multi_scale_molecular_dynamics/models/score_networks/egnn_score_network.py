@@ -20,7 +20,6 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     NOISE,
     NOISY_AXL,
-    NOISY_RELATIVE_COORDINATES,
     RELATIVE_COORDINATES,
     UNIT_CELL,
 )
@@ -211,7 +210,7 @@ class EGNNScoreNetwork(ScoreNetwork):
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
     ) -> AXL:
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         if self.edges == "fully_connected":

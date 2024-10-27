@@ -167,9 +167,6 @@ class DiffusionMACE(torch.nn.Module):
         tanh_after_interaction: bool = True,
     ):
         """Init method."""
-        assert (
-            num_elements == 1
-        ), "only a single element can be used at this time. Set 'num_elements' to 1."
         super().__init__()
         self.register_buffer(
             "r_max", torch.tensor(r_max, dtype=torch.get_default_dtype())

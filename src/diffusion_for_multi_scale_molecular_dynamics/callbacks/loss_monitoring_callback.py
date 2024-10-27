@@ -6,9 +6,12 @@ from matplotlib import pyplot as plt
 from pytorch_lightning import Callback
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
-    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from diffusion_for_multi_scale_molecular_dynamics.loggers.logger_loader import \
-    log_figure
+    PLEASANT_FIG_SIZE,
+    PLOT_STYLE_PATH,
+)
+from diffusion_for_multi_scale_molecular_dynamics.loggers.logger_loader import (
+    log_figure,
+)
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -67,8 +70,10 @@ class LossMonitoringCallback(Callback):
         # Compute the square errors per atoms
         batched_squared_errors = (
             (
-                outputs["predicted_normalized_scores"]
-                - outputs["target_normalized_conditional_scores"]
+                outputs["unreduced_loss"].X.mean(
+                    dim=-1
+                )  # prediction normalized scores for coordinates
+                - outputs["target_coordinates_normalized_conditional_scores"]
             )
             ** 2
         ).sum(dim=-1)
@@ -76,7 +81,7 @@ class LossMonitoringCallback(Callback):
 
         # Average over space dimensions, where the sigmas are the same.
         self.all_weighted_losses.append(
-            outputs["unreduced_loss"].mean(dim=-1).flatten()
+            outputs["unreduced_loss"].X.mean(dim=-1).flatten()
         )
 
     def on_validation_epoch_end(self, trainer, pl_module):

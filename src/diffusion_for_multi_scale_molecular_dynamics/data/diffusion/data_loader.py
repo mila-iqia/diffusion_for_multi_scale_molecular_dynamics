@@ -12,10 +12,15 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import \
-    LammpsProcessorForDiffusion
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import (
+    LammpsProcessorForDiffusion,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES,
+    CARTESIAN_FORCES,
+    CARTESIAN_POSITIONS,
+    RELATIVE_COORDINATES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +122,11 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         transformed_x["potential_energy"] = torch.as_tensor(
             x["potential_energy"]
         )  # size: (batchsize, )
+
+        # TODO this is a quick fix - needs review to do properly
+        transformed_x[ATOM_TYPES] = torch.zeros_like(
+            transformed_x[RELATIVE_COORDINATES][:, :, 0]
+        ).long()
 
         return transformed_x
 

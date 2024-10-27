@@ -18,7 +18,6 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     NOISY_AXL,
     NOISY_CARTESIAN_POSITIONS,
-    RELATIVE_COORDINATES,
     UNIT_CELL,
 )
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
@@ -122,7 +121,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(DiffusionMACEScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[NOISY_AXL][RELATIVE_COORDINATES].shape[1]
+        number_of_atoms = batch[NOISY_AXL].X.shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."

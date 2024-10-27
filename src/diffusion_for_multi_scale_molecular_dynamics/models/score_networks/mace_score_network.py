@@ -19,6 +19,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     ScoreNetworkParameters,
 )
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import (
+    MaceMLPScorePredictionHeadParameters,
     MaceScorePredictionHeadParameters,
     instantiate_mace_prediction_head,
 )
@@ -136,7 +137,7 @@ class MACEScoreNetwork(ScoreNetwork):
         self.coordinates_prediction_head = instantiate_mace_prediction_head(
             output_node_features_irreps, hyper_params.prediction_head_parameters
         )
-        atom_type_prediction_head_parameters = MaceScorePredictionHeadParameters(
+        atom_type_prediction_head_parameters = MaceMLPScorePredictionHeadParameters(
             name="mlp",
             hidden_dimensions_size=hyper_params.atom_type_head_hidden_size,
             n_hidden_dimensions=hyper_params.atom_type_head_n_hidden_layers,

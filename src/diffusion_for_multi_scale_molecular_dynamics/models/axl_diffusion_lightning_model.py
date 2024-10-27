@@ -507,7 +507,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             basis_vectors = torch.diag_embed(batch["box"])  # TODO replace with AXL L
             cartesian_positions = get_positions_from_coordinates(
-                relative_coordinates=batch[ORIGINAL_AXL].X,
+                relative_coordinates=output[ORIGINAL_AXL].X,
                 basis_vectors=basis_vectors,
             )
 
