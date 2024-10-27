@@ -12,11 +12,10 @@ from typing import AnyStr, Dict, Optional
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
+    AXL,
     CARTESIAN_FORCES,
     NOISE,
     NOISY_AXL,
-    RELATIVE_COORDINATES,
     TIME,
     UNIT_CELL,
 )

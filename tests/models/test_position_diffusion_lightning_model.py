@@ -270,7 +270,7 @@ class TestPositionDiffusionLightningModel:
         unit_cell_sample,
     ):
         computed_target_normalized_scores = (
-            lightning_model._get_target_normalized_score(
+            lightning_model._get_coordinates_target_normalized_score(
                 noisy_relative_coordinates, real_relative_coordinates, sigmas
             )
         )

@@ -11,9 +11,10 @@ def class_index_to_onehot(x: torch.Tensor, num_classes: int) -> torch.Tensor:
         num_classes: total number of classes
 
     Returns:
-        long tensor of 0s and 1s. The size is x.size() + (num_classes)
+        float tensor of 0s and 1s. The size is x.size() + (num_classes)
     """
-    return torch.nn.functional.one_hot(x.long(), num_classes=num_classes)
+    # the last .to() acts on the tensor type to avoid longs
+    return torch.nn.functional.one_hot(x.long(), num_classes=num_classes).to(x)
 
 
 def compute_q_xt_bar_xo(one_hot_x0: torch.Tensor, q_bar_t: torch.Tensor) -> torch.Tensor:
@@ -29,7 +30,7 @@ def compute_q_xt_bar_xo(one_hot_x0: torch.Tensor, q_bar_t: torch.Tensor) -> torc
     Returns:
         matrix-vector product between one_hot_x0 and q_bar_t that defines q(x_t | x_0)
     """
-    return einops.einsum(one_hot_x0, q_bar_t, "... j, ... j i -> ... i")
+    return einops.einsum(one_hot_x0.to(q_bar_t), q_bar_t, "... j, ... j i -> ... i")
 
 
 def compute_q_xt_bar_xtm1(one_hot_xt: torch.Tensor, q_t: torch.Tensor) -> torch.Tensor:
@@ -45,4 +46,4 @@ def compute_q_xt_bar_xtm1(one_hot_xt: torch.Tensor, q_t: torch.Tensor) -> torch.
     Returns:
         matrix-vector product between one_hot_xt and q_t^T that defines q(x_t | x_{t-1})
     """
-    return einops.einsum(one_hot_xt, torch.transpose(q_t, -2, -1), "... j, ... i j -> ... i")
+    return einops.einsum(one_hot_xt.to(q_t), torch.transpose(q_t, -2, -1), "... j, ... i j -> ... i")

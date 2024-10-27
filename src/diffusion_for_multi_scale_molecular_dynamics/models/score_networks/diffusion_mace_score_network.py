@@ -15,7 +15,6 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     ScoreNetworkParameters,
 )
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
     AXL,
     NOISY_AXL,
     NOISY_CARTESIAN_POSITIONS,
