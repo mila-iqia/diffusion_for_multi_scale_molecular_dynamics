@@ -1,17 +1,30 @@
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import (
-    PredictorCorrectorPositionGenerator, PredictorCorrectorSamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
-    ScoreNetwork
+    PredictorCorrectorPositionGenerator,
+    PredictorCorrectorSamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
+    ScoreNetwork,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
-    ExplodingVarianceSampler
+    AXL,
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_AXL,
+    TIME,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
+    NoiseScheduler,
+)
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
-    NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
+    NoOpPredictorCorrectorSampleTrajectory,
+    PredictorCorrectorSampleTrajectory,
+)
 
 
 class LangevinGenerator(PredictorCorrectorPositionGenerator):
@@ -36,7 +49,9 @@ class LangevinGenerator(PredictorCorrectorPositionGenerator):
         )
 
         self.noise_parameters = noise_parameters
-        sampler = ExplodingVarianceSampler(noise_parameters)
+        sampler = NoiseScheduler(
+            noise_parameters, num_classes=sampling_parameters.num_atom_types + 1
+        )
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.sigma_normalized_score_network = sigma_normalized_score_network
@@ -84,8 +99,9 @@ class LangevinGenerator(PredictorCorrectorPositionGenerator):
 
         time_tensor = time * torch.ones(number_of_samples, 1).to(x)
         noise_tensor = noise * torch.ones(number_of_samples, 1).to(x)
+        atom_types = torch.zeros_like(x[:, :, 0]).long()  # TODO placeholder
         augmented_batch = {
-            NOISY_RELATIVE_COORDINATES: x,
+            NOISY_AXL: AXL(A=atom_types, X=x, L=unit_cell),  # TODO
             TIME: time_tensor,
             NOISE: noise_tensor,
             UNIT_CELL: unit_cell,
@@ -96,7 +112,7 @@ class LangevinGenerator(PredictorCorrectorPositionGenerator):
         predicted_normalized_scores = self.sigma_normalized_score_network(
             augmented_batch, conditional=False
         )
-        return predicted_normalized_scores
+        return predicted_normalized_scores.X  # TODO
 
     def predictor_step(
         self,

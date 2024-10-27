@@ -6,19 +6,31 @@ import torch
 import torchsde
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
-    ScoreNetwork
+    PositionGenerator,
+    SamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
+    ScoreNetwork,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    ExplodingVariance
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
-from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
-    SDESampleTrajectory
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_RELATIVE_COORDINATES,
+    TIME,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import (
+    VarianceScheduler,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
+    SDESampleTrajectory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +87,7 @@ class SDE(torch.nn.Module):
         super().__init__()
         self.sde_type = sampling_parameters.sde_type
         self.noise_parameters = noise_parameters
-        self.exploding_variance = ExplodingVariance(noise_parameters)
+        self.exploding_variance = VarianceScheduler(noise_parameters)
         self.sigma_normalized_score_network = sigma_normalized_score_network
         self.unit_cells = unit_cells
         self.number_of_atoms = sampling_parameters.number_of_atoms

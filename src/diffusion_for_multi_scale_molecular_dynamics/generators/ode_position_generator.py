@@ -8,19 +8,32 @@ import torchode as to
 from torchode import Solution
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
-    ScoreNetwork
+    PositionGenerator,
+    SamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
+    ScoreNetwork,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    ExplodingVariance
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_RELATIVE_COORDINATES,
+    TIME,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import (
+    VarianceScheduler,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell,
+)
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
-    NoOpODESampleTrajectory, ODESampleTrajectory)
+    NoOpODESampleTrajectory,
+    ODESampleTrajectory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +75,7 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         self.tf = 1.0  # The "final diffusion time", corresponding to the uniform distribution.
 
         self.noise_parameters = noise_parameters
-        self.exploding_variance = ExplodingVariance(noise_parameters)
+        self.exploding_variance = VarianceScheduler(noise_parameters)
 
         self.sigma_normalized_score_network = sigma_normalized_score_network
 
