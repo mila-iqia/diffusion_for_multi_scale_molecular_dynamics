@@ -170,7 +170,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         )
 
         atom_types_scores = mace_axl_scores.A.reshape(
-            batch_size, number_of_atoms, self._number_of_elements
+            batch_size, number_of_atoms, self.num_atom_types + 1
         )
 
         axl_scores = AXL(
