@@ -7,7 +7,7 @@ from a costly oracle such as Density Functional Theory (DFT). The generative mod
 few-atom configurations that are computationally tractable for the costly oracle by inpainting 
 around problematic atomic configurations. 
 
-# Instructions to set up the project for development
+# Instructions to set up the project 
 
 ## Creating a Virtual Environment
 The project dependencies are stated in the `pyproject.toml` file. They must be installed in a virtual environment.
@@ -42,9 +42,10 @@ and the environment should be created in `editable` mode so that the source code
 The test suite should be executed to make sure that the environment is properly installed. After activating the 
 environment, the tests can be executed with the command
 
-    pytest [--quick]
+    pytest [--quick] [-n auto]
 
-the argument `--quick` is optional; a few tests are a bit slow and will be skipped if this flag is present.
+The argument `--quick` is optional; a few tests are a bit slow and will be skipped if this flag is present.
+The argument `-n auto` is optional; if toggled, the tests will run in parallel and go a little faster. 
 
 
 ## Setting up the Development Tools
@@ -85,3 +86,24 @@ CI will run the following:
 
 Since the various tests are relatively costly, the CI actions will only be executed for 
 pull requests to the `main` branch.
+
+# Instructions to run an example experiment
+
+To use [Comet](https://www.comet.com/) as an experiment logger, an account must be available and a global configuration file must be 
+created at `$HOME/.comet.config` with content of the form
+
+    [comet]
+    api_key=YOUR_API_KEY
+
+
+A simple experiment is described in the configuration file
+
+    examples/config_files/diffusion/config_diffusion_mlp.yaml
+
+To run the experiment described in this file, a dataset must first be created by executing the script
+
+    data/si_diffusion_1x1x1/create_data.sh
+
+Then, the experiment itself can be executed by running the script
+
+    examples/local/diffusion/run_diffusion.sh
