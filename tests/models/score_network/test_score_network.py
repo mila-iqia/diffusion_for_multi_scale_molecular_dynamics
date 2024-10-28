@@ -8,24 +8,43 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusion_mace_score_network import (
-    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
+    DiffusionMACEScoreNetwork,
+    DiffusionMACEScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import (
-    EGNNScoreNetwork, EGNNScoreNetworkParameters)
+    EGNNScoreNetwork,
+    EGNNScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mace_score_network import (
-    MACEScoreNetwork, MACEScoreNetworkParameters)
+    MACEScoreNetwork,
+    MACEScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
-    MLPScoreNetwork, MLPScoreNetworkParameters)
+    MLPScoreNetwork,
+    MLPScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork, ScoreNetworkParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
-    create_score_network_parameters
+    ScoreNetwork,
+    ScoreNetworkParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import (
+    create_score_network_parameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
-    MaceMLPScorePredictionHeadParameters)
+    MaceMLPScorePredictionHeadParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+    AXL,
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_AXL,
+    TIME,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell,
+)
 
 
 def assert_parameters_are_the_same(parameters1: dataclass, parameters2: dataclass):
@@ -45,6 +64,7 @@ def assert_parameters_are_the_same(parameters1: dataclass, parameters2: dataclas
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
+@pytest.mark.parametrize("num_atom_types", [3])
 class TestScoreNetworkCheck:
 
     @pytest.fixture(scope="class", autouse=True)
@@ -52,22 +72,27 @@ class TestScoreNetworkCheck:
         torch.manual_seed(123)
 
     @pytest.fixture()
-    def base_score_network(self, spatial_dimension):
+    def base_score_network(self, spatial_dimension, num_atom_types):
         return ScoreNetwork(
             ScoreNetworkParameters(
-                architecture="dummy", spatial_dimension=spatial_dimension
+                architecture="dummy",
+                spatial_dimension=spatial_dimension,
+                num_atom_types=num_atom_types,
             )
         )
 
     @pytest.fixture()
-    def good_batch(self, spatial_dimension):
+    def good_batch(self, spatial_dimension, num_atom_types):
         batch_size = 16
         relative_coordinates = torch.rand(batch_size, 8, spatial_dimension)
         times = torch.rand(batch_size, 1)
         noises = torch.rand(batch_size, 1)
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
+        atom_types = torch.randint(0, num_atom_types + 1, (batch_size, 8))
         return {
-            NOISY_RELATIVE_COORDINATES: relative_coordinates,
+            NOISY_AXL: AXL(
+                A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
+            ),
             TIME: times,
             NOISE: noises,
             UNIT_CELL: unit_cell,
@@ -80,22 +105,36 @@ class TestScoreNetworkCheck:
 
         match problem:
             case "position_name":
-                bad_batch_dict["bad_position_name"] = bad_batch_dict[
-                    NOISY_RELATIVE_COORDINATES
-                ]
-                del bad_batch_dict[NOISY_RELATIVE_COORDINATES]
+                bad_batch_dict["bad_position_name"] = bad_batch_dict[NOISY_AXL]
+                del bad_batch_dict[NOISY_AXL]
 
             case "position_shape":
-                shape = bad_batch_dict[NOISY_RELATIVE_COORDINATES].shape
-                bad_batch_dict[NOISY_RELATIVE_COORDINATES] = bad_batch_dict[
-                    NOISY_RELATIVE_COORDINATES
-                ].reshape(shape[0], shape[1] // 2, shape[2] * 2)
+                shape = bad_batch_dict[NOISY_AXL].X.shape
+                bad_batch_dict[NOISY_AXL] = AXL(
+                    A=bad_batch_dict[NOISY_AXL].A,
+                    X=bad_batch_dict[NOISY_AXL].X.reshape(
+                        shape[0], shape[1] // 2, shape[2] * 2
+                    ),
+                    L=bad_batch_dict[NOISY_AXL].L,
+                )
 
             case "position_range1":
-                bad_batch_dict[NOISY_RELATIVE_COORDINATES][0, 0, 0] = 1.01
+                bad_positions = bad_batch_dict[NOISY_AXL].X
+                bad_positions[0, 0, 0] = 1.01
+                bad_batch_dict[NOISY_AXL] = AXL(
+                    A=bad_batch_dict[NOISY_AXL].A,
+                    X=bad_positions,
+                    L=bad_batch_dict[NOISY_AXL].L,
+                )
 
             case "position_range2":
-                bad_batch_dict[NOISY_RELATIVE_COORDINATES][1, 0, 0] = -0.01
+                bad_positions = bad_batch_dict[NOISY_AXL].X
+                bad_positions[1, 0, 0] = -0.01
+                bad_batch_dict[NOISY_AXL] = AXL(
+                    A=bad_batch_dict[NOISY_AXL].A,
+                    X=bad_positions,
+                    L=bad_batch_dict[NOISY_AXL].L,
+                )
 
             case "time_name":
                 bad_batch_dict["bad_time_name"] = bad_batch_dict[TIME]
@@ -131,6 +170,7 @@ class TestScoreNetworkCheck:
                 bad_batch_dict[UNIT_CELL] = bad_batch_dict[UNIT_CELL].reshape(
                     shape[0] // 2, shape[1] * 2, shape[2]
                 )
+            # TODO errors with atom types
 
         return bad_batch_dict
 
@@ -215,6 +255,11 @@ class BaseTestScoreNetwork:
         return relative_coordinates
 
     @pytest.fixture
+    def atom_types(self, batch_size, number_of_atoms, num_atom_types):
+        atom_types = torch.randint(0, num_atom_types + 1, (batch_size, number_of_atoms))
+        return atom_types
+
+    @pytest.fixture
     def cartesian_forces(
         self, batch_size, number_of_atoms, spatial_dimension, basis_vectors
     ):
@@ -236,10 +281,20 @@ class BaseTestScoreNetwork:
 
     @pytest.fixture()
     def batch(
-        self, relative_coordinates, cartesian_forces, times, noises, basis_vectors
+        self,
+        relative_coordinates,
+        cartesian_forces,
+        times,
+        noises,
+        basis_vectors,
+        atom_types,
     ):
         return {
-            NOISY_RELATIVE_COORDINATES: relative_coordinates,
+            NOISY_AXL: AXL(
+                A=atom_types,
+                X=relative_coordinates,
+                L=torch.zeros_like(atom_types),  # TODO
+            ),
             TIME: times,
             UNIT_CELL: basis_vectors,
             NOISE: noises,
@@ -260,9 +315,9 @@ class BaseTestScoreNetwork:
                 dictionary.pop(key)
         return dictionary
 
-    def test_output_shape(self, score_network, batch, expected_score_shape):
+    def test_coordinates_output_shape(self, score_network, batch, expected_score_shape):
         scores = score_network(batch)
-        assert scores.shape == expected_score_shape
+        assert scores.X.shape == expected_score_shape
 
     def test_create_score_network_parameters(
         self,
@@ -279,6 +334,7 @@ class BaseTestScoreNetwork:
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
+@pytest.mark.parametrize("num_atom_types", [2, 3, 16])
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
 @pytest.mark.parametrize("embedding_dimensions_size", [4, 12])
@@ -289,6 +345,7 @@ class TestMLPScoreNetwork(BaseTestScoreNetwork):
         self,
         number_of_atoms,
         spatial_dimension,
+        num_atom_types,
         embedding_dimensions_size,
         n_hidden_dimensions,
         hidden_dimensions_size,
@@ -296,7 +353,9 @@ class TestMLPScoreNetwork(BaseTestScoreNetwork):
         return MLPScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
-            embedding_dimensions_size=embedding_dimensions_size,
+            num_atom_types=num_atom_types,
+            noise_embedding_dimensions_size=embedding_dimensions_size,
+            atom_type_embedding_dimensions_size=embedding_dimensions_size,
             n_hidden_dimensions=n_hidden_dimensions,
             hidden_dimensions_size=hidden_dimensions_size,
         )
@@ -307,6 +366,7 @@ class TestMLPScoreNetwork(BaseTestScoreNetwork):
 
 
 @pytest.mark.parametrize("spatial_dimension", [3])
+@pytest.mark.parametrize("num_atom_types", [2, 3, 16])
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
 class TestMACEScoreNetworkMLPHead(BaseTestScoreNetwork):
@@ -324,11 +384,16 @@ class TestMACEScoreNetworkMLPHead(BaseTestScoreNetwork):
 
     @pytest.fixture()
     def score_network_parameters(
-        self, number_of_atoms, spatial_dimension, prediction_head_parameters
+        self,
+        number_of_atoms,
+        spatial_dimension,
+        num_atom_types,
+        prediction_head_parameters,
     ):
         return MACEScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
+            num_atom_types=num_atom_types,
             r_max=3.0,
             prediction_head_parameters=prediction_head_parameters,
         )
@@ -339,6 +404,7 @@ class TestMACEScoreNetworkMLPHead(BaseTestScoreNetwork):
 
 
 @pytest.mark.parametrize("spatial_dimension", [3])
+@pytest.mark.parametrize("num_atom_types", [2])
 class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
     @pytest.fixture()
     def prediction_head_parameters(self, spatial_dimension):
@@ -349,11 +415,16 @@ class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
 
     @pytest.fixture()
     def score_network_parameters(
-        self, number_of_atoms, spatial_dimension, prediction_head_parameters
+        self,
+        number_of_atoms,
+        spatial_dimension,
+        num_atom_types,
+        prediction_head_parameters,
     ):
         return MACEScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
+            num_atom_types=num_atom_types,
             r_max=3.0,
             prediction_head_parameters=prediction_head_parameters,
         )
@@ -364,12 +435,16 @@ class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
 
 
 @pytest.mark.parametrize("spatial_dimension", [3])
+@pytest.mark.parametrize("num_atom_types", [2, 3, 16])
 class TestDiffusionMACEScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
-    def score_network_parameters(self, number_of_atoms, spatial_dimension):
+    def score_network_parameters(
+        self, number_of_atoms, num_atom_types, spatial_dimension
+    ):
         return DiffusionMACEScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
+            num_atom_types=num_atom_types,
             r_max=3.0,
             num_bessel=4,
             num_polynomial_cutoff=3,
@@ -401,6 +476,10 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
         return 3
 
     @pytest.fixture()
+    def num_atom_types(self):
+        return 4
+
+    @pytest.fixture()
     def basis_vectors(self, batch_size, spatial_dimension):
         # The basis vectors should form a cube in order to test the equivariance of the current implementation
         # of the EGNN model. The octaheral point group only applies in this case!
@@ -414,9 +493,11 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
         return cubes
 
     @pytest.fixture(params=[("fully_connected", None), ("radial_cutoff", 3.0)])
-    def score_network_parameters(self, request):
+    def score_network_parameters(self, request, num_atom_types):
         edges, radial_cutoff = request.param
-        return EGNNScoreNetworkParameters(edges=edges, radial_cutoff=radial_cutoff)
+        return EGNNScoreNetworkParameters(
+            edges=edges, radial_cutoff=radial_cutoff, num_atom_types=num_atom_types
+        )
 
     @pytest.fixture()
     def score_network(self, score_network_parameters):
@@ -472,7 +553,7 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture()
     def flat_relative_coordinates(self, batch):
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL].X
         flat_relative_coordinates = einops.rearrange(
             relative_coordinates, "batch natom space -> (batch natom) space"
         )
@@ -526,19 +607,23 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
         for point_group_symmetry in octahedral_point_group_symmetries:
             op = point_group_symmetry.transpose(1, 0)
             modified_batch = deepcopy(batch)
-            relative_coordinates = modified_batch[NOISY_RELATIVE_COORDINATES]
+            relative_coordinates = modified_batch[NOISY_AXL].X
 
             op_relative_coordinates = relative_coordinates @ op + global_translations
             op_relative_coordinates = map_relative_coordinates_to_unit_cell(
                 op_relative_coordinates
             )
 
-            modified_batch[NOISY_RELATIVE_COORDINATES] = op_relative_coordinates
+            modified_batch[NOISY_AXL] = AXL(
+                A=modified_batch[NOISY_AXL].A,
+                X=op_relative_coordinates,
+                L=modified_batch[NOISY_AXL].L,
+            )
             with torch.no_grad():
                 modified_normalized_scores = score_network(modified_batch)
 
-            expected_modified_normalized_scores = normalized_scores @ op
+            expected_modified_normalized_scores = normalized_scores.X @ op
 
             torch.testing.assert_close(
-                expected_modified_normalized_scores, modified_normalized_scores
+                expected_modified_normalized_scores, modified_normalized_scores.X
             )

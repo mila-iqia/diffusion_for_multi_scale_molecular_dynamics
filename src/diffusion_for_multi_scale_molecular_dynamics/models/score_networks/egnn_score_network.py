@@ -16,11 +16,9 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     ScoreNetwork,
 )
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
     AXL,
     NOISE,
     NOISY_AXL,
-    RELATIVE_COORDINATES,
     UNIT_CELL,
 )
 
@@ -177,7 +175,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         )
 
         node_attributes = torch.concatenate(
-            (repeated_sigmas, atom_types_one_hot), dim=1
+            (repeated_sigmas, atom_types_one_hot.view(-1, num_atom_types + 1)), dim=1
         )
         return node_attributes
 
@@ -253,7 +251,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         flat_normalized_scores = einops.einsum(
             euclidean_positions,
             self.projection_matrices,
-            raw_normalized_score[RELATIVE_COORDINATES],
+            raw_normalized_score.X,
             "nodes i, alpha i j, nodes j-> nodes alpha",
         )
 
@@ -265,9 +263,9 @@ class EGNNScoreNetwork(ScoreNetwork):
         )
 
         axl_scores = AXL(
-            A=raw_normalized_score[ATOM_TYPES],
+            A=raw_normalized_score.A,
             X=normalized_scores,
-            L=raw_normalized_score[UNIT_CELL],
+            L=raw_normalized_score.L,
         )
 
         return axl_scores
