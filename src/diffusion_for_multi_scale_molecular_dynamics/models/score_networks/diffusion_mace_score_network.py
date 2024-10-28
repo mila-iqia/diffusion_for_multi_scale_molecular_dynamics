@@ -153,7 +153,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             relative_coordinates, basis_vectors
         )
         graph_input = input_to_diffusion_mace(
-            batch, radial_cutoff=self.r_max, num_atom_types=self.num_atom_types + 1
+            batch, radial_cutoff=self.r_max, num_classes=self.num_atom_types + 1
         )
 
         mace_axl_scores = self.diffusion_mace_network(graph_input, conditional)
