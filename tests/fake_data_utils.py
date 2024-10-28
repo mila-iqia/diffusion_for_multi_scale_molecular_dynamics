@@ -98,7 +98,7 @@ def generate_parse_dump_output_dataframe(
         row = dict(
             box=configuration.cell_dimensions,
             id=list(configuration.ids),
-            atom_types=list(configuration.atom_types),
+            type=list(configuration.atom_types),
         )
         for coordinates, name in zip(
             configuration.cartesian_positions.transpose(), ["x", "y", "z"]

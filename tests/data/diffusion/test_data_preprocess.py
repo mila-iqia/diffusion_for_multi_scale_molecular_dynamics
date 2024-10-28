@@ -4,10 +4,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import \
-    LammpsProcessorForDiffusion
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import (
+    LammpsProcessorForDiffusion,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES,
+    CARTESIAN_FORCES,
+    CARTESIAN_POSITIONS,
+    RELATIVE_COORDINATES,
+)
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import generate_parquet_dataframe
 
@@ -56,7 +61,7 @@ class TestDataProcess(TestDiffusionDataBase):
         expected_columns = [
             "natom",
             "box",
-            "type",
+            ATOM_TYPES,
             CARTESIAN_POSITIONS,
             CARTESIAN_FORCES,
             RELATIVE_COORDINATES,
