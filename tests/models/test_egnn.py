@@ -119,7 +119,7 @@ class TestEGNN:
     @pytest.fixture()
     def egnn_scores(self, batch, egnn, batch_size, number_of_atoms, spatial_dimension):
         egnn_scores = egnn(batch["node_features"], batch["edges"], batch["coord"])
-        return egnn_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
+        return egnn_scores.X.reshape(batch_size, number_of_atoms, spatial_dimension)
 
     @pytest.fixture()
     def egcl_scores(self, batch, egcl, batch_size, number_of_atoms):
@@ -187,7 +187,7 @@ class TestEGNN:
             permuted_batch["edges"],
             permuted_batch["coord"],
         )
-        return egnn_scores.reshape(batch_size, number_of_atoms, spatial_dimension)
+        return egnn_scores.X.reshape(batch_size, number_of_atoms, spatial_dimension)
 
     @pytest.fixture()
     def permuted_egcl_scores(self, permuted_batch, egcl, batch_size, number_of_atoms):
