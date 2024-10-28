@@ -5,9 +5,15 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
-    LammpsForDiffusionDataModule, LammpsLoaderParameters)
+    LammpsForDiffusionDataModule,
+    LammpsLoaderParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES,
+    CARTESIAN_FORCES,
+    CARTESIAN_POSITIONS,
+    RELATIVE_COORDINATES,
+)
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import Configuration, find_aligning_permutation
 
@@ -25,7 +31,7 @@ def convert_configurations_to_dataset(
         data[CARTESIAN_FORCES].append(configuration.cartesian_forces)
         data[CARTESIAN_POSITIONS].append(configuration.cartesian_positions)
         data[RELATIVE_COORDINATES].append(configuration.relative_coordinates)
-        data["type"].append(configuration.types)
+        data[ATOM_TYPES].append(configuration.atom_types)
         data["potential_energy"].append(configuration.potential_energy)
 
     configuration_dataset = dict()
@@ -48,7 +54,7 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
                 [11.0, 12.0, 13, 14.0, 15, 16]
             ],  # for one batch, two atoms, 3D forces
             RELATIVE_COORDINATES: [[1.0, 2.0, 3, 4.0, 5, 6]],
-            "type": [[1, 2]],
+            ATOM_TYPES: [[1, 2]],
             "potential_energy": [23.233],
         }
 
@@ -57,11 +63,11 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
         # Check keys in result
         assert set(result.keys()) == {
             "natom",
+            ATOM_TYPES,
             CARTESIAN_FORCES,
             CARTESIAN_POSITIONS,
             RELATIVE_COORDINATES,
             "box",
-            "type",
             "potential_energy",
         }
 
@@ -76,7 +82,7 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
         )  # (batchsize, natom, 3 [since it's 3D])
         assert result["box"].shape == (1, 3)
         assert torch.equal(
-            result["type"], torch.tensor(input_data_to_transform["type"]).long()
+            result[ATOM_TYPES], torch.tensor(input_data_to_transform[ATOM_TYPES]).long()
         )
         assert torch.equal(
             result["potential_energy"],
@@ -89,7 +95,7 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
             result[CARTESIAN_POSITIONS].dtype == torch.float32
         )  # default dtype for torch.as_tensor with float inputs
         assert result["box"].dtype == torch.float32
-        assert result["type"].dtype == torch.long
+        assert result[ATOM_TYPES].dtype == torch.long
         assert result["potential_energy"].dtype == torch.float32
 
     @pytest.fixture
@@ -107,7 +113,7 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
             ],  # for one batch, two atoms, 3D positions
             CARTESIAN_FORCES: [11.0, 12.0, 13, 14.0, 15, 16],
             RELATIVE_COORDINATES: [1.0, 2.0, 3, 4.0, 5, 6],
-            "type": [1, 2],
+            ATOM_TYPES: [1, 2],
             "potential_energy": 23.233,
         }
 
@@ -118,17 +124,17 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
         )
 
         # Check if the type and position have been padded correctly
-        assert len(padded_sample["type"]) == max_atom
+        assert len(padded_sample[ATOM_TYPES]) == max_atom
         assert padded_sample[CARTESIAN_POSITIONS].shape == torch.Size([max_atom * 3])
 
         # Check that the padding uses -1 for type
         # 2 atoms in the input_data - last 3 atoms should be type -1
         for k in range(max_atom - 2):
-            assert padded_sample["type"].tolist()[-(k + 1)] == -1
+            assert padded_sample[ATOM_TYPES].tolist()[-(k + 1)] == -1
 
         # Check that the padding uses nan for position
         assert torch.isnan(
-            padded_sample[CARTESIAN_POSITIONS][-(max_atom - 2) * 3:]
+            padded_sample[CARTESIAN_POSITIONS][-(max_atom - 2) * 3 :]
         ).all()
 
     @pytest.fixture
@@ -178,7 +184,7 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
         expected_feature_names = {
             "natom",
             "box",
-            "type",
+            ATOM_TYPES,
             "potential_energy",
             CARTESIAN_FORCES,
             CARTESIAN_POSITIONS,

@@ -9,10 +9,15 @@ from typing import List, Optional, Tuple, Union
 
 import pandas as pd
 
-from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import \
-    parse_lammps_output
+from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import (
+    parse_lammps_output,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES,
+    CARTESIAN_FORCES,
+    CARTESIAN_POSITIONS,
+    RELATIVE_COORDINATES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -201,11 +206,12 @@ class LammpsProcessorForDiffusion:
         df[CARTESIAN_FORCES] = df.apply(
             partial(self._flatten_positions_in_row, keys=["fx", "fy", "fz"]), axis=1
         )
+        df[ATOM_TYPES] = df["type"]
         return df[
             [
                 "natom",
                 "box",
-                "type",
+                ATOM_TYPES,
                 "potential_energy",
                 CARTESIAN_POSITIONS,
                 RELATIVE_COORDINATES,
