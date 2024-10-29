@@ -99,7 +99,7 @@ class TestScoreNetworkCheck:
         }
 
     @pytest.fixture()
-    def bad_batch(self, good_batch, problem):
+    def bad_batch(self, good_batch, problem, num_atom_types):
 
         bad_batch_dict = dict(good_batch)
 
@@ -133,6 +133,32 @@ class TestScoreNetworkCheck:
                 bad_batch_dict[NOISY_AXL] = AXL(
                     A=bad_batch_dict[NOISY_AXL].A,
                     X=bad_positions,
+                    L=bad_batch_dict[NOISY_AXL].L,
+                )
+
+            case "atom_types_shape":
+                shape = bad_batch_dict[NOISY_AXL].A.shape
+                bad_batch_dict[NOISY_AXL] = AXL(
+                    A=bad_batch_dict[NOISY_AXL].A.reshape(shape[0] * 2, shape[1] // 2),
+                    X=bad_batch_dict[NOISY_AXL].X,
+                    L=bad_batch_dict[NOISY_AXL].L,
+                )
+
+            case "atom_types_range1":
+                bad_types = bad_batch_dict[NOISY_AXL].A
+                bad_types[0, 0] = num_atom_types + 2
+                bad_batch_dict[NOISY_AXL] = AXL(
+                    A=bad_types,
+                    X=bad_batch_dict[NOISY_AXL].X,
+                    L=bad_batch_dict[NOISY_AXL].L,
+                )
+
+            case "atom_types_range2":
+                bad_types = bad_batch_dict[NOISY_AXL].A
+                bad_types[1, 0] = -1
+                bad_batch_dict[NOISY_AXL] = AXL(
+                    A=bad_types,
+                    X=bad_batch_dict[NOISY_AXL].X,
                     L=bad_batch_dict[NOISY_AXL].L,
                 )
 
@@ -170,7 +196,6 @@ class TestScoreNetworkCheck:
                 bad_batch_dict[UNIT_CELL] = bad_batch_dict[UNIT_CELL].reshape(
                     shape[0] // 2, shape[1] * 2, shape[2]
                 )
-            # TODO errors with atom types
 
         return bad_batch_dict
 
@@ -183,11 +208,14 @@ class TestScoreNetworkCheck:
             "position_name",
             "time_name",
             "position_shape",
+            "atom_types_shape",
             "time_shape",
             "noise_name",
             "noise_shape",
             "position_range1",
             "position_range2",
+            "atom_types_range1",
+            "atom_types_range2",
             "time_range1",
             "time_range2",
             "cell_name",
@@ -276,8 +304,13 @@ class BaseTestScoreNetwork:
         return torch.rand(batch_size, 1)
 
     @pytest.fixture()
-    def expected_score_shape(self, batch_size, number_of_atoms, spatial_dimension):
-        return batch_size, number_of_atoms, spatial_dimension
+    def expected_score_shape(
+        self, batch_size, number_of_atoms, spatial_dimension, num_atom_types
+    ):
+        return {
+            "X": (batch_size, number_of_atoms, spatial_dimension),
+            "A": (batch_size, number_of_atoms, num_atom_types + 1),
+        }
 
     @pytest.fixture()
     def batch(
@@ -315,9 +348,10 @@ class BaseTestScoreNetwork:
                 dictionary.pop(key)
         return dictionary
 
-    def test_coordinates_output_shape(self, score_network, batch, expected_score_shape):
+    def test_output_shape(self, score_network, batch, expected_score_shape):
         scores = score_network(batch)
-        assert scores.X.shape == expected_score_shape
+        assert scores.X.shape == expected_score_shape["X"]
+        assert scores.A.shape == expected_score_shape["A"]
 
     def test_create_score_network_parameters(
         self,
@@ -626,4 +660,8 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
 
             torch.testing.assert_close(
                 expected_modified_normalized_scores, modified_normalized_scores.X
+            )
+
+            torch.testing.assert_close(
+                normalized_scores.A, modified_normalized_scores.A
             )
