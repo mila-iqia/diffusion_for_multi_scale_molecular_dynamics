@@ -4,8 +4,7 @@ from copy import copy
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.models.egnn import (E_GCL,
-                                                                      EGNN)
+from diffusion_for_multi_scale_molecular_dynamics.models.egnn import E_GCL, EGNN
 
 
 class TestEGNN:
@@ -34,6 +33,10 @@ class TestEGNN:
     @pytest.fixture(scope="class")
     def spatial_dimension(self):
         return 3
+
+    @pytest.fixture(scope="class")
+    def num_atom_types(self):
+        return 5
 
     @pytest.fixture(scope="class")
     def relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension):
@@ -93,9 +96,10 @@ class TestEGNN:
         return hps
 
     @pytest.fixture()
-    def egnn_hyperparameters(self, generic_hyperparameters):
+    def egnn_hyperparameters(self, generic_hyperparameters, num_atom_types):
         hps = copy(generic_hyperparameters)
         hps["n_layers"] = 2
+        hps["num_classes"] = num_atom_types
         return hps
 
     @pytest.fixture()
@@ -117,16 +121,35 @@ class TestEGNN:
         return model
 
     @pytest.fixture()
-    def egnn_scores(self, batch, egnn, batch_size, number_of_atoms, spatial_dimension):
+    def egnn_scores(
+        self,
+        batch,
+        egnn,
+        batch_size,
+        number_of_atoms,
+        spatial_dimension,
+        num_atom_types,
+    ):
         egnn_scores = egnn(batch["node_features"], batch["edges"], batch["coord"])
-        return egnn_scores.X.reshape(batch_size, number_of_atoms, spatial_dimension)
+        return {
+            "X": egnn_scores.X.reshape(batch_size, number_of_atoms, spatial_dimension),
+            "A": egnn_scores.A.reshape(batch_size, number_of_atoms, num_atom_types),
+        }
 
     @pytest.fixture()
-    def egcl_scores(self, batch, egcl, batch_size, number_of_atoms):
+    def egcl_scores(
+        self,
+        batch,
+        egcl,
+        batch_size,
+        number_of_atoms,
+        node_features_size,
+        spatial_dimension,
+    ):
         egcl_h, egcl_x = egcl(batch["node_features"], batch["edges"], batch["coord"])
-        return egcl_h.reshape(batch_size, number_of_atoms, -1), egcl_x.reshape(
-            batch_size, number_of_atoms, -1
-        )
+        return egcl_h.reshape(
+            batch_size, number_of_atoms, node_features_size
+        ), egcl_x.reshape(batch_size, number_of_atoms, spatial_dimension)
 
     @pytest.fixture(scope="class")
     def permutations(self, batch_size, number_of_atoms):
@@ -180,14 +203,23 @@ class TestEGNN:
 
     @pytest.fixture()
     def permuted_egnn_scores(
-        self, permuted_batch, egnn, batch_size, number_of_atoms, spatial_dimension
+        self,
+        permuted_batch,
+        egnn,
+        batch_size,
+        number_of_atoms,
+        spatial_dimension,
+        num_atom_types,
     ):
         egnn_scores = egnn(
             permuted_batch["node_features"],
             permuted_batch["edges"],
             permuted_batch["coord"],
         )
-        return egnn_scores.X.reshape(batch_size, number_of_atoms, spatial_dimension)
+        return {
+            "X": egnn_scores.X.reshape(batch_size, number_of_atoms, spatial_dimension),
+            "A": egnn_scores.A.reshape(batch_size, number_of_atoms, num_atom_types),
+        }
 
     @pytest.fixture()
     def permuted_egcl_scores(self, permuted_batch, egcl, batch_size, number_of_atoms):
@@ -227,14 +259,27 @@ class TestEGNN:
     def test_egnn_permutation_equivariance(
         self, egnn_scores, permuted_egnn_scores, batch_size, permutations
     ):
-        expected_permuted_scores = torch.stack(
-            [
-                egnn_scores[batch_idx, permutations[batch_idx], :]
-                for batch_idx in range(batch_size)
-            ]
-        )
+        expected_permuted_scores = {
+            "X": torch.stack(
+                [
+                    egnn_scores["X"][batch_idx, permutations[batch_idx], :]
+                    for batch_idx in range(batch_size)
+                ]
+            ),
+            "A": torch.stack(
+                [
+                    egnn_scores["A"][batch_idx, permutations[batch_idx], :]
+                    for batch_idx in range(batch_size)
+                ]
+            ),
+        }
 
-        torch.testing.assert_close(expected_permuted_scores, permuted_egnn_scores)
+        torch.testing.assert_close(
+            expected_permuted_scores["X"], permuted_egnn_scores["X"]
+        )
+        torch.testing.assert_close(
+            expected_permuted_scores["A"], permuted_egnn_scores["A"]
+        )
 
     @pytest.fixture(scope="class")
     def single_edge(self):
