@@ -19,8 +19,8 @@ class LossParameters:
     """Specific Hyper-parameters for the loss function."""
 
     coordinates_algorithm: str
-    atom_types_ce_weight = 0.001  # default value in gooogle D3PM repo
-    atom_types_eps = 1e-8  # avoid divisions by zero
+    atom_types_ce_weight: float = 0.001  # default value in google D3PM repo
+    atom_types_eps: float = 1e-8  # avoid divisions by zero
     # https://github.com/google-research/google-research/blob/master/d3pm/images/config.py
 
 
@@ -218,6 +218,7 @@ class D3PMLossCalculator(torch.nn.Module):
         q_at_bar_a0 = einops.einsum(
             q_at_bar_a0, one_hot_noisy_atom_types.float(), "... i , ... i -> ..."
         )
+
         # dimension of q_at_bar_a0: batch_size, number_of_atoms
         posterior_q = (
             q_at_bar_atm1 * q_atm1_bar_a0 / q_at_bar_a0.unsqueeze(-1).clip(min=self.eps)
@@ -231,27 +232,47 @@ class D3PMLossCalculator(torch.nn.Module):
         # this is equivalent to doing a_t Q_t^T \circ \bar{Q}_{t-1} p_\theta(a_t)
         # with a matrix multiplication in the last step
         # we add a softmax to convert the predictions to normalized probabilities
-        p_atpm1_at = q_at_bar_atm1 * einops.einsum(
-            q_bar_tm1_matrices,
-            torch.nn.functional.softmax(predicted_unnormalized_probabilities, dim=-1),
-            "... j i, ... j -> ... i",
+        p_atm1_at = self.get_p_atm1_at(
+            predicted_unnormalized_probabilities, q_at_bar_atm1, q_bar_tm1_matrices
         )
-        # unit test version TODO
-        # p_atm1_at = torch.zeros_like(posterior_q)
-        # for i in range(one_hot_real_atom_types.size(-1)):
-        #    # a_t Q_t^T is already computed: q_at_bar_atm1
-        #    tilde_a_0 = class_index_to_onehot(torch.LongTensor([i]),
-        #                                      num_classes=num_classes)  # dimension (1, num_classes)
-        #    tilde_a_0_qbar_tm1 = compute_q_xt_bar_xtm1(tilde_a_0, q_bar_tm1_matrices)
-        #    p_atm1_at += q_at_bar_atm1 * tilde_a_0_qbar_tm1 * model_predictions[..., i].unsqueeze(-1)
 
         # get the KL divergence between posterior and predicted prob
         # do not reduce (average) yet as we will replace the samples with t=1 with a NLL loss
         # input of kl_div should be log-probabilities - we add eps to avoid log(0)
         kl_loss = torch.nn.functional.kl_div(
-            torch.log(p_atpm1_at + self.eps), posterior_q, reduction="none"
+            torch.log(p_atm1_at + self.eps), posterior_q, reduction="none"
         )
         return kl_loss
+
+    @staticmethod
+    def get_p_atm1_at(
+        predicted_unnormalized_probabilities: torch.Tensor,
+        q_at_bar_atm1: torch.Tensor,
+        q_bar_tm1_matrices: torch.Tensor,
+    ) -> torch.Tensor:
+        r"""Compute p(a_{t-1} | a_t).
+
+        .. math::
+            p_\theta(a_{t-1} | a_t) \propto \sum_{\tilde{a}_0} q(a_{t-1}, a_t | \tilde{a}_0)p_\theta(\tilde{a}_0, a_t)
+
+        Args:
+            predicted_unnormalized_probabilities: output of the score network estimating an unnormalized
+                :math:`p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_type_atoms] where num_type_atoms
+                includes the MASK token
+            q_at_bar_atm1: conditional posterior :math: `q(a_t | a_{t-1}, a0)` as a tensor with dimension
+                [batch_size, number_of_atoms, num_type_atoms]
+            q_bar_tm1_matrices: one-shot transition matrices at previous step :math:`\bar{Q}_{t-1}` of dimension
+                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]. An identity matrix is used for t=0.
+
+        Returns:
+            one-step transition normalized probabilities of dimension [batch_size, number_of_atoms, num_type_atoms]
+        """
+        p_atm1_at = q_at_bar_atm1 * einops.einsum(
+            q_bar_tm1_matrices,
+            torch.nn.functional.softmax(predicted_unnormalized_probabilities, dim=-1),
+            "... j i, ... j -> ... i",
+        )
+        return p_atm1_at
 
     def calculate_unreduced_loss(
         self,
@@ -304,8 +325,11 @@ class D3PMLossCalculator(torch.nn.Module):
 
         # -log p_\theta(a_0 | a_t)
         nll_term = -torch.nn.functional.log_softmax(
-            predicted_unnormalized_probabilities
+            predicted_unnormalized_probabilities, dim=-1
         )
+
+        print(time_indices.view(-1, 1, 1))
+        print(nll_term)
 
         # if t == 1 (0 for python indexing convention), use the NLL term, otherwise use the KL + \lambda_{CE} NLL
         d3pm_loss = torch.where(
