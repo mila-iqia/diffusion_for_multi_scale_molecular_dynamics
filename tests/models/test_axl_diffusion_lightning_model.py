@@ -3,46 +3,30 @@ import torch
 from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import (
-    PredictorCorrectorSamplingParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.metrics.sampling_metrics_parameters import (
-    SamplingMetricsParameters,
-)
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
+    PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.metrics.sampling_metrics_parameters import \
+    SamplingMetricsParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
-    AXLDiffusionLightningModel,
-    AXLDiffusionParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
-    create_loss_parameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
-    OptimizerParameters,
-)
+    AXLDiffusionLightningModel, AXLDiffusionParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.loss import \
+    create_loss_parameters
+from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
+    OptimizerParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
-    CosineAnnealingLRSchedulerParameters,
-    ReduceLROnPlateauSchedulerParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
-    MLPScoreNetworkParameters,
-)
+    CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
+    MLPScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
-    CARTESIAN_FORCES,
-    RELATIVE_COORDINATES,
-)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
-    NoiseParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import (
-    DiffusionSamplingParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
-    get_sigma_normalized_score_brute_force,
-)
-from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
-    broadcast_batch_tensor_to_all_dimensions,
-)
+    ATOM_TYPES, CARTESIAN_FORCES, RELATIVE_COORDINATES)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
+    DiffusionSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
+    get_sigma_normalized_score_brute_force
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
+    broadcast_batch_tensor_to_all_dimensions
 
 
 class FakePositionsDataModule(LightningDataModule):
@@ -95,7 +79,7 @@ class FakePositionsDataModule(LightningDataModule):
 class TestPositionDiffusionLightningModel:
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
-        torch.manual_seed(2345234)
+        torch.manual_seed(234523)
 
     @pytest.fixture()
     def batch_size(self):
