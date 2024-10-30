@@ -141,9 +141,8 @@ class MACEScoreNetwork(ScoreNetwork):
             name="mlp",
             hidden_dimensions_size=hyper_params.atom_type_head_hidden_size,
             n_hidden_dimensions=hyper_params.atom_type_head_n_hidden_layers,
-            spatial_dimension=len(
-                self.z_table
-            ),  # spatial_dimension acts as the output size
+            spatial_dimension=self.num_atom_types
+            + 1,  # spatial_dimension acts as the output size
             # TODO will not work because MASK is not a valid atom type
         )
         self.atom_types_prediction_head = instantiate_mace_prediction_head(
@@ -200,14 +199,18 @@ class MACEScoreNetwork(ScoreNetwork):
             -1, self._natoms, self.spatial_dimension
         )
 
-        atom_type_score = self.atom_types_prediction_head(
+        flat_atom_type_scores = self.atom_types_prediction_head(
             flat_node_features, flat_times
         )  # shape [batch_size * natoms, num_atom_types]
 
+        atom_type_scores = flat_atom_type_scores.reshape(
+            -1, self._natoms, self.num_atom_types + 1
+        )
+
         scores = AXL(
-            A=atom_type_score,
+            A=atom_type_scores,
             X=coordinates_scores,
-            L=torch.zeros_like(atom_type_score),  # TODO replace with real output
+            L=torch.zeros_like(atom_type_scores),  # TODO replace with real output
         )
 
         return scores

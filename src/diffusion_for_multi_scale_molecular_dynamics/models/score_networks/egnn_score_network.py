@@ -109,6 +109,7 @@ class EGNNScoreNetwork(ScoreNetwork):
             coords_agg=hyper_params.coords_agg,
             message_agg=hyper_params.message_agg,
             n_layers=hyper_params.n_layers,
+            num_classes=self.num_atom_types + 1,
         )
 
     @staticmethod
@@ -262,8 +263,15 @@ class EGNNScoreNetwork(ScoreNetwork):
             natoms=number_of_atoms,
         )
 
+        atom_reshaped_scores = einops.rearrange(
+            raw_normalized_score.A,
+            "(batch natoms) num_classes -> batch natoms num_classes",
+            batch=batch_size,
+            natoms=number_of_atoms,
+        )
+
         axl_scores = AXL(
-            A=raw_normalized_score.A,
+            A=atom_reshaped_scores,
             X=normalized_scores,
             L=raw_normalized_score.L,
         )

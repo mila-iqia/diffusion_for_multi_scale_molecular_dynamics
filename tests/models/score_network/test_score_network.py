@@ -287,6 +287,19 @@ class BaseTestScoreNetwork:
         atom_types = torch.randint(0, num_atom_types + 1, (batch_size, number_of_atoms))
         return atom_types
 
+    @pytest.fixture()
+    def expected_score_shape(
+        self, batch_size, number_of_atoms, spatial_dimension, num_atom_types
+    ):
+        first_dims = (
+            batch_size,
+            number_of_atoms,
+        )
+        return {
+            "X": first_dims + (spatial_dimension,),
+            "A": first_dims + (num_atom_types + 1,),
+        }
+
     @pytest.fixture
     def cartesian_forces(
         self, batch_size, number_of_atoms, spatial_dimension, basis_vectors
@@ -302,15 +315,6 @@ class BaseTestScoreNetwork:
     @pytest.fixture
     def noises(self, batch_size):
         return torch.rand(batch_size, 1)
-
-    @pytest.fixture()
-    def expected_score_shape(
-        self, batch_size, number_of_atoms, spatial_dimension, num_atom_types
-    ):
-        return {
-            "X": (batch_size, number_of_atoms, spatial_dimension),
-            "A": (batch_size, number_of_atoms, num_atom_types + 1),
-        }
 
     @pytest.fixture()
     def batch(
@@ -373,7 +377,6 @@ class BaseTestScoreNetwork:
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
 @pytest.mark.parametrize("embedding_dimensions_size", [4, 12])
 class TestMLPScoreNetwork(BaseTestScoreNetwork):
-
     @pytest.fixture()
     def score_network_parameters(
         self,

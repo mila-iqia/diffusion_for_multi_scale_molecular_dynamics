@@ -328,9 +328,6 @@ class D3PMLossCalculator(torch.nn.Module):
             predicted_unnormalized_probabilities, dim=-1
         )
 
-        print(time_indices.view(-1, 1, 1))
-        print(nll_term)
-
         # if t == 1 (0 for python indexing convention), use the NLL term, otherwise use the KL + \lambda_{CE} NLL
         d3pm_loss = torch.where(
             time_indices.view(-1, 1, 1) == 0,

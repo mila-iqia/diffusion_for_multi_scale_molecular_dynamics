@@ -286,7 +286,7 @@ class EGNN(nn.Module):
         coords_agg: str = "mean",
         message_agg: str = "mean",
         n_layers: int = 4,
-        num_atom_types: int = 2,
+        num_classes: int = 2,
     ):
         """EGNN model stacking multiple E_GCL layers.
 
@@ -307,14 +307,14 @@ class EGNN(nn.Module):
             message_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
             n_layers: number of E_GCL layers. Defaults to 4.
-            num_atom_types: number of atom types uses for the final node embedding. Defaults to 2.
+            num_classes: number of atom types uses for the final node embedding. Defaults to 2.
         """
         super(EGNN, self).__init__()
         self.n_layers = n_layers
         self.embedding_in = nn.Linear(input_size, node_hidden_dimensions_size)
         self.graph_layers = nn.ModuleList([])
         self.node_classification_layer = nn.Linear(
-            node_hidden_dimensions_size, num_atom_types
+            node_hidden_dimensions_size, num_classes
         )
         for _ in range(0, n_layers):
             self.graph_layers.append(
