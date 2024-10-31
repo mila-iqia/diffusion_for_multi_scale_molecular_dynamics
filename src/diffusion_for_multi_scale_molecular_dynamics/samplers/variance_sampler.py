@@ -28,6 +28,8 @@ class NoiseParameters:
 
     # Default value comes from "Generative Modeling by Estimating Gradients of the Data Distribution"
     corrector_step_epsilon: float = 2e-5
+    # For Langevin Corrector
+    corrector_r: float = 0.15  # default from https://github.com/yang-song/score_sde_pytorch/blob/main/sampling.py
 
 
 class ExplodingVarianceSampler(torch.nn.Module):
