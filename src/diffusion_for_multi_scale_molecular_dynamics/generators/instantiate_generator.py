@@ -1,15 +1,22 @@
-from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
-    LangevinGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import \
-    ExplodingVarianceODEPositionGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
-    SamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import \
-    ExplodingVarianceSDEPositionGenerator
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
-    ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
-    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import (
+    LangevinCorrectorGenerator,
+    LangevinGenerator,
+)
+from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
+    ExplodingVarianceODEPositionGenerator,
+)
+from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
+    SamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import (
+    ExplodingVarianceSDEPositionGenerator,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
+    ScoreNetwork,
+)
+from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
+    NoiseParameters,
+)
 
 
 def instantiate_generator(
@@ -22,11 +29,18 @@ def instantiate_generator(
         "ode",
         "sde",
         "predictor_corrector",
-    ], "Unknown algorithm. Possible choices are 'ode', 'sde' and 'predictor_corrector'"
+        "corrector",
+    ], "Unknown algorithm. Possible choices are 'ode', 'sde', 'predictor_corrector' and 'corrector'"
 
     match sampling_parameters.algorithm:
         case "predictor_corrector":
             generator = LangevinGenerator(
+                sampling_parameters=sampling_parameters,
+                noise_parameters=noise_parameters,
+                sigma_normalized_score_network=sigma_normalized_score_network,
+            )
+        case "corrector":
+            generator = LangevinCorrectorGenerator(
                 sampling_parameters=sampling_parameters,
                 noise_parameters=noise_parameters,
                 sigma_normalized_score_network=sigma_normalized_score_network,

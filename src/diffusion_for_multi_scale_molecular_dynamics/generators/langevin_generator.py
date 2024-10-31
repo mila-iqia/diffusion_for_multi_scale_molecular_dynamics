@@ -1,15 +1,27 @@
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import (
-    PredictorCorrectorPositionGenerator, PredictorCorrectorSamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
-    ScoreNetwork
+    PredictorCorrectorPositionGenerator,
+    PredictorCorrectorSamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
+    ScoreNetwork,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_RELATIVE_COORDINATES,
+    TIME,
+    UNIT_CELL,
+)
 from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+    ExplodingVarianceSampler,
+    NoiseParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
-    NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
+    NoOpPredictorCorrectorSampleTrajectory,
+    PredictorCorrectorSampleTrajectory,
+)
 
 
 class LangevinGenerator(PredictorCorrectorPositionGenerator):
@@ -187,6 +199,114 @@ class LangevinGenerator(PredictorCorrectorPositionGenerator):
         sigma_score_i = self._get_sigma_normalized_scores(
             x_i, t_i, sigma_i, unit_cell, cartesian_forces
         )
+
+        corrected_x_i = x_i + eps_i / sigma_i * sigma_score_i + sqrt_2eps_i * z
+
+        self.sample_trajectory_recorder.record_corrector_step(
+            i_index=index_i,
+            time=t_i,
+            sigma=sigma_i,
+            x_i=x_i,
+            corrected_x_i=corrected_x_i,
+            scores=sigma_score_i,
+        )
+
+        return corrected_x_i
+
+
+class LangevinCorrectorGenerator(LangevinGenerator):
+    """Langevin Corrector-only Generator.
+
+    This class implements the Langevin Corrector generation of position samples, following
+    Song et. al. 2021, namely:
+        "SCORE-BASED GENERATIVE MODELING THROUGH STOCHASTIC DIFFERENTIAL EQUATIONS"
+    """
+
+    def predictor_step(
+        self,
+        x_i: torch.Tensor,
+        index_i: int,
+        unit_cell: torch.Tensor,
+        cartesian_forces: torch.Tensor,
+    ) -> torch.Tensor:
+        """Predictor step.
+
+        Args:
+            x_i : sampled relative coordinates, at time step i.
+            index_i : index of the time step.
+            unit_cell: sampled unit cell at time step i.
+            cartesian_forces: forces conditioning the sampling process
+
+        Returns:
+            x_i : sampled relative coordinates, at time step i - 1.
+        """
+        assert (
+            1 <= index_i <= self.number_of_discretization_steps
+        ), "The predictor step can only be invoked for index_i between 1 and the total number of discretization steps."
+
+        # there is no predictor step in the Langevin Corrector algorithm.
+
+        return x_i
+
+    def corrector_step(
+        self,
+        x_i: torch.Tensor,
+        index_i: int,
+        unit_cell: torch.Tensor,
+        cartesian_forces: torch.Tensor,
+    ) -> torch.Tensor:
+        """Corrector Step.
+
+        Args:
+            x_i : sampled relative coordinates, at time step i.
+            index_i : index of the time step.
+            unit_cell: sampled unit cell at time step i.
+            cartesian_forces: forces conditioning the sampling
+
+        Returns:
+            corrected x_i : sampled relative coordinates, after corrector step.
+        """
+        assert 0 <= index_i <= self.number_of_discretization_steps - 1, (
+            "The corrector step can only be invoked for index_i between 0 and "
+            "the total number of discretization steps minus 1."
+        )
+
+        number_of_samples = x_i.shape[0]
+        z = self._draw_gaussian_sample(number_of_samples).to(x_i)
+
+        if index_i == 0:
+            # TODO: we are extrapolating here; the score network will never have seen this time step...
+            sigma_i = (
+                self.noise_parameters.sigma_min
+            )  # no need to change device, this is a float
+            t_i = 0.0  # same for device - this is a float
+        else:
+            idx = index_i - 1  # python starts indices at zero
+            sigma_i = self.noise.sigma[idx].to(x_i)
+            t_i = self.noise.time[idx].to(x_i)
+
+        sigma_score_i = self._get_sigma_normalized_scores(
+            x_i, t_i, sigma_i, unit_cell, cartesian_forces
+        )  # number_of_samples, number_of_atoms, spatial_dimension
+
+        sigma_score_norm = torch.linalg.norm(sigma_score_i, dim=-1).mean(
+            dim=-1
+        )  # spatial dimension norm
+        # and average over atoms
+        noise_norm = torch.linalg.norm(z, dim=-1).mean(dim=-1)
+        # eps = 2 (r ||z||_2 / ||s(x,\sigma)||_2)^2
+        # note sigma_score is \sigma * s() hence an added sigma_i in the numerator
+        eps_i = (
+            2
+            * (
+                self.noise_parameters.corrector_r
+                * noise_norm
+                * sigma_i
+                / (sigma_score_norm + 1e-8)
+            )
+            ** 2
+        )
+        sqrt_2eps_i = torch.sqrt(2 * eps_i)
 
         corrected_x_i = x_i + eps_i / sigma_i * sigma_score_i + sqrt_2eps_i * z
 
