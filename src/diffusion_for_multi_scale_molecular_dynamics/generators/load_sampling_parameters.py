@@ -32,10 +32,15 @@ def load_sampling_parameters(
         "ode",
         "sde",
         "predictor_corrector",
-    ], "Unknown algorithm. Possible choices are 'ode', 'sde' and 'predictor_corrector'"
+        "corrector",
+    ], "Unknown algorithm. Possible choices are 'ode', 'sde', 'corrector' and 'predictor_corrector'"
 
     match algorithm:
         case "predictor_corrector":
+            sampling_parameters = PredictorCorrectorSamplingParameters(
+                **sampling_parameter_dictionary
+            )
+        case "corrector":
             sampling_parameters = PredictorCorrectorSamplingParameters(
                 **sampling_parameter_dictionary
             )
