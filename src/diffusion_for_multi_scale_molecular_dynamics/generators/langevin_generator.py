@@ -291,9 +291,9 @@ class LangevinCorrectorGenerator(LangevinGenerator):
 
         sigma_score_norm = torch.linalg.norm(sigma_score_i, dim=-1).mean(
             dim=-1
-        )  # spatial dimension norm
+        ).view(-1, 1, 1)  # spatial dimension norm
         # and average over atoms
-        noise_norm = torch.linalg.norm(z, dim=-1).mean(dim=-1)
+        noise_norm = torch.linalg.norm(z, dim=-1).mean(dim=-1).view(-1, 1, 1)
         # eps = 2 (r ||z||_2 / ||s(x,\sigma)||_2)^2
         # note sigma_score is \sigma * s() hence an added sigma_i in the numerator
         eps_i = (
