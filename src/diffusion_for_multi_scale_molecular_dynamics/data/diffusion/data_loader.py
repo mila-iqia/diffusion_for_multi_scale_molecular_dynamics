@@ -144,7 +144,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             raise ValueError(
                 f"Hyper-parameter max_atom is smaller than an example in the dataset with {natom} atoms."
             )
-        print("Line 147", x.keys())
+
         x[ATOM_TYPES] = F.pad(
             torch.as_tensor(x[ATOM_TYPES]).long(), (0, max_atom - natom), "constant", -1
         )
@@ -163,8 +163,6 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         processed_data = LammpsProcessorForDiffusion(
             self.lammps_run_dir, self.processed_dataset_dir
         )
-
-        print("line 167", stage, processed_data.train_files)
 
         if stage == "fit" or stage is None:
             self.train_dataset = datasets.Dataset.from_parquet(
@@ -188,7 +186,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             )
         # map() are applied once, not in-place.
         # The keyword argument "batched" can accelerate by working with batches, not useful for padding
-        print("line 189", self.train_dataset)
+
         self.train_dataset = self.train_dataset.map(
             partial(
                 self.pad_samples, max_atom=self.max_atom, spatial_dim=self.spatial_dim

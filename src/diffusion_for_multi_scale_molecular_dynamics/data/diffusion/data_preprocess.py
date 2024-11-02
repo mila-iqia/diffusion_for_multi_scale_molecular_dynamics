@@ -206,7 +206,8 @@ class LammpsProcessorForDiffusion:
         df[CARTESIAN_FORCES] = df.apply(
             partial(self._flatten_positions_in_row, keys=["fx", "fy", "fz"]), axis=1
         )
-        df[ATOM_TYPES] = df["type"]
+        df.rename(columns={"type": ATOM_TYPES}, inplace=True)
+
         return df[
             [
                 "natom",

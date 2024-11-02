@@ -25,6 +25,9 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISY_CARTESIAN_POSITIONS,
     UNIT_CELL,
 )
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
+    class_index_to_onehot,
+)
 
 
 class LinearVectorReadoutBlock(torch.nn.Module):
@@ -58,7 +61,7 @@ class LinearClassificationReadoutBlock(torch.nn.Module):
 def input_to_diffusion_mace(
     batch: Dict[AnyStr, torch.Tensor],
     radial_cutoff: float,
-    num_classes: int = 1,
+    num_classes: int,
 ) -> Data:
     """Convert score network input to Diffusion MACE input.
 
@@ -84,13 +87,10 @@ def input_to_diffusion_mace(
     )
 
     # node features are int corresponding to atom type
-    # TODO handle different atom types
     atom_types = batch[NOISY_AXL].A
-    node_attrs = (
-        torch.nn.functional.one_hot(atom_types.long(), num_classes=num_classes)
-        .to(atom_types)
-        .view(-1, num_classes)
-    )  # atom type as 1-hot - should be (batch_size * n_atom, num_classes)
+    node_attrs = class_index_to_onehot(atom_types, num_classes=num_classes)
+    node_attrs = node_attrs.view(-1, num_classes)
+    # atom type as 1-hot - should be (batch_size * n_atom, num_classes)
     # The node diffusion scalars will be the diffusion noise sigma, which is constant for each structure in the batch.
     # We broadcast to each node to avoid complex broadcasting logic within the model itself.
     # TODO: it might be better to define the noise as a 'global' graph attribute, and find 'the right way' of
@@ -190,7 +190,8 @@ class DiffusionMACE(torch.nn.Module):
         # define the "0e" representation as a constant to avoid "magic numbers" below.
         scalar_irrep = o3.Irrep(0, 1)
 
-        # Apply an MLP with a bias on the scalar diffusion time-like input and 1-hot atom type
+        # An MLP will be used to mix the diffusion time-like input (the 'diffusion scalar', a global quantity) and
+        # the 1-hot atom type (the 'node scalars')
         number_of_node_scalar_dimensions = 1
         number_of_hidden_diffusion_scalar_dimensions = mlp_irreps.count(scalar_irrep)
 

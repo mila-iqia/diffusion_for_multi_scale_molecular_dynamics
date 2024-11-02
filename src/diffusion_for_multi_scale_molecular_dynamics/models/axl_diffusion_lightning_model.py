@@ -89,7 +89,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(kw_only=True)
 class AXLDiffusionParameters:
-    """AXL (atom, position, lattice) Diffusion parameters."""
+    """AXL (atom, relative coordinates, lattice) Diffusion parameters."""
 
     score_network_parameters: ScoreNetworkParameters
     loss_parameters: LossParameters
@@ -104,7 +104,7 @@ class AXLDiffusionParameters:
 class AXLDiffusionLightningModel(pl.LightningModule):
     """AXL Diffusion Lightning Model.
 
-    This lightning model can train a score network predict the noise for relative coordinates, atom types and lattice
+    This lightning model can train a score network to predict the noise for relative coordinates, atom types and lattice
     vectors.
     """
 
@@ -123,7 +123,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         # the score network is expected to produce an output as an AXL namedtuple:
         # atom: unnormalized estimate of p(a_0 | a_t)
-        # positions: estimate of \sigma \nabla_{x_t} p_{t|0}(x_t | x_0)
+        # relative coordinates: estimate of \sigma \nabla_{x_t} p_{t|0}(x_t | x_0)
         # lattices: TODO
         self.score_network = create_score_network(hyper_params.score_network_parameters)
 
@@ -226,25 +226,25 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             :math:`\nabla \log p`   : the target score
                :math:`\lambda(t)`   : is arbitrary, but chosen for convenience.
 
-        In this implementation, we choose :math:`\lambda(t_ = \sigma(t)^2` (a standard choice from the literature), such
+        In this implementation, we choose :math:`\lambda(t) = \sigma(t)^2` (a standard choice from the literature), such
         that the score network and the target scores that are used are actually "sigma normalized" versions, ie,
         pre-multiplied by sigma.
 
         For the atom type diffusion, the loss is defined as:
 
         .. math::
-            L_a = E_{a_0 ~ p_data} [ \sum_{t=2}^T E_{at ~ p_{t|0]}
-                [D_{KL}[q(a_{t-1} | a_t, a_0) || p_theta(a_t | a_{t-1} - \lambda_CE log p_\theta(a_0 | a_t)]
-                - E_{a1 ~ p_{t=1| 0}} log p_\theta(a_0 | a_1) ]
+            L_a = E_{a_0 ~ p_\textrm{data}} [ \sum_{t=2}^T E_{a_t ~ p_{t|0}
+                [D_{KL}[q(a_{t-1} | a_t, a_0) || p_theta(a_{t-1} | a_{t}) - \lambda_CE log p_\theta(a_0 | a_t)]
+                - E_{a_1 ~ p_{t=1|0}} log p_\theta(a_0 | a_1) ]
 
         The loss that is computed is a Monte Carlo estimate of L, where we sample a mini-batch of relative coordinates
         configurations {x0} and atom types {a_0}; each of these configurations is noised with a random t value,
         with corresponding {sigma(t)}, {xt}, {beta(t)} and {a(t)}. Note the :math:`beta(t)` is used to compute the true
-        posterior :math:``q(a_{t-1} | a_t, a_0)` and :math:`p_\theta(a_{t-1} | a_t)` in the atom type loss.
+        posterior :math:`q(a_{t-1} | a_t, a_0)` and :math:`p_\theta(a_{t-1} | a_t)` in the atom type loss.
 
         Args:
             batch : a dictionary that should contain a data sample.
-            batch_idx :  index of the batch
+            batch_idx : index of the batch
             no_conditional (optional): if True, do not use the conditional option of the forward. Used for validation.
 
         Returns:
@@ -274,14 +274,14 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             f"Got shape = {atom_shape}"
         )
 
-        lvec0 = batch[
+        l0 = batch[
             "box"
         ]  # should be batch[UNIT_CELL] - see later comment with batch['box']
         # TODO assert on shape
 
         noise_sample = self.noise_scheduler.get_random_noise_sample(batch_size)
 
-        # noise_sample.sigma and has dimension [batch_size]. Broadcast these values to be of shape
+        # noise_sample.sigma has dimension [batch_size]. Broadcast these values to be of shape
         # [batch_size, number_of_atoms, spatial_dimension] , which can be interpreted as
         # [batch_size, (configuration)]. All the sigma values must be the same for a given configuration.
         sigmas = broadcast_batch_tensor_to_all_dimensions(
@@ -290,9 +290,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         # we can now get noisy coordinates
         xt = self.noisers.X.get_noisy_relative_coordinates_sample(x0, sigmas)
 
-        # to get noisy atom types, we need to broadcast the transition matrix q_bar from size
-        # [num_atom_types, num_atom_types] to [batch_size, number_of_atoms, num_atom_types, num_atom_types]. All the
-        # q_bar matrices must be the same for a given configuration.
+        # to get noisy atom types, we need to broadcast the transition matrices q, q_bar and q_bar_tm1 from size
+        # [batch_size, num_atom_types, num_atom_types] to [batch_size, number_of_atoms, num_atom_types, num_atom_types].
+        # All the matrices must be the same for all atoms in a given configuration.
         q_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
             batch_values=noise_sample.q_matrix, final_shape=atom_shape
         )
@@ -311,19 +311,19 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         at_onehot = class_index_to_onehot(at, self.num_atom_types + 1)
 
         # TODO do the same for the lattice vectors
-        lvect = self.noisers.L.get_noisy_lattice_vectors(lvec0)
+        lt = self.noisers.L.get_noisy_lattice_vectors(l0)
 
-        noisy_sample = AXL(A=at, X=xt, L=lvec0)  # not one-hot
+        noisy_composition = AXL(A=at, X=xt, L=lt)  # not one-hot
 
-        original_sample = AXL(A=a0, X=x0, L=lvect)
+        original_composition = AXL(A=a0, X=x0, L=l0)
 
         # Get the loss targets
-        # Coordinates: The target is nabla log p_{t|0} (xt | x0): it is NOT the "score", but rather a "conditional"
-        # (on x0) score.
+        # Coordinates: The target is :math:`sigma(t) \nabla  log p_{t|0} (xt | x0)`
+        # it is NOT the "score", but rather a "conditional" (on x0) score.
         target_coordinates_normalized_conditional_scores = (
             self._get_coordinates_target_normalized_score(xt, x0, sigmas)
         )
-        # for the atom types, the loss is constructed from the Q and barQ matrices
+        # for the atom types, the loss is constructed from the Q and Qbar matrices
 
         # TODO get unit_cell from the noisy version and not a kwarg in batch (at least replace with namespace name)
         unit_cell = torch.diag_embed(
@@ -333,7 +333,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         forces = batch[CARTESIAN_FORCES]
 
         augmented_batch = {
-            NOISY_AXL: noisy_sample,
+            NOISY_AXL: noisy_composition,
             TIME: noise_sample.time.reshape(-1, 1),
             NOISE: noise_sample.sigma.reshape(-1, 1),
             UNIT_CELL: unit_cell,  # TODO remove and take from AXL instead
@@ -359,7 +359,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             predicted_unnormalized_probabilities=model_predictions.A,
             one_hot_real_atom_types=a0_onehot,
             one_hot_noisy_atom_types=at_onehot,
-            time_indices=noise_sample.indices,
+            time_indices=noisy_composition.indices,
             q_matrices=q_matrices,
             q_bar_matrices=q_bar_matrices,
             q_bar_tm1_matrices=q_bar_tm1_matrices,
@@ -402,8 +402,8 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             model_predictions=model_predictions_detached,
             target_coordinates_normalized_conditional_scores=target_coordinates_normalized_conditional_scores,
         )
-        output[ORIGINAL_AXL] = original_sample
-        output[NOISY_AXL] = NOISY_AXL
+        output[ORIGINAL_AXL] = original_composition
+        output[NOISY_AXL] = noisy_composition
         output[TIME] = augmented_batch[TIME]
         output[UNIT_CELL] = augmented_batch[
             UNIT_CELL
@@ -462,9 +462,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             on_epoch=True,
         )
 
-        for axl_field in output["unreduced_loss"]._fields:
+        for axl_field, axl_name in AXL_NAME_DICT.items():
             self.log(
-                f"train_epoch_{AXL_NAME_DICT[axl_field]}_loss",
+                f"train_epoch_{axl_name}_loss",
                 getattr(output["unreduced_loss"], axl_field).mean(),
                 batch_size=batch_size,
                 on_step=False,
@@ -488,9 +488,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             prog_bar=True,
         )
 
-        for axl_field in output["unreduced_loss"]._fields:
+        for axl_field, axl_name in AXL_NAME_DICT.items():
             self.log(
-                f"validation_epoch_{AXL_NAME_DICT[axl_field]}_loss",
+                f"validation_epoch_{axl_name}_loss",
                 getattr(output["unreduced_loss"], axl_field).mean(),
                 batch_size=batch_size,
                 on_step=False,
@@ -533,9 +533,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True
         )
 
-        for axl_field in output["unreduced_loss"]._fields:
+        for axl_field, axl_name in AXL_NAME_DICT.items():
             self.log(
-                f"test_epoch_{AXL_NAME_DICT[axl_field]}_loss",
+                f"test_epoch_{axl_name}_loss",
                 getattr(output["unreduced_loss"], axl_field).mean(),
                 batch_size=batch_size,
                 on_step=False,

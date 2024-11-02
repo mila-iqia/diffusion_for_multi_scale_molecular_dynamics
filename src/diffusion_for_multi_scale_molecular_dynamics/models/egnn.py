@@ -272,6 +272,7 @@ class EGNN(nn.Module):
     def __init__(
         self,
         input_size: int,
+        num_classes: int,
         message_n_hidden_dimensions: int,
         message_hidden_dimensions_size: int,
         node_n_hidden_dimensions: int,
@@ -286,12 +287,12 @@ class EGNN(nn.Module):
         coords_agg: str = "mean",
         message_agg: str = "mean",
         n_layers: int = 4,
-        num_classes: int = 2,
     ):
         """EGNN model stacking multiple E_GCL layers.
 
         Args:
             input_size: number of node features in the input
+            num_classes: number of atom types uses for the final node embedding.
             message_n_hidden_dimensions: number of hidden layers of the message (edge) MLP
             message_hidden_dimensions_size: size of the hidden layers of the message (edge) MLP
             node_n_hidden_dimensions: number of hidden layers of the node update MLP
@@ -307,7 +308,6 @@ class EGNN(nn.Module):
             message_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
             n_layers: number of E_GCL layers. Defaults to 4.
-            num_classes: number of atom types uses for the final node embedding. Defaults to 2.
         """
         super(EGNN, self).__init__()
         self.n_layers = n_layers
