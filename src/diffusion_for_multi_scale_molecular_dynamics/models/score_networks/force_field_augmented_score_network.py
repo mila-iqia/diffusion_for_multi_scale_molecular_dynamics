@@ -9,7 +9,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
 )
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     UNIT_CELL,
 )
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
@@ -118,7 +118,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         self, batch: Dict[AnyStr, torch.Tensor]
     ) -> AdjacencyInfo:
         basis_vectors = batch[UNIT_CELL]
-        relative_coordinates = batch[NOISY_AXL].X
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         cartesian_positions = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
         )
@@ -141,7 +141,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         bch = adj_info.edge_batch_indices
         src, dst = adj_info.adjacency_matrix
 
-        relative_coordinates = batch[NOISY_AXL].X
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L
         cartesian_positions = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
@@ -168,7 +168,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         bch = adj_info.edge_batch_indices
         src, dst = adj_info.adjacency_matrix
 
-        batch_size, natoms, spatial_dimension = batch[NOISY_AXL].X.shape
+        batch_size, natoms, spatial_dimension = batch[NOISY_AXL_COMPOSITION].X.shape
 
         # Combine the bch and src index into a single global index
         node_idx = natoms * bch + src

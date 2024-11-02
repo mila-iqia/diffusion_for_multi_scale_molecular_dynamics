@@ -21,7 +21,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     NOISY_CARTESIAN_POSITIONS,
     UNIT_CELL,
 )
@@ -87,7 +87,7 @@ def input_to_diffusion_mace(
     )
 
     # node features are int corresponding to atom type
-    atom_types = batch[NOISY_AXL].A
+    atom_types = batch[NOISY_AXL_COMPOSITION].A
     node_attrs = class_index_to_onehot(atom_types, num_classes=num_classes)
     node_attrs = node_attrs.view(-1, num_classes)
     # atom type as 1-hot - should be (batch_size * n_atom, num_classes)
@@ -156,7 +156,7 @@ class DiffusionMACE(torch.nn.Module):
         interaction_cls: Type[InteractionBlock],
         interaction_cls_first: Type[InteractionBlock],
         num_interactions: int,
-        num_elements: int,
+        num_classes: int,
         hidden_irreps: o3.Irreps,
         mlp_irreps: o3.Irreps,
         number_of_mlp_layers: int,
@@ -221,7 +221,7 @@ class DiffusionMACE(torch.nn.Module):
             self.diffusion_scalar_embedding.append(linear)
 
         # The node_attr is the one-hot version of the atom types.
-        node_attr_irreps = o3.Irreps([(num_elements, scalar_irrep)])
+        node_attr_irreps = o3.Irreps([(num_classes, scalar_irrep)])
 
         # Perform a tensor product to mix the diffusion scalar and node attributes
         self.attribute_mixing = o3.FullyConnectedTensorProduct(
@@ -323,7 +323,7 @@ class DiffusionMACE(torch.nn.Module):
             node_feats_irreps=node_feats_irreps_out,
             target_irreps=hidden_irreps,
             correlation=correlation[0],
-            num_elements=num_elements,
+            num_elements=num_classes,
             use_sc=use_sc_first,
         )
         self.products = torch.nn.ModuleList([prod])
@@ -358,7 +358,7 @@ class DiffusionMACE(torch.nn.Module):
                 node_feats_irreps=interaction_irreps,
                 target_irreps=hidden_irreps_out,
                 correlation=correlation[i + 1],
-                num_elements=num_elements,
+                num_elements=num_classes,
                 use_sc=True,
             )
             self.products.append(prod)
@@ -372,7 +372,7 @@ class DiffusionMACE(torch.nn.Module):
 
         # and an output for atom classification
         self.classification_readout = LinearClassificationReadoutBlock(
-            irreps_in=hidden_irreps_out, num_classes=num_elements
+            irreps_in=hidden_irreps_out, num_classes=num_classes
         )
 
         # Apply a MLP with a bias on the forces as a conditional feature. This would be a 1o irrep

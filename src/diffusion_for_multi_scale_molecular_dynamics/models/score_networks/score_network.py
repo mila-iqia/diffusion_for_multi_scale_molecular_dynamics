@@ -5,7 +5,6 @@ Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 """
 
-import os
 from dataclasses import dataclass
 from typing import AnyStr, Dict, Optional
 
@@ -15,16 +14,10 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     TIME,
     UNIT_CELL,
 )
-
-# mac fun time
-# for mace, conflict with mac
-# https://stackoverflow.com/questions/53014306/error-15-initializing-libiomp5-dylib-but-found-libiomp5-dylib-already- \
-# initial
-os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
 
 @dataclass(kw_only=True)
@@ -33,11 +26,9 @@ class ScoreNetworkParameters:
 
     architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
-    num_atom_types: int = (
-        2  # number of possible atomic species - not counting the MASK class used in the diffusion
-    )
+    num_atom_types: int  # number of possible atomic species - not counting the MASK class used in the diffusion
     conditional_prob: float = (
-        0.0  # probability of making a conditional forward - else, do a unconditional forward
+        0.0  # probability of making a conditional forward - else, do an unconditional forward
     )
     conditional_gamma: float = (
         2.0  # conditional score weighting - see eq. B45 in MatterGen
@@ -77,7 +68,8 @@ class ScoreNetwork(torch.nn.Module):
               - the atom types of shape [batch_size, number of atoms]
               - the unit cell vectors  TODO shape
             - all the components of relative coordinates will be in [0, 1)
-            - all the components of atom types are integers between [0, number of atomic species)
+            - all the components of atom types are integers between [0, number of atomic species + 1)
+                the + 1 accounts for the MASK class
             - the time steps are present and of shape [batch_size, 1]
             - the time steps are in range [0, 1].
             - the 'noise' parameter sigma is present and has the same shape as time.
@@ -90,12 +82,12 @@ class ScoreNetwork(torch.nn.Module):
         Returns:
             None.
         """
-        assert NOISY_AXL in batch, (
+        assert NOISY_AXL_COMPOSITION in batch, (
             f"The noisy coordinates, atomic types and lattice vectors should be present in "
-            f"the batch dictionary with key '{NOISY_AXL}'"
+            f"the batch dictionary with key '{NOISY_AXL_COMPOSITION}'"
         )
 
-        relative_coordinates = batch[NOISY_AXL].X
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         relative_coordinates_shape = relative_coordinates.shape
         batch_size = relative_coordinates_shape[0]
         assert (
@@ -149,7 +141,7 @@ class ScoreNetwork(torch.nn.Module):
             and unit_cell_shape[2] == self.spatial_dimension
         ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension].}"
 
-        atom_types = batch[NOISY_AXL].A
+        atom_types = batch[NOISY_AXL_COMPOSITION].A
         atom_types_shape = atom_types.shape
         assert (
             atom_types_shape[0] == batch_size
@@ -162,7 +154,7 @@ class ScoreNetwork(torch.nn.Module):
             atom_types >= 0,
             atom_types
             < self.num_atom_types + 1,  # MASK is a possible type in a noised sample
-        ).all(), f"All atom types are expected to be in [0,{self.num_atom_types})."
+        ).all(), f"All atom types are expected to be in [0, {self.num_atom_types}]."
 
         if self.conditional_prob > 0:
             assert CARTESIAN_FORCES in batch, (

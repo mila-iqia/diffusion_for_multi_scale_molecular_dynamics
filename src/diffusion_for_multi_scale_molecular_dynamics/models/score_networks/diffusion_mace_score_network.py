@@ -16,7 +16,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 )
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     NOISY_CARTESIAN_POSITIONS,
     UNIT_CELL,
 )
@@ -99,7 +99,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
                 hyper_params.interaction_cls_first
             ],
             num_interactions=hyper_params.num_interactions,
-            num_elements=hyper_params.num_atom_types
+            num_classes=hyper_params.num_atom_types
             + 1,  # we need the model to work with the MASK token as well
             hidden_irreps=o3.Irreps(hyper_params.hidden_irreps),
             mlp_irreps=o3.Irreps(hyper_params.mlp_irreps),
@@ -115,13 +115,12 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         )
 
         self._natoms = hyper_params.number_of_atoms
-        self._number_of_elements = hyper_params.num_atom_types
 
         self.diffusion_mace_network = DiffusionMACE(**diffusion_mace_config)
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(DiffusionMACEScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[NOISY_AXL].X.shape[1]
+        number_of_atoms = batch[NOISY_AXL_COMPOSITION].X.shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
@@ -145,7 +144,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
                 atom types: [batch_size, n_atom, num_atom_types + 1] tensor.
                 lattice: [batch_size, n_atom, spatial_dimension * (spatial_dimension -1)] tensor.
         """
-        relative_coordinates = batch[NOISY_AXL].X
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L

@@ -11,7 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     TIME,
     UNIT_CELL,
 )
@@ -101,7 +101,7 @@ class LangevinGenerator(PredictorCorrectorPositionGenerator):
         noise_tensor = noise * torch.ones(number_of_samples, 1).to(x)
         atom_types = torch.zeros_like(x[:, :, 0]).long()  # TODO placeholder
         augmented_batch = {
-            NOISY_AXL: AXL(A=atom_types, X=x, L=unit_cell),  # TODO
+            NOISY_AXL_COMPOSITION: AXL(A=atom_types, X=x, L=unit_cell),  # TODO
             TIME: time_tensor,
             NOISE: noise_tensor,
             UNIT_CELL: unit_cell,

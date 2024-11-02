@@ -32,5 +32,5 @@ NOISY_ATOM_TYPES = "noisy_atom_types"
 AXL = namedtuple("AXL", ["A", "X", "L"])
 AXL_NAME_DICT = {"A": ATOM_TYPES, "X": RELATIVE_COORDINATES, "L": UNIT_CELL}
 
-NOISY_AXL = "noisy_axl"
-ORIGINAL_AXL = "original_axl"
+NOISY_AXL_COMPOSITION = "noisy_axl"
+AXL_COMPOSITION = "original_axl"

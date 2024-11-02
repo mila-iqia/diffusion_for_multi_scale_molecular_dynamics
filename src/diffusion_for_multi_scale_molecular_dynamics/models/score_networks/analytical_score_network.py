@@ -25,7 +25,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     RELATIVE_COORDINATES,
 )
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
@@ -147,7 +147,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
                 lattice.
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_AXL].X
+        xt = batch[NOISY_AXL_COMPOSITION].X
         xt.requires_grad_(True)
 
         list_unnormalized_log_prob = []
@@ -262,7 +262,7 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_AXL].X
+        xt = batch[NOISY_AXL_COMPOSITION].X
 
         broadcast_sigmas = einops.repeat(
             sigmas,

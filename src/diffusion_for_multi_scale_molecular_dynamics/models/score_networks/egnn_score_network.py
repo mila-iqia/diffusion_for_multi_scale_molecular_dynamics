@@ -18,8 +18,11 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
+    class_index_to_onehot,
 )
 
 
@@ -162,7 +165,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         Returns:
             node_attributes: a tensor of dimension [batch, natoms, num_atom_types + 2]
         """
-        relative_coordinates = batch[NOISY_AXL].X
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         sigmas = batch[NOISE].to(relative_coordinates.device)
@@ -170,8 +173,8 @@ class EGNNScoreNetwork(ScoreNetwork):
             sigmas, "batch 1 -> (batch natoms) 1", natoms=number_of_atoms
         )
 
-        atom_types = batch[NOISY_AXL].A
-        atom_types_one_hot = torch.nn.functional.one_hot(
+        atom_types = batch[NOISY_AXL_COMPOSITION].A
+        atom_types_one_hot = class_index_to_onehot(
             atom_types, num_classes=num_atom_types + 1
         )
 
@@ -209,7 +212,7 @@ class EGNNScoreNetwork(ScoreNetwork):
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
     ) -> AXL:
-        relative_coordinates = batch[NOISY_AXL].X
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
         if self.edges == "fully_connected":

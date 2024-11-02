@@ -12,7 +12,10 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
+    class_index_to_onehot,
 )
 
 
@@ -53,9 +56,11 @@ class MLPScoreNetwork(ScoreNetwork):
         )
         self._natoms = hyper_params.number_of_atoms
         self.num_atom_types = hyper_params.num_atom_types
+        self.num_classes = self.num_atom_types + 1  # add 1 for the MASK class
 
         coordinate_output_dimension = self.spatial_dimension * self._natoms
-        atom_type_output_dimension = self._natoms * (self.num_atom_types + 1)
+        atom_type_output_dimension = self._natoms * self.num_classes
+
         input_dimension = (
             coordinate_output_dimension
             + hyper_params.noise_embedding_dimensions_size
@@ -67,7 +72,7 @@ class MLPScoreNetwork(ScoreNetwork):
         )
 
         self.atom_type_embedding_layer = nn.Linear(
-            self.num_atom_types + 1, hyper_params.atom_type_embedding_dimensions_size
+            self.num_classes, hyper_params.atom_type_embedding_dimensions_size
         )
 
         self.condition_embedding_layer = nn.Linear(
@@ -101,7 +106,7 @@ class MLPScoreNetwork(ScoreNetwork):
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MLPScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[NOISY_AXL].X.shape[1]
+        number_of_atoms = batch[NOISY_AXL_COMPOSITION].X.shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
@@ -122,7 +127,7 @@ class MLPScoreNetwork(ScoreNetwork):
         Returns:
             computed_scores : the scores computed by the model in an AXL namedtuple.
         """
-        relative_coordinates = batch[NOISY_AXL].X
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         # shape [batch_size, number_of_atoms, spatial_dimension]
 
         sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
@@ -130,13 +135,13 @@ class MLPScoreNetwork(ScoreNetwork):
             sigmas
         )  # shape [batch_size, noise_embedding_dimension]
 
-        atom_types = batch[NOISY_AXL].A
-        atom_types_one_hot = torch.nn.functional.one_hot(
-            atom_types, num_classes=self.num_atom_types + 1
+        atom_types = batch[NOISY_AXL_COMPOSITION].A
+        atom_types_one_hot = class_index_to_onehot(
+            atom_types, num_classes=self.num_classes
         )
         atom_type_embedding = self.atom_type_embedding_layer(
-            atom_types_one_hot.float()
-        )  # shape [batch_size, atom_type_embedding_dimension
+            atom_types_one_hot
+        )  # shape [batch_size, atom_type_embedding_dimension]
 
         input = torch.cat(
             [

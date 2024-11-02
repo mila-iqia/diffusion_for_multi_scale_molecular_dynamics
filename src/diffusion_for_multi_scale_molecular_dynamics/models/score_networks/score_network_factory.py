@@ -2,20 +2,32 @@ import dataclasses
 from typing import Any, AnyStr, Dict
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
-    ScoreNetwork, ScoreNetworkParameters)
+    ScoreNetwork,
+    ScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusion_mace_score_network import (
-    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
+    DiffusionMACEScoreNetwork,
+    DiffusionMACEScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import (
-    EGNNScoreNetwork, EGNNScoreNetworkParameters)
+    EGNNScoreNetwork,
+    EGNNScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mace_score_network import (
-    MACEScoreNetwork, MACEScoreNetworkParameters)
+    MACEScoreNetwork,
+    MACEScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
-    MLPScoreNetwork, MLPScoreNetworkParameters)
+    MLPScoreNetwork,
+    MLPScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
-    MaceMLPScorePredictionHeadParameters)
-from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing import \
-    create_parameters_from_configuration_dictionary
+    MaceMLPScorePredictionHeadParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing import (
+    create_parameters_from_configuration_dictionary,
+)
 
 SCORE_NETWORKS_BY_ARCH = dict(
     mlp=MLPScoreNetwork,

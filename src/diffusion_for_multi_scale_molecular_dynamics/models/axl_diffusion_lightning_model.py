@@ -32,12 +32,12 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES,
     AXL,
+    AXL_COMPOSITION,
     AXL_NAME_DICT,
     CARTESIAN_FORCES,
     CARTESIAN_POSITIONS,
     NOISE,
-    NOISY_AXL,
-    ORIGINAL_AXL,
+    NOISY_AXL_COMPOSITION,
     RELATIVE_COORDINATES,
     TIME,
     UNIT_CELL,
@@ -333,7 +333,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         forces = batch[CARTESIAN_FORCES]
 
         augmented_batch = {
-            NOISY_AXL: noisy_composition,
+            NOISY_AXL_COMPOSITION: noisy_composition,
             TIME: noise_sample.time.reshape(-1, 1),
             NOISE: noise_sample.sigma.reshape(-1, 1),
             UNIT_CELL: unit_cell,  # TODO remove and take from AXL instead
@@ -402,8 +402,8 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             model_predictions=model_predictions_detached,
             target_coordinates_normalized_conditional_scores=target_coordinates_normalized_conditional_scores,
         )
-        output[ORIGINAL_AXL] = original_composition
-        output[NOISY_AXL] = noisy_composition
+        output[AXL_COMPOSITION] = original_composition
+        output[NOISY_AXL_COMPOSITION] = noisy_composition
         output[TIME] = augmented_batch[TIME]
         output[UNIT_CELL] = augmented_batch[
             UNIT_CELL
@@ -507,7 +507,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             basis_vectors = torch.diag_embed(batch["box"])  # TODO replace with AXL L
             cartesian_positions = get_positions_from_coordinates(
-                relative_coordinates=output[ORIGINAL_AXL].X,
+                relative_coordinates=output[AXL_COMPOSITION].X,
                 basis_vectors=basis_vectors,
             )
 
