@@ -84,8 +84,8 @@ class TestExplodingVarianceSampler:
         for beta in expected_betas:
             q = torch.zeros(1, num_classes, num_classes)
             for i in range(num_classes):
-                q[0, i, i] = beta.item()
-            q[0, :-1, -1] = 1 - beta.item()
+                q[0, i, i] = 1 - beta.item()
+            q[0, :-1, -1] = beta.item()
             q[0, -1, -1] = 1
             expected_qs.append(q)
         return torch.concatenate(expected_qs, dim=0)

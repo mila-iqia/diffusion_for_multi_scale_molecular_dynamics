@@ -15,20 +15,20 @@ class TestNoisyAtomTypesSampler:
         torch.manual_seed(23423)
 
     @pytest.fixture()
-    def num_atom_types(self):
+    def num_classes(self):
         return 4
 
     @pytest.fixture()
-    def real_atom_types(self, shape, num_atom_types):
-        return torch.randint(0, num_atom_types, shape).long()
+    def real_atom_types(self, shape, num_classes):
+        return torch.randint(0, num_classes, shape).long()
 
     @pytest.fixture()
-    def real_atom_types_one_hot(self, real_atom_types, num_atom_types):
-        return torch.nn.functional.one_hot(real_atom_types, num_classes=num_atom_types)
+    def real_atom_types_one_hot(self, real_atom_types, num_classes):
+        return torch.nn.functional.one_hot(real_atom_types, num_classes=num_classes)
 
     @pytest.fixture()
-    def q_bar_matrices(self, shape, num_atom_types):
-        return torch.rand(shape + (num_atom_types, num_atom_types))
+    def q_bar_matrices(self, shape, num_classes):
+        return torch.rand(shape + (num_classes, num_classes))
 
     @pytest.fixture()
     def computed_noisy_atom_types(self, real_atom_types_one_hot, q_bar_matrices):
@@ -37,15 +37,15 @@ class TestNoisyAtomTypesSampler:
         )
 
     @pytest.fixture()
-    def fake_uniform_noise(self, shape, num_atom_types):
-        return torch.rand(shape + (num_atom_types,))
+    def fake_uniform_noise(self, shape, num_classes):
+        return torch.rand(shape + (num_classes,))
 
     def test_shape(self, computed_noisy_atom_types, shape):
         assert computed_noisy_atom_types.shape == shape
 
-    def test_range(self, computed_noisy_atom_types, num_atom_types):
+    def test_range(self, computed_noisy_atom_types, num_classes):
         assert torch.all(computed_noisy_atom_types >= 0)
-        assert torch.all(computed_noisy_atom_types < num_atom_types)
+        assert torch.all(computed_noisy_atom_types < num_classes)
 
     def test_get_noisy_relative_coordinates_sample(
         self, mocker, real_atom_types_one_hot, q_bar_matrices, fake_uniform_noise

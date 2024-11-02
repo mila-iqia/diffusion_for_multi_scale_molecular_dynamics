@@ -13,7 +13,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     TIME,
     UNIT_CELL,
 )
@@ -126,7 +126,7 @@ class TestForceFieldAugmentedScoreNetwork:
         basis_vectors,
     ):
         return {
-            NOISY_AXL: AXL(
+            NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types,
                 X=relative_coordinates,
                 L=torch.zeros_like(atom_types),  # TODO
@@ -237,7 +237,7 @@ def test_specific_scenario_sanity_check():
     basis_vectors = torch.diag(torch.ones(spatial_dimension)).unsqueeze(0)
 
     batch = {
-        NOISY_AXL: AXL(
+        NOISY_AXL_COMPOSITION: AXL(
             A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
         ),
         UNIT_CELL: basis_vectors,

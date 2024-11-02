@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     NOISY_CARTESIAN_POSITIONS,
     TIME,
     UNIT_CELL,
@@ -129,7 +129,7 @@ class TestDiffusionMace:
         forces,
     ):
         batch = {
-            NOISY_AXL: AXL(
+            NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types,
                 X=relative_coordinates,
                 L=torch.zeros_like(atom_types),  # TODO
@@ -252,10 +252,10 @@ class TestDiffusionMace:
         )
 
         translated_batch[NOISY_CARTESIAN_POSITIONS] = new_cartesian_positions
-        translated_batch[NOISY_AXL] = AXL(
-            A=translated_batch[NOISY_AXL].A,
+        translated_batch[NOISY_AXL_COMPOSITION] = AXL(
+            A=translated_batch[NOISY_AXL_COMPOSITION].A,
             X=new_relative_coordinates,
-            L=translated_batch[NOISY_AXL].L,
+            L=translated_batch[NOISY_AXL_COMPOSITION].L,
         )
 
         return input_to_diffusion_mace(
@@ -312,10 +312,10 @@ class TestDiffusionMace:
         )
 
         rotated_batch[NOISY_CARTESIAN_POSITIONS] = new_cartesian_positions
-        rotated_batch[NOISY_AXL] = AXL(
-            A=rotated_batch[NOISY_AXL].A,
+        rotated_batch[NOISY_AXL_COMPOSITION] = AXL(
+            A=rotated_batch[NOISY_AXL_COMPOSITION].A,
             X=new_relative_coordinates,
-            L=rotated_batch[NOISY_AXL].L,
+            L=rotated_batch[NOISY_AXL_COMPOSITION].L,
         )
         rotated_batch[UNIT_CELL] = rotated_basis_vectors
 
@@ -354,8 +354,8 @@ class TestDiffusionMace:
         permuted_batch[NOISY_CARTESIAN_POSITIONS] = permuted_pos
 
         # permute AXL positions
-        pos = permuted_batch[NOISY_AXL].X
-        at_type = permuted_batch[NOISY_AXL].A
+        pos = permuted_batch[NOISY_AXL_COMPOSITION].X
+        at_type = permuted_batch[NOISY_AXL_COMPOSITION].A
         permuted_pos = torch.stack(
             [
                 pos[batch_idx, permutations[batch_idx], :]
@@ -368,10 +368,10 @@ class TestDiffusionMace:
                 for batch_idx in range(batch_size)
             ]
         )
-        permuted_batch[NOISY_AXL] = AXL(
+        permuted_batch[NOISY_AXL_COMPOSITION] = AXL(
             A=permuted_at_type,
             X=permuted_pos,
-            L=permuted_batch[NOISY_AXL].L,
+            L=permuted_batch[NOISY_AXL_COMPOSITION].L,
         )
 
         return input_to_diffusion_mace(

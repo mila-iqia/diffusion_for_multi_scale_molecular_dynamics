@@ -3,8 +3,8 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
     class_index_to_onehot,
-    compute_q_xt_bar_xo,
-    compute_q_xt_bar_xtm1,
+    compute_q_at_given_a0,
+    compute_q_at_given_atm1,
 )
 
 
@@ -31,7 +31,7 @@ def q_t(final_shape, num_classes):
 
 
 @pytest.fixture()
-def one_hot_x0(batch_values, num_classes):
+def one_hot_x(batch_values, num_classes):
     return torch.nn.functional.one_hot(batch_values.long(), num_classes)
 
 
@@ -50,22 +50,22 @@ def test_class_index_to_onehot(batch_size, batch_values, final_shape, num_classe
 @pytest.mark.parametrize("batch_size", [4, 8])
 @pytest.mark.parametrize("number_of_dimensions", [4, 8])
 @pytest.mark.parametrize("num_classes", [1, 2, 3])
-def test_compute_q_xt_bar_xo(q_t, one_hot_x0, num_classes):
-    computed_q_xtxo = compute_q_xt_bar_xo(one_hot_x0, q_t)
-    expected_q_xtxo = torch.zeros_like(one_hot_x0.float())
+def test_compute_q_xt_bar_xo(q_t, one_hot_x, num_classes):
+    computed_q_xtxo = compute_q_at_given_a0(one_hot_x, q_t)
+    expected_q_xtxo = torch.zeros_like(one_hot_x.float())
     for i in range(num_classes):
         for j in range(num_classes):
-            expected_q_xtxo[..., i] += one_hot_x0[..., j].float() * q_t[..., j, i]
+            expected_q_xtxo[..., i] += one_hot_x[..., j].float() * q_t[..., j, i]
     torch.testing.assert_allclose(computed_q_xtxo, expected_q_xtxo)
 
 
 @pytest.mark.parametrize("batch_size", [4, 8])
 @pytest.mark.parametrize("number_of_dimensions", [4, 8])
 @pytest.mark.parametrize("num_classes", [1, 2, 3])
-def test_compute_q_xt_bar_xtm1(q_t, one_hot_x0, num_classes):
-    computed_q_xtxtm1 = compute_q_xt_bar_xtm1(one_hot_x0, q_t)
-    expected_q_xtxtm1 = torch.zeros_like(one_hot_x0.float())
+def test_compute_q_xt_bar_xtm1(q_t, one_hot_x, num_classes):
+    computed_q_xtxtm1 = compute_q_at_given_atm1(one_hot_x, q_t)
+    expected_q_xtxtm1 = torch.zeros_like(one_hot_x.float())
     for i in range(num_classes):
         for j in range(num_classes):
-            expected_q_xtxtm1[..., i] += one_hot_x0[..., j].float() * q_t[..., j, i]
+            expected_q_xtxtm1[..., i] += one_hot_x[..., j].float() * q_t[..., j, i]
     torch.testing.assert_allclose(computed_q_xtxtm1, expected_q_xtxtm1)

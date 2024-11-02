@@ -99,7 +99,7 @@ class TestEGNN:
     def egnn_hyperparameters(self, generic_hyperparameters, num_atom_types):
         hps = copy(generic_hyperparameters)
         hps["n_layers"] = 2
-        hps["num_classes"] = num_atom_types
+        hps["num_classes"] = num_atom_types + 1
         return hps
 
     @pytest.fixture()
@@ -133,7 +133,7 @@ class TestEGNN:
         egnn_scores = egnn(batch["node_features"], batch["edges"], batch["coord"])
         return {
             "X": egnn_scores.X.reshape(batch_size, number_of_atoms, spatial_dimension),
-            "A": egnn_scores.A.reshape(batch_size, number_of_atoms, num_atom_types),
+            "A": egnn_scores.A.reshape(batch_size, number_of_atoms, num_atom_types + 1),
         }
 
     @pytest.fixture()
@@ -218,7 +218,7 @@ class TestEGNN:
         )
         return {
             "X": egnn_scores.X.reshape(batch_size, number_of_atoms, spatial_dimension),
-            "A": egnn_scores.A.reshape(batch_size, number_of_atoms, num_atom_types),
+            "A": egnn_scores.A.reshape(batch_size, number_of_atoms, num_atom_types + 1),
         }
 
     @pytest.fixture()

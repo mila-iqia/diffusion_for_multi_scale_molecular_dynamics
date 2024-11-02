@@ -38,7 +38,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     TIME,
     UNIT_CELL,
 )
@@ -65,6 +65,7 @@ def assert_parameters_are_the_same(parameters1: dataclass, parameters2: dataclas
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
 @pytest.mark.parametrize("num_atom_types", [3])
+@pytest.mark.parametrize("number_of_atoms", [8])
 class TestScoreNetworkCheck:
 
     @pytest.fixture(scope="class", autouse=True)
@@ -82,15 +83,17 @@ class TestScoreNetworkCheck:
         )
 
     @pytest.fixture()
-    def good_batch(self, spatial_dimension, num_atom_types):
+    def good_batch(self, spatial_dimension, num_atom_types, number_of_atoms):
         batch_size = 16
-        relative_coordinates = torch.rand(batch_size, 8, spatial_dimension)
+        relative_coordinates = torch.rand(
+            batch_size, number_of_atoms, spatial_dimension
+        )
         times = torch.rand(batch_size, 1)
         noises = torch.rand(batch_size, 1)
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
-        atom_types = torch.randint(0, num_atom_types + 1, (batch_size, 8))
+        atom_types = torch.randint(0, num_atom_types + 1, (batch_size, number_of_atoms))
         return {
-            NOISY_AXL: AXL(
+            NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
             ),
             TIME: times,
@@ -105,61 +108,65 @@ class TestScoreNetworkCheck:
 
         match problem:
             case "position_name":
-                bad_batch_dict["bad_position_name"] = bad_batch_dict[NOISY_AXL]
-                del bad_batch_dict[NOISY_AXL]
+                bad_batch_dict["bad_position_name"] = bad_batch_dict[
+                    NOISY_AXL_COMPOSITION
+                ]
+                del bad_batch_dict[NOISY_AXL_COMPOSITION]
 
             case "position_shape":
-                shape = bad_batch_dict[NOISY_AXL].X.shape
-                bad_batch_dict[NOISY_AXL] = AXL(
-                    A=bad_batch_dict[NOISY_AXL].A,
-                    X=bad_batch_dict[NOISY_AXL].X.reshape(
+                shape = bad_batch_dict[NOISY_AXL_COMPOSITION].X.shape
+                bad_batch_dict[NOISY_AXL_COMPOSITION] = AXL(
+                    A=bad_batch_dict[NOISY_AXL_COMPOSITION].A,
+                    X=bad_batch_dict[NOISY_AXL_COMPOSITION].X.reshape(
                         shape[0], shape[1] // 2, shape[2] * 2
                     ),
-                    L=bad_batch_dict[NOISY_AXL].L,
+                    L=bad_batch_dict[NOISY_AXL_COMPOSITION].L,
                 )
 
             case "position_range1":
-                bad_positions = bad_batch_dict[NOISY_AXL].X
+                bad_positions = bad_batch_dict[NOISY_AXL_COMPOSITION].X
                 bad_positions[0, 0, 0] = 1.01
-                bad_batch_dict[NOISY_AXL] = AXL(
-                    A=bad_batch_dict[NOISY_AXL].A,
+                bad_batch_dict[NOISY_AXL_COMPOSITION] = AXL(
+                    A=bad_batch_dict[NOISY_AXL_COMPOSITION].A,
                     X=bad_positions,
-                    L=bad_batch_dict[NOISY_AXL].L,
+                    L=bad_batch_dict[NOISY_AXL_COMPOSITION].L,
                 )
 
             case "position_range2":
-                bad_positions = bad_batch_dict[NOISY_AXL].X
+                bad_positions = bad_batch_dict[NOISY_AXL_COMPOSITION].X
                 bad_positions[1, 0, 0] = -0.01
-                bad_batch_dict[NOISY_AXL] = AXL(
-                    A=bad_batch_dict[NOISY_AXL].A,
+                bad_batch_dict[NOISY_AXL_COMPOSITION] = AXL(
+                    A=bad_batch_dict[NOISY_AXL_COMPOSITION].A,
                     X=bad_positions,
-                    L=bad_batch_dict[NOISY_AXL].L,
+                    L=bad_batch_dict[NOISY_AXL_COMPOSITION].L,
                 )
 
             case "atom_types_shape":
-                shape = bad_batch_dict[NOISY_AXL].A.shape
-                bad_batch_dict[NOISY_AXL] = AXL(
-                    A=bad_batch_dict[NOISY_AXL].A.reshape(shape[0] * 2, shape[1] // 2),
-                    X=bad_batch_dict[NOISY_AXL].X,
-                    L=bad_batch_dict[NOISY_AXL].L,
+                shape = bad_batch_dict[NOISY_AXL_COMPOSITION].A.shape
+                bad_batch_dict[NOISY_AXL_COMPOSITION] = AXL(
+                    A=bad_batch_dict[NOISY_AXL_COMPOSITION].A.reshape(
+                        shape[0] * 2, shape[1] // 2
+                    ),
+                    X=bad_batch_dict[NOISY_AXL_COMPOSITION].X,
+                    L=bad_batch_dict[NOISY_AXL_COMPOSITION].L,
                 )
 
             case "atom_types_range1":
-                bad_types = bad_batch_dict[NOISY_AXL].A
+                bad_types = bad_batch_dict[NOISY_AXL_COMPOSITION].A
                 bad_types[0, 0] = num_atom_types + 2
-                bad_batch_dict[NOISY_AXL] = AXL(
+                bad_batch_dict[NOISY_AXL_COMPOSITION] = AXL(
                     A=bad_types,
-                    X=bad_batch_dict[NOISY_AXL].X,
-                    L=bad_batch_dict[NOISY_AXL].L,
+                    X=bad_batch_dict[NOISY_AXL_COMPOSITION].X,
+                    L=bad_batch_dict[NOISY_AXL_COMPOSITION].L,
                 )
 
             case "atom_types_range2":
-                bad_types = bad_batch_dict[NOISY_AXL].A
+                bad_types = bad_batch_dict[NOISY_AXL_COMPOSITION].A
                 bad_types[1, 0] = -1
-                bad_batch_dict[NOISY_AXL] = AXL(
+                bad_batch_dict[NOISY_AXL_COMPOSITION] = AXL(
                     A=bad_types,
-                    X=bad_batch_dict[NOISY_AXL].X,
-                    L=bad_batch_dict[NOISY_AXL].L,
+                    X=bad_batch_dict[NOISY_AXL_COMPOSITION].X,
+                    L=bad_batch_dict[NOISY_AXL_COMPOSITION].L,
                 )
 
             case "time_name":
@@ -327,7 +334,7 @@ class BaseTestScoreNetwork:
         atom_types,
     ):
         return {
-            NOISY_AXL: AXL(
+            NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types,
                 X=relative_coordinates,
                 L=torch.zeros_like(atom_types),  # TODO
@@ -441,7 +448,7 @@ class TestMACEScoreNetworkMLPHead(BaseTestScoreNetwork):
 
 
 @pytest.mark.parametrize("spatial_dimension", [3])
-@pytest.mark.parametrize("num_atom_types", [2])
+@pytest.mark.parametrize("num_atom_types", [2, 3, 16])
 class TestMACEScoreNetworkEquivariantHead(BaseTestScoreNetwork):
     @pytest.fixture()
     def prediction_head_parameters(self, spatial_dimension):
@@ -590,7 +597,7 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture()
     def flat_relative_coordinates(self, batch):
-        relative_coordinates = batch[NOISY_AXL].X
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         flat_relative_coordinates = einops.rearrange(
             relative_coordinates, "batch natom space -> (batch natom) space"
         )
@@ -644,17 +651,17 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
         for point_group_symmetry in octahedral_point_group_symmetries:
             op = point_group_symmetry.transpose(1, 0)
             modified_batch = deepcopy(batch)
-            relative_coordinates = modified_batch[NOISY_AXL].X
+            relative_coordinates = modified_batch[NOISY_AXL_COMPOSITION].X
 
             op_relative_coordinates = relative_coordinates @ op + global_translations
             op_relative_coordinates = map_relative_coordinates_to_unit_cell(
                 op_relative_coordinates
             )
 
-            modified_batch[NOISY_AXL] = AXL(
-                A=modified_batch[NOISY_AXL].A,
+            modified_batch[NOISY_AXL_COMPOSITION] = AXL(
+                A=modified_batch[NOISY_AXL_COMPOSITION].A,
                 X=op_relative_coordinates,
-                L=modified_batch[NOISY_AXL].L,
+                L=modified_batch[NOISY_AXL_COMPOSITION].L,
             )
             with torch.no_grad():
                 modified_normalized_scores = score_network(modified_batch)

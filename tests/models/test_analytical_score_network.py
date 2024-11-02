@@ -11,7 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytic
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     TIME,
     UNIT_CELL,
 )
@@ -93,7 +93,7 @@ class TestAnalyticalScoreNetwork:
         noises = torch.rand(batch_size, 1)
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
         return {
-            NOISY_AXL: AXL(
+            NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
             ),
             TIME: times,
@@ -170,7 +170,7 @@ class TestAnalyticalScoreNetwork:
         score_network,
     ):
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_AXL].X
+        xt = batch[NOISY_AXL_COMPOSITION].X
         computed_log_prob = score_network._compute_unnormalized_log_probability(
             sigmas, xt, equilibrium_relative_coordinates
         )

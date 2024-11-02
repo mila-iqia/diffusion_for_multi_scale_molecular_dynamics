@@ -7,7 +7,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
     ScoreNetwork,
     ScoreNetworkParameters,
 )
-from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL, NOISY_AXL
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    AXL,
+    NOISY_AXL_COMPOSITION,
+)
 
 
 class FakeScoreNetwork(ScoreNetwork):
@@ -16,7 +19,7 @@ class FakeScoreNetwork(ScoreNetwork):
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
     ) -> AXL:
-        return AXL(A=None, X=batch[NOISY_AXL].X, L=None)
+        return AXL(A=None, X=batch[NOISY_AXL_COMPOSITION].X, L=None)
 
 
 class BaseTestGenerator:
