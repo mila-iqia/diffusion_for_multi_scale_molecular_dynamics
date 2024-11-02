@@ -184,7 +184,7 @@ class D3PMLossCalculator(torch.nn.Module):
 
         .. math::
 
-            D_{KL}[q(a_{t-1} | a_t, a_0) || p_\theta(a_{t-1} | a_{t}]
+            D_{KL}[q(a_{t-1} | a_t, a_0) || p_\theta(a_{t-1} | a_{t})]
 
         We are ignoring the t=1 case here as we will use a NLL loss instead.
 

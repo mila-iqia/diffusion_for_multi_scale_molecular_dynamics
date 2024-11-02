@@ -292,7 +292,7 @@ class EGNN(nn.Module):
 
         Args:
             input_size: number of node features in the input
-            num_classes: number of atom types uses for the final node embedding.
+            num_classes: number of atom types uses for the final node embedding - including the MASK class.
             message_n_hidden_dimensions: number of hidden layers of the message (edge) MLP
             message_hidden_dimensions_size: size of the hidden layers of the message (edge) MLP
             node_n_hidden_dimensions: number of hidden layers of the node update MLP
