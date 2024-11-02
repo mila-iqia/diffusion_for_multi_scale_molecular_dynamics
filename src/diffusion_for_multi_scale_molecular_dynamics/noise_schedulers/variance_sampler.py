@@ -158,6 +158,11 @@ class NoiseScheduler(torch.nn.Module):
             self._create_q_bar_matrix_array(self._q_matrix_array), requires_grad=False
         )
 
+        self._q_bar_tm1_matrix_array = torch.nn.Parameter(
+            self._create_q_bar_tm1_matrix_array(self._q_bar_matrix_array),
+            requires_grad=False,
+        )
+
     @staticmethod
     def _get_time_array(noise_parameters: NoiseParameters) -> torch.Tensor:
         return torch.linspace(
@@ -206,8 +211,10 @@ class NoiseScheduler(torch.nn.Module):
         beta_array: torch.Tensor, num_classes: torch.Tensor
     ) -> torch.Tensor:
         beta_array_ = beta_array.unsqueeze(-1).unsqueeze(-1)
-        qt = beta_array_ * torch.eye(num_classes)  # time step, num_classes, num_classes
-        qt += (1 - beta_array_) * torch.outer(
+        qt = (1 - beta_array_) * torch.eye(
+            num_classes
+        )  # time step, num_classes, num_classes
+        qt += beta_array_ * torch.outer(
             torch.ones(num_classes),
             torch.nn.functional.one_hot(
                 torch.LongTensor([num_classes - 1]), num_classes=num_classes
@@ -224,6 +231,21 @@ class NoiseScheduler(torch.nn.Module):
                 q_bar_matrix_array[i - 1], q_matrix_array[i]
             )
         return q_bar_matrix_array
+
+    @staticmethod
+    def _create_q_bar_tm1_matrix_array(
+        q_bar_matrix_array: torch.Tensor,
+    ) -> torch.Tensor:
+        # we need the q_bar matrices for the previous time index (t-1) to compute the loss. We will use Q_{t-1}=1
+        # for the case t=1 (special case in the loss or the last step of the sampling process
+        q_bar_tm1_matrices = torch.cat(
+            (
+                torch.eye(q_bar_matrix_array.size(-1)).unsqueeze(0),
+                q_bar_matrix_array[:-1],
+            ),
+            dim=0,
+        )
+        return q_bar_tm1_matrices
 
     def _get_random_time_step_indices(self, shape: Tuple[int]) -> torch.Tensor:
         """Random time step indices.
@@ -249,17 +271,19 @@ class NoiseScheduler(torch.nn.Module):
         """Get random noise sample.
 
         It is assumed that a batch is of the form [batch_size, (dimensions of a configuration)].
-        In order to train a diffusion model, a configuration must be "noised" to a time t with a parameter sigma(t).
+        In order to train a diffusion model, a configuration must be "noised" to a time t with a parameter sigma(t) for
+        the relative coordinates, beta(t) and associated transition matrices Q(t), \bar{Q}(t), \bar{Q}(t-1) for the atom
+        types.
         Different values can be used for different configurations: correspondingly, this method returns
         one random time per element in the batch.
-
 
         Args:
             batch_size : number of configurations in a batch,
 
         Returns:
-            noise_sample: a collection of all the noise parameters (t, sigma, sigma^2, g, g^2)
-                for some random indices. All the arrays are of dimension [batch_size].
+            noise_sample: a collection of all the noise parameters (t, sigma, sigma^2, g, g^2, beta, alpha_bar,
+                Q, Qbar, Qbar at time t-1 and indices) for some random indices. All the arrays are of dimension
+                [batch_size] expect Q, Qbar, Qbar t-1 which are [batch_size, num_classes, num_classes].
         """
         indices = self._get_random_time_step_indices((batch_size,))
         times = self._time_array.take(indices)
@@ -271,16 +295,8 @@ class NoiseScheduler(torch.nn.Module):
         alpha_bars = self._alpha_bar_array.take(indices)
         q_matrices = self._q_matrix_array.index_select(dim=0, index=indices)
         q_bar_matrices = self._q_bar_matrix_array.index_select(dim=0, index=indices)
-        # we also need the q_bar matrices for the previous time index (t-1) to compute the loss. We will use Q_{t-1}=1
-        # for the case t=1 (special case in the loss or the last step of the sampling process
-        q_bar_tm1_matrices = torch.where(
-            indices.view(-1, 1, 1) == 0,  # condition
-            torch.eye(self.num_classes).unsqueeze(
-                0
-            ),  # replace t=0 with identity matrix
-            self._q_bar_matrix_array.index_select(
-                dim=0, index=(indices - 1).clip(min=0)
-            ),  # \bar{Q}_{t-1} otherwise
+        q_bar_tm1_matrices = self._q_bar_tm1_matrix_array.index_select(
+            dim=0, index=indices
         )
 
         return Noise(

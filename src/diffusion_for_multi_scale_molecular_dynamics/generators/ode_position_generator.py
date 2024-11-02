@@ -18,7 +18,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL,
     CARTESIAN_FORCES,
     NOISE,
-    NOISY_AXL,
+    NOISY_AXL_COMPOSITION,
     TIME,
     UNIT_CELL,
 )
@@ -150,7 +150,7 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             )
 
             batch = {
-                NOISY_AXL: AXL(
+                NOISY_AXL_COMPOSITION: AXL(
                     A=torch.zeros_like(relative_coordinates[:, :, 0]).long(),
                     X=map_relative_coordinates_to_unit_cell(relative_coordinates),
                     L=None,  # TODO

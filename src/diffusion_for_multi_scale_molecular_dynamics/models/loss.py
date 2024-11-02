@@ -9,8 +9,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing im
     create_parameters_from_configuration_dictionary,
 )
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    compute_q_xt_given_xo,
-    compute_q_xt_given_xtm1,
+    compute_q_at_given_a0,
+    compute_q_at_given_atm1,
 )
 
 
@@ -208,20 +208,24 @@ class D3PMLossCalculator(torch.nn.Module):
         """
         # start by computing q(a_{t−1}|at, a0) = q(a_t | a_{t-1}, a_0) q(a_{t-1} | a_0) / q(a_t | a_0)
         # q(a_t | a_{t-1}, a0) = q(a_t | a_{t-1}) = a_t Q_t^T  - beware  the transpose here
-        q_at_given_atm1 = compute_q_xt_given_xtm1(one_hot_noisy_atom_types, q_matrices)
+        q_at_given_atm1 = compute_q_at_given_atm1(one_hot_noisy_atom_types, q_matrices)
         # dimension of q_at_bar_atm1 : batch_size, number_of_atoms, num_type_atoms
         # q(a_{t-1} | a_0) = a_0 \bar{Q}_{t-1}
-        q_atm1_given_a0 = compute_q_xt_given_xo(one_hot_real_atom_types, q_bar_tm1_matrices)
+        q_atm1_given_a0 = compute_q_at_given_a0(
+            one_hot_real_atom_types, q_bar_tm1_matrices
+        )
         # dimension of q_atm1_bar_a0: batch_size, number_of_atoms, num_type_atoms
         # q(a_t | a_0) = a_0 \bar{Q}_t a_t^T
-        q_at_given_a0 = compute_q_xt_given_xo(one_hot_real_atom_types, q_bar_matrices)
+        q_at_given_a0 = compute_q_at_given_a0(one_hot_real_atom_types, q_bar_matrices)
         at_probability = einops.einsum(
             q_at_given_a0, one_hot_noisy_atom_types.float(), "... i , ... i -> ..."
         )
 
         # dimension of at_probability: batch_size, number_of_atoms
         posterior_q = (
-            q_at_given_atm1 * q_atm1_given_a0 / at_probability.unsqueeze(-1).clip(min=self.eps)
+            q_at_given_atm1
+            * q_atm1_given_a0
+            / at_probability.unsqueeze(-1).clip(min=self.eps)
         )  # clip at eps
         # the unsqueeze in the denominator is to allow a broadcasting
         # posterior q has dimension: batch_size, number_of_atoms, num_type_atoms
@@ -324,9 +328,7 @@ class D3PMLossCalculator(torch.nn.Module):
         )
 
         # -log p_\theta(a_0 | a_t)
-        nll_term = -torch.nn.functional.log_softmax(
-            predicted_logits, dim=-1
-        )
+        nll_term = -torch.nn.functional.log_softmax(predicted_logits, dim=-1)
 
         # if t == 1 (0 for python indexing convention), use the NLL term, otherwise use the KL + \lambda_{CE} NLL
         d3pm_loss = torch.where(

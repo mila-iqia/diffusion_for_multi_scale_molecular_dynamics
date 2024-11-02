@@ -3,7 +3,7 @@ from typing import Tuple
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    compute_q_xt_bar_xo,
+    compute_q_at_given_a0,
 )
 
 
@@ -49,13 +49,13 @@ class AtomTypesNoiser:
             real_onehot_atom_types.shape == q_bar.shape[:-1]
         ), "q_bar array first dimensions should match real_atom_types array"
 
-        u_scores = AtomTypesNoiser._get_uniform_noise(real_onehot_atom_types.shape).to(
-            q_bar
-        )
+        u = AtomTypesNoiser._get_uniform_noise(real_onehot_atom_types.shape).to(q_bar)
         # we need to sample from q(x_t | x_0)
-        posterior_xt = compute_q_xt_bar_xo(real_onehot_atom_types, q_bar)
+        posterior_at_probabilities = compute_q_at_given_a0(
+            real_onehot_atom_types, q_bar
+        )
         # gumbel trick to sample from a distribution
-        noise = -torch.log(-torch.log(u_scores)).to(real_onehot_atom_types.device)
-        noisy_atom_types = torch.log(posterior_xt) + noise
+        noise = -torch.log(-torch.log(u)).to(real_onehot_atom_types.device)
+        noisy_atom_types = torch.log(posterior_at_probabilities) + noise
         noisy_atom_types = torch.argmax(noisy_atom_types, dim=-1)
         return noisy_atom_types
