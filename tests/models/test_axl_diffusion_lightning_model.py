@@ -136,13 +136,14 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture()
     def sampling_parameters(
-        self, number_of_atoms, spatial_dimension, number_of_samples, cell_dimensions
+        self, number_of_atoms, spatial_dimension, number_of_samples, cell_dimensions, num_atom_types
     ):
         sampling_parameters = PredictorCorrectorSamplingParameters(
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
             number_of_samples=number_of_samples,
             cell_dimensions=cell_dimensions,
+            num_atom_types=num_atom_types,
         )
         return sampling_parameters
 

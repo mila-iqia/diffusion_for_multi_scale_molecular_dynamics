@@ -356,10 +356,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         )
 
         unreduced_loss_atom_types = self.loss_calculator.A.calculate_unreduced_loss(
-            predicted_unnormalized_probabilities=model_predictions.A,
+            predicted_logits=model_predictions.A,
             one_hot_real_atom_types=a0_onehot,
             one_hot_noisy_atom_types=at_onehot,
-            time_indices=noisy_composition.indices,
+            time_indices=noise_sample.indices,
             q_matrices=q_matrices,
             q_bar_matrices=q_bar_matrices,
             q_bar_tm1_matrices=q_bar_tm1_matrices,

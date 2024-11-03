@@ -569,9 +569,9 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
     @pytest.mark.parametrize(
         "edges, radial_cutoff", [("fully_connected", 3.0), ("radial_cutoff", None)]
     )
-    def test_score_network_parameters(self, edges, radial_cutoff):
+    def test_score_network_parameters(self, edges, radial_cutoff, num_atom_types):
         score_network_parameters = EGNNScoreNetworkParameters(
-            edges=edges, radial_cutoff=radial_cutoff
+            edges=edges, radial_cutoff=radial_cutoff, num_atom_types=num_atom_types
         )
         with pytest.raises(AssertionError):
             # Check that the code crashes when inconsistent parameters are fed in.

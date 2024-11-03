@@ -67,6 +67,7 @@ def sampling_parameters(
     number_of_samples,
     cell_dimensions,
     record_samples,
+    num_atom_types,
 ):
     return PredictorCorrectorSamplingParameters(
         number_of_corrector_steps=1,
@@ -75,6 +76,7 @@ def sampling_parameters(
         number_of_samples=number_of_samples,
         cell_dimensions=cell_dimensions,
         record_samples=record_samples,
+        num_atom_types=num_atom_types,
     )
 
 

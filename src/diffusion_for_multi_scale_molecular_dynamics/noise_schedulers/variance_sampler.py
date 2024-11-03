@@ -324,10 +324,6 @@ class NoiseScheduler(torch.nn.Module):
             langevin_dynamics: a collection of all the langevin dynamics parmaters (epsilon, sqrt{2epsilon})
                 needed to apply a langevin dynamics corrector step.
         """
-        q_bar_tm1_matrices = torch.cat(
-            (torch.eye(self.num_classes).unsqueeze(0), self._q_bar_matrix_array[:-1]),
-            dim=0,
-        )
         noise = Noise(
             time=self._time_array,
             sigma=self._sigma_array,
@@ -338,7 +334,7 @@ class NoiseScheduler(torch.nn.Module):
             alpha_bar=self._alpha_bar_array,
             q_matrix=self._q_matrix_array,
             q_bar_matrix=self._q_bar_matrix_array,
-            q_bar_tm1_matrix=q_bar_tm1_matrices,
+            q_bar_tm1_matrix=self._q_bar_tm1_matrix_array,
             indices=torch.arange(
                 self._minimum_random_index, self._maximum_random_index + 1
             ),

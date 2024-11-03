@@ -84,6 +84,7 @@ def get_score_network(
             number_of_atoms=number_of_atoms,
             radial_MLP=[4, 4, 4],
             prediction_head_parameters=get_prediction_head_parameters(head_name),
+            num_atom_types=num_atom_types,
         )
 
     elif architecture == "diffusion_mace":
@@ -97,6 +98,7 @@ def get_score_network(
             number_of_mlp_layers=1,
             number_of_atoms=number_of_atoms,
             radial_MLP=[4, 4, 4],
+            num_atom_types=num_atom_types,
         )
 
     elif architecture == "egnn":
@@ -131,6 +133,7 @@ def get_config(
         algorithm=sampling_algorithm,
         spatial_dimension=3,
         number_of_atoms=number_of_atoms,
+        num_atom_types=num_atom_types,
         number_of_samples=4,
         record_samples=True,
         cell_dimensions=[10.0, 10.0, 10.0],

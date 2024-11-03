@@ -15,7 +15,9 @@ def class_index_to_onehot(index: torch.Tensor, num_classes: int) -> torch.Tensor
         float tensor of 0s and 1s. The size is x.size() + (num_classes)
     """
     # the last .to() acts on the tensor type to avoid longs
-    return torch.nn.functional.one_hot(index.long(), num_classes=num_classes).to(index)
+    return torch.nn.functional.one_hot(index.long(), num_classes=num_classes).to(
+        device=index.device, dtype=torch.float
+    )
 
 
 def compute_q_at_given_a0(

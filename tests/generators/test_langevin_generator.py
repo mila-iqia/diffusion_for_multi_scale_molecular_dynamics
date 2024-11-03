@@ -52,6 +52,7 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_samples,
         number_of_corrector_steps,
         unit_cell_size,
+        num_atom_types,
     ):
         sampling_parameters = PredictorCorrectorSamplingParameters(
             number_of_corrector_steps=number_of_corrector_steps,
@@ -59,6 +60,7 @@ class TestLangevinGenerator(BaseTestGenerator):
             number_of_samples=number_of_samples,
             cell_dimensions=cell_dimensions,
             spatial_dimension=spatial_dimension,
+            num_atom_types=num_atom_types,
         )
 
         return sampling_parameters

@@ -183,7 +183,7 @@ class TestDiffusionMace:
             num_edge_hidden_layers=0,
             edge_hidden_irreps=o3.Irreps("8x0e"),
             max_ell=2,
-            num_elements=num_atom_types + 1,
+            num_classes=num_atom_types + 1,
             interaction_cls=interaction_classes["RealAgnosticResidualInteractionBlock"],
             interaction_cls_first=interaction_classes["RealAgnosticInteractionBlock"],
             num_interactions=2,

@@ -34,6 +34,7 @@ class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
         cell_dimensions,
         number_of_samples,
         record_samples,
+        num_atom_types,
     ):
         sampling_parameters = ODESamplingParameters(
             number_of_atoms=number_of_atoms,
@@ -41,6 +42,7 @@ class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
             number_of_samples=number_of_samples,
             cell_dimensions=cell_dimensions,
             record_samples=record_samples,
+            num_atom_types=num_atom_types,
         )
         return sampling_parameters
 

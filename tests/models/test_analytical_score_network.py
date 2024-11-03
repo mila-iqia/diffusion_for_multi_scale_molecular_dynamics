@@ -110,6 +110,7 @@ class TestAnalyticalScoreNetwork:
         equilibrium_relative_coordinates,
         variance_parameter,
         use_permutation_invariance,
+        num_atom_types
     ):
         hyper_params = AnalyticalScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
@@ -118,6 +119,7 @@ class TestAnalyticalScoreNetwork:
             equilibrium_relative_coordinates=equilibrium_relative_coordinates,
             variance_parameter=variance_parameter,
             use_permutation_invariance=use_permutation_invariance,
+            num_atom_types=num_atom_types
         )
         return hyper_params
 
