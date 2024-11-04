@@ -6,24 +6,15 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn import EGNN
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
-    get_edges_batch,
-    get_edges_with_radial_cutoff,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
-    ScoreNetworkParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork,
-)
+    get_edges_batch, get_edges_with_radial_cutoff)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
+    ScoreNetworkParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
+    ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-    UNIT_CELL,
-)
-from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    class_index_to_onehot,
-)
+    AXL, NOISE, NOISY_AXL_COMPOSITION, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
+    class_index_to_onehot
 
 
 @dataclass(kw_only=True)

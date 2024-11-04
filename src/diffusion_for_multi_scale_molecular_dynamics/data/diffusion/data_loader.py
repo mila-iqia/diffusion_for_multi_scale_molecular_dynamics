@@ -12,15 +12,10 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import (
-    LammpsProcessorForDiffusion,
-)
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import \
+    LammpsProcessorForDiffusion
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
-    CARTESIAN_FORCES,
-    CARTESIAN_POSITIONS,
-    RELATIVE_COORDINATES,
-)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
 
 logger = logging.getLogger(__name__)
 

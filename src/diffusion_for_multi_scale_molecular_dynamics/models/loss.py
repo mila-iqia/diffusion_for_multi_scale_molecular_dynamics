@@ -5,13 +5,10 @@ import einops
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing import (
-    create_parameters_from_configuration_dictionary,
-)
+from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing import \
+    create_parameters_from_configuration_dictionary
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    compute_q_at_given_a0,
-    compute_q_at_given_atm1,
-)
+    compute_q_at_given_a0, compute_q_at_given_atm1)
 
 
 @dataclass(kw_only=True)
@@ -346,9 +343,11 @@ class LatticeLoss(torch.nn.Module):
     """
 
     def __init__(self):
+        """Placeholder for now."""
         super().__init__()
 
     def calculate_unreduced_loss(self, *args):
+        """Placeholder for now."""
         return 0
 
 

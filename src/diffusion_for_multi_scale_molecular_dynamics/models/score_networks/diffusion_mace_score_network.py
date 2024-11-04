@@ -7,23 +7,13 @@ from mace.modules import gate_dict, interaction_classes
 from mace.tools.torch_geometric.dataloader import Collater
 
 from diffusion_for_multi_scale_molecular_dynamics.models.diffusion_mace import (
-    DiffusionMACE,
-    input_to_diffusion_mace,
-)
+    DiffusionMACE, input_to_diffusion_mace)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork,
-    ScoreNetworkParameters,
-)
+    ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    NOISY_AXL_COMPOSITION,
-    NOISY_CARTESIAN_POSITIONS,
-    UNIT_CELL,
-)
+    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates,
-    get_reciprocal_basis_vectors,
-)
+    get_positions_from_coordinates, get_reciprocal_basis_vectors)
 
 
 @dataclass(kw_only=True)

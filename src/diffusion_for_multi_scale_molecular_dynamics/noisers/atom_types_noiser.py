@@ -2,9 +2,8 @@ from typing import Tuple
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    compute_q_at_given_a0,
-)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
+    compute_q_at_given_a0
 
 
 class AtomTypesNoiser:
