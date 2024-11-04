@@ -24,6 +24,7 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
         number_of_corrector_steps,
         unit_cell_size,
         constrained_relative_coordinates,
+        num_atom_types,
     ):
         sampling_parameters = ConstrainedLangevinGeneratorParameters(
             number_of_corrector_steps=number_of_corrector_steps,
@@ -32,6 +33,7 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
             cell_dimensions=cell_dimensions,
             spatial_dimension=spatial_dimension,
             constrained_relative_coordinates=constrained_relative_coordinates,
+            num_atom_types=num_atom_types,
         )
 
         return sampling_parameters

@@ -8,17 +8,33 @@ import torchode as to
 from torchode import Solution
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
-    ScoreNetwork
+    PositionGenerator,
+    SamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
+    ScoreNetwork,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+    AXL,
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_AXL_COMPOSITION,
+    TIME,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import (
+    VarianceScheduler,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell,
+)
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
-    NoOpODESampleTrajectory, ODESampleTrajectory)
+    NoOpODESampleTrajectory,
+    ODESampleTrajectory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +76,8 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         self.tf = 1.0  # The "final diffusion time", corresponding to the uniform distribution.
 
         self.noise_parameters = noise_parameters
+        self.exploding_variance = VarianceScheduler(noise_parameters)
+
         self.sigma_normalized_score_network = sigma_normalized_score_network
 
         assert (
@@ -76,26 +94,7 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         else:
             self.sample_trajectory_recorder = NoOpODESampleTrajectory()
 
-    def _get_exploding_variance_sigma(self, times):
-        """Get Exploding Variance Sigma.
-
-        In the 'exploding variance' scheme, the noise is defined by
-
-            sigma(t) = sigma_min^{1- t} x sigma_max^{t}
-
-        Args:
-            times : diffusion time
-
-        Returns:
-            sigmas: value of the noise parameter.
-        """
-        sigmas = (
-            self.noise_parameters.sigma_min ** (1.0 - times)
-            * self.noise_parameters.sigma_max**times
-        )
-        return sigmas
-
-    def _get_ode_prefactor(self, sigmas):
+    def _get_ode_prefactor(self, times):
         """Get ODE prefactor.
 
         The ODE is given by
@@ -114,18 +113,12 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             Prefactor = d sigma(t) / dt
 
         Args:
-            sigmas : the values of the noise parameters.
+            times: the values of the time.
 
         Returns:
             ode prefactor: the prefactor in the ODE.
         """
-        log_ratio = torch.log(
-            torch.tensor(
-                self.noise_parameters.sigma_max / self.noise_parameters.sigma_min
-            )
-        )
-        ode_prefactor = log_ratio * sigmas
-        return ode_prefactor
+        return self.exploding_variance.get_sigma_time_derivative(times)
 
     def generate_ode_term(self, unit_cell: torch.Tensor) -> Callable:
         """Generate the ode_term needed to compute the ODE solution."""
@@ -146,8 +139,8 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             Returns:
                 rhs: the right-hand-side of the corresponding ODE.
             """
-            sigmas = self._get_exploding_variance_sigma(times)
-            ode_prefactor = self._get_ode_prefactor(sigmas)
+            sigmas = self.exploding_variance.get_sigma(times)
+            ode_prefactor = self._get_ode_prefactor(times)
 
             relative_coordinates = einops.rearrange(
                 flat_relative_coordinates,
@@ -157,8 +150,10 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             )
 
             batch = {
-                NOISY_RELATIVE_COORDINATES: map_relative_coordinates_to_unit_cell(
-                    relative_coordinates
+                NOISY_AXL_COMPOSITION: AXL(
+                    A=torch.zeros_like(relative_coordinates[:, :, 0]).long(),
+                    X=map_relative_coordinates_to_unit_cell(relative_coordinates),
+                    L=None,  # TODO
                 ),
                 NOISE: sigmas.unsqueeze(-1),
                 TIME: times.unsqueeze(-1),
@@ -169,7 +164,9 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             }
 
             # Shape [batch_size, number of atoms, spatial dimension]
-            sigma_normalized_scores = self.sigma_normalized_score_network(batch)
+            sigma_normalized_scores = self.sigma_normalized_score_network(
+                batch
+            ).X  # TODO
             flat_sigma_normalized_scores = einops.rearrange(
                 sigma_normalized_scores, "batch natom space -> batch (natom space)"
             )
@@ -273,8 +270,8 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             natom=self.number_of_atoms,
             space=self.spatial_dimension,
         )
-        sigmas = self._get_exploding_variance_sigma(evaluation_times)
-        ode_prefactor = self._get_ode_prefactor(sigmas)
+        sigmas = self.exploding_variance.get_sigma(evaluation_times)
+        ode_prefactor = self._get_ode_prefactor(evaluation_times)
         list_flat_normalized_scores = []
         for time_idx, (time, gamma) in enumerate(zip(evaluation_times, ode_prefactor)):
             times = time * torch.ones(number_of_samples).to(sol.ys)

@@ -1,8 +1,3 @@
-"""Noisy Position Sampler.
-
-This module is responsible for sampling relative positions from the perturbation kernel.
-"""
-
 from typing import Tuple
 
 import torch
@@ -11,8 +6,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell
 
 
-class NoisyRelativeCoordinatesSampler:
-    """Noisy Relative Coordinates Sampler.
+class RelativeCoordinatesNoiser:
+    """Relative Coordinates Noiser.
 
     This class provides methods to generate noisy relative coordinates, given real relative coordinates and
     a sigma parameter.
@@ -62,7 +57,7 @@ class NoisyRelativeCoordinatesSampler:
             real_relative_coordinates.shape == sigmas.shape
         ), "sigmas array is expected to be of the same shape as the real_relative_coordinates array"
 
-        z_scores = NoisyRelativeCoordinatesSampler._get_gaussian_noise(
+        z_scores = RelativeCoordinatesNoiser._get_gaussian_noise(
             real_relative_coordinates.shape
         ).to(sigmas)
         noise = (sigmas * z_scores).to(real_relative_coordinates)

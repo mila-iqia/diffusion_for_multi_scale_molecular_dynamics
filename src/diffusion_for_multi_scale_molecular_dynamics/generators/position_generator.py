@@ -11,6 +11,7 @@ class SamplingParameters:
 
     algorithm: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
+    num_atom_types: int  # number of atom types excluding MASK
     number_of_atoms: (
         int  # the number of atoms that must be generated in a sampled configuration.
     )

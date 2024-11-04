@@ -5,66 +5,110 @@ from typing import Any, Optional
 import pytorch_lightning as pl
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
-    instantiate_generator
-from diffusion_for_multi_scale_molecular_dynamics.metrics.kolmogorov_smirnov_metrics import \
-    KolmogorovSmirnovMetrics
+from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import (
+    instantiate_generator,
+)
+from diffusion_for_multi_scale_molecular_dynamics.metrics.kolmogorov_smirnov_metrics import (
+    KolmogorovSmirnovMetrics,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
-    LossParameters, create_loss_calculator)
+    LossParameters,
+    create_loss_calculator,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
-    OptimizerParameters, load_optimizer)
+    OptimizerParameters,
+    load_optimizer,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
-    SchedulerParameters, load_scheduler_dictionary)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
-    ScoreNetworkParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
-    create_score_network
+    SchedulerParameters,
+    load_scheduler_dictionary,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
+    ScoreNetworkParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import (
+    create_score_network,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, NOISE, NOISY_RELATIVE_COORDINATES,
-    RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
-    compute_oracle_energies
-from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
-from diffusion_for_multi_scale_molecular_dynamics.samples.diffusion_sampling_parameters import \
-    DiffusionSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
-    create_batch_of_samples
-from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
+    ATOM_TYPES,
+    AXL,
+    AXL_COMPOSITION,
+    AXL_NAME_DICT,
+    CARTESIAN_FORCES,
+    CARTESIAN_POSITIONS,
+    NOISE,
+    NOISY_AXL_COMPOSITION,
+    RELATIVE_COORDINATES,
+    TIME,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
+    NoiseScheduler,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import (
+    AtomTypesNoiser,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import (
+    LatticeNoiser,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import (
+    RelativeCoordinatesNoiser,
+)
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import (
+    compute_oracle_energies,
+)
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import (
+    create_batch_of_samples,
+)
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import (
+    DiffusionSamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
+    get_sigma_normalized_score,
+)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates, map_relative_coordinates_to_unit_cell)
-from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
-    compute_distances_in_batch
-from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
-    broadcast_batch_tensor_to_all_dimensions
+    get_positions_from_coordinates,
+    map_relative_coordinates_to_unit_cell,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
+    class_index_to_onehot,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import (
+    compute_distances_in_batch,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
+    broadcast_batch_matrix_tensor_to_all_dimensions,
+    broadcast_batch_tensor_to_all_dimensions,
+)
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(kw_only=True)
-class PositionDiffusionParameters:
-    """Position Diffusion parameters."""
+class AXLDiffusionParameters:
+    """AXL (atom, relative coordinates, lattice) Diffusion parameters."""
 
     score_network_parameters: ScoreNetworkParameters
     loss_parameters: LossParameters
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: Optional[SchedulerParameters] = None
     noise_parameters: NoiseParameters
-    # convergence parameter for the Ewald-like sum of the perturbation kernel.
+    # convergence parameter for the Ewald-like sum of the perturbation kernel for coordinates.
     kmax_target_score: int = 4
     diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
 
 
-class PositionDiffusionLightningModel(pl.LightningModule):
-    """Position Diffusion Lightning Model.
+class AXLDiffusionLightningModel(pl.LightningModule):
+    """AXL Diffusion Lightning Model.
 
-    This lightning model can train a score network predict the noise for relative coordinates.
+    This lightning model can train a score network to predict the noise for relative coordinates, atom types and lattice
+    vectors.
     """
 
-    def __init__(self, hyper_params: PositionDiffusionParameters):
+    def __init__(self, hyper_params: AXLDiffusionParameters):
         """Init method.
 
         This initializes the class.
@@ -72,19 +116,31 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         super().__init__()
 
         self.hyper_params = hyper_params
+        self.num_atom_types = hyper_params.score_network_parameters.num_atom_types
         self.save_hyperparameters(
             logger=False
         )  # It is not the responsibility of this class to log its parameters.
 
-        # we will model sigma x score
-        self.sigma_normalized_score_network = create_score_network(
-            hyper_params.score_network_parameters
-        )
+        # the score network is expected to produce an output as an AXL namedtuple:
+        # atom: unnormalized estimate of p(a_0 | a_t)
+        # relative coordinates: estimate of \sigma \nabla_{x_t} p_{t|0}(x_t | x_0)
+        # lattices: TODO
+        self.score_network = create_score_network(hyper_params.score_network_parameters)
 
+        # loss is an AXL object with one loss for each element (atom type, coordinate, lattice)
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
-        self.noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
-        self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
+        # noisy samplers for atom types, coordinates and lattice vectors
+        self.noisers = AXL(
+            A=AtomTypesNoiser(),
+            X=RelativeCoordinatesNoiser(),
+            L=LatticeNoiser(),
+        )
+
+        self.noise_scheduler = NoiseScheduler(
+            hyper_params.noise_parameters,
+            num_classes=self.num_atom_types + 1,  # add 1 for the MASK class
+        )
 
         self.generator = None
         self.structure_ks_metric = None
@@ -145,32 +201,50 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         batch_idx: int,
         no_conditional: bool = False,
     ) -> Any:
-        """Generic step.
+        r"""Generic step.
 
         This "generic step" computes the loss for any of the possible lightning "steps".
 
-        The  loss is defined as:
-            L = 1 / T int_0^T dt lambda(t) E_{x0 ~ p_data} E_{xt~ p_{t| 0}}
-                    [|S_theta(xt, t) - nabla_{xt} log p_{t | 0} (xt | x0)|^2]
+        The loss is defined as a sum of 3 components:
 
-            Where
-                      T     : time range of the noising process
-                  S_theta   : score network
-                 p_{t| 0}   : perturbation kernel
-                nabla log p : the target score
-                lambda(t)   : is arbitrary, but chosen for convenience.
+        .. math::
+            L = L_x + L_a + L_L
 
-        In this implementation, we choose lambda(t) = sigma(t)^2 ( a standard choice from the literature), such
+        where :math:`L_x` is the loss for the coordinate diffusion, :math:`L_a` for the atom type diffusion and
+        :math:`L_L` for the lattice.
+
+        The loss for the coordinate diffusion is defined as:
+
+        .. math::
+            L_x = 1 / T \int_0^T dt \lambda(t) E_{x0 ~ p_data} E_{xt~ p_{t| 0}}
+                    [|S_\theta(xt, t) - \nabla_{xt} \log p_{t | 0} (xt | x0)|^2]
+
+        Where
+                        :math:`T`   : time range of the noising process
+                 :math:`S_\theta`   : score network
+                  :math:`p_{t|0}`   : perturbation kernel
+            :math:`\nabla \log p`   : the target score
+               :math:`\lambda(t)`   : is arbitrary, but chosen for convenience.
+
+        In this implementation, we choose :math:`\lambda(t) = \sigma(t)^2` (a standard choice from the literature), such
         that the score network and the target scores that are used are actually "sigma normalized" versions, ie,
         pre-multiplied by sigma.
 
+        For the atom type diffusion, the loss is defined as:
+
+        .. math::
+            L_a = E_{a_0 ~ p_\textrm{data}} [ \sum_{t=2}^T E_{a_t ~ p_{t|0}
+                [D_{KL}[q(a_{t-1} | a_t, a_0) || p_theta(a_{t-1} | a_{t}) - \lambda_CE log p_\theta(a_0 | a_t)]
+                - E_{a_1 ~ p_{t=1|0}} log p_\theta(a_0 | a_1) ]
+
         The loss that is computed is a Monte Carlo estimate of L, where we sample a mini-batch of relative coordinates
-        configurations {x0}; each of these configurations is noised with a random t value, with corresponding
-        {sigma(t)} and {xt}.
+        configurations {x0} and atom types {a_0}; each of these configurations is noised with a random t value,
+        with corresponding {sigma(t)}, {xt}, {beta(t)} and {a(t)}. Note the :math:`beta(t)` is used to compute the true
+        posterior :math:`q(a_{t-1} | a_t, a_0)` and :math:`p_\theta(a_{t-1} | a_t)` in the atom type loss.
 
         Args:
             batch : a dictionary that should contain a data sample.
-            batch_idx :  index of the batch
+            batch_idx : index of the batch
             no_conditional (optional): if True, do not use the conditional option of the forward. Used for validation.
 
         Returns:
@@ -180,32 +254,78 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         assert (
             RELATIVE_COORDINATES in batch
         ), f"The field '{RELATIVE_COORDINATES}' is missing from the input."
+
+        assert (
+            ATOM_TYPES in batch
+        ), f"The field '{ATOM_TYPES}' is missing from the input."
+
         x0 = batch[RELATIVE_COORDINATES]
         shape = x0.shape
         assert len(shape) == 3, (
             f"the shape of the RELATIVE_COORDINATES array should be [batch_size, number_of_atoms, spatial_dimensions]. "
             f"Got shape = {shape}."
         )
+
+        a0 = batch[ATOM_TYPES]
         batch_size = self._get_batch_size(batch)
+        atom_shape = a0.shape
+        assert len(atom_shape) == 2, (
+            f"the shape of the ATOM_TYPES array should be [batch_size, number_of_atoms]. "
+            f"Got shape = {atom_shape}"
+        )
 
-        noise_sample = self.variance_sampler.get_random_noise_sample(batch_size)
+        l0 = batch[
+            "box"
+        ]  # should be batch[UNIT_CELL] - see later comment with batch['box']
+        # TODO assert on shape
 
-        # noise_sample.sigma has  dimension [batch_size]. Broadcast these sigma values to be
-        # of shape [batch_size, number_of_atoms, spatial_dimension], which can be interpreted
-        # as [batch_size, (configuration)]. All the sigma values must be the same for a given configuration.
+        noise_sample = self.noise_scheduler.get_random_noise_sample(batch_size)
+
+        # noise_sample.sigma has dimension [batch_size]. Broadcast these values to be of shape
+        # [batch_size, number_of_atoms, spatial_dimension] , which can be interpreted as
+        # [batch_size, (configuration)]. All the sigma values must be the same for a given configuration.
         sigmas = broadcast_batch_tensor_to_all_dimensions(
             batch_values=noise_sample.sigma, final_shape=shape
         )
+        # we can now get noisy coordinates
+        xt = self.noisers.X.get_noisy_relative_coordinates_sample(x0, sigmas)
 
-        xt = self.noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(
-            x0, sigmas
+        # to get noisy atom types, we need to broadcast the transition matrices q, q_bar and q_bar_tm1 from size
+        # [batch_size, num_atom_types, num_atom_types] to [batch_size, number_of_atoms, num_atom_types, num_atom_types].
+        # All the matrices must be the same for all atoms in a given configuration.
+        q_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
+            batch_values=noise_sample.q_matrix, final_shape=atom_shape
+        )
+        q_bar_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
+            batch_values=noise_sample.q_bar_matrix, final_shape=atom_shape
         )
 
-        # The target is nabla log p_{t|0} (xt | x0): it is NOT the "score", but rather a "conditional" (on x0) score.
-        target_normalized_conditional_scores = self._get_target_normalized_score(
-            xt, x0, sigmas
+        q_bar_tm1_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
+            batch_values=noise_sample.q_bar_tm1_matrix, final_shape=atom_shape
         )
 
+        # we also need the atom types to be one-hot vector and not a class index
+        a0_onehot = class_index_to_onehot(a0, self.num_atom_types + 1)
+
+        at = self.noisers.A.get_noisy_atom_types_sample(a0_onehot, q_bar_matrices)
+        at_onehot = class_index_to_onehot(at, self.num_atom_types + 1)
+
+        # TODO do the same for the lattice vectors
+        lt = self.noisers.L.get_noisy_lattice_vectors(l0)
+
+        noisy_composition = AXL(A=at, X=xt, L=lt)  # not one-hot
+
+        original_composition = AXL(A=a0, X=x0, L=l0)
+
+        # Get the loss targets
+        # Coordinates: The target is :math:`sigma(t) \nabla  log p_{t|0} (xt | x0)`
+        # it is NOT the "score", but rather a "conditional" (on x0) score.
+        target_coordinates_normalized_conditional_scores = (
+            self._get_coordinates_target_normalized_score(xt, x0, sigmas)
+        )
+        # for the atom types, the loss is constructed from the Q and Qbar matrices
+
+        # TODO get unit_cell from the noisy version and not a kwarg in batch (at least replace with namespace name)
         unit_cell = torch.diag_embed(
             batch["box"]
         )  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
@@ -213,40 +333,85 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         forces = batch[CARTESIAN_FORCES]
 
         augmented_batch = {
-            NOISY_RELATIVE_COORDINATES: xt,
+            NOISY_AXL_COMPOSITION: noisy_composition,
             TIME: noise_sample.time.reshape(-1, 1),
             NOISE: noise_sample.sigma.reshape(-1, 1),
-            UNIT_CELL: unit_cell,
+            UNIT_CELL: unit_cell,  # TODO remove and take from AXL instead
             CARTESIAN_FORCES: forces,
         }
 
         use_conditional = None if no_conditional is False else False
-        predicted_normalized_scores = self.sigma_normalized_score_network(
+        model_predictions = self.score_network(
             augmented_batch, conditional=use_conditional
         )
+        # this output is expected to be an AXL object
+        # X score network output: an estimate of the sigma normalized score for the coordinates,
+        # A score network output: an unnormalized estimate of p(a_0 | a_t) for the atom types
+        # TODO something for the lattice
 
-        unreduced_loss = self.loss_calculator.calculate_unreduced_loss(
-            predicted_normalized_scores,
-            target_normalized_conditional_scores,
+        unreduced_loss_coordinates = self.loss_calculator.X.calculate_unreduced_loss(
+            model_predictions.X,
+            target_coordinates_normalized_conditional_scores,
             sigmas,
         )
-        loss = torch.mean(unreduced_loss)
+
+        unreduced_loss_atom_types = self.loss_calculator.A.calculate_unreduced_loss(
+            predicted_logits=model_predictions.A,
+            one_hot_real_atom_types=a0_onehot,
+            one_hot_noisy_atom_types=at_onehot,
+            time_indices=noise_sample.indices,
+            q_matrices=q_matrices,
+            q_bar_matrices=q_bar_matrices,
+            q_bar_tm1_matrices=q_bar_tm1_matrices,
+        )
+
+        # TODO placeholder - returns zero
+        unreduced_loss_lattice = self.loss_calculator.L.calculate_unreduced_loss(
+            model_predictions.L
+        )
+
+        # TODO consider having weights in front of each component
+        aggregated_loss = (
+            unreduced_loss_coordinates.mean(
+                dim=-1
+            )  # batch, num_atoms, spatial_dimension
+            + unreduced_loss_lattice
+            + unreduced_loss_atom_types.mean(dim=-1)  # batch, num_atoms, num_atom_types
+        )
+
+        loss = torch.mean(aggregated_loss)
+
+        unreduced_loss = AXL(
+            A=unreduced_loss_atom_types.detach(),
+            X=unreduced_loss_coordinates.detach(),
+            L=torch.zeros_like(
+                unreduced_loss_coordinates
+            ).detach(),  # TODO use unreduced_loss_lattice.detach(),
+        )
+
+        model_predictions_detached = AXL(
+            A=model_predictions.A.detach(),
+            X=model_predictions.X.detach(),
+            L=model_predictions.L.detach(),
+        )
 
         output = dict(
-            unreduced_loss=unreduced_loss.detach(),
+            unreduced_loss=unreduced_loss,
             loss=loss,
             sigmas=sigmas,
-            predicted_normalized_scores=predicted_normalized_scores.detach(),
-            target_normalized_conditional_scores=target_normalized_conditional_scores,
+            model_predictions=model_predictions_detached,
+            target_coordinates_normalized_conditional_scores=target_coordinates_normalized_conditional_scores,
         )
-        output[RELATIVE_COORDINATES] = x0
-        output[NOISY_RELATIVE_COORDINATES] = augmented_batch[NOISY_RELATIVE_COORDINATES]
+        output[AXL_COMPOSITION] = original_composition
+        output[NOISY_AXL_COMPOSITION] = noisy_composition
         output[TIME] = augmented_batch[TIME]
-        output[UNIT_CELL] = augmented_batch[UNIT_CELL]
+        output[UNIT_CELL] = augmented_batch[
+            UNIT_CELL
+        ]  # TODO remove and use AXL instead
 
         return output
 
-    def _get_target_normalized_score(
+    def _get_coordinates_target_normalized_score(
         self,
         noisy_relative_coordinates: torch.Tensor,
         real_relative_coordinates: torch.Tensor,
@@ -296,6 +461,15 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             on_step=False,
             on_epoch=True,
         )
+
+        for axl_field, axl_name in AXL_NAME_DICT.items():
+            self.log(
+                f"train_epoch_{axl_name}_loss",
+                getattr(output["unreduced_loss"], axl_field).mean(),
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
         return output
 
     def validation_step(self, batch, batch_idx):
@@ -314,6 +488,15 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             prog_bar=True,
         )
 
+        for axl_field, axl_name in AXL_NAME_DICT.items():
+            self.log(
+                f"validation_epoch_{axl_name}_loss",
+                getattr(output["unreduced_loss"], axl_field).mean(),
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+
         if not self.draw_samples:
             return output
 
@@ -322,9 +505,9 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
-            basis_vectors = torch.diag_embed(batch["box"])
+            basis_vectors = torch.diag_embed(batch["box"])  # TODO replace with AXL L
             cartesian_positions = get_positions_from_coordinates(
-                relative_coordinates=batch[RELATIVE_COORDINATES],
+                relative_coordinates=output[AXL_COMPOSITION].X,
                 basis_vectors=basis_vectors,
             )
 
@@ -350,10 +533,20 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             "test_epoch_loss", loss, batch_size=batch_size, on_step=False, on_epoch=True
         )
 
+        for axl_field, axl_name in AXL_NAME_DICT.items():
+            self.log(
+                f"test_epoch_{axl_name}_loss",
+                getattr(output["unreduced_loss"], axl_field).mean(),
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
+
         return output
 
     def generate_samples(self):
         """Generate a batch of samples."""
+        # TODO add atom types generation
         assert (
             self.hyper_params.diffusion_sampling_parameters is not None
         ), "sampling parameters must be provided to create a generator."
@@ -362,7 +555,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             self.generator = instantiate_generator(
                 sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
                 noise_parameters=self.hyper_params.diffusion_sampling_parameters.noise_parameters,
-                sigma_normalized_score_network=self.sigma_normalized_score_network,
+                sigma_normalized_score_network=self.score_network,  # TODO use A and L too
             )
             logger.info(f"Generator type : {type(self.generator)}")
 
@@ -382,7 +575,7 @@ class PositionDiffusionLightningModel(pl.LightningModule):
             return
 
         logger.info("   - Drawing samples at the end of the validation epoch.")
-        samples_batch = self.generate_samples()
+        samples_batch = self.generate_samples()  # TODO generate atom types too
 
         if self.draw_samples and self.metrics_parameters.compute_energies:
             logger.info("       * Computing sample energies")
@@ -409,7 +602,9 @@ class PositionDiffusionLightningModel(pl.LightningModule):
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             logger.info("       * Computing sample distances")
             sample_distances = compute_distances_in_batch(
-                cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
+                cartesian_positions=samples_batch[
+                    CARTESIAN_POSITIONS
+                ],  # TODO replace with AXL
                 unit_cell=samples_batch[UNIT_CELL],
                 max_distance=self.metrics_parameters.structure_factor_max_distance,
             )

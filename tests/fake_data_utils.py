@@ -7,7 +7,11 @@ import torch
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES,
+    CARTESIAN_FORCES,
+    CARTESIAN_POSITIONS,
+    RELATIVE_COORDINATES,
+)
 
 Configuration = namedtuple(
     "Configuration",
@@ -16,7 +20,7 @@ Configuration = namedtuple(
         CARTESIAN_POSITIONS,
         CARTESIAN_FORCES,
         RELATIVE_COORDINATES,
-        "types",
+        ATOM_TYPES,
         "ids",
         "cell_dimensions",
         "potential_energy",
@@ -53,7 +57,7 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
         relative_coordinates=relative_coordinates,
         cartesian_positions=positions,
         cartesian_forces=np.random.rand(number_of_atoms, spatial_dimension),
-        types=np.random.randint(1, 10, number_of_atoms),
+        atom_types=np.random.randint(1, 10, number_of_atoms),
         ids=np.arange(1, number_of_atoms + 1),
         cell_dimensions=cell_dimensions,
         potential_energy=potential_energy,
@@ -94,7 +98,7 @@ def generate_parse_dump_output_dataframe(
         row = dict(
             box=configuration.cell_dimensions,
             id=list(configuration.ids),
-            type=list(configuration.types),
+            type=list(configuration.atom_types),
         )
         for coordinates, name in zip(
             configuration.cartesian_positions.transpose(), ["x", "y", "z"]
@@ -132,7 +136,7 @@ def create_dump_single_record(
 
     for id, type, position, force in zip(
         configuration.ids,
-        configuration.types,
+        configuration.atom_types,
         configuration.cartesian_positions,
         configuration.cartesian_forces,
     ):
@@ -227,7 +231,7 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
         row = dict(
             natom=number_of_atoms,
             box=box,
-            type=configuration.types,
+            atom_types=configuration.atom_types,
             potential_energy=configuration.potential_energy,
             cartesian_positions=positions,
             relative_coordinates=relative_positions,

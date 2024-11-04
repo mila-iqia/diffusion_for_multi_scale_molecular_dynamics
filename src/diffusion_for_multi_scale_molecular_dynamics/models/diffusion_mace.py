@@ -3,15 +3,31 @@ from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 import torch
 from e3nn import o3
 from e3nn.nn import Activation, BatchNorm, NormActivation
-from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
-                          LinearNodeEmbeddingBlock, RadialEmbeddingBlock)
+from mace.modules import (
+    EquivariantProductBasisBlock,
+    InteractionBlock,
+    LinearNodeEmbeddingBlock,
+    RadialEmbeddingBlock,
+)
 from mace.modules.utils import get_edge_vectors_and_lengths
 from torch_geometric.data import Data
 
 from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import (
-    get_adj_matrix, reshape_from_e3nn_to_mace, reshape_from_mace_to_e3nn)
+    get_adj_matrix,
+    reshape_from_e3nn_to_mace,
+    reshape_from_mace_to_e3nn,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
+    AXL,
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_AXL_COMPOSITION,
+    NOISY_CARTESIAN_POSITIONS,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
+    class_index_to_onehot,
+)
 
 
 class LinearVectorReadoutBlock(torch.nn.Module):
@@ -27,14 +43,32 @@ class LinearVectorReadoutBlock(torch.nn.Module):
         return self.linear(x)
 
 
+class LinearClassificationReadoutBlock(torch.nn.Module):
+    """Linear readout for scalar representation."""
+
+    def __init__(self, irreps_in: o3.Irreps, num_classes: int):
+        """Init method."""
+        super().__init__()
+        self.linear = o3.Linear(
+            irreps_in=irreps_in, irreps_out=o3.Irreps(f"{num_classes}x0e")
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward."""
+        return self.linear(x)
+
+
 def input_to_diffusion_mace(
-    batch: Dict[AnyStr, torch.Tensor], radial_cutoff: float
+    batch: Dict[AnyStr, torch.Tensor],
+    radial_cutoff: float,
+    num_classes: int,
 ) -> Data:
     """Convert score network input to Diffusion MACE input.
 
     Args:
         batch: score network input dictionary
         radial_cutoff : largest distance between neighbors.
+        num_classes: number of atomic species, including the MASK class
 
     Returns:
         pytorch-geometric graph data compatible with MACE forward
@@ -43,6 +77,7 @@ def input_to_diffusion_mace(
     batch_size, n_atom_per_graph, spatial_dimension = cartesian_positions.shape
     device = cartesian_positions.device
 
+    # TODO replace with AXL L
     basis_vectors = batch[UNIT_CELL]  # batch, spatial_dimension, spatial_dimension
 
     adj_matrix, shift_matrix, batch_tensor, num_edges = get_adj_matrix(
@@ -52,11 +87,10 @@ def input_to_diffusion_mace(
     )
 
     # node features are int corresponding to atom type
-    # TODO handle different atom types
-    atom_types = torch.zeros(batch_size * n_atom_per_graph)
-    node_attrs = torch.nn.functional.one_hot(atom_types.long(), num_classes=1).to(
-        atom_types
-    )
+    atom_types = batch[NOISY_AXL_COMPOSITION].A
+    node_attrs = class_index_to_onehot(atom_types, num_classes=num_classes)
+    node_attrs = node_attrs.view(-1, num_classes)
+    # atom type as 1-hot - should be (batch_size * n_atom, num_classes)
     # The node diffusion scalars will be the diffusion noise sigma, which is constant for each structure in the batch.
     # We broadcast to each node to avoid complex broadcasting logic within the model itself.
     # TODO: it might be better to define the noise as a 'global' graph attribute, and find 'the right way' of
@@ -122,12 +156,11 @@ class DiffusionMACE(torch.nn.Module):
         interaction_cls: Type[InteractionBlock],
         interaction_cls_first: Type[InteractionBlock],
         num_interactions: int,
-        num_elements: int,
+        num_classes: int,
         hidden_irreps: o3.Irreps,
         mlp_irreps: o3.Irreps,
         number_of_mlp_layers: int,
         avg_num_neighbors: float,
-        atomic_numbers: List[int],
         correlation: Union[int, List[int]],
         gate: Optional[Callable],
         radial_MLP: List[int],
@@ -137,16 +170,7 @@ class DiffusionMACE(torch.nn.Module):
         tanh_after_interaction: bool = True,
     ):
         """Init method."""
-        assert (
-            num_elements == 1
-        ), "only a single element can be used at this time. Set 'num_elements' to 1."
-        assert (
-            len(atomic_numbers) == 1
-        ), "only a single element can be used at this time. Set 'atomic_numbers' to length 1."
         super().__init__()
-        self.register_buffer(
-            "atomic_numbers", torch.tensor(atomic_numbers, dtype=torch.int64)
-        )
         self.register_buffer(
             "r_max", torch.tensor(r_max, dtype=torch.get_default_dtype())
         )
@@ -166,7 +190,8 @@ class DiffusionMACE(torch.nn.Module):
         # define the "0e" representation as a constant to avoid "magic numbers" below.
         scalar_irrep = o3.Irrep(0, 1)
 
-        # Apply an MLP with a bias on the scalar diffusion time-like  input.
+        # An MLP will be used to mix the diffusion time-like input (the 'diffusion scalar', a global quantity) and
+        # the 1-hot atom type (the 'node scalars')
         number_of_node_scalar_dimensions = 1
         number_of_hidden_diffusion_scalar_dimensions = mlp_irreps.count(scalar_irrep)
 
@@ -196,7 +221,7 @@ class DiffusionMACE(torch.nn.Module):
             self.diffusion_scalar_embedding.append(linear)
 
         # The node_attr is the one-hot version of the atom types.
-        node_attr_irreps = o3.Irreps([(num_elements, scalar_irrep)])
+        node_attr_irreps = o3.Irreps([(num_classes, scalar_irrep)])
 
         # Perform a tensor product to mix the diffusion scalar and node attributes
         self.attribute_mixing = o3.FullyConnectedTensorProduct(
@@ -298,7 +323,7 @@ class DiffusionMACE(torch.nn.Module):
             node_feats_irreps=node_feats_irreps_out,
             target_irreps=hidden_irreps,
             correlation=correlation[0],
-            num_elements=num_elements,
+            num_elements=num_classes,
             use_sc=use_sc_first,
         )
         self.products = torch.nn.ModuleList([prod])
@@ -333,7 +358,7 @@ class DiffusionMACE(torch.nn.Module):
                 node_feats_irreps=interaction_irreps,
                 target_irreps=hidden_irreps_out,
                 correlation=correlation[i + 1],
-                num_elements=num_elements,
+                num_elements=num_classes,
                 use_sc=True,
             )
             self.products.append(prod)
@@ -344,6 +369,11 @@ class DiffusionMACE(torch.nn.Module):
 
         # the output is a single vector.
         self.vector_readout = LinearVectorReadoutBlock(irreps_in=hidden_irreps_out)
+
+        # and an output for atom classification
+        self.classification_readout = LinearClassificationReadoutBlock(
+            irreps_in=hidden_irreps_out, num_classes=num_classes
+        )
 
         # Apply a MLP with a bias on the forces as a conditional feature. This would be a 1o irrep
         forces_irreps_in = o3.Irreps("1x1o")
@@ -362,12 +392,9 @@ class DiffusionMACE(torch.nn.Module):
             )
             self.conditional_layers.append(cond_layer)
 
-    def forward(
-        self, data: Dict[str, torch.Tensor], conditional: bool = False
-    ) -> torch.Tensor:
+    def forward(self, data: Dict[str, torch.Tensor], conditional: bool = False) -> AXL:
         """Forward method."""
         # Setup
-
         # Augment the node attributes with information from the diffusion scalar.
         diffusion_scalar_embeddings = self.diffusion_scalar_embedding(
             data["node_diffusion_scalars"]
@@ -438,4 +465,10 @@ class DiffusionMACE(torch.nn.Module):
 
         # Outputs
         vectors_output = self.vector_readout(node_feats)
-        return vectors_output
+        classification_output = self.classification_readout(node_feats)
+        axl_output = AXL(
+            A=classification_output,
+            X=vectors_output,
+            L=torch.zeros_like(classification_output),
+        )
+        return axl_output

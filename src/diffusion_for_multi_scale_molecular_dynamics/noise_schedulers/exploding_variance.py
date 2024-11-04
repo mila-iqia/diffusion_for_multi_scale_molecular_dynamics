@@ -1,13 +1,13 @@
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 
 
-class ExplodingVariance(torch.nn.Module):
+class VarianceScheduler(torch.nn.Module):
     """Exploding Variance.
 
-    This class is responsible for calculating the various quantities related  to the diffusion variance.
+    This class is responsible for calculating the various quantities related to the diffusion variance.
     This implementation will use "exploding variance" scheme.
     """
 
@@ -71,3 +71,4 @@ class ExplodingVariance(torch.nn.Module):
             g_squared: g(t)^2
         """
         return 2.0 * self.get_sigma(times) * self.get_sigma_time_derivative(times)
+

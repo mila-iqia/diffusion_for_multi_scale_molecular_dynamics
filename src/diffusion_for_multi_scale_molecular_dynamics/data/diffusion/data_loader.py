@@ -12,10 +12,15 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import \
-    LammpsProcessorForDiffusion
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import (
+    LammpsProcessorForDiffusion,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES,
+    CARTESIAN_FORCES,
+    CARTESIAN_POSITIONS,
+    RELATIVE_COORDINATES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -111,8 +116,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         )  # size: (batchsize, spatial dimension)
         for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
-        transformed_x["type"] = torch.as_tensor(
-            x["type"]
+        transformed_x[ATOM_TYPES] = torch.as_tensor(
+            x[ATOM_TYPES]
         ).long()  # size: (batchsize, max atom)
         transformed_x["potential_energy"] = torch.as_tensor(
             x["potential_energy"]
@@ -139,8 +144,9 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             raise ValueError(
                 f"Hyper-parameter max_atom is smaller than an example in the dataset with {natom} atoms."
             )
-        x["type"] = F.pad(
-            torch.as_tensor(x["type"]).long(), (0, max_atom - natom), "constant", -1
+
+        x[ATOM_TYPES] = F.pad(
+            torch.as_tensor(x[ATOM_TYPES]).long(), (0, max_atom - natom), "constant", -1
         )
         for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
             x[pos] = F.pad(
@@ -180,6 +186,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             )
         # map() are applied once, not in-place.
         # The keyword argument "batched" can accelerate by working with batches, not useful for padding
+
         self.train_dataset = self.train_dataset.map(
             partial(
                 self.pad_samples, max_atom=self.max_atom, spatial_dim=self.spatial_dim

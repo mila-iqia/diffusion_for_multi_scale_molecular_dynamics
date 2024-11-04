@@ -4,10 +4,17 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters,
-    TargetScoreBasedAnalyticalScoreNetwork)
+    AnalyticalScoreNetwork,
+    AnalyticalScoreNetworkParameters,
+    TargetScoreBasedAnalyticalScoreNetwork,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
+    AXL,
+    NOISE,
+    NOISY_AXL_COMPOSITION,
+    TIME,
+    UNIT_CELL,
+)
 
 
 def factorial(n):
@@ -45,6 +52,10 @@ class TestAnalyticalScoreNetwork:
     def spatial_dimension(self, request):
         return request.param
 
+    @pytest.fixture
+    def num_atom_types(self):
+        return 1
+
     @pytest.fixture(params=[1, 2])
     def number_of_atoms(self, request):
         return request.param
@@ -52,6 +63,17 @@ class TestAnalyticalScoreNetwork:
     @pytest.fixture
     def equilibrium_relative_coordinates(self, number_of_atoms, spatial_dimension):
         return torch.rand(number_of_atoms, spatial_dimension)
+
+    @pytest.fixture
+    def atom_types(self, batch_size, number_of_atoms, num_atom_types):
+        return torch.randint(
+            0,
+            num_atom_types,
+            (
+                batch_size,
+                number_of_atoms,
+            ),
+        )
 
     @pytest.fixture(params=["finite", "zero"])
     def variance_parameter(self, request):
@@ -63,7 +85,7 @@ class TestAnalyticalScoreNetwork:
             return 1.0 / inverse_variance
 
     @pytest.fixture()
-    def batch(self, batch_size, number_of_atoms, spatial_dimension):
+    def batch(self, batch_size, number_of_atoms, spatial_dimension, atom_types):
         relative_coordinates = torch.rand(
             batch_size, number_of_atoms, spatial_dimension
         )
@@ -71,7 +93,9 @@ class TestAnalyticalScoreNetwork:
         noises = torch.rand(batch_size, 1)
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
         return {
-            NOISY_RELATIVE_COORDINATES: relative_coordinates,
+            NOISY_AXL_COMPOSITION: AXL(
+                A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
+            ),
             TIME: times,
             NOISE: noises,
             UNIT_CELL: unit_cell,
@@ -86,6 +110,7 @@ class TestAnalyticalScoreNetwork:
         equilibrium_relative_coordinates,
         variance_parameter,
         use_permutation_invariance,
+        num_atom_types
     ):
         hyper_params = AnalyticalScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
@@ -94,6 +119,7 @@ class TestAnalyticalScoreNetwork:
             equilibrium_relative_coordinates=equilibrium_relative_coordinates,
             variance_parameter=variance_parameter,
             use_permutation_invariance=use_permutation_invariance,
+            num_atom_types=num_atom_types
         )
         return hyper_params
 
@@ -146,7 +172,7 @@ class TestAnalyticalScoreNetwork:
         score_network,
     ):
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_RELATIVE_COORDINATES]
+        xt = batch[NOISY_AXL_COMPOSITION].X
         computed_log_prob = score_network._compute_unnormalized_log_probability(
             sigmas, xt, equilibrium_relative_coordinates
         )
@@ -185,7 +211,7 @@ class TestAnalyticalScoreNetwork:
     ):
         normalized_scores = score_network.forward(batch)
 
-        assert normalized_scores.shape == (
+        assert normalized_scores.X.shape == (
             batch_size,
             number_of_atoms,
             spatial_dimension,

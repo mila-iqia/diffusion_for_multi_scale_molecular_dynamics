@@ -1,14 +1,21 @@
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
-    LangevinGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
-    PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import (
+    LangevinGenerator,
+)
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import (
+    PredictorCorrectorSamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell,
+)
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
+    NoiseScheduler,
+)
 from tests.generators.conftest import BaseTestGenerator
 
 
@@ -32,6 +39,10 @@ class TestLangevinGenerator(BaseTestGenerator):
         )
         return noise_parameters
 
+    @pytest.fixture(params=[1, 5, 10])
+    def num_atom_types(self, request):
+        return request.param
+
     @pytest.fixture()
     def sampling_parameters(
         self,
@@ -41,6 +52,7 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_samples,
         number_of_corrector_steps,
         unit_cell_size,
+        num_atom_types,
     ):
         sampling_parameters = PredictorCorrectorSamplingParameters(
             number_of_corrector_steps=number_of_corrector_steps,
@@ -48,6 +60,7 @@ class TestLangevinGenerator(BaseTestGenerator):
             number_of_samples=number_of_samples,
             cell_dimensions=cell_dimensions,
             spatial_dimension=spatial_dimension,
+            num_atom_types=num_atom_types,
         )
 
         return sampling_parameters
@@ -85,9 +98,10 @@ class TestLangevinGenerator(BaseTestGenerator):
         total_time_steps,
         number_of_samples,
         unit_cell_sample,
+        num_atom_types,
     ):
 
-        sampler = ExplodingVarianceSampler(noise_parameters)
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atom_types)
         noise, _ = sampler.get_all_sampling_parameters()
         sigma_min = noise_parameters.sigma_min
         list_sigma = noise.sigma
@@ -131,9 +145,10 @@ class TestLangevinGenerator(BaseTestGenerator):
         total_time_steps,
         number_of_samples,
         unit_cell_sample,
+        num_atom_types,
     ):
 
-        sampler = ExplodingVarianceSampler(noise_parameters)
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atom_types)
         noise, _ = sampler.get_all_sampling_parameters()
         sigma_min = noise_parameters.sigma_min
         epsilon = noise_parameters.corrector_step_epsilon

@@ -7,8 +7,9 @@ from e3nn.nn import Activation
 from mace.modules import LinearNodeEmbeddingBlock, gate_dict
 from torch import nn
 
-from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import \
-    get_normalized_irreps_permutation_indices
+from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import (
+    get_normalized_irreps_permutation_indices,
+)
 
 
 @dataclass(kw_only=True)

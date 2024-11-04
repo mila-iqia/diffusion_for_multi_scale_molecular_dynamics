@@ -5,20 +5,19 @@ Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 """
 
-import os
 from dataclasses import dataclass
 from typing import AnyStr, Dict, Optional
 
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-
-# mac fun time
-# for mace, conflict with mac
-# https://stackoverflow.com/questions/53014306/error-15-initializing-libiomp5-dylib-but-found-libiomp5-dylib-already- \
-# initial
-os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
+    AXL,
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_AXL_COMPOSITION,
+    TIME,
+    UNIT_CELL,
+)
 
 
 @dataclass(kw_only=True)
@@ -27,8 +26,9 @@ class ScoreNetworkParameters:
 
     architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
+    num_atom_types: int  # number of possible atomic species - not counting the MASK class used in the diffusion
     conditional_prob: float = (
-        0.0  # probability of making a conditional forward - else, do a unconditional forward
+        0.0  # probability of making a conditional forward - else, do an unconditional forward
     )
     conditional_gamma: float = (
         2.0  # conditional score weighting - see eq. B45 in MatterGen
@@ -52,6 +52,7 @@ class ScoreNetwork(torch.nn.Module):
         super(ScoreNetwork, self).__init__()
         self._hyper_params = hyper_params
         self.spatial_dimension = hyper_params.spatial_dimension
+        self.num_atom_types = hyper_params.num_atom_types
         self.conditional_prob = hyper_params.conditional_prob
         self.conditional_gamma = hyper_params.conditional_gamma
 
@@ -62,11 +63,16 @@ class ScoreNetwork(torch.nn.Module):
         those inputs have the expected dimensions.
 
         It is expected that:
-            - the relative coordinates are present and of shape [batch_size, number of atoms, spatial_dimension]
+            - an AXL namedtuple is present with
+              - the relative coordinates of shape [batch_size, number of atoms, spatial_dimension]
+              - the atom types of shape [batch_size, number of atoms]
+              - the unit cell vectors  TODO shape
             - all the components of relative coordinates will be in [0, 1)
+            - all the components of atom types are integers between [0, number of atomic species + 1)
+                the + 1 accounts for the MASK class
             - the time steps are present and of shape [batch_size, 1]
             - the time steps are in range [0, 1].
-            - the 'noise' parameter is present and has the same shape as time.
+            - the 'noise' parameter sigma is present and has the same shape as time.
 
         An assert will fail if the batch does not conform with expectation.
 
@@ -76,12 +82,12 @@ class ScoreNetwork(torch.nn.Module):
         Returns:
             None.
         """
-        assert NOISY_RELATIVE_COORDINATES in batch, (
-            f"The relative coordinates should be present in "
-            f"the batch dictionary with key '{NOISY_RELATIVE_COORDINATES}'"
+        assert NOISY_AXL_COMPOSITION in batch, (
+            f"The noisy coordinates, atomic types and lattice vectors should be present in "
+            f"the batch dictionary with key '{NOISY_AXL_COMPOSITION}'"
         )
 
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         relative_coordinates_shape = relative_coordinates.shape
         batch_size = relative_coordinates_shape[0]
         assert (
@@ -119,6 +125,7 @@ class ScoreNetwork(torch.nn.Module):
             batch[NOISE].shape == times.shape
         ), "the 'noise' parameter should have the same shape as the 'time'."
 
+        # TODO replace UNIT_CELL with AXL unit cell
         assert (
             UNIT_CELL in batch
         ), f"The unit cell should be present in the batch dictionary with key '{UNIT_CELL}'"
@@ -132,7 +139,22 @@ class ScoreNetwork(torch.nn.Module):
             len(unit_cell_shape) == 3
             and unit_cell_shape[1] == self.spatial_dimension
             and unit_cell_shape[2] == self.spatial_dimension
-        ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension]."
+        ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension].}"
+
+        atom_types = batch[NOISY_AXL_COMPOSITION].A
+        atom_types_shape = atom_types.shape
+        assert (
+            atom_types_shape[0] == batch_size
+        ), "the batch size dimension is inconsistent between positions and atom types."
+        assert (
+            len(atom_types_shape) == 2
+        ), "The atoms type are expected to be in a tensor of shape [batch_size, number of atoms]."
+
+        assert torch.logical_and(
+            atom_types >= 0,
+            atom_types
+            < self.num_atom_types + 1,  # MASK is a possible type in a noised sample
+        ).all(), f"All atom types are expected to be in [0, {self.num_atom_types}]."
 
         if self.conditional_prob > 0:
             assert CARTESIAN_FORCES in batch, (
@@ -152,7 +174,7 @@ class ScoreNetwork(torch.nn.Module):
 
     def forward(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: Optional[bool] = None
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Model forward.
 
         Args:
@@ -161,7 +183,7 @@ class ScoreNetwork(torch.nn.Module):
                 randomly with probability conditional_prob
 
         Returns:
-            computed_scores : the scores computed by the model.
+            computed_scores : the scores computed by the model in an AXL namedtuple.
         """
         self._check_batch(batch)
         if conditional is None:
@@ -174,6 +196,7 @@ class ScoreNetwork(torch.nn.Module):
         if not conditional:
             return self._forward_unchecked(batch, conditional=False)
         else:
+            # TODO this is not going to work
             return self._forward_unchecked(
                 batch, conditional=True
             ) * self.conditional_gamma + self._forward_unchecked(

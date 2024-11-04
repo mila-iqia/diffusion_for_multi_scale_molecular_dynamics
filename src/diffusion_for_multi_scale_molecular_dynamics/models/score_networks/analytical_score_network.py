@@ -19,13 +19,21 @@ import einops
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork, ScoreNetworkParameters)
+    ScoreNetwork,
+    ScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISE, NOISY_RELATIVE_COORDINATES)
-from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+    AXL,
+    NOISE,
+    NOISY_AXL_COMPOSITION,
+    RELATIVE_COORDINATES,
+)
+from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
+    get_sigma_normalized_score,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell,
+)
 
 
 @dataclass(kw_only=True)
@@ -123,7 +131,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, Any], conditional: bool = False
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Forward unchecked.
 
         This method assumes that the input data has already been checked with respect to expectations
@@ -134,10 +142,12 @@ class AnalyticalScoreNetwork(ScoreNetwork):
             conditional (optional): CURRENTLY DOES NOTHING.
 
         Returns:
-            output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
+            output : an AXL namedtuple with the coordinates scores computed by the model as a
+                [batch_size, n_atom, spatial_dimension] tensor. Empty tensors are returned for the atom types and
+                lattice.
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_RELATIVE_COORDINATES]
+        xt = batch[NOISY_AXL_COMPOSITION].X
         xt.requires_grad_(True)
 
         list_unnormalized_log_prob = []
@@ -162,7 +172,13 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         )
         sigma_normalized_scores = broadcast_sigmas * scores
 
-        return sigma_normalized_scores
+        axl_scores = AXL(
+            A=torch.zeros_like(sigma_normalized_scores),
+            X=sigma_normalized_scores,
+            L=torch.zeros_like(sigma_normalized_scores),
+        )
+
+        return axl_scores
 
     def _compute_unnormalized_log_probability(
         self, sigmas: torch.Tensor, xt: torch.Tensor, x_eq: torch.Tensor
@@ -246,7 +262,7 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_RELATIVE_COORDINATES]
+        xt = batch[NOISY_AXL_COMPOSITION].X
 
         broadcast_sigmas = einops.repeat(
             sigmas,
@@ -266,4 +282,10 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
             broadcast_sigmas / broadcast_effective_sigmas * misnormalized_scores
         )
 
-        return sigma_normalized_scores
+        axl_scores = AXL(
+            A=torch.zeros_like(sigma_normalized_scores),
+            X=sigma_normalized_scores,
+            L=torch.zeros_like(sigma_normalized_scores),
+        )
+
+        return axl_scores

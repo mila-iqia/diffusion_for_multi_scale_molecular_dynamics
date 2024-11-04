@@ -1,14 +1,20 @@
+import einops
 import pytest
 import torch
 
-from src.diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
+    NoiseScheduler,
+)
 
 
 @pytest.mark.parametrize("total_time_steps", [3, 10, 17])
 @pytest.mark.parametrize("time_delta", [1e-5, 0.1])
 @pytest.mark.parametrize("sigma_min", [0.005, 0.1])
 @pytest.mark.parametrize("corrector_step_epsilon", [2e-5, 0.1])
+@pytest.mark.parametrize("num_classes", [4])
 class TestExplodingVarianceSampler:
     @pytest.fixture()
     def noise_parameters(
@@ -22,8 +28,10 @@ class TestExplodingVarianceSampler:
         )
 
     @pytest.fixture()
-    def variance_sampler(self, noise_parameters):
-        return ExplodingVarianceSampler(noise_parameters=noise_parameters)
+    def variance_sampler(self, noise_parameters, num_classes):
+        return NoiseScheduler(
+            noise_parameters=noise_parameters, num_classes=num_classes
+        )
 
     @pytest.fixture()
     def expected_times(self, total_time_steps, time_delta):
@@ -55,6 +63,41 @@ class TestExplodingVarianceSampler:
             epsilons.append(0.5 * eps * si**2 / s1**2)
 
         return torch.tensor(epsilons)
+
+    @pytest.fixture()
+    def expected_betas(self, expected_times, noise_parameters):
+        betas = []
+        for i in range(noise_parameters.total_time_steps):
+            betas.append(1.0 / (noise_parameters.total_time_steps - i))
+        return torch.tensor(betas)
+
+    @pytest.fixture()
+    def expected_alphas(self, expected_betas):
+        alphas = [1 - expected_betas[0]]
+        for beta in expected_betas[1:]:
+            alphas.append(alphas[-1] * (1 - beta.item()))
+        return torch.tensor(alphas)
+
+    @pytest.fixture()
+    def expected_q_matrix(self, expected_betas, num_classes):
+        expected_qs = []
+        for beta in expected_betas:
+            q = torch.zeros(1, num_classes, num_classes)
+            for i in range(num_classes):
+                q[0, i, i] = 1 - beta.item()
+            q[0, :-1, -1] = beta.item()
+            q[0, -1, -1] = 1
+            expected_qs.append(q)
+        return torch.concatenate(expected_qs, dim=0)
+
+    @pytest.fixture()
+    def expected_q_bar_matrix(self, expected_q_matrix):
+        expected_qbars = [expected_q_matrix[0]]
+        for qmat in expected_q_matrix[1:]:
+            expected_qbars.append(
+                einops.einsum(expected_qbars[-1], qmat, "i j, j k -> i k")
+            )
+        return torch.stack(expected_qbars, dim=0)
 
     @pytest.fixture()
     def indices(self, time_sampler, shape):
@@ -101,9 +144,23 @@ class TestExplodingVarianceSampler:
         assert torch.all(random_indices >= 0)
         assert torch.all(random_indices < total_time_steps)
 
+    def test_create_beta_array(self, variance_sampler, expected_betas):
+        assert torch.allclose(variance_sampler._beta_array, expected_betas)
+
+    def test_create_alpha_bar_array(self, variance_sampler, expected_alphas):
+        assert torch.allclose(variance_sampler._alpha_bar_array, expected_alphas)
+
+    def test_create_q_matrix_array(self, variance_sampler, expected_q_matrix):
+        assert torch.allclose(variance_sampler._q_matrix_array, expected_q_matrix)
+
+    def test_create_q_bar_matrix_array(self, variance_sampler, expected_q_bar_matrix):
+        assert torch.allclose(
+            variance_sampler._q_bar_matrix_array, expected_q_bar_matrix
+        )
+
     @pytest.mark.parametrize("batch_size", [1, 10, 100])
     def test_get_random_noise_parameter_sample(
-        self, mocker, variance_sampler, batch_size
+        self, mocker, variance_sampler, batch_size, num_classes
     ):
         random_indices = variance_sampler._get_random_time_step_indices(shape=(1000,))
         mocker.patch.object(
@@ -121,12 +178,34 @@ class TestExplodingVarianceSampler:
         )
         expected_gs = variance_sampler._g_array.take(random_indices)
         expected_gs_squared = variance_sampler._g_squared_array.take(random_indices)
+        expected_betas = variance_sampler._beta_array.take(random_indices)
+        expected_alpha_bars = variance_sampler._alpha_bar_array.take(random_indices)
+        expected_q_matrices = variance_sampler._q_matrix_array.index_select(
+            dim=0, index=random_indices
+        )
+        expected_q_bar_matrices = variance_sampler._q_bar_matrix_array.index_select(
+            dim=0, index=random_indices
+        )
+        expected_q_bar_tm1_matrices = torch.where(
+            random_indices.view(-1, 1, 1) == 0,
+            torch.eye(num_classes).unsqueeze(0),  # replace t=0 with identity matrix
+            variance_sampler._q_bar_matrix_array.index_select(
+                dim=0, index=(random_indices - 1).clip(min=0)
+            ),
+        )
 
         torch.testing.assert_close(noise_sample.time, expected_times)
         torch.testing.assert_close(noise_sample.sigma, expected_sigmas)
         torch.testing.assert_close(noise_sample.sigma_squared, expected_sigmas_squared)
         torch.testing.assert_close(noise_sample.g, expected_gs)
         torch.testing.assert_close(noise_sample.g_squared, expected_gs_squared)
+        torch.testing.assert_close(noise_sample.beta, expected_betas)
+        torch.testing.assert_close(noise_sample.alpha_bar, expected_alpha_bars)
+        torch.testing.assert_close(noise_sample.q_matrix, expected_q_matrices)
+        torch.testing.assert_close(noise_sample.q_bar_matrix, expected_q_bar_matrices)
+        torch.testing.assert_close(
+            noise_sample.q_bar_tm1_matrix, expected_q_bar_tm1_matrices
+        )
 
     def test_get_all_sampling_parameters(self, variance_sampler):
         noise, langevin_dynamics = variance_sampler.get_all_sampling_parameters()
@@ -143,4 +222,14 @@ class TestExplodingVarianceSampler:
         )
         torch.testing.assert_close(
             langevin_dynamics.sqrt_2_epsilon, variance_sampler._sqrt_two_epsilon_array
+        )
+
+        torch.testing.assert_close(noise.beta, variance_sampler._beta_array)
+        torch.testing.assert_close(noise.alpha_bar, variance_sampler._alpha_bar_array)
+        torch.testing.assert_close(noise.q_matrix, variance_sampler._q_matrix_array)
+        torch.testing.assert_close(
+            noise.q_bar_matrix, variance_sampler._q_bar_matrix_array
+        )
+        torch.testing.assert_close(
+            noise.q_bar_tm1_matrix[1:], variance_sampler._q_bar_matrix_array[:-1]
         )

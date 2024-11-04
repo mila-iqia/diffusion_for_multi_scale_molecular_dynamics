@@ -5,6 +5,8 @@ throughout the code base. Confusion and errors are reduced by having one and onl
 represent these concepts.
 """
 
+from collections import namedtuple
+
 #  r^alpha <-  cartesian position, alpha \in (x,y,z)
 # x_i <- relative coordinates i \in (1,2,3)
 #
@@ -23,3 +25,12 @@ NOISY_CARTESIAN_POSITIONS = (
 TIME = "time"  # diffusion time
 NOISE = "noise_parameter"  # the exploding variance sigma parameter
 UNIT_CELL = "unit_cell"  # unit cell definition
+
+ATOM_TYPES = "atom_types"
+NOISY_ATOM_TYPES = "noisy_atom_types"
+
+AXL = namedtuple("AXL", ["A", "X", "L"])
+AXL_NAME_DICT = {"A": ATOM_TYPES, "X": RELATIVE_COORDINATES, "L": UNIT_CELL}
+
+NOISY_AXL_COMPOSITION = "noisy_axl"
+AXL_COMPOSITION = "original_axl"

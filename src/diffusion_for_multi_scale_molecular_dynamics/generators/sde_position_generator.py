@@ -6,17 +6,32 @@ import torch
 import torchsde
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
-    ScoreNetwork
+    PositionGenerator,
+    SamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
+    ScoreNetwork,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
-from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
-    SDESampleTrajectory
+    AXL,
+    CARTESIAN_FORCES,
+    NOISE,
+    NOISY_AXL_COMPOSITION,
+    TIME,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import (
+    VarianceScheduler,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
+    SDESampleTrajectory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,33 +88,13 @@ class SDE(torch.nn.Module):
         super().__init__()
         self.sde_type = sampling_parameters.sde_type
         self.noise_parameters = noise_parameters
+        self.exploding_variance = VarianceScheduler(noise_parameters)
         self.sigma_normalized_score_network = sigma_normalized_score_network
         self.unit_cells = unit_cells
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.spatial_dimension = sampling_parameters.spatial_dimension
         self.initial_diffusion_time = initial_diffusion_time
         self.final_diffusion_time = final_diffusion_time
-
-    def _get_exploding_variance_sigma(
-        self, diffusion_time: torch.Tensor
-    ) -> torch.Tensor:
-        """Get Exploding Variance Sigma.
-
-        In the 'exploding variance' scheme, the noise is defined by
-
-            sigma(t) = sigma_min^{1- t} x sigma_max^{t}
-
-        Args:
-            diffusion_time : diffusion time
-
-        Returns:
-            sigma: value of the noise parameter.
-        """
-        sigma = (
-            self.noise_parameters.sigma_min ** (1.0 - diffusion_time)
-            * self.noise_parameters.sigma_max**diffusion_time
-        )
-        return sigma
 
     def _get_diffusion_coefficient_g_squared(
         self, diffusion_time: torch.Tensor
@@ -115,13 +110,7 @@ class SDE(torch.nn.Module):
         Returns:
             coefficient_g : the coefficient g(t)
         """
-        s_min = torch.tensor(self.noise_parameters.sigma_min)
-        ratio = torch.tensor(
-            self.noise_parameters.sigma_max / self.noise_parameters.sigma_min
-        )
-
-        g_squared = 2.0 * (s_min * ratio**diffusion_time) ** 2 * torch.log(ratio)
-        return g_squared
+        return self.exploding_variance.get_g_squared(diffusion_time)
 
     def _get_diffusion_time(self, sde_time: torch.Tensor) -> torch.Tensor:
         """Get diffusion time.
@@ -157,7 +146,7 @@ class SDE(torch.nn.Module):
         )
 
         g_squared = self._get_diffusion_coefficient_g_squared(diffusion_time)
-        sigma = self._get_exploding_variance_sigma(diffusion_time)
+        sigma = self.exploding_variance.get_sigma(diffusion_time)
         # Careful! The prefactor must account for the following facts:
         #   -  the SDE time is NEGATIVE the diffusion time; this introduces a minus sign dt_{diff} = -dt_{sde}
         #   -  what our model calculates is the NORMALIZED score (ie, Score x sigma). We must thus divide by sigma.
@@ -183,7 +172,7 @@ class SDE(torch.nn.Module):
                 Dimension [batch_size, natoms, spatial_dimensions]
         """
         batch_size = flat_relative_coordinates.shape[0]
-        sigma = self._get_exploding_variance_sigma(diffusion_time)
+        sigma = self.exploding_variance.get_sigma(diffusion_time)
         sigmas = einops.repeat(sigma.unsqueeze(0), "1 -> batch 1", batch=batch_size)
         times = einops.repeat(
             diffusion_time.unsqueeze(0), "1 -> batch 1", batch=batch_size
@@ -195,9 +184,15 @@ class SDE(torch.nn.Module):
             natom=self.number_of_atoms,
             space=self.spatial_dimension,
         )
+        atom_types = torch.zeros_like(
+            relative_coordinates[:, :, 0]
+        ).long()  # TODO placeholder
+
         batch = {
-            NOISY_RELATIVE_COORDINATES: map_relative_coordinates_to_unit_cell(
-                relative_coordinates
+            NOISY_AXL_COMPOSITION: AXL(
+                A=atom_types,
+                X=map_relative_coordinates_to_unit_cell(relative_coordinates),
+                L=self.unit_cells,  # TODO
             ),
             NOISE: sigmas,
             TIME: times,
@@ -206,9 +201,9 @@ class SDE(torch.nn.Module):
                 relative_coordinates
             ),  # TODO: handle forces correctly.
         }
-        # Shape [batch_size, number of atoms, spatial dimension]
+        # Shape for the coordinates scores [batch_size, number of atoms, spatial dimension]
         sigma_normalized_scores = self.sigma_normalized_score_network(batch)
-        return sigma_normalized_scores
+        return sigma_normalized_scores.X
 
     def g(self, sde_time, y):
         """Diffusion function."""
@@ -362,7 +357,7 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
             sde_times.flip(dims=(0,)), ys.flip(dims=(0,))
         ):
             diffusion_time = sde._get_diffusion_time(sde_time)
-            sigma = sde._get_exploding_variance_sigma(diffusion_time)
+            sigma = sde.exploding_variance.get_sigma(diffusion_time)
             sigmas.append(sigma)
             evaluation_times.append(diffusion_time)
 

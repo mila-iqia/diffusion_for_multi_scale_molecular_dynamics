@@ -7,13 +7,23 @@ from mace.modules import gate_dict, interaction_classes
 from mace.tools.torch_geometric.dataloader import Collater
 
 from diffusion_for_multi_scale_molecular_dynamics.models.diffusion_mace import (
-    DiffusionMACE, input_to_diffusion_mace)
+    DiffusionMACE,
+    input_to_diffusion_mace,
+)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork, ScoreNetworkParameters)
+    ScoreNetwork,
+    ScoreNetworkParameters,
+)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISY_CARTESIAN_POSITIONS, NOISY_RELATIVE_COORDINATES, UNIT_CELL)
+    AXL,
+    NOISY_AXL_COMPOSITION,
+    NOISY_CARTESIAN_POSITIONS,
+    UNIT_CELL,
+)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates, get_reciprocal_basis_vectors)
+    get_positions_from_coordinates,
+    get_reciprocal_basis_vectors,
+)
 
 
 @dataclass(kw_only=True)
@@ -22,7 +32,6 @@ class DiffusionMACEScoreNetworkParameters(ScoreNetworkParameters):
 
     architecture: str = "diffusion_mace"
     number_of_atoms: int  # the number of atoms in a configuration.
-    number_of_elements: int = 1  # The number of distinct elements present
     r_max: float = 5.0
     num_bessel: int = 8
     num_polynomial_cutoff: int = 5
@@ -76,6 +85,8 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         self.r_max = hyper_params.r_max
         self.collate_fn = Collater(follow_batch=[None], exclude_keys=[None])
 
+        # we removed atomic_numbers from the mace_config which breaks the compatibility with pre-trained MACE
+        # this is necessary for the diffusion with masked atoms
         diffusion_mace_config = dict(
             r_max=hyper_params.r_max,
             num_bessel=hyper_params.num_bessel,
@@ -88,12 +99,12 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
                 hyper_params.interaction_cls_first
             ],
             num_interactions=hyper_params.num_interactions,
-            num_elements=hyper_params.number_of_elements,
+            num_classes=hyper_params.num_atom_types
+            + 1,  # we need the model to work with the MASK token as well
             hidden_irreps=o3.Irreps(hyper_params.hidden_irreps),
             mlp_irreps=o3.Irreps(hyper_params.mlp_irreps),
             number_of_mlp_layers=hyper_params.number_of_mlp_layers,
             avg_num_neighbors=hyper_params.avg_num_neighbors,
-            atomic_numbers=[14],  # TODO: revisit this when we have multi-atom types
             correlation=hyper_params.correlation,
             gate=gate_dict[hyper_params.gate],
             radial_MLP=hyper_params.radial_MLP,
@@ -104,20 +115,19 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         )
 
         self._natoms = hyper_params.number_of_atoms
-        self._number_of_elements = hyper_params.number_of_elements
 
         self.diffusion_mace_network = DiffusionMACE(**diffusion_mace_config)
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(DiffusionMACEScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[NOISY_RELATIVE_COORDINATES].shape[1]
+        number_of_atoms = batch[NOISY_AXL_COMPOSITION].X.shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Forward unchecked.
 
         This method assumes that the input data has already been checked with respect to expectations
@@ -129,18 +139,24 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
                 Defaults to False.
 
         Returns:
-            output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
+            output : the scores computed by the model as a AXL
+                coordinates: [batch_size, n_atom, spatial_dimension] tensor.
+                atom types: [batch_size, n_atom, num_atom_types + 1] tensor.
+                lattice: [batch_size, n_atom, spatial_dimension * (spatial_dimension -1)] tensor.
         """
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
-        basis_vectors = batch[UNIT_CELL]
+        basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L
         batch[NOISY_CARTESIAN_POSITIONS] = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
         )
-        graph_input = input_to_diffusion_mace(batch, radial_cutoff=self.r_max)
+        graph_input = input_to_diffusion_mace(
+            batch, radial_cutoff=self.r_max, num_classes=self.num_atom_types + 1
+        )
 
-        flat_cartesian_scores = self.diffusion_mace_network(graph_input, conditional)
+        mace_axl_scores = self.diffusion_mace_network(graph_input, conditional)
+        flat_cartesian_scores = mace_axl_scores.X
         cartesian_scores = flat_cartesian_scores.reshape(
             batch_size, number_of_atoms, spatial_dimension
         )
@@ -148,6 +164,18 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         reciprocal_basis_vectors_as_columns = get_reciprocal_basis_vectors(
             basis_vectors
         )
-        scores = torch.bmm(cartesian_scores, reciprocal_basis_vectors_as_columns)
+        coordinates_scores = torch.bmm(
+            cartesian_scores, reciprocal_basis_vectors_as_columns
+        )
 
-        return scores
+        atom_types_scores = mace_axl_scores.A.reshape(
+            batch_size, number_of_atoms, self.num_atom_types + 1
+        )
+
+        axl_scores = AXL(
+            A=atom_types_scores,
+            X=coordinates_scores,
+            L=torch.zeros_like(atom_types_scores),
+        )
+
+        return axl_scores

@@ -7,7 +7,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.graph_utils import \
     get_adj_matrix
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 
 
@@ -64,7 +64,7 @@ def get_interatomic_distances(
     Returns:
         distances : all distances up to cutoff.
     """
-    shifted_adjacency_matrix, shifts, batch_indices = get_adj_matrix(
+    shifted_adjacency_matrix, shifts, _, _ = get_adj_matrix(
         positions=cartesian_positions,
         basis_vectors=basis_vectors,
         radial_cutoff=radial_cutoff,

@@ -14,7 +14,10 @@ import torch
 from torch import nn
 
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
-    unsorted_segment_mean, unsorted_segment_sum)
+    unsorted_segment_mean,
+    unsorted_segment_sum,
+)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 
 class E_GCL(nn.Module):
@@ -269,6 +272,7 @@ class EGNN(nn.Module):
     def __init__(
         self,
         input_size: int,
+        num_classes: int,
         message_n_hidden_dimensions: int,
         message_hidden_dimensions_size: int,
         node_n_hidden_dimensions: int,
@@ -288,6 +292,7 @@ class EGNN(nn.Module):
 
         Args:
             input_size: number of node features in the input
+            num_classes: number of atom types uses for the final node embedding - including the MASK class.
             message_n_hidden_dimensions: number of hidden layers of the message (edge) MLP
             message_hidden_dimensions_size: size of the hidden layers of the message (edge) MLP
             node_n_hidden_dimensions: number of hidden layers of the node update MLP
@@ -308,6 +313,9 @@ class EGNN(nn.Module):
         self.n_layers = n_layers
         self.embedding_in = nn.Linear(input_size, node_hidden_dimensions_size)
         self.graph_layers = nn.ModuleList([])
+        self.node_classification_layer = nn.Linear(
+            node_hidden_dimensions_size, num_classes
+        )
         for _ in range(0, n_layers):
             self.graph_layers.append(
                 E_GCL(
@@ -329,9 +337,7 @@ class EGNN(nn.Module):
                 )
             )
 
-    def forward(
-        self, h: torch.Tensor, edges: torch.Tensor, x: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, h: torch.Tensor, edges: torch.Tensor, x: torch.Tensor) -> AXL:
         """Forward instructions for the model.
 
         Args:
@@ -340,9 +346,18 @@ class EGNN(nn.Module):
             x: node coordinates. size is number of nodes, spatial dimension
 
         Returns:
-            estimated score. size is number of nodes, spatial dimension
+            estimated score in an AXL namedtuple.
+                coordinates: size is number of nodes, spatial dimension
+                atom types: number of nodes, number of atomic species + 1 (for MASK)
+                lattice: number of nodes, spatial dimension * (spatial dimension - 1) TODO
         """
         h = self.embedding_in(h)
         for graph_layer in self.graph_layers:
             h, x = graph_layer(h, edges, x)
-        return x
+        node_classification_logits = self.node_classification_layer(h)
+        model_outputs = AXL(
+            A=node_classification_logits,
+            X=x,
+            L=torch.zeros_like(x),
+        )
+        return model_outputs

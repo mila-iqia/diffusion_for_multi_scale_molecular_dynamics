@@ -3,13 +3,20 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_POSITIONS, RELATIVE_COORDINATES, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    get_positions_from_coordinates
+    CARTESIAN_POSITIONS,
+    RELATIVE_COORDINATES,
+    UNIT_CELL,
+)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    get_positions_from_coordinates,
+)
 from src.diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
-from src.diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
-    create_batch_of_samples
+    PositionGenerator,
+    SamplingParameters,
+)
+from src.diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import (
+    create_batch_of_samples,
+)
 
 
 class DummyGenerator(PositionGenerator):
@@ -25,7 +32,7 @@ class DummyGenerator(PositionGenerator):
     ) -> torch.Tensor:
         self._counter += number_of_samples
         return self._relative_coordinates[
-            self._counter - number_of_samples: self._counter
+            self._counter - number_of_samples : self._counter
         ]
 
 
@@ -50,6 +57,11 @@ def spatial_dimensions():
 
 
 @pytest.fixture
+def num_atom_types():
+    return 4
+
+
+@pytest.fixture
 def relative_coordinates(number_of_samples, number_of_atoms, spatial_dimensions):
     return torch.rand(number_of_samples, number_of_atoms, spatial_dimensions)
 
@@ -66,7 +78,11 @@ def generator(relative_coordinates):
 
 @pytest.fixture
 def sampling_parameters(
-    spatial_dimensions, number_of_atoms, number_of_samples, cell_dimensions
+    spatial_dimensions,
+    number_of_atoms,
+    number_of_samples,
+    cell_dimensions,
+    num_atom_types,
 ):
     return SamplingParameters(
         algorithm="dummy",
@@ -75,6 +91,7 @@ def sampling_parameters(
         number_of_samples=number_of_samples,
         sample_batchsize=2,
         cell_dimensions=cell_dimensions,
+        num_atom_types=num_atom_types,
     )
 
 

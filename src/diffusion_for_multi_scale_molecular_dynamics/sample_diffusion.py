@@ -12,26 +12,37 @@ from typing import Any, AnyStr, Dict, Optional, Union
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
-    instantiate_generator
-from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
-    load_sampling_parameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
-    SamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.main_utils import \
-    load_and_backup_hyperparameters
-from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
-    PositionDiffusionLightningModel
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
-    ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
-    compute_oracle_energies
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
-    create_batch_of_samples
+from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import (
+    instantiate_generator,
+)
+from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import (
+    load_sampling_parameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
+    SamplingParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.main_utils import (
+    load_and_backup_hyperparameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
+    AXLDiffusionLightningModel,
+)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
+    ScoreNetwork,
+)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
+    NoiseParameters,
+)
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import (
+    compute_oracle_energies,
+)
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import (
+    create_batch_of_samples,
+)
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
-    get_git_hash, setup_console_logger)
+    get_git_hash,
+    setup_console_logger,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +142,7 @@ def get_sigma_normalized_score_network(
         sigma_normalized score network: read from the checkpoint.
     """
     logger.info("Loading checkpoint...")
-    pl_model = PositionDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
+    pl_model = AXLDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
     pl_model.eval()
 
     sigma_normalized_score_network = pl_model.sigma_normalized_score_network

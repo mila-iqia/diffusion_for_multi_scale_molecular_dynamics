@@ -11,15 +11,14 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevi
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
 from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
     create_structure
-from experiments.analysis.analytic_score import (get_samples_harmonic_energy,
-                                                 get_silicon_supercell,
-                                                 get_unit_cells)
+from experiments.analysis.analytic_score.utils import (
+    get_samples_harmonic_energy, get_silicon_supercell, get_unit_cells)
 
 logger = logging.getLogger(__name__)
 setup_analysis_logger()
