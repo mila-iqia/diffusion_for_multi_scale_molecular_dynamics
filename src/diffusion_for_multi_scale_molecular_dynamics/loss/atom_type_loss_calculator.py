@@ -3,8 +3,6 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     LossParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    compute_q_at_given_a0, compute_q_at_given_atm1)
 
 
 class D3PMLossCalculator(torch.nn.Module):
@@ -37,70 +35,138 @@ class D3PMLossCalculator(torch.nn.Module):
         We are ignoring the t=1 case here as we will use a NLL loss instead.
 
         Args:
-            predicted_logits: output of the score network estimating an unnormalized
-                :math:`p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_type_atoms] where num_type_atoms
-                includes the MASK token  TODO check if we should have num_type_atoms
+            predicted_logits: output of the score network estimating class logits
+                :math:`p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_classes] where num_classes
+                includes the MASK token
             one_hot_real_atom_types: real atom types :math:`a_0` in one-hot format of dimension
-                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]
+                [batch_size, number_of_atoms, num_type_atoms, num_classes]
             one_hot_noisy_atom_types: noisy atom types :math:`a_t` in one-hot format of dimension
-                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]
+                [batch_size, number_of_atoms, num_type_atoms, num_classes]
             q_matrices: one-step transition matrices :math:`Q_t` of dimension
-                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]
+                [batch_size, number_of_atoms, num_type_atoms, num_classes]
             q_bar_matrices: one-shot transition matrices :math:`\bar{Q}_t` of dimension
-                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]
+                [batch_size, number_of_atoms, num_type_atoms, num_classes]
             q_bar_tm1_matrices: one-shot transition matrices at previous step :math:`\bar{Q}_{t-1}` of dimension
-                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]. An identity matrix is used for t=0.
+                [batch_size, number_of_atoms, num_type_atoms, num_classes]. An identity matrix is used for t=0.
 
         Returns:
-            torch.Tensor: unreduced KL loss of dimension [batch_size, number_of_atoms, num_type_atoms]
+            torch.Tensor: unreduced KL loss of dimension [batch_size, number_of_atoms, num_classes]
         """
-        # start by computing q(a_{t−1}|at, a0) = q(a_t | a_{t-1}, a_0) q(a_{t-1} | a_0) / q(a_t | a_0)
-        # q(a_t | a_{t-1}, a0) = q(a_t | a_{t-1}) = a_t Q_t^T  - beware  the transpose here
-        q_at_given_atm1 = compute_q_at_given_atm1(one_hot_noisy_atom_types, q_matrices)
-        # dimension of q_at_bar_atm1 : batch_size, number_of_atoms, num_type_atoms
-        # q(a_{t-1} | a_0) = a_0 \bar{Q}_{t-1}
-        q_atm1_given_a0 = compute_q_at_given_a0(
-            one_hot_real_atom_types, q_bar_tm1_matrices
-        )
-        # dimension of q_atm1_bar_a0: batch_size, number_of_atoms, num_type_atoms
-        # q(a_t | a_0) = a_0 \bar{Q}_t a_t^T
-        q_at_given_a0 = compute_q_at_given_a0(one_hot_real_atom_types, q_bar_matrices)
-        at_probability = einops.einsum(
-            q_at_given_a0, one_hot_noisy_atom_types.float(), "... i , ... i -> ..."
-        )
+        # The posterior probabilities
+        q_atm1_given_at_and_a0 = self.get_q_atm1_given_at_and_a0(
+            one_hot_a0=one_hot_real_atom_types,
+            one_hot_at=one_hot_noisy_atom_types,
+            q_matrices=q_matrices,
+            q_bar_matrices=q_bar_matrices,
+            q_bar_tm1_matrices=q_bar_tm1_matrices,
+            small_epsilon=self.eps)
 
-        # dimension of at_probability: batch_size, number_of_atoms
-        posterior_q = (
-            q_at_given_atm1
-            * q_atm1_given_a0
-            / at_probability.unsqueeze(-1).clip(min=self.eps)
-        )  # clip at eps
-        # the unsqueeze in the denominator is to allow a broadcasting
-        # posterior q has dimension: batch_size, number_of_atoms, num_type_atoms
+        # The predicted probabilities
+        p_atm1_given_at = self.get_p_atm1_given_at(
+            predicted_logits=predicted_logits,
+            one_hot_at=one_hot_noisy_atom_types,
+            q_matrices=q_matrices,
+            q_bar_matrices=q_bar_matrices,
+            q_bar_tm1_matrices=q_bar_tm1_matrices,
+            small_epsilon=self.eps)
 
-        # we now need to compute p_\theta(a_{t-1} | a_t) using
-        # p_\theta(a_{t-1} | a_t) \propto \sum_{\tilde{a}_0} q(a_{t-1}, a_t | \tilde{a}_0)p_\theta(\tilde{a}_0, a_t)
-        # \propto \sum_{\tilde{a}_0} a_t Q_t^T \circ \tilde{a}_0 \bar{Q}_{t-1} \circ p_\theta(\tilde{a}_0 | a_t)
-        # this is equivalent to doing a_t Q_t^T \circ \bar{Q}_{t-1} p_\theta(a_t)
-        # with a matrix multiplication in the last step
-        # we add a softmax to convert the predictions to normalized probabilities
-        p_atm1_at = self.get_p_atm1_at(
-            predicted_logits, q_at_given_atm1, q_bar_tm1_matrices
-        )
-
-        # get the KL divergence between posterior and predicted prob
+        # get the KL divergence between posterior and predicted probabilities
         # do not reduce (average) yet as we will replace the samples with t=1 with a NLL loss
-        # input of kl_div should be log-probabilities - we add eps to avoid log(0)
+        # input of kl_div should be log-probabilities.
+        log_p = torch.log(p_atm1_given_at.clip(min=self.eps))
         kl_loss = torch.nn.functional.kl_div(
-            torch.log(p_atm1_at + self.eps), posterior_q, reduction="none"
+            log_p, q_atm1_given_at_and_a0, reduction="none"
         )
         return kl_loss
 
-    @staticmethod
-    def get_p_atm1_at(
-        predicted_logits: torch.Tensor,
-        q_at_bar_atm1: torch.Tensor,
+    @classmethod
+    def _get_probability_atm1_given_at_and_a0_like(
+        cls,
+        one_hot_a0_like: torch.Tensor,
+        one_hot_at: torch.Tensor,
+        q_matrices: torch.Tensor,
+        q_bar_matrices: torch.Tensor,
         q_bar_tm1_matrices: torch.Tensor,
+        small_epsilon: float,
+    ) -> torch.Tensor:
+        r"""Compute P(a_{t-1} | a_t, a0_like), for given a0_like.
+
+        .. math::
+            P(a_{t-1} | a_t, a0_like) = (a0_like^T \cdot \bar{Q}_{t-1} \cdot a_{t-1}) (a_{t-1}^T \cdot Q_t \cdot a_t) /
+                                            (a0_like^T \cdot \bar{Q}_{t} \cdot a_t)
+
+        Args:
+            one_hot_a0_like: a one-hot representation of a class type, as a tensor with dimension
+                [batch_size, number_of_atoms, num_classes]
+            one_hot_at: a one-hot representation of a class type at current time step, as a tensor with dimension
+                [batch_size, number_of_atoms, num_classes]
+             q_matrices: transition matrices at current time step :math:`{Q}_{t}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            q_bar_matrices: one-shot transition matrices at current time step :math:`\bar{Q}_{t}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            q_bar_tm1_matrices: one-shot transition matrices at previous time step :math:`\bar{Q}_{t-1}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            small_epsilon: minimum value for the denominator, to avoid division by zero.
+
+        Returns:
+            one-step transition normalized probabilities of dimension [batch_size, number_of_atoms, num_type_atoms]
+        """
+        numerator1 = einops.einsum(one_hot_a0_like, q_bar_tm1_matrices, "... j, ... j i -> ... i")
+        numerator2 = einops.einsum(q_matrices, one_hot_at, "... i j, ... j -> ... i")
+        numerator = numerator1 * numerator2
+
+        den1 = einops.einsum(q_bar_matrices, one_hot_at, "... i j, ... j -> ... i")
+        den2 = einops.einsum(one_hot_a0_like, den1, "... j, ... j -> ...").clip(min=small_epsilon)
+
+        denominator = einops.repeat(den2, "... -> ... num_classes", num_classes=numerator.shape[-1])
+
+        return numerator / denominator
+
+    @classmethod
+    def get_q_atm1_given_at_and_a0(
+        cls,
+        one_hot_a0: torch.Tensor,
+        one_hot_at: torch.Tensor,
+        q_matrices: torch.Tensor,
+        q_bar_matrices: torch.Tensor,
+        q_bar_tm1_matrices: torch.Tensor,
+        small_epsilon: float,
+    ) -> torch.Tensor:
+        r"""Compute q(a_{t-1} | a_t, a_0).
+
+        Args:
+            one_hot_a0: a one-hot representation of a class type at time step zero, as a tensor with dimension
+                [batch_size, number_of_atoms, num_classes]
+            one_hot_at: a one-hot representation of a class type at current time step, as a tensor with dimension
+                [batch_size, number_of_atoms, num_classes]
+             q_matrices: transition matrices at current time step :math:`{Q}_{t}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            q_bar_matrices: one-shot transition matrices at current time step :math:`\bar{Q}_{t}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            q_bar_tm1_matrices: one-shot transition matrices at previous time step :math:`\bar{Q}_{t-1}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            small_epsilon: minimum value for the denominator, to avoid division by zero.
+
+        Returns:
+            probabilities over classes,  of dimension [batch_size, num_classes, num_classes]
+        """
+        q_atm1_given_at_and_0 = cls._get_probability_atm1_given_at_and_a0_like(one_hot_a0,
+                                                                               one_hot_at,
+                                                                               q_matrices,
+                                                                               q_bar_matrices,
+                                                                               q_bar_tm1_matrices,
+                                                                               small_epsilon)
+        return q_atm1_given_at_and_0
+
+    @classmethod
+    def get_p_atm1_given_at(
+        cls,
+        predicted_logits: torch.Tensor,
+        one_hot_at: torch.Tensor,
+        q_matrices: torch.Tensor,
+        q_bar_matrices: torch.Tensor,
+        q_bar_tm1_matrices: torch.Tensor,
+        small_epsilon: float
     ) -> torch.Tensor:
         r"""Compute p(a_{t-1} | a_t).
 
@@ -111,19 +177,27 @@ class D3PMLossCalculator(torch.nn.Module):
             predicted_logits: output of the score network estimating an unnormalized
                 :math:`p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_type_atoms] where num_type_atoms
                 includes the MASK token
-            q_at_bar_atm1: conditional posterior :math: `q(a_t | a_{t-1}, a0)` as a tensor with dimension
-                [batch_size, number_of_atoms, num_type_atoms]
-            q_bar_tm1_matrices: one-shot transition matrices at previous step :math:`\bar{Q}_{t-1}` of dimension
-                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]. An identity matrix is used for t=0.
+            one_hot_at: a one-hot representation of a class type at current time step, as a tensor with dimension
+                [batch_size, number_of_atoms, num_classes]
+             q_matrices: transition matrices at current time step :math:`{Q}_{t}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            q_bar_matrices: one-shot transition matrices at current time step :math:`\bar{Q}_{t}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            q_bar_tm1_matrices: one-shot transition matrices at previous time step :math:`\bar{Q}_{t-1}` of dimension
+                [batch_size, number_of_atoms, num_classes, num_classes].
+            small_epsilon: minimum value for the denominator, to avoid division by zero.
 
         Returns:
-            one-step transition normalized probabilities of dimension [batch_size, number_of_atoms, num_type_atoms]
+            one-step transition normalized probabilities of dimension [batch_size, num_classes, num_classes]
         """
-        p_atm1_at = q_at_bar_atm1 * einops.einsum(
-            q_bar_tm1_matrices,
-            torch.nn.functional.softmax(predicted_logits, dim=-1),
-            "... j i, ... j -> ... i",
-        )  # TODO revisit this
+        predicted_p_a0_given_at = torch.nn.functional.softmax(predicted_logits, dim=-1)
+        p_atm1_at = cls._get_probability_atm1_given_at_and_a0_like(predicted_p_a0_given_at,
+                                                                   one_hot_at,
+                                                                   q_matrices,
+                                                                   q_bar_matrices,
+                                                                   q_bar_tm1_matrices,
+                                                                   small_epsilon)
+
         return p_atm1_at
 
     def calculate_unreduced_loss(
@@ -147,13 +221,12 @@ class D3PMLossCalculator(torch.nn.Module):
                     - E_{a_1 ~ p_{t=1| 0}} log p_\theta(a_0 | a_1)]
 
         Args:
-            predicted_logits: output of the score network estimating an unnormalized
-                :math:`p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_type_atoms] where num_type_atoms
-                includes the MASK token  # TODO revisit the output size and the name num_type_atoms vs num_classes
-            one_hot_real_atom_types: real atom types :math:`a_0` as one-hot vectors of dimension
-                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]
-            one_hot_noisy_atom_types: noisy atom types :math:`a_t` as one-hot vectors of dimension
-                [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]
+            predicted_logits: output of the score network logits for :math:`p(a_0 | a_t)`
+                of dimension [batch_size, number_of_atoms, num_classes] where num_classes includes the MASK token.
+            one_hot_real_atom_types: real atom types :math:`a_0` as one-hot vectors
+                of dimension [batch_size, number_of_atoms, num_type_atoms]
+            one_hot_noisy_atom_types: noisy atom types :math:`a_t` as one-hot vectors
+                of dimension [batch_size, number_of_atoms, num_type_atoms]
             time_indices: time indices sampled of dimension [batch_size]
             q_matrices: one-step transition matrices :math:`Q_t` of dimension
                 [batch_size, number_of_atoms, num_type_atoms, num_type_atoms]
