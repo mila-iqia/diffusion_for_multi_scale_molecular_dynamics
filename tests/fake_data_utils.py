@@ -7,11 +7,7 @@ import torch
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
-    CARTESIAN_FORCES,
-    CARTESIAN_POSITIONS,
-    RELATIVE_COORDINATES,
-)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
 
 Configuration = namedtuple(
     "Configuration",

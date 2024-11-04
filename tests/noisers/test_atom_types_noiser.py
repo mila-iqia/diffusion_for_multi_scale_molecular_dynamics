@@ -2,9 +2,8 @@ import einops
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import (
-    AtomTypesNoiser,
-)
+from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
+    AtomTypesNoiser
 
 
 @pytest.mark.parametrize("shape", [(10, 1), (4, 5, 3), (2, 2, 2, 2)])

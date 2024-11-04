@@ -3,8 +3,7 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
     broadcast_batch_matrix_tensor_to_all_dimensions,
-    broadcast_batch_tensor_to_all_dimensions,
-)
+    broadcast_batch_tensor_to_all_dimensions)
 
 
 @pytest.fixture(scope="module", autouse=True)

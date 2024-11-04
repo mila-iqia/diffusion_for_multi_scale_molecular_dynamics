@@ -7,10 +7,12 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
+from diffusion_for_multi_scale_molecular_dynamics.loss import \
+    create_loss_calculator
+from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
+    LossParameters
 from diffusion_for_multi_scale_molecular_dynamics.metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
-    LossParameters, create_loss_calculator)
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
     OptimizerParameters, load_optimizer)
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (

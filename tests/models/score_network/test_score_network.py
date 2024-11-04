@@ -8,43 +8,24 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusion_mace_score_network import (
-    DiffusionMACEScoreNetwork,
-    DiffusionMACEScoreNetworkParameters,
-)
+    DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import (
-    EGNNScoreNetwork,
-    EGNNScoreNetworkParameters,
-)
+    EGNNScoreNetwork, EGNNScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mace_score_network import (
-    MACEScoreNetwork,
-    MACEScoreNetworkParameters,
-)
+    MACEScoreNetwork, MACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
-    MLPScoreNetwork,
-    MLPScoreNetworkParameters,
-)
+    MLPScoreNetwork, MLPScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork,
-    ScoreNetworkParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import (
-    create_score_network_parameters,
-)
+    ScoreNetwork, ScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
+    create_score_network_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
-    MaceMLPScorePredictionHeadParameters,
-)
+    MaceMLPScorePredictionHeadParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    CARTESIAN_FORCES,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-    TIME,
-    UNIT_CELL,
-)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    map_relative_coordinates_to_unit_cell,
-)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
 
 
 def assert_parameters_are_the_same(parameters1: dataclass, parameters2: dataclass):

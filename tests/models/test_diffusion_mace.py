@@ -4,25 +4,14 @@ from e3nn import o3
 from mace.modules import gate_dict, interaction_classes
 
 from diffusion_for_multi_scale_molecular_dynamics.models.diffusion_mace import (
-    DiffusionMACE,
-    LinearVectorReadoutBlock,
-    input_to_diffusion_mace,
-)
+    DiffusionMACE, LinearVectorReadoutBlock, input_to_diffusion_mace)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    CARTESIAN_FORCES,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-    NOISY_CARTESIAN_POSITIONS,
-    TIME,
-    UNIT_CELL,
-)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION,
+    NOISY_CARTESIAN_POSITIONS, TIME, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates,
-    get_reciprocal_basis_vectors,
+    get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,
-    map_relative_coordinates_to_unit_cell,
-)
+    map_relative_coordinates_to_unit_cell)
 
 
 def test_linear_vector_readout_block():

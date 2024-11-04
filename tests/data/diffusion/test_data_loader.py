@@ -5,15 +5,9 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
-    LammpsForDiffusionDataModule,
-    LammpsLoaderParameters,
-)
+    LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
-    CARTESIAN_FORCES,
-    CARTESIAN_POSITIONS,
-    RELATIVE_COORDINATES,
-)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import Configuration, find_aligning_permutation
 
@@ -134,7 +128,7 @@ class TestDiffusionDataLoader(TestDiffusionDataBase):
 
         # Check that the padding uses nan for position
         assert torch.isnan(
-            padded_sample[CARTESIAN_POSITIONS][-(max_atom - 2) * 3 :]
+            padded_sample[CARTESIAN_POSITIONS][-(max_atom - 2) * 3:]
         ).all()
 
     @pytest.fixture

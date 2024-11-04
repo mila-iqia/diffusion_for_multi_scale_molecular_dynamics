@@ -2,15 +2,11 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
-    ExplodingVarianceODEPositionGenerator,
-    ODESamplingParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
-    NoiseParameters,
-)
-from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
-    NoiseScheduler,
-)
+    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    NoiseScheduler
 from tests.generators.conftest import BaseTestGenerator
 
 

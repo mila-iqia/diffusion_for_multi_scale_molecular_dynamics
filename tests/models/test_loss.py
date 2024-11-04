@@ -4,16 +4,14 @@ import einops
 import pytest
 import torch
 
-from src.diffusion_for_multi_scale_molecular_dynamics.models.loss import (
-    D3PMLossCalculator,
-    LossParameters,
-    MSELossParameters,
-    WeightedMSELossParameters,
-    create_loss_calculator,
-)
-from src.diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
-    broadcast_batch_tensor_to_all_dimensions,
-)
+from diffusion_for_multi_scale_molecular_dynamics.loss import \
+    create_loss_calculator
+from diffusion_for_multi_scale_molecular_dynamics.loss.atom_type_loss_calculator import \
+    D3PMLossCalculator
+from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import (
+    LossParameters, MSELossParameters, WeightedMSELossParameters)
+from src.diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
+    broadcast_batch_tensor_to_all_dimensions
 
 
 @pytest.fixture(scope="module", autouse=True)

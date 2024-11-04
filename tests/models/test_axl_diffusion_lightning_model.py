@@ -5,12 +5,12 @@ from torch.utils.data import DataLoader, random_split
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
+    create_loss_parameters
 from diffusion_for_multi_scale_molecular_dynamics.metrics.sampling_metrics_parameters import \
     SamplingMetricsParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
     AXLDiffusionLightningModel, AXLDiffusionParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import \
-    create_loss_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
     OptimizerParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
