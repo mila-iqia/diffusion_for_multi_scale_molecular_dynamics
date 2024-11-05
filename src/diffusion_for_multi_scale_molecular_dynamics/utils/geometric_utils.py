@@ -17,4 +17,4 @@ def get_cubic_point_group_symmetries():
         for sign_change in sign_changes:
             symmetries.append(permutation @ sign_change)
 
-    return symmetries
+    return torch.stack(symmetries)
