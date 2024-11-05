@@ -4,16 +4,12 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
-    ScoreNetwork,
-    ScoreNetworkParameters,
-)
+    ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    NOISY_AXL_COMPOSITION,
-)
+    AXL, NOISY_AXL_COMPOSITION)
 
 
-class FakeScoreNetwork(ScoreNetwork):
+class FakeAXLNetwork(ScoreNetwork):
     """A fake, smooth score network for the ODE solver."""
 
     def _forward_unchecked(
@@ -56,9 +52,11 @@ class BaseTestGenerator:
         return spatial_dimension * [unit_cell_size]
 
     @pytest.fixture()
-    def sigma_normalized_score_network(self, spatial_dimension, num_atom_types):
-        return FakeScoreNetwork(
+    def axl_network(self, spatial_dimension, num_atom_types):
+        return FakeAXLNetwork(
             ScoreNetworkParameters(
-                architecture="dummy", spatial_dimension=spatial_dimension, num_atom_types=num_atom_types
+                architecture="dummy",
+                spatial_dimension=spatial_dimension,
+                num_atom_types=num_atom_types,
             )
         )

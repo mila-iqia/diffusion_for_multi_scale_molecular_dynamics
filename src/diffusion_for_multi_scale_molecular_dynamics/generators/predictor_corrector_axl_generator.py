@@ -23,8 +23,8 @@ class PredictorCorrectorSamplingParameters(SamplingParameters):
 
 
 class PredictorCorrectorAXLGenerator(AXLGenerator):
-    """This defines the interface for predictor-corrector AXL (atom types, reduced coordinates and lattice) generators.
-    """
+    """This defines the interface for predictor-corrector AXL (atom types, reduced coordinates and lattice) generators."""
+
     def __init__(
         self,
         number_of_discretization_steps: int,
@@ -127,10 +127,10 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         Args:
             composition_i : sampled AXL composition (atom types, relative coordinates and lattice vectors) at step "i".
             i : index "i" OF THE PREDICTOR STEP.
-            unit_cell: sampled unit cell at time step i.
+            unit_cell: sampled unit cell at time step i.  # TODO replace with AXL-L
             cartesian_forces: forces conditioning the diffusion process
 
         Returns:
-            composition_i_out : sampled composition after the corrector step.
+            corrected_composition_i : sampled composition after the corrector step.
         """
         pass
