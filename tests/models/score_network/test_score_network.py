@@ -1,4 +1,3 @@
-import itertools
 from copy import deepcopy
 from dataclasses import asdict, dataclass, fields
 
@@ -26,6 +25,8 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.geometric_utils import \
+    get_cubic_point_group_symmetries
 
 
 def assert_parameters_are_the_same(parameters1: dataclass, parameters2: dataclass):
@@ -531,21 +532,7 @@ class TestEGNNScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture()
     def octahedral_point_group_symmetries(self):
-        permutations = [
-            torch.diag(torch.ones(3))[[idx]]
-            for idx in itertools.permutations([0, 1, 2])
-        ]
-        sign_changes = [
-            torch.diag(torch.tensor(diag))
-            for diag in itertools.product([-1.0, 1.0], repeat=3)
-        ]
-
-        symmetries = []
-        for permutation in permutations:
-            for sign_change in sign_changes:
-                symmetries.append(permutation @ sign_change)
-
-        return symmetries
+        return get_cubic_point_group_symmetries()
 
     @pytest.mark.parametrize(
         "edges, radial_cutoff", [("fully_connected", 3.0), ("radial_cutoff", None)]
