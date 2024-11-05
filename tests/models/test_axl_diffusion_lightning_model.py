@@ -18,7 +18,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, RELATIVE_COORDINATES)
+    ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_FORCES, RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
@@ -136,7 +136,12 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture()
     def sampling_parameters(
-        self, number_of_atoms, spatial_dimension, number_of_samples, cell_dimensions, num_atom_types
+        self,
+        number_of_atoms,
+        spatial_dimension,
+        number_of_samples,
+        cell_dimensions,
+        num_atom_types,
     ):
         sampling_parameters = PredictorCorrectorSamplingParameters(
             number_of_atoms=number_of_atoms,
@@ -309,8 +314,12 @@ class TestPositionDiffusionLightningModel:
         self, lightning_model, number_of_samples, number_of_atoms, spatial_dimension
     ):
         samples_batch = lightning_model.generate_samples()
-        assert samples_batch[RELATIVE_COORDINATES].shape == (
+        assert samples_batch[AXL_COMPOSITION].X.shape == (
             number_of_samples,
             number_of_atoms,
             spatial_dimension,
+        )
+        assert samples_batch[AXL_COMPOSITION].A.shape == (
+            number_of_samples,
+            number_of_atoms,
         )

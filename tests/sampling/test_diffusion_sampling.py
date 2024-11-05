@@ -2,24 +2,17 @@ import einops
 import pytest
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import (
+    AXLGenerator, SamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_POSITIONS,
-    RELATIVE_COORDINATES,
-    UNIT_CELL,
-)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates,
-)
-from src.diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator,
-    SamplingParameters,
-)
-from src.diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import (
-    create_batch_of_samples,
-)
+    CARTESIAN_POSITIONS, RELATIVE_COORDINATES, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    get_positions_from_coordinates
+from src.diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
+    create_batch_of_samples
 
 
-class DummyGenerator(PositionGenerator):
+class DummyGenerator(AXLGenerator):
     def __init__(self, relative_coordinates):
         self._relative_coordinates = relative_coordinates
         self._counter = 0
