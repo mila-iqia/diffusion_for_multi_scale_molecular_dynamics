@@ -2,8 +2,8 @@ import logging
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import (
+    AXLGenerator, SamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_POSITIONS, RELATIVE_COORDINATES, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_batch_of_samples(
-    generator: PositionGenerator,
+    generator: AXLGenerator,
     sampling_parameters: SamplingParameters,
     device: torch.device,
 ):
@@ -24,7 +24,7 @@ def create_batch_of_samples(
     Utility function to drive the generation of samples.
 
     Args:
-        generator : position generator.
+        generator : AXL generator.
         sampling_parameters : parameters defining how to sample.
         device: device where the generator is located.
 

@@ -3,7 +3,7 @@ import torch
 from pytorch_lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.metrics.sampling_metrics_parameters import \
     SamplingMetricsParameters

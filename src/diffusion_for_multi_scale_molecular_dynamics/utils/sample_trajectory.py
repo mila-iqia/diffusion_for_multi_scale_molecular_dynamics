@@ -233,9 +233,9 @@ class NoOpPredictorCorrectorSampleTrajectory(PredictorCorrectorSampleTrajectory)
         i_index: int,
         time: float,
         sigma: float,
-        x_i: torch.Tensor,
-        x_im1: torch.Tensor,
-        scores: torch.Tensor,
+        composition_i: AXL,
+        composition_im1: AXL,
+        model_predictions_i: AXL,
     ):
         """No Op."""
         return
@@ -245,9 +245,9 @@ class NoOpPredictorCorrectorSampleTrajectory(PredictorCorrectorSampleTrajectory)
         i_index: int,
         time: float,
         sigma: float,
-        x_i: torch.Tensor,
-        corrected_x_i: torch.Tensor,
-        scores: torch.Tensor,
+        composition_i: AXL,
+        corrected_composition_i: AXL,
+        model_predictions_i: AXL,
     ):
         """No Op."""
         return
