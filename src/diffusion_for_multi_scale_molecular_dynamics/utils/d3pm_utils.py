@@ -58,3 +58,12 @@ def compute_q_at_given_atm1(
         torch.transpose(q_tm1, -2, -1),
         "... j, ... i j -> ... i",
     )
+
+
+def compute_p_atm1_given_at(
+        predicted_logits: torch.Tensor,
+        q_matrices: torch.Tensor,
+        q_bar_matrices: torch.Tensor,
+        q_bar_tm1_matrices: torch.Tensor,
+) -> torch.Tensor:
+    return predicted_logits  # TODO placeholder

@@ -4,6 +4,8 @@ from typing import List, Optional
 
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+
 
 @dataclass(kw_only=True)
 class SamplingParameters:
@@ -21,19 +23,19 @@ class SamplingParameters:
     sample_batchsize: Optional[int] = None
     cell_dimensions: List[
         float
-    ]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.
+    ]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.  TODO replace with AXL-L
     record_samples: bool = (
         False  # should the predictor and corrector steps be recorded to a file
     )
 
 
-class PositionGenerator(ABC):
-    """This defines the interface for position generators."""
+class AXLGenerator(ABC):
+    """This defines the interface for AXL (atom types, reduced coordinates and lattice) generators."""
 
     @abstractmethod
     def sample(
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Sample.
 
         This method draws a position sample.
@@ -45,11 +47,11 @@ class PositionGenerator(ABC):
                 Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
-            samples: relative coordinates samples.
+            AXL samples: samples as AXL namedtuple with atom types, reduced coordinates and lattice vectors.
         """
         pass
 
     @abstractmethod
-    def initialize(self, number_of_samples: int):
+    def initialize(self, number_of_samples: int) -> AXL:
         """This method must initialize the samples from the fully noised distribution."""
         pass
