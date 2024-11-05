@@ -71,20 +71,14 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
             + f"Got {unit_cell.size()}"
         )  # TODO replace with AXL-L
 
-        composition_ip1 = map_axl_composition_to_unit_cell(
-            self.initialize(number_of_samples), device
-        )  # this is an AXL objet
+        composition_ip1 = self.initialize(number_of_samples, device)
 
         forces = torch.zeros_like(composition_ip1.X)
 
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
-            composition_i = map_axl_composition_to_unit_cell(
-                self.predictor_step(composition_ip1, i + 1, unit_cell, forces), device
-            )
+            composition_i = self.predictor_step(composition_ip1, i + 1, unit_cell, forces)
             for _ in range(self.number_of_corrector_steps):
-                composition_i = map_axl_composition_to_unit_cell(
-                    self.corrector_step(composition_i, i, unit_cell, forces), device
-                )
+                composition_i = self.corrector_step(composition_i, i, unit_cell, forces)
             composition_ip1 = composition_i
         return composition_i
 

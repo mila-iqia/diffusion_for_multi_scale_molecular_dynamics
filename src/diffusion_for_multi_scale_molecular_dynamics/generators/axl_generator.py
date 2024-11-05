@@ -52,6 +52,6 @@ class AXLGenerator(ABC):
         pass
 
     @abstractmethod
-    def initialize(self, number_of_samples: int) -> AXL:
+    def initialize(self, number_of_samples: int, device: torch.device) -> AXL:
         """This method must initialize the samples from the fully noised distribution."""
         pass

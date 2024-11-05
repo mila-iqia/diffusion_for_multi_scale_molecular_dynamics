@@ -4,8 +4,8 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorAXLGenerator
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_axl_composition_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
 from tests.generators.conftest import BaseTestGenerator
 
 
@@ -28,7 +28,9 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
         )
         self.initial_sample = initial_sample
 
-    def initialize(self, number_of_samples: int):
+    def initialize(
+        self, number_of_samples: int, device: torch.device = torch.device("cpu")
+    ):
         return self.initial_sample
 
     def predictor_step(
@@ -39,14 +41,22 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
         forces: torch.Tensor,
     ) -> torch.Tensor:
         updated_axl = AXL(
-            A=axl_ip1.A, X=1.2 * axl_ip1.X + 3.4 + ip1 / 111.0, L=axl_ip1.L
+            A=axl_ip1.A,
+            X=map_relative_coordinates_to_unit_cell(
+                1.2 * axl_ip1.X + 3.4 + ip1 / 111.0
+            ),
+            L=axl_ip1.L,
         )
         return updated_axl
 
     def corrector_step(
         self, axl_i: torch.Tensor, i: int, unit_cell: torch.Tensor, forces: torch.Tensor
     ) -> torch.Tensor:
-        updated_axl = AXL(A=axl_i.A, X=0.56 * axl_i.X + 7.89 + i / 117.0, L=axl_i.L)
+        updated_axl = AXL(
+            A=axl_i.A,
+            X=map_relative_coordinates_to_unit_cell(0.56 * axl_i.X + 7.89 + i / 117.0),
+            L=axl_i.L,
+        )
         return updated_axl
 
 
@@ -135,4 +145,5 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         computed_samples = generator.sample(
             number_of_samples, torch.device("cpu"), unit_cell_sample
         )
+
         torch.testing.assert_close(expected_samples, computed_samples)

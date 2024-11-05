@@ -256,15 +256,15 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
             final_diffusion_time=self.final_diffusion_time,
         )
 
-    def initialize(self, number_of_samples: int):
+    def initialize(self, number_of_samples: int, device: torch.device = torch.device("cpu")):
         """This method must initialize the samples from the fully noised distribution."""
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
-        )
-        atom_types = torch.zeros(number_of_samples, self.number_of_atoms).long()
+        ).to(device)
+        atom_types = torch.zeros(number_of_samples, self.number_of_atoms).long().to(device)
         lattice_vectors = torch.zeros(
             number_of_samples, self.spatial_dimension * (self.spatial_dimension - 1)
-        )  # TODO placeholder
+        ).to(device)  # TODO placeholder
         init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
         return init_composition
 

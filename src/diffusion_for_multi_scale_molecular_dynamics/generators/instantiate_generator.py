@@ -1,8 +1,8 @@
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import \
-    ExplodingVarianceODEPositionGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
+    ExplodingVarianceODEAXLGenerator
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import \
     ExplodingVarianceSDEPositionGenerator
@@ -32,7 +32,7 @@ def instantiate_generator(
                 sigma_normalized_score_network=sigma_normalized_score_network,
             )
         case "ode":
-            generator = ExplodingVarianceODEPositionGenerator(
+            generator = ExplodingVarianceODEAXLGenerator(
                 sampling_parameters=sampling_parameters,
                 noise_parameters=noise_parameters,
                 sigma_normalized_score_network=sigma_normalized_score_network,
