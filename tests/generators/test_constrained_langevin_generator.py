@@ -4,6 +4,7 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevin_generator import (
     ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from tests.generators.test_langevin_generator import TestLangevinGenerator
 
 
@@ -39,29 +40,44 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
         return sampling_parameters
 
     @pytest.fixture()
-    def pc_generator(
-        self, noise_parameters, sampling_parameters, sigma_normalized_score_network
-    ):
+    def pc_generator(self, noise_parameters, sampling_parameters, axl_network):
         generator = ConstrainedLangevinGenerator(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
-            sigma_normalized_score_network=sigma_normalized_score_network,
+            axl_network=axl_network,
         )
 
         return generator
 
     @pytest.fixture()
-    def x(self, number_of_samples, number_of_atoms, spatial_dimension, device):
-        return torch.rand(number_of_samples, number_of_atoms, spatial_dimension).to(
-            device
+    def axl(
+        self,
+        number_of_samples,
+        number_of_atoms,
+        spatial_dimension,
+        num_atom_types,
+        device,
+    ):
+        return AXL(
+            A=torch.randint(
+                0, num_atom_types + 1, (number_of_samples, number_of_atoms)
+            ).to(device),
+            X=torch.rand(number_of_samples, number_of_atoms, spatial_dimension).to(
+                device
+            ),
+            L=torch.rand(
+                number_of_samples, spatial_dimension * (spatial_dimension - 1)
+            ).to(
+                device
+            ),  # TODO placeholder
         )
 
     def test_apply_constraint(
-        self, pc_generator, x, constrained_relative_coordinates, device
+        self, pc_generator, axl, constrained_relative_coordinates, device
     ):
-        batch_size = x.shape[0]
-        original_x = torch.clone(x)
-        pc_generator._apply_constraint(x, device)
+        batch_size = axl.X.shape[0]
+        original_x = torch.clone(axl.X)
+        pc_generator._apply_constraint(axl, device)
 
         number_of_constraints = len(constrained_relative_coordinates)
 
@@ -71,7 +87,7 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
             b=batch_size,
         )
 
-        torch.testing.assert_close(x[:, :number_of_constraints], constrained_x)
+        torch.testing.assert_close(axl.X[:, :number_of_constraints], constrained_x)
         torch.testing.assert_close(
-            x[:, number_of_constraints:], original_x[:, number_of_constraints:]
+            axl.X[:, number_of_constraints:], original_x[:, number_of_constraints:]
         )
