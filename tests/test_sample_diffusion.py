@@ -5,24 +5,20 @@ import torch
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import (
-    PredictorCorrectorSamplingParameters,
-)
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
+    PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
-    AXLDiffusionLightningModel,
-    AXLDiffusionParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import MSELossParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
-    OptimizerParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
-    MLPScoreNetworkParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.namespace import RELATIVE_COORDINATES
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
-    NoiseParameters,
-)
+    AXLDiffusionLightningModel, AXLDiffusionParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.loss import \
+    MSELossParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
+    OptimizerParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
+    MLPScoreNetworkParameters
+from diffusion_for_multi_scale_molecular_dynamics.namespace import \
+    AXL_COMPOSITION
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 
 
 @pytest.fixture()
@@ -81,7 +77,7 @@ def sampling_parameters(
 
 
 @pytest.fixture()
-def sigma_normalized_score_network(number_of_atoms, noise_parameters, num_atom_types):
+def axl_network(number_of_atoms, noise_parameters, num_atom_types):
     score_network_parameters = MLPScoreNetworkParameters(
         number_of_atoms=number_of_atoms,
         num_atom_types=num_atom_types,
@@ -101,7 +97,7 @@ def sigma_normalized_score_network(number_of_atoms, noise_parameters, num_atom_t
     )
 
     model = AXLDiffusionLightningModel(diffusion_params)
-    return model.score_network
+    return model.axl_network
 
 
 @pytest.fixture()
@@ -149,7 +145,7 @@ def args(config_path, checkpoint_path, output_path):
 def test_sample_diffusion(
     mocker,
     args,
-    sigma_normalized_score_network,
+    axl_network,
     output_path,
     number_of_samples,
     number_of_atoms,
@@ -157,18 +153,22 @@ def test_sample_diffusion(
     record_samples,
 ):
     mocker.patch(
-        "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion.get_sigma_normalized_score_network",
-        return_value=sigma_normalized_score_network,
+        "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion.get_axl_network",
+        return_value=axl_network,
     )
 
     sample_diffusion.main(args)
 
     assert (output_path / "samples.pt").exists()
     samples = torch.load(output_path / "samples.pt")
-    assert samples[RELATIVE_COORDINATES].shape == (
+    assert samples[AXL_COMPOSITION].X.shape == (
         number_of_samples,
         number_of_atoms,
         spatial_dimension,
+    )
+    assert samples[AXL_COMPOSITION].A.shape == (
+        number_of_samples,
+        number_of_atoms,
     )
 
     assert (output_path / "trajectories.pt").exists() == record_samples
