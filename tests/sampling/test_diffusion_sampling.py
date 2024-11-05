@@ -5,7 +5,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import (
     AXLGenerator, SamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_POSITIONS, RELATIVE_COORDINATES, UNIT_CELL)
+    AXL, AXL_COMPOSITION, CARTESIAN_POSITIONS, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_positions_from_coordinates
 from src.diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
@@ -24,9 +24,14 @@ class DummyGenerator(AXLGenerator):
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
     ) -> torch.Tensor:
         self._counter += number_of_samples
-        return self._relative_coordinates[
+        rel_coordinates = self._relative_coordinates[
             self._counter - number_of_samples : self._counter
         ]
+        return AXL(
+            A=torch.zeros_like(rel_coordinates[..., 0]).long(),
+            X=rel_coordinates,
+            L=torch.zeros_like(rel_coordinates),
+        )
 
 
 @pytest.fixture
@@ -104,7 +109,7 @@ def test_create_batch_of_samples(
     )
 
     torch.testing.assert_allclose(
-        computed_samples[RELATIVE_COORDINATES], relative_coordinates
+        computed_samples[AXL_COMPOSITION].X, relative_coordinates
     )
     torch.testing.assert_allclose(computed_samples[UNIT_CELL], expected_basis_vectors)
     torch.testing.assert_allclose(
