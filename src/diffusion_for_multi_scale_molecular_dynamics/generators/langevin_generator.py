@@ -1,31 +1,21 @@
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import (
-    PredictorCorrectorAXLGenerator,
-    PredictorCorrectorSamplingParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork,
-)
+    PredictorCorrectorAXLGenerator, PredictorCorrectorSamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
+    ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    CARTESIAN_FORCES,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-    TIME,
-    UNIT_CELL,
-)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
-    NoiseParameters,
-)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import (
-    NoiseScheduler,
-)
-from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import compute_p_atm1_given_at
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    NoiseScheduler
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
+    compute_p_atm1_given_at
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
-    NoOpPredictorCorrectorSampleTrajectory,
-    PredictorCorrectorSampleTrajectory,
-)
+    NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
 
 
 class LangevinGenerator(PredictorCorrectorAXLGenerator):
@@ -63,20 +53,22 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         else:
             self.sample_trajectory_recorder = NoOpPredictorCorrectorSampleTrajectory()
 
-    def initialize(self, number_of_samples: int):
+    def initialize(
+        self, number_of_samples: int, device: torch.device = torch.device("cpu")
+    ):
         """This method must initialize the samples from the fully noised distribution."""
         # all atoms are initialized as masked
-        atom_types = torch.ones(number_of_samples, self.number_of_atoms).long() * (self.num_classes - 1)
+        atom_types = torch.ones(number_of_samples, self.number_of_atoms).long().to(
+            device
+        ) * (self.num_classes - 1)
         # relative coordinates are sampled from the uniform distribution
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
-        )
-        lattice_vectors = torch.zeros_like(relative_coordinates)  # TODO placeholder
-        init_composition = AXL(
-            A=atom_types,
-            X=relative_coordinates,
-            L=lattice_vectors
-        )
+        ).to(device)
+        lattice_vectors = torch.zeros_like(relative_coordinates).to(
+            device
+        )  # TODO placeholder
+        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
         return init_composition
 
     def _draw_gaussian_sample(self, number_of_samples):
@@ -85,9 +77,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
     def _draw_gumbel_sample(self, number_of_samples):
-        return -torch.log(-torch.log(torch.rand(
-            number_of_samples, self.number_of_atoms, self.num_classes
-        )))
+        return -torch.log(
+            -torch.log(
+                torch.rand(number_of_samples, self.number_of_atoms, self.num_classes)
+            )
+        )
 
     def _get_model_predictions(
         self,
@@ -117,7 +111,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         number_of_samples = composition.X.shape[0]
 
         time_tensor = time * torch.ones(number_of_samples, 1).to(composition.X)
-        sigma_noise_tensor = sigma_noise * torch.ones(number_of_samples, 1).to(composition.X)
+        sigma_noise_tensor = sigma_noise * torch.ones(number_of_samples, 1).to(
+            composition.X
+        )
         augmented_batch = {
             NOISY_AXL_COMPOSITION: composition,  # TODO
             TIME: time_tensor,
@@ -127,10 +123,81 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         }
 
         # TODO do not hard-code conditional to False - need to be able to condition sampling
-        model_predictions = self.axl_network(
-            augmented_batch, conditional=False
-        )
+        model_predictions = self.axl_network(augmented_batch, conditional=False)
         return model_predictions
+
+    def relative_coordinates_update(
+        self,
+        relative_coordinates: torch.Tensor,
+        sigma_normalized_scores: torch.Tensor,
+        sigma_i: torch.Tensor,
+        score_weight: torch.Tensor,
+        gaussian_noise_weight: torch.Tensor,
+    ) -> torch.Tensor:
+        """Generic update for the relative coordinates.
+
+        This is useful for both the predictor and the corrector step. The score weight and gaussian weight noise differs
+        in these two settings.
+
+        Args:
+            relative_coordinates: starting coordinates. Dimension: [number_of_samples, number_of_atoms,
+                spatial_dimension]
+            sigma_normalized_scores: output of the model - an estimate of the normalized score sigma \nabla log p(x).
+                Dimension: [number_of_samples, number_of_atoms, spatial_dimension]
+            sigma_i: noise parameter for variance exploding noise scheduler. Dimension: [number_of_samples]
+            score_weight: prefactor in front of the normalized score update. Should be g2_i in the predictor step and
+                eps_i in the corrector step. Dimension: [number_of_samples]
+            gaussian_noise_weight: prefactor in front of the random noise update. Should be g_i in the predictor step
+                and sqrt_2eps_i in the corrector step. Dimension: [number_of_samples]
+
+        Returns:
+            updated_coordinates: relative coordinates after the update. Dimension: [number_of_samples, number_of_atoms,
+                spatial_dimension].
+        """
+        number_of_samples = relative_coordinates.shape[0]
+        z = self._draw_gaussian_sample(number_of_samples).to(relative_coordinates)
+        updated_coordinates = (
+            relative_coordinates
+            + score_weight * sigma_normalized_scores / sigma_i
+            + gaussian_noise_weight * z
+        )
+        # map back to the range [0, 1)
+        updated_coordinates = map_relative_coordinates_to_unit_cell(updated_coordinates)
+        return updated_coordinates
+
+    def atom_types_update(
+        self,
+        predicted_logits: torch.Tensor,
+        q_matrices_i: torch.Tensor,
+        q_bar_matrices_i: torch.Tensor,
+        q_bar_tm1_matrices_i: torch.Tensor,
+    ) -> torch.LongTensor:
+        """Generic update of the atom types.
+
+        This should be used in the predictor step only.
+
+        Args:
+            predicted_logits: output of the model - an estimate of p(a_0 | a_t). Dimension:
+                [number_of_samples, number_of_atoms, num_classes].
+            q_matrices_i: one-step transition matrix. Dimension: [number_of_samples, number_of_atoms, num_classes,
+                num_classes].
+            q_bar_matrices_i: cumulative transition matrix at time step i. Dimension: [number_of_samples,
+                number_of_atoms, num_classes, num_classes].
+            q_bar_tm1_matrices_i:  cumulative transition matrix at time step 'i - 1'. Dimension: [number_of_samples,
+                number_of_atoms, num_classes, num_classes].
+
+        Returns:
+            a_im1: updated atom type indices. Dimension: [number_of_samples, number_of_atoms]
+        """
+        number_of_samples = predicted_logits.shape[0]
+        u = self._draw_gumbel_sample(number_of_samples).to(predicted_logits.device)
+        one_step_transition_probs = compute_p_atm1_given_at(
+            predicted_logits, q_matrices_i, q_bar_matrices_i, q_bar_tm1_matrices_i
+        )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
+        # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
+        a_im1 = torch.argmax(torch.log(one_step_transition_probs + 1e-8) + u, dim=-1)
+        # a_im1 has shape: number_of_samples, number_of_atoms and is a LongTensor
+        return a_im1
 
     def predictor_step(
         self,
@@ -154,12 +221,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             1 <= index_i <= self.number_of_discretization_steps
         ), "The predictor step can only be invoked for index_i between 1 and the total number of discretization steps."
 
-        number_of_samples = composition_i.X.shape[0]
-        # gaussian sample noise
-        z = self._draw_gaussian_sample(number_of_samples).to(composition_i.X)
-        # uniform noise with gumbel sampling trick
-        u = self._draw_gumbel_sample(number_of_samples).to(composition_i.X)
-
         idx = index_i - 1  # python starts indices at zero
         t_i = self.noise.time[idx].to(composition_i.X)
         g_i = self.noise.g[idx].to(composition_i.X)
@@ -174,27 +235,19 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         # atom types update
-        one_step_transition_probs = compute_p_atm1_given_at(
-            model_predictions_i.A,
-            q_matrices_i,
-            q_bar_matrices_i,
-            q_bar_tm1_matrices_i
-        )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
-        # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
-        a_im1 = torch.argmax(torch.log(one_step_transition_probs + 1e-8) + u, dim=-1)
-        # a_im1 has shape: number_of_samples, number_of_atoms and is a LongTensor
-
-        x_i = composition_i.X  # reduced coordinates
-        sigma_score_i = model_predictions_i.X  # sigma normalized score predicted by the model
-        x_im1 = x_i + g2_i / sigma_i * sigma_score_i + g_i * z  # Langevin predictor step
-
-        composition_im1 = AXL(
-            A=a_im1,
-            X=x_im1,
-            L=composition_i.L  # TODO placeholder
+        a_im1 = self.atom_types_update(
+            model_predictions_i.A, q_matrices_i, q_bar_matrices_i, q_bar_tm1_matrices_i
         )
 
-        self.sample_trajectory_recorder.record_unit_cell(unit_cell=unit_cell)  # TODO replace with AXL-L
+        x_im1 = self.relative_coordinates_update(
+            composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i
+        )
+
+        composition_im1 = AXL(A=a_im1, X=x_im1, L=composition_i.L)  # TODO placeholder
+
+        self.sample_trajectory_recorder.record_unit_cell(
+            unit_cell=unit_cell
+        )  # TODO replace with AXL-L
         self.sample_trajectory_recorder.record_predictor_step(
             i_index=index_i,
             time=t_i,
@@ -230,15 +283,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             "The corrector step can only be invoked for index_i between 0 and "
             "the total number of discretization steps minus 1."
         )
-
-        x_i = composition_i.X
-
-        number_of_samples = x_i.shape[0]
-        z = self._draw_gaussian_sample(number_of_samples).to(x_i)
-
         # The Langevin dynamics array are indexed with [0,..., N-1]
-        eps_i = self.langevin_dynamics.epsilon[index_i].to(x_i)
-        sqrt_2eps_i = self.langevin_dynamics.sqrt_2_epsilon[index_i].to(x_i)
+        eps_i = self.langevin_dynamics.epsilon[index_i].to(composition_i.X)
+        sqrt_2eps_i = self.langevin_dynamics.sqrt_2_epsilon[index_i].to(composition_i.X)
 
         if index_i == 0:
             # TODO: we are extrapolating here; the score network will never have seen this time step...
@@ -248,15 +295,16 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             t_i = 0.0  # same for device - this is a float
         else:
             idx = index_i - 1  # python starts indices at zero
-            sigma_i = self.noise.sigma[idx].to(x_i)
-            t_i = self.noise.time[idx].to(x_i)
+            sigma_i = self.noise.sigma[idx].to(composition_i.X)
+            t_i = self.noise.time[idx].to(composition_i.X)
 
         model_predictions_i = self._get_model_predictions(
             composition_i, t_i, sigma_i, unit_cell, cartesian_forces
         )
-        sigma_score_i = model_predictions_i.X
 
-        corrected_x_i = x_i + eps_i / sigma_i * sigma_score_i + sqrt_2eps_i * z
+        corrected_x_i = self.relative_coordinates_update(
+            composition_i.X, model_predictions_i.X, sigma_i, eps_i, sqrt_2eps_i
+        )
 
         corrected_composition_i = AXL(
             A=composition_i.A,

@@ -15,7 +15,13 @@ class FakeAXLNetwork(ScoreNetwork):
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
     ) -> AXL:
-        return AXL(A=None, X=batch[NOISY_AXL_COMPOSITION].X, L=None)
+        return AXL(
+            A=torch.rand(
+                batch[NOISY_AXL_COMPOSITION].A.shape + (self.num_atom_types + 1,)
+            ),
+            X=batch[NOISY_AXL_COMPOSITION].X,
+            L=None,
+        )
 
 
 class BaseTestGenerator:
