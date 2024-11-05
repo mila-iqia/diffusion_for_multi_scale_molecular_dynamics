@@ -143,13 +143,18 @@ def number_of_configurations():
     return 16
 
 
+@pytest.fixture()
+def num_atom_types():
+    return 5
+
+
 @pytest.fixture
-def configurations(number_of_configurations, spatial_dimension, number_of_atoms):
+def configurations(number_of_configurations, spatial_dimension, number_of_atoms, num_atom_types):
     """Generate multiple fake configurations."""
     np.random.seed(23423423)
     configurations = [
         generate_fake_configuration(
-            spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms
+            spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms, num_atom_types=num_atom_types
         )
         for _ in range(number_of_configurations)
     ]
