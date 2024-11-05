@@ -12,6 +12,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,
     map_relative_coordinates_to_unit_cell)
+from diffusion_for_multi_scale_molecular_dynamics.utils.geometric_utils import \
+    get_cubic_point_group_symmetries
 
 
 def test_linear_vector_readout_block():
@@ -29,7 +31,8 @@ def test_linear_vector_readout_block():
     assert output_features.shape == (batch_size, vector_output_dimension)
 
 
-class TestDiffusionMace:
+class BaseTestDiffusionMace:
+    """Base class defining common fixtures for the tests to follow."""
     @pytest.fixture(scope="class", autouse=True)
     def set_default_type_to_float64(self):
         torch.set_default_dtype(torch.float64)
@@ -44,8 +47,16 @@ class TestDiffusionMace:
         torch.manual_seed(234233)
 
     @pytest.fixture(scope="class")
+    def basis_vectors(self, batch_size, spatial_dimension):
+        raise NotImplementedError("This fixture must be implemented.")
+
+    @pytest.fixture(scope="class")
+    def cartesian_rotations(self, batch_size):
+        raise NotImplementedError("This fixture must be implemented.")
+
+    @pytest.fixture(scope="class")
     def batch_size(self):
-        return 4
+        raise NotImplementedError("This fixture must be implemented.")
 
     @pytest.fixture(scope="class")
     def number_of_atoms(self):
@@ -58,21 +69,6 @@ class TestDiffusionMace:
     @pytest.fixture(scope="class")
     def num_atom_types(self):
         return 5
-
-    @pytest.fixture(scope="class")
-    def basis_vectors(self, batch_size, spatial_dimension):
-        # orthogonal boxes with dimensions between 5 and 10.
-        orthogonal_boxes = torch.stack(
-            [
-                torch.diag(5.0 + 5.0 * torch.rand(spatial_dimension))
-                for _ in range(batch_size)
-            ]
-        )
-        # add a bit of noise to make the vectors not quite orthogonal
-        basis_vectors = orthogonal_boxes + 0.1 * torch.randn(
-            batch_size, spatial_dimension, spatial_dimension
-        )
-        return basis_vectors
 
     @pytest.fixture(scope="class")
     def reciprocal_basis_vectors(self, basis_vectors):
@@ -130,10 +126,6 @@ class TestDiffusionMace:
             CARTESIAN_FORCES: forces,
         }
         return batch
-
-    @pytest.fixture(scope="class")
-    def cartesian_rotations(self, batch_size):
-        return o3.rand_matrix(batch_size)
 
     @pytest.fixture(scope="class")
     def permutations(self, batch_size, number_of_atoms):
@@ -208,7 +200,8 @@ class TestDiffusionMace:
         number_of_atoms,
         spatial_dimension,
     ):
-        flat_cartesian_scores = diffusion_mace(graph_input)
+        with torch.no_grad():
+            flat_cartesian_scores = diffusion_mace(graph_input)
         return flat_cartesian_scores.X.reshape(
             batch_size, number_of_atoms, spatial_dimension
         )
@@ -261,33 +254,42 @@ class TestDiffusionMace:
         basis_vectors,
         translated_graph_input,
     ):
-        flat_translated_cartesian_scores = diffusion_mace(translated_graph_input)
+        with torch.no_grad():
+            flat_translated_cartesian_scores = diffusion_mace(translated_graph_input)
         return flat_translated_cartesian_scores.X.reshape(
             batch_size, number_of_atoms, spatial_dimension
         )
+
+    @pytest.fixture()
+    def rotated_cartesian_positions(self, cartesian_rotations, batch):
+        original_cartesian_positions = batch[NOISY_CARTESIAN_POSITIONS]
+        rotated_cartesian_positions = torch.matmul(
+            original_cartesian_positions, cartesian_rotations.transpose(2, 1)
+        )
+        return rotated_cartesian_positions
+
+    @pytest.fixture()
+    def rotated_basis_vectors(self, cartesian_rotations, batch, basis_vectors_are_rotated):
+        original_basis_vectors = batch[UNIT_CELL]
+        if basis_vectors_are_rotated:
+            rotated_basis_vectors = torch.matmul(
+                original_basis_vectors, cartesian_rotations.transpose(2, 1)
+            )
+            return rotated_basis_vectors
+        else:
+            return original_basis_vectors
 
     @pytest.fixture()
     def rotated_graph_input(
         self,
         batch,
         r_max,
-        basis_vectors,
-        reciprocal_basis_vectors,
-        cartesian_rotations,
         num_atom_types,
+        rotated_cartesian_positions,
+        rotated_basis_vectors
     ):
         rotated_batch = dict(batch)
 
-        original_cartesian_positions = rotated_batch[NOISY_CARTESIAN_POSITIONS]
-        original_basis_vectors = rotated_batch[UNIT_CELL]
-
-        rotated_cartesian_positions = torch.matmul(
-            original_cartesian_positions, cartesian_rotations.transpose(2, 1)
-        )
-
-        rotated_basis_vectors = torch.matmul(
-            original_basis_vectors, cartesian_rotations.transpose(2, 1)
-        )
         rotated_reciprocal_basis_vectors = get_reciprocal_basis_vectors(
             rotated_basis_vectors
         )
@@ -321,7 +323,8 @@ class TestDiffusionMace:
         spatial_dimension,
         rotated_graph_input,
     ):
-        flat_rotated_cartesian_scores = diffusion_mace(rotated_graph_input)
+        with torch.no_grad():
+            flat_rotated_cartesian_scores = diffusion_mace(rotated_graph_input)
         return flat_rotated_cartesian_scores.X.reshape(
             batch_size, number_of_atoms, spatial_dimension
         )
@@ -376,18 +379,51 @@ class TestDiffusionMace:
         spatial_dimension,
         permuted_graph_input,
     ):
-        flat_permuted_cartesian_scores = diffusion_mace(permuted_graph_input)
+        with torch.no_grad():
+            flat_permuted_cartesian_scores = diffusion_mace(permuted_graph_input)
         return flat_permuted_cartesian_scores.X.reshape(
             batch_size, number_of_atoms, spatial_dimension
         )
+
+
+class TestDiffusionMaceGenericOperations(BaseTestDiffusionMace):
+    """Test the full symmetry group, where the lattice is also rotated when a rotation is involved."""
+
+    @pytest.fixture(scope="class")
+    def batch_size(self):
+        return 16
+
+    @pytest.fixture(scope="class")
+    def basis_vectors(self, batch_size, spatial_dimension):
+        # orthogonal boxes with dimensions between 5 and 10.
+        orthogonal_boxes = torch.stack(
+            [
+                torch.diag(5.0 + 5.0 * torch.rand(spatial_dimension))
+                for _ in range(batch_size)
+            ]
+        )
+        # add a bit of noise to make the vectors not quite orthogonal
+        basis_vectors = orthogonal_boxes + 0.1 * torch.randn(
+            batch_size, spatial_dimension, spatial_dimension
+        )
+        return basis_vectors
+
+    @pytest.fixture(scope="class")
+    def cartesian_rotations(self, batch_size):
+        return o3.rand_matrix(batch_size)
 
     def test_translation_invariance(
         self, cartesian_scores, translated_cartesian_scores
     ):
         torch.testing.assert_close(translated_cartesian_scores, cartesian_scores)
 
+    @pytest.fixture(params=[True, False])
+    def basis_vectors_are_rotated(self, request):
+        # Should the basis vectors be rotated according to the point group operation?
+        return request.param
+
     def test_rotation_equivariance(
-        self, cartesian_scores, rotated_cartesian_scores, cartesian_rotations
+        self, cartesian_scores, rotated_cartesian_scores, cartesian_rotations, basis_vectors_are_rotated
     ):
         vector_irreps = o3.Irreps("1o")
         d_matrices = vector_irreps.D_from_matrix(cartesian_rotations)
@@ -395,9 +431,18 @@ class TestDiffusionMace:
         expected_rotated_cartesian_scores = torch.matmul(
             cartesian_scores, d_matrices.transpose(2, 1)
         )
-        torch.testing.assert_close(
-            expected_rotated_cartesian_scores, rotated_cartesian_scores
-        )
+
+        if basis_vectors_are_rotated:
+            # If the basis vectors are rotated, equivariance should hold and we expect the rotated scores to match
+            torch.testing.assert_close(
+                expected_rotated_cartesian_scores, rotated_cartesian_scores
+            )
+        else:
+            # If the basis vectors are NOT rotated, equivariance should NOT hold for a generic, random rotation.
+            with pytest.raises(AssertionError):
+                torch.testing.assert_close(
+                    expected_rotated_cartesian_scores, rotated_cartesian_scores
+                )
 
     def test_permutation_equivariance(
         self, cartesian_scores, permuted_cartesian_scores, batch_size, permutations
@@ -431,10 +476,50 @@ class TestDiffusionMace:
         new_graph_input = input_to_diffusion_mace(
             new_time_batch, radial_cutoff=r_max, num_classes=num_atom_types + 1
         )
-        new_flat_cartesian_scores = diffusion_mace(new_graph_input)
+
+        with torch.no_grad():
+            new_flat_cartesian_scores = diffusion_mace(new_graph_input)
 
         # Different times, different results?
         with pytest.raises(AssertionError):
             torch.testing.assert_close(
                 new_flat_cartesian_scores, flat_cartesian_scores1
             )
+
+
+class TestDiffusionMaceCubicPointGroup(BaseTestDiffusionMace):
+    """Test the cubic point symmetry group, where the lattice is cubic and NOT rotated."""
+
+    @pytest.fixture(scope="class")
+    def batch_size(self):
+        return len(get_cubic_point_group_symmetries())
+
+    @pytest.fixture(scope="class")
+    def cartesian_rotations(self, batch_size):
+        return get_cubic_point_group_symmetries()
+
+    @pytest.fixture(scope="class")
+    def basis_vectors(self, batch_size, spatial_dimension):
+        # Consider proper cubes
+        basis_vectors = (5.0 + 5.0 * torch.rand(1)) * torch.eye(spatial_dimension).repeat(batch_size, 1, 1)
+        return basis_vectors
+
+    @pytest.fixture(params=[False])
+    def basis_vectors_are_rotated(self, request):
+        # Should the basis vectors be rotated according to the point group operation?
+        return request.param
+
+    def test_rotation_equivariance(
+        self, cartesian_scores, rotated_cartesian_scores, cartesian_rotations
+    ):
+        vector_irreps = o3.Irreps("1o")
+        d_matrices = vector_irreps.D_from_matrix(cartesian_rotations)
+
+        expected_rotated_cartesian_scores = torch.matmul(
+            cartesian_scores, d_matrices.transpose(2, 1)
+        )
+        # Since the point group operations should leave the cubic unit cell unchanged, we expect equivariance
+        # even if the basis vectors are NOT rotated.
+        torch.testing.assert_close(
+            expected_rotated_cartesian_scores, rotated_cartesian_scores
+        )
