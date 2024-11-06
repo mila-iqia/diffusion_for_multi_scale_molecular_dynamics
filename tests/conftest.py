@@ -90,17 +90,22 @@ class TestDiffusionDataBase:
         return 8
 
     @pytest.fixture()
+    def num_atom_types(self):
+        """Number of types of atoms in fake data."""
+        return 5
+
+    @pytest.fixture()
     def spatial_dimension(self):
         """Spatial dimension of fake data."""
         return 3
 
     @pytest.fixture
     def train_configuration_runs(
-        self, number_of_train_runs, spatial_dimension, number_of_atoms
+        self, number_of_train_runs, spatial_dimension, number_of_atoms, num_atom_types
     ):
         """Generate multiple fake 'data' runs and return their configurations."""
         return get_configuration_runs(
-            number_of_train_runs, spatial_dimension, number_of_atoms
+            number_of_train_runs, spatial_dimension, number_of_atoms, num_atom_types
         )
 
     @pytest.fixture
@@ -113,11 +118,11 @@ class TestDiffusionDataBase:
 
     @pytest.fixture
     def valid_configuration_runs(
-        self, number_of_valid_runs, spatial_dimension, number_of_atoms
+        self, number_of_valid_runs, spatial_dimension, number_of_atoms, num_atom_types
     ):
         """Generate multiple fake 'data' runs and return their configurations."""
         return get_configuration_runs(
-            number_of_valid_runs, spatial_dimension, number_of_atoms
+            number_of_valid_runs, spatial_dimension, number_of_atoms, num_atom_types
         )
 
     @pytest.fixture
