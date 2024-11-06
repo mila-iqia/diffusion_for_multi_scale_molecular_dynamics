@@ -7,6 +7,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISY_AXL_COMPOSITION)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
+    class_index_to_onehot
 
 
 class FakeAXLNetwork(ScoreNetwork):
@@ -16,8 +18,8 @@ class FakeAXLNetwork(ScoreNetwork):
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
     ) -> AXL:
         return AXL(
-            A=torch.rand(
-                batch[NOISY_AXL_COMPOSITION].A.shape + (self.num_atom_types + 1,)
+            A=class_index_to_onehot(
+                batch[NOISY_AXL_COMPOSITION].A, num_classes=self.num_atom_types + 1
             ),
             X=batch[NOISY_AXL_COMPOSITION].X,
             L=None,

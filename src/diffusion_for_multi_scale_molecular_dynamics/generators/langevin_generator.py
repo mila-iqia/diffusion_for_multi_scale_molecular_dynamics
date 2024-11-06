@@ -210,9 +210,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             probability_at_zeroth_timestep_are_onehot=False,
         )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
         # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
-        a_im1 = torch.argmax(
-            torch.log(one_step_transition_probs + self.small_epsilon) + u, dim=-1
-        )
+        a_im1 = torch.argmax(torch.log(one_step_transition_probs) + u, dim=-1)
         # a_im1 has shape: number_of_samples, number_of_atoms and is a LongTensor
         return a_im1
 
