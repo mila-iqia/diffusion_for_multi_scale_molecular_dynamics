@@ -8,8 +8,6 @@ from tqdm import tqdm
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import (
     AXLGenerator, SamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_axl_composition_to_unit_cell
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +18,7 @@ class PredictorCorrectorSamplingParameters(SamplingParameters):
 
     algorithm: str = "predictor_corrector"
     number_of_corrector_steps: int = 1
+    small_epsilon: float = 1e-8
 
 
 class PredictorCorrectorAXLGenerator(AXLGenerator):
@@ -76,7 +75,9 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         forces = torch.zeros_like(composition_ip1.X)
 
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
-            composition_i = self.predictor_step(composition_ip1, i + 1, unit_cell, forces)
+            composition_i = self.predictor_step(
+                composition_ip1, i + 1, unit_cell, forces
+            )
             for _ in range(self.number_of_corrector_steps):
                 composition_i = self.corrector_step(composition_i, i, unit_cell, forces)
             composition_ip1 = composition_i

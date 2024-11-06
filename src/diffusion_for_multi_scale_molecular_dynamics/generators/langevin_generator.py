@@ -12,8 +12,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_samp
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
-    compute_p_atm1_given_at
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
+    class_index_to_onehot, get_probability_at_previous_time_step)
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
     NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
 
@@ -47,6 +47,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.axl_network = axl_network
+        self.small_epsilon = sampling_parameters.small_epsilon
 
         if sampling_parameters.record_samples:
             self.sample_trajectory_recorder = PredictorCorrectorSampleTrajectory()
@@ -79,7 +80,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
     def _draw_gumbel_sample(self, number_of_samples):
         return -torch.log(
             -torch.log(
-                torch.rand(number_of_samples, self.number_of_atoms, self.num_classes)
+                torch.rand(
+                    number_of_samples, self.number_of_atoms, self.num_classes
+                ).clip(min=self.small_epsilon)
             )
         )
 
@@ -115,7 +118,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition.X
         )
         augmented_batch = {
-            NOISY_AXL_COMPOSITION: composition,  # TODO
+            NOISY_AXL_COMPOSITION: composition,
             TIME: time_tensor,
             NOISE: sigma_noise_tensor,
             UNIT_CELL: unit_cell,  # TODO replace with AXL-L
@@ -168,6 +171,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
     def atom_types_update(
         self,
         predicted_logits: torch.Tensor,
+        atom_types_i: torch.LongTensor,
         q_matrices_i: torch.Tensor,
         q_bar_matrices_i: torch.Tensor,
         q_bar_tm1_matrices_i: torch.Tensor,
@@ -179,6 +183,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         Args:
             predicted_logits: output of the model - an estimate of p(a_0 | a_t). Dimension:
                 [number_of_samples, number_of_atoms, num_classes].
+            atom_types_i: indices of the atom types at timestep i. Dimension:
+                [number_of_samples, number_of_atoms]
             q_matrices_i: one-step transition matrix. Dimension: [number_of_samples, number_of_atoms, num_classes,
                 num_classes].
             q_bar_matrices_i: cumulative transition matrix at time step i. Dimension: [number_of_samples,
@@ -191,11 +197,22 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         """
         number_of_samples = predicted_logits.shape[0]
         u = self._draw_gumbel_sample(number_of_samples).to(predicted_logits.device)
-        one_step_transition_probs = compute_p_atm1_given_at(
-            predicted_logits, q_matrices_i, q_bar_matrices_i, q_bar_tm1_matrices_i
+        one_hot_atom_types_i = class_index_to_onehot(
+            atom_types_i, num_classes=self.num_classes
+        )
+        one_step_transition_probs = get_probability_at_previous_time_step(
+            probability_at_zeroth_timestep=predicted_logits,
+            one_hot_probability_at_current_timestep=one_hot_atom_types_i,
+            q_matrices=q_matrices_i,
+            q_bar_matrices=q_bar_matrices_i,
+            q_bar_tm1_matrices=q_bar_tm1_matrices_i,
+            small_epsilon=self.small_epsilon,
+            probability_at_zeroth_timestep_are_normalized=False,
         )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
         # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
-        a_im1 = torch.argmax(torch.log(one_step_transition_probs + 1e-8) + u, dim=-1)
+        a_im1 = torch.argmax(
+            torch.log(one_step_transition_probs + self.small_epsilon) + u, dim=-1
+        )
         # a_im1 has shape: number_of_samples, number_of_atoms and is a LongTensor
         return a_im1
 
@@ -236,7 +253,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         # atom types update
         a_im1 = self.atom_types_update(
-            model_predictions_i.A, q_matrices_i, q_bar_matrices_i, q_bar_tm1_matrices_i
+            model_predictions_i.A,
+            composition_i.A,
+            q_matrices_i,
+            q_bar_matrices_i,
+            q_bar_tm1_matrices_i,
         )
 
         x_im1 = self.relative_coordinates_update(
