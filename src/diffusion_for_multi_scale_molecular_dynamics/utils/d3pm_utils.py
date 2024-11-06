@@ -68,7 +68,7 @@ def get_probability_at_previous_time_step(
     q_bar_matrices: torch.Tensor,
     q_bar_tm1_matrices: torch.Tensor,
     small_epsilon: float,
-    probability_at_zeroth_timestep_are_normalized: bool = True,
+    probability_at_zeroth_timestep_are_onehot: bool = True,
 ) -> torch.Tensor:
     r"""Compute :math:`P(a_{t-1} | a_t, a_0)`, for given probability distribution a_0 and a_t.
 
@@ -89,13 +89,13 @@ def get_probability_at_previous_time_step(
         q_bar_tm1_matrices: one-shot transition matrices at previous time step :math:`\bar{Q}_{t-1}` of dimension
             [batch_size, number_of_atoms, num_classes, num_classes].
         small_epsilon: minimum value for the denominator, to avoid division by zero.
-        probability_at_zeroth_timestep_are_normalized: if True, assume the probability_at_zeroth_timestep sum to 1.
+        probability_at_zeroth_timestep_are_onehot: if True, assume the probability_at_zeroth_timestep sum to 1.
             If False, assume they are not and use a softmax on the last dimension to normalize. Defaults to True.
 
     Returns:
         one-step transition normalized probabilities of dimension [batch_size, number_of_atoms, num_type_atoms]
     """
-    if not probability_at_zeroth_timestep_are_normalized:
+    if not probability_at_zeroth_timestep_are_onehot:
         probability_at_zeroth_timestep = torch.nn.functional.softmax(
             probability_at_zeroth_timestep, dim=-1
         )

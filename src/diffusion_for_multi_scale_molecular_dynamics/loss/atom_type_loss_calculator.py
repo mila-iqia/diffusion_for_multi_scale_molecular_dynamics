@@ -117,7 +117,7 @@ class D3PMLossCalculator(torch.nn.Module):
             q_bar_matrices=q_bar_matrices,
             q_bar_tm1_matrices=q_bar_tm1_matrices,
             small_epsilon=small_epsilon,
-            probability_at_zeroth_timestep_are_normalized=True,
+            probability_at_zeroth_timestep_are_onehot=True,
         )
         return q_atm1_given_at_and_0
 
@@ -160,7 +160,7 @@ class D3PMLossCalculator(torch.nn.Module):
             q_bar_matrices=q_bar_matrices,
             q_bar_tm1_matrices=q_bar_tm1_matrices,
             small_epsilon=small_epsilon,
-            probability_at_zeroth_timestep_are_normalized=False,
+            probability_at_zeroth_timestep_are_onehot=False,
         )
         return p_atm1_at
 

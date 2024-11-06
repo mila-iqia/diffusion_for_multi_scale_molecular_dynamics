@@ -207,7 +207,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             q_bar_matrices=q_bar_matrices_i,
             q_bar_tm1_matrices=q_bar_tm1_matrices_i,
             small_epsilon=self.small_epsilon,
-            probability_at_zeroth_timestep_are_normalized=False,
+            probability_at_zeroth_timestep_are_onehot=False,
         )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
         # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
         a_im1 = torch.argmax(
