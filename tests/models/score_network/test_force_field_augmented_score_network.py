@@ -2,21 +2,11 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import (
-    ForceFieldAugmentedScoreNetwork,
-    ForceFieldParameters,
-)
+    ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
-    MLPScoreNetwork,
-    MLPScoreNetworkParameters,
-)
+    MLPScoreNetwork, MLPScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    CARTESIAN_FORCES,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-    TIME,
-    UNIT_CELL,
-)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
 
 
 @pytest.mark.parametrize("number_of_atoms", [4, 8, 16])
@@ -176,8 +166,8 @@ class TestForceFieldAugmentedScoreNetwork:
                 adj_info, batch
             )
         )
-        cartesian_pseudo_force_contributions = force_field_augmented_score_network._get_cartesian_pseudo_forces_contributions(
-            cartesian_displacements
+        cartesian_pseudo_force_contributions = (
+            force_field_augmented_score_network._get_cartesian_pseudo_forces_contributions(cartesian_displacements)
         )
 
         computed_cartesian_pseudo_forces = (

@@ -4,13 +4,9 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
-    ScoreNetwork,
-    ScoreNetworkParameters,
-)
+    ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    NOISY_AXL_COMPOSITION,
-)
+    AXL, NOISY_AXL_COMPOSITION)
 
 
 class FakeScoreNetwork(ScoreNetwork):

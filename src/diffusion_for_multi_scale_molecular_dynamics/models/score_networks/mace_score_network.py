@@ -9,27 +9,15 @@ from mace.tools import get_atomic_number_table_from_zs
 from mace.tools.torch_geometric.dataloader import Collater
 
 from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import (
-    build_mace_output_nodes_irreducible_representation,
-    get_pretrained_mace,
-    get_pretrained_mace_output_node_features_irreps,
-    input_to_mace,
-)
+    build_mace_output_nodes_irreducible_representation, get_pretrained_mace,
+    get_pretrained_mace_output_node_features_irreps, input_to_mace)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork,
-    ScoreNetworkParameters,
-)
+    ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import (
-    MaceMLPScorePredictionHeadParameters,
-    MaceScorePredictionHeadParameters,
-    instantiate_mace_prediction_head,
-)
+    MaceMLPScorePredictionHeadParameters, MaceScorePredictionHeadParameters,
+    instantiate_mace_prediction_head)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    NOISY_AXL_COMPOSITION,
-    NOISY_CARTESIAN_POSITIONS,
-    TIME,
-    UNIT_CELL,
-)
+    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, TIME, UNIT_CELL)
 
 
 @dataclass(kw_only=True)

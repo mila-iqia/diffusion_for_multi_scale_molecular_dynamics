@@ -11,13 +11,7 @@ from typing import AnyStr, Dict, Optional
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    CARTESIAN_FORCES,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-    TIME,
-    UNIT_CELL,
-)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
 
 
 @dataclass(kw_only=True)

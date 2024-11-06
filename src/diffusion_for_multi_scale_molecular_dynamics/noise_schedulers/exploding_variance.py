@@ -71,4 +71,3 @@ class VarianceScheduler(torch.nn.Module):
             g_squared: g(t)^2
         """
         return 2.0 * self.get_sigma(times) * self.get_sigma_time_derivative(times)
-
