@@ -16,9 +16,7 @@ import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics import train_diffusion
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.standard_callbacks import (
-    BEST_MODEL_NAME,
-    LAST_MODEL_NAME,
-)
+    BEST_MODEL_NAME, LAST_MODEL_NAME)
 from tests.conftest import TestDiffusionDataBase
 
 best_model_regex = re.compile(r"best_model-epoch=(?P<epoch>(\d+)).*.ckpt")

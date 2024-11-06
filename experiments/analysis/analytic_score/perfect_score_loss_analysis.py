@@ -1,3 +1,7 @@
+"""Perfect Score Loss Analysis.
+
+TODO: this file has not been verified after a major refactor. The code below might be broken.
+"""
 import logging
 import tempfile
 
@@ -17,12 +21,14 @@ from diffusion_for_multi_scale_molecular_dynamics.callbacks.loss_monitoring_call
     LossMonitoringCallback
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
     PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import (
-    MSELossParameters, create_loss_calculator)
+from diffusion_for_multi_scale_molecular_dynamics.loss import \
+    create_loss_calculator
+from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
+    MSELossParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
+    AXLDiffusionLightningModel, AXLDiffusionParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
     OptimizerParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import (
-    PositionDiffusionLightningModel, PositionDiffusionParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import \
     CosineAnnealingLRSchedulerParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
@@ -33,7 +39,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
-    ExplodingVarianceSampler
+    NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
     RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
@@ -46,14 +52,14 @@ from experiments.analysis.analytic_score.utils import (get_exact_samples,
 logger = logging.getLogger(__name__)
 
 
-class AnalyticalScorePositionDiffusionLightningModel(PositionDiffusionLightningModel):
+class AnalyticalScorePositionDiffusionLightningModel(AXLDiffusionLightningModel):
     """Analytical Score Position Diffusion Lightning Model.
 
     Overload the base class so that we can properly feed in an analytical score network.
     This should not be in the main code as the analytical score is not a real model.
     """
 
-    def __init__(self, hyper_params: PositionDiffusionParameters):
+    def __init__(self, hyper_params: AXLDiffusionParameters):
         """Init method.
 
         This initializes the class.
@@ -80,7 +86,7 @@ class AnalyticalScorePositionDiffusionLightningModel(PositionDiffusionLightningM
 
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
         self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
-        self.variance_sampler = ExplodingVarianceSampler(hyper_params.noise_parameters)
+        self.variance_sampler = NoiseScheduler(hyper_params.noise_parameters, num_classes=2)
 
     def on_validation_start(self) -> None:
         """On validation start."""
@@ -210,7 +216,7 @@ if __name__ == "__main__":
         variance_parameter=model_variance_parameter,
     )
 
-    diffusion_params = PositionDiffusionParameters(
+    diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,
         loss_parameters=MSELossParameters(),
         optimizer_parameters=dummy_optimizer_parameters,

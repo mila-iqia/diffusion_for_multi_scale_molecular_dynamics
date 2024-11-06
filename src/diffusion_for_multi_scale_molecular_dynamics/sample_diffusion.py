@@ -18,8 +18,6 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generat
     instantiate_generator
 from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
     load_sampling_parameters
-from diffusion_for_multi_scale_molecular_dynamics.main_utils import \
-    load_and_backup_hyperparameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
     AXLDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
@@ -32,6 +30,8 @@ from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling im
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
     get_git_hash, setup_console_logger)
+from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
+    load_and_backup_hyperparameters
 
 logger = logging.getLogger(__name__)
 

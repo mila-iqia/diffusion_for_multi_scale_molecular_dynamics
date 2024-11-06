@@ -9,15 +9,10 @@ from typing import List, Optional, Tuple, Union
 
 import pandas as pd
 
-from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import (
-    parse_lammps_output,
-)
+from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import \
+    parse_lammps_output
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
-    CARTESIAN_FORCES,
-    CARTESIAN_POSITIONS,
-    RELATIVE_COORDINATES,
-)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
 
 logger = logging.getLogger(__name__)
 

@@ -14,9 +14,7 @@ import torch
 from torch import nn
 
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
-    unsorted_segment_mean,
-    unsorted_segment_sum,
-)
+    unsorted_segment_mean, unsorted_segment_sum)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 

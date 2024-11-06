@@ -5,18 +5,11 @@ import torch
 from torch import nn
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
-    ScoreNetwork,
-    ScoreNetworkParameters,
-)
+    ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    CARTESIAN_FORCES,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-)
-from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    class_index_to_onehot,
-)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
+    class_index_to_onehot
 
 
 @dataclass(kw_only=True)

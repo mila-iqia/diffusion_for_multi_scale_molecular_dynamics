@@ -2,10 +2,7 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    class_index_to_onehot,
-    compute_q_at_given_a0,
-    compute_q_at_given_atm1,
-)
+    class_index_to_onehot, compute_q_at_given_a0, compute_q_at_given_atm1)
 
 
 @pytest.fixture(scope="module", autouse=True)

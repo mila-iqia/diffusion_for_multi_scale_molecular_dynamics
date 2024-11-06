@@ -3,12 +3,10 @@ from typing import Tuple
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import (
-    VarianceScheduler,
-)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import (
-    NoiseParameters,
-)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
+    VarianceScheduler
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 
 Noise = namedtuple(
     "Noise",
@@ -268,7 +266,7 @@ class NoiseScheduler(torch.nn.Module):
         return random_indices
 
     def get_random_noise_sample(self, batch_size: int) -> Noise:
-        """Get random noise sample.
+        r"""Get random noise sample.
 
         It is assumed that a batch is of the form [batch_size, (dimensions of a configuration)].
         In order to train a diffusion model, a configuration must be "noised" to a time t with a parameter sigma(t) for

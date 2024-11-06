@@ -4,17 +4,10 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork,
-    AnalyticalScoreNetworkParameters,
-    TargetScoreBasedAnalyticalScoreNetwork,
-)
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters,
+    TargetScoreBasedAnalyticalScoreNetwork)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-    TIME,
-    UNIT_CELL,
-)
+    AXL, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
 
 
 def factorial(n):

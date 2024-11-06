@@ -4,23 +4,15 @@ from typing import AnyStr, Dict, Optional
 import einops
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
-    ScoreNetwork,
-)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
+    ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    NOISY_AXL_COMPOSITION,
-    UNIT_CELL,
-)
+    AXL, NOISY_AXL_COMPOSITION, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates,
-    get_reciprocal_basis_vectors,
-    get_relative_coordinates_from_cartesian_positions,
-)
+    get_positions_from_coordinates, get_reciprocal_basis_vectors,
+    get_relative_coordinates_from_cartesian_positions)
 from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
-    AdjacencyInfo,
-    get_periodic_adjacency_information,
-)
+    AdjacencyInfo, get_periodic_adjacency_information)
 
 
 @dataclass(kw_only=True)

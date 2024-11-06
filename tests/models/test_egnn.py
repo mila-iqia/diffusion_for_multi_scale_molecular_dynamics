@@ -4,7 +4,8 @@ from copy import copy
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.models.egnn import E_GCL, EGNN
+from diffusion_for_multi_scale_molecular_dynamics.models.egnn import (E_GCL,
+                                                                      EGNN)
 
 
 class TestEGNN:

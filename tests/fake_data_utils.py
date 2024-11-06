@@ -7,11 +7,7 @@ import torch
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES,
-    CARTESIAN_FORCES,
-    CARTESIAN_POSITIONS,
-    RELATIVE_COORDINATES,
-)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
 
 Configuration = namedtuple(
     "Configuration",
@@ -30,12 +26,13 @@ Configuration = namedtuple(
 )
 
 
-def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
+def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int, num_atom_types: int):
     """Generate fake configuration.
 
     Args:
         spatial_dimension : dimension of space. Should be 1, 2 or 3.
         number_of_atoms : how many atoms to generate.
+        num_atom_types: number of distinct atom types.
 
     Returns:
         configuration: a configuration object with all the data describing a configuration.
@@ -57,7 +54,7 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
         relative_coordinates=relative_coordinates,
         cartesian_positions=positions,
         cartesian_forces=np.random.rand(number_of_atoms, spatial_dimension),
-        atom_types=np.random.randint(1, 10, number_of_atoms),
+        atom_types=np.random.randint(0, num_atom_types, number_of_atoms),
         ids=np.arange(1, number_of_atoms + 1),
         cell_dimensions=cell_dimensions,
         potential_energy=potential_energy,
@@ -66,14 +63,14 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
     )
 
 
-def get_configuration_runs(number_of_runs, spatial_dimension, number_of_atoms):
+def get_configuration_runs(number_of_runs, spatial_dimension, number_of_atoms, num_atom_types):
     """Generate multiple random configuration runs, each composed of many different configurations."""
     list_configurations = []
     for _ in range(number_of_runs):
         number_of_configs = np.random.randint(1, 16)
         configurations = [
             generate_fake_configuration(
-                spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms
+                spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms, num_atom_types=num_atom_types
             )
             for _ in range(number_of_configs)
         ]

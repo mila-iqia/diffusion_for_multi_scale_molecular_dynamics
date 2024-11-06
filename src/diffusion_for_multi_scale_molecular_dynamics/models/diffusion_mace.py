@@ -3,31 +3,18 @@ from typing import AnyStr, Callable, Dict, List, Optional, Type, Union
 import torch
 from e3nn import o3
 from e3nn.nn import Activation, BatchNorm, NormActivation
-from mace.modules import (
-    EquivariantProductBasisBlock,
-    InteractionBlock,
-    LinearNodeEmbeddingBlock,
-    RadialEmbeddingBlock,
-)
+from mace.modules import (EquivariantProductBasisBlock, InteractionBlock,
+                          LinearNodeEmbeddingBlock, RadialEmbeddingBlock)
 from mace.modules.utils import get_edge_vectors_and_lengths
 from torch_geometric.data import Data
 
 from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import (
-    get_adj_matrix,
-    reshape_from_e3nn_to_mace,
-    reshape_from_mace_to_e3nn,
-)
+    get_adj_matrix, reshape_from_e3nn_to_mace, reshape_from_mace_to_e3nn)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL,
-    CARTESIAN_FORCES,
-    NOISE,
-    NOISY_AXL_COMPOSITION,
-    NOISY_CARTESIAN_POSITIONS,
-    UNIT_CELL,
-)
-from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
-    class_index_to_onehot,
-)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION,
+    NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
+    class_index_to_onehot
 
 
 class LinearVectorReadoutBlock(torch.nn.Module):

@@ -16,15 +16,15 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader imp
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.loggers.logger_loader import \
     create_all_loggers
-from diffusion_for_multi_scale_molecular_dynamics.main_utils import (
-    MetricResult, get_crash_metric_result, get_optimized_metric_name_and_mode,
-    load_and_backup_hyperparameters, report_to_orion_if_on)
 from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
     load_diffusion_model
 from diffusion_for_multi_scale_molecular_dynamics.utils.hp_utils import \
     check_and_log_hp
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
     log_exp_details, setup_console_logger)
+from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import (
+    MetricResult, get_crash_metric_result, get_optimized_metric_name_and_mode,
+    load_and_backup_hyperparameters, report_to_orion_if_on)
 
 logger = logging.getLogger(__name__)
 
