@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import AnyStr, Dict, List
 
+import einops
 import torch
 from e3nn import o3
 from mace.modules import gate_dict, interaction_classes
@@ -12,8 +13,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates, get_reciprocal_basis_vectors)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    get_positions_from_coordinates
 
 
 @dataclass(kw_only=True)
@@ -151,12 +152,9 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
             batch_size, number_of_atoms, spatial_dimension
         )
 
-        reciprocal_basis_vectors_as_columns = get_reciprocal_basis_vectors(
-            basis_vectors
-        )
-        coordinates_scores = torch.bmm(
-            cartesian_scores, reciprocal_basis_vectors_as_columns
-        )
+        # basis_vectors is composed of ROWS of basis vectors
+        coordinates_scores = einops.einsum(basis_vectors, cartesian_scores,
+                                           "batch i alpha, batch natoms alpha -> batch natoms i")
 
         atom_types_scores = mace_axl_scores.A.reshape(
             batch_size, number_of_atoms, self.num_atom_types + 1
