@@ -36,7 +36,7 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
     # TODO handle different atom types
     node_attrs = torch.nn.functional.one_hot(
         (torch.ones(batch_size * n_atom_per_graph) * 14).long(), num_classes=89
-    ).float()
+    ).to(noisy_cartesian_positions)
     flat_positions = noisy_cartesian_positions.view(
         -1, spatial_dimension
     )  # [batchsize * natoms, spatial dimension]
