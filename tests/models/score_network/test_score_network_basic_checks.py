@@ -5,11 +5,12 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
-from tests.models.score_network.base_test_scores import BaseTestScore
+from tests.models.score_network.base_test_score_network import \
+    BaseTestScoreNetwork
 
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
-class TestScoreNetworkBasicCheck(BaseTestScore):
+class TestScoreNetworkBasicCheck(BaseTestScoreNetwork):
 
     @pytest.fixture()
     def score_network(self, spatial_dimension, num_atom_types):

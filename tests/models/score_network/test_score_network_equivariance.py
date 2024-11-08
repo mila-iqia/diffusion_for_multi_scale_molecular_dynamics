@@ -20,10 +20,11 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.geometric_utils import \
     get_cubic_point_group_symmetries
-from tests.models.score_network.base_test_scores import BaseTestScore
+from tests.models.score_network.base_test_score_network import \
+    BaseTestScoreNetwork
 
 
-class BaseTestScoreEquivariance(BaseTestScore):
+class BaseTestScoreEquivariance(BaseTestScoreNetwork):
 
     @staticmethod
     def apply_rotation_to_configuration(batch_rotation_matrices, batch_configuration):

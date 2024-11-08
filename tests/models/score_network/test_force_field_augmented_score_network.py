@@ -7,12 +7,13 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_scor
     MLPScoreNetwork, MLPScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
-from tests.models.score_network.base_test_scores import BaseTestScore
+from tests.models.score_network.base_test_score_network import \
+    BaseTestScoreNetwork
 
 
 @pytest.mark.parametrize("number_of_atoms", [4, 8, 16])
 @pytest.mark.parametrize("radial_cutoff", [1.5, 2.0, 2.5])
-class TestForceFieldAugmentedScoreNetwork(BaseTestScore):
+class TestForceFieldAugmentedScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
     def score_network(
         self, number_of_atoms, spatial_dimension, num_atom_types

@@ -2,7 +2,7 @@ import pytest
 import torch
 
 
-class BaseTestScore:
+class BaseTestScoreNetwork:
     """Base class defining common fixtures for all tests."""
 
     @pytest.fixture(scope="class", autouse=True)
