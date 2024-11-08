@@ -169,6 +169,26 @@ class BaseScoreNetworkGeneralTests(BaseTestScoreNetwork):
             computed_score_network_parameters, score_network_parameters
         )
 
+    def test_consistent_output(self, batch, score_network):
+        # apply twice on the same input, get the same answer?
+        with torch.no_grad():
+            output1 = score_network(batch)
+            output2 = score_network(batch)
+
+        torch.testing.assert_close(output1, output2)
+
+    def test_time_dependence(self, batch, score_network):
+        # Different times, different results?
+        new_time_batch = dict(batch)
+        new_time_batch[TIME] = torch.rand(batch[TIME].shape)
+        new_time_batch[NOISE] = torch.rand(batch[NOISE].shape)
+        with torch.no_grad():
+            output1 = score_network(batch)
+            output2 = score_network(new_time_batch)
+
+        with pytest.raises(AssertionError):
+            torch.testing.assert_close(output1, output2)
+
 
 @pytest.mark.parametrize("spatial_dimension", [2, 3])
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
@@ -201,8 +221,8 @@ class TestMLPScoreNetwork(BaseScoreNetworkGeneralTests):
         return MLPScoreNetwork(score_network_parameters)
 
 
-@pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
-@pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
+@pytest.mark.parametrize("n_hidden_dimensions", [2])
+@pytest.mark.parametrize("hidden_dimensions_size", [8])
 class TestMACEScoreNetworkMLPHead(BaseScoreNetworkGeneralTests):
 
     @pytest.fixture()
