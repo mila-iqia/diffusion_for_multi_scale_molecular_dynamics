@@ -20,6 +20,7 @@ from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler impo
 )
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
     NoOpPredictorCorrectorSampleTrajectory,
+    LangevinCorrectorSampleTrajectory,
     PredictorCorrectorSampleTrajectory,
 )
 
@@ -221,6 +222,19 @@ class LangevinCorrectorGenerator(LangevinGenerator):
     Song et. al. 2021, namely:
         "SCORE-BASED GENERATIVE MODELING THROUGH STOCHASTIC DIFFERENTIAL EQUATIONS"
     """
+    def __init__(
+        self,
+        noise_parameters: NoiseParameters,
+        sampling_parameters: PredictorCorrectorSamplingParameters,
+        sigma_normalized_score_network: ScoreNetwork,
+    ):
+        """Init method."""
+        super().__init__(
+            noise_parameters=noise_parameters,
+            sampling_parameters=sampling_parameters,
+            sigma_normalized_score_network=sigma_normalized_score_network
+        )
+        self.sample_trajectory_recorder = LangevinCorrectorSampleTrajectory()
 
     def predictor_step(
         self,

@@ -202,6 +202,58 @@ class PredictorCorrectorSampleTrajectory(SampleTrajectory):
         return standardized_data
 
 
+class LangevinCorrectorSampleTrajectory(SampleTrajectory):
+    """Langevin Corrector Only Sample Trajectory.
+
+    This class aims to record all details of the predictor-corrector diffusion sampling process. The goal is to produce
+    an artifact that can then be analyzed off-line.
+    """
+    def record_corrector_step(
+        self,
+        i_index: int,
+        time: float,
+        sigma: float,
+        x_i: torch.Tensor,
+        corrected_x_i: torch.Tensor,
+        scores: torch.Tensor,
+    ):
+        """Record corrector step."""
+        self.data["corrector_i_index"].append(i_index)
+        self.data["corrector_time"].append(time)
+        self.data["corrector_sigma"].append(sigma)
+        self.data["corrector_x_i"].append(x_i.detach().cpu())
+        self.data["corrector_corrected_x_i"].append(corrected_x_i.detach().cpu())
+        self.data["corrector_scores"].append(scores.detach().cpu())
+
+    def standardize_data(self, data: Dict[AnyStr, Any]) -> Dict[AnyStr, Any]:
+        """Method to transform the recorded data to a standard form."""
+        corrector_relative_coordinates = einops.rearrange(
+            torch.stack(data["corrector_x_i"]), "t b n d -> b t n d"
+        )
+        corrector_normalized_scores = einops.rearrange(
+            torch.stack(data["corrector_scores"]), "t b n d -> b t n d"
+        )
+
+        extra_fields = [
+            "corrector_i_index",
+            "corrector_time",
+            "corrector_sigma",
+            "corrector_x_i",
+            "corrector_corrected_x_i",
+            "corrector_scores",
+        ]
+
+        standardized_data = dict(
+            unit_cell=data["unit_cell"],
+            time=torch.tensor(data["corrector_time"]),
+            sigma=torch.tensor(data["corrector_sigma"]),
+            relative_coordinates=corrector_relative_coordinates,
+            normalized_scores=corrector_normalized_scores,
+            extra={key: data[key] for key in extra_fields},
+        )
+        return standardized_data
+
+
 class NoOpPredictorCorrectorSampleTrajectory(PredictorCorrectorSampleTrajectory):
     """A sample trajectory object that performs no operation."""
 
