@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import AnyStr, Dict, List, Optional
 
+import einops
 import numpy as np
 import torch
 from e3nn import o3
@@ -178,14 +179,22 @@ class MACEScoreNetwork(ScoreNetwork):
         # with this value the same for all atoms belonging to the same graph.
         times = batch[TIME].to(relative_coordinates.device)  # shape [batch_size, 1]
         flat_times = times[graph_input.batch]  # shape [batch_size * natoms, 1]
-        flat_scores = self.coordinates_prediction_head(
+
+        # The output of the prediction head is a 'cartesian score'; ie it is similar to nabla_r ln P.
+        flat_cartesian_scores = self.coordinates_prediction_head(
             flat_node_features, flat_times
         )  # shape [batch_size * natoms, spatial_dim]
 
-        # Reshape the scores to have an explicit batch dimension
-        coordinates_scores = flat_scores.reshape(
+        # Reshape the cartesian scores to have an explicit batch dimension
+        cartesian_scores = flat_cartesian_scores.reshape(
             -1, self._natoms, self.spatial_dimension
         )
+
+        # The expected output of the score network is a COORDINATE SCORE, i.e. something like nabla_x ln P.
+        # Note that the basis_vectors is composed of ROWS of basis vectors
+        basis_vectors = batch[UNIT_CELL]
+        coordinates_scores = einops.einsum(basis_vectors, cartesian_scores,
+                                           "batch i alpha, batch natoms alpha -> batch natoms i")
 
         flat_atom_type_scores = self.atom_types_prediction_head(
             flat_node_features, flat_times
