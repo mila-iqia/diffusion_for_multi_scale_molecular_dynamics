@@ -5,6 +5,12 @@ from e3nn import o3
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusion_mace_score_network import (
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import (
+    EGNNScoreNetwork, EGNNScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mace_score_network import (
+    MACEScoreNetwork, MACEScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import \
+    MaceEquivariantScorePredictionHeadParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION,
     NOISY_CARTESIAN_POSITIONS, TIME, UNIT_CELL)
@@ -453,3 +459,46 @@ class TestEquivarianceDiffusionMACE(BaseTestScoreEquivariance):
     @pytest.fixture()
     def score_network(self, score_network_parameters):
         return DiffusionMACEScoreNetwork(score_network_parameters)
+
+
+@pytest.mark.skip("These rotation equivariance tests FAIL.")
+class TestEquivarianceMaceWithEquivariantScorePredictionHead(BaseTestScoreEquivariance):
+
+    @pytest.fixture()
+    def score_network_parameters(
+        self,
+        spatial_dimension,
+        number_of_atoms,
+        num_atom_types,
+    ):
+        prediction_head_parameters = MaceEquivariantScorePredictionHeadParameters(
+            spatial_dimension=spatial_dimension,
+            number_of_layers=2,
+        )
+
+        return MACEScoreNetworkParameters(
+            spatial_dimension=spatial_dimension,
+            number_of_atoms=number_of_atoms,
+            num_atom_types=num_atom_types,
+            r_max=3.0,
+            prediction_head_parameters=prediction_head_parameters,
+        )
+
+    @pytest.fixture()
+    def score_network(self, score_network_parameters):
+        return MACEScoreNetwork(score_network_parameters)
+
+
+class TestEquivarianceEGNN(BaseTestScoreEquivariance):
+
+    @pytest.fixture(params=[("fully_connected", None), ("radial_cutoff", 3.0)])
+    def score_network_parameters(self, request, num_atom_types):
+        edges, radial_cutoff = request.param
+        return EGNNScoreNetworkParameters(
+            edges=edges, radial_cutoff=radial_cutoff, num_atom_types=num_atom_types
+        )
+
+    @pytest.fixture()
+    def score_network(self, score_network_parameters):
+        score_network = EGNNScoreNetwork(score_network_parameters)
+        return score_network

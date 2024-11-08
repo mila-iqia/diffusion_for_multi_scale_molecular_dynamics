@@ -18,10 +18,6 @@ class BaseTestScore:
         torch.manual_seed(234233)
 
     @pytest.fixture()
-    def score_network_parameters(self, *args):
-        raise NotImplementedError("This fixture must be implemented in the derived class.")
-
-    @pytest.fixture()
     def score_network(self, *args):
         raise NotImplementedError("This fixture must be implemented in the derived class.")
 
