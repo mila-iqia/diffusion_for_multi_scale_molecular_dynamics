@@ -367,6 +367,10 @@ class BaseTestScoreEquivariance(BaseTestScore):
         )
         return should_match
 
+    @pytest.fixture()
+    def atom_output_should_be_tested_for_rational_equivariance(self):
+        return True
+
     def test_rotation_equivariance(
         self,
         output,
@@ -375,6 +379,7 @@ class BaseTestScoreEquivariance(BaseTestScore):
         rotated_basis_vectors,
         cartesian_rotations,
         rotated_scores_should_match,
+        atom_output_should_be_tested_for_rational_equivariance
     ):
 
         # The score is ~ nabla_x ln P. There must a be a basis change to turn it into a cartesian score of the
@@ -403,8 +408,10 @@ class BaseTestScoreEquivariance(BaseTestScore):
             torch.testing.assert_close(
                 expected_rotated_cartesian_scores, rotated_cartesian_scores
             )
-            torch.testing.assert_close(output.A, rotated_output.A)
             torch.testing.assert_close(output.L, rotated_output.L)
+
+            if atom_output_should_be_tested_for_rational_equivariance:
+                torch.testing.assert_close(output.A, rotated_output.A)
         else:
             with pytest.raises(AssertionError):
                 torch.testing.assert_close(
@@ -438,6 +445,7 @@ class BaseTestScoreEquivariance(BaseTestScore):
 
 
 class TestEquivarianceDiffusionMACE(BaseTestScoreEquivariance):
+
     @pytest.fixture()
     def score_network_parameters(
         self, number_of_atoms, num_atom_types, spatial_dimension
@@ -461,8 +469,13 @@ class TestEquivarianceDiffusionMACE(BaseTestScoreEquivariance):
         return DiffusionMACEScoreNetwork(score_network_parameters)
 
 
-@pytest.mark.skip("These rotation equivariance tests FAIL.")
+# TODO: This model has not yet been adapted to multiple atom types, and so is not ready for atom_type related tests.
+#  This test should be updated if the model is adapted to multiple atom types.
 class TestEquivarianceMaceWithEquivariantScorePredictionHead(BaseTestScoreEquivariance):
+
+    @pytest.fixture()
+    def atom_output_should_be_tested_for_rational_equivariance(self):
+        return False
 
     @pytest.fixture()
     def score_network_parameters(
