@@ -7,29 +7,18 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_scor
     MLPScoreNetwork, MLPScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+from tests.models.score_network.base_test_scores import BaseTestScore
 
 
 @pytest.mark.parametrize("number_of_atoms", [4, 8, 16])
 @pytest.mark.parametrize("radial_cutoff", [1.5, 2.0, 2.5])
-class TestForceFieldAugmentedScoreNetwork:
-    @pytest.fixture(scope="class", autouse=True)
-    def set_random_seed(self):
-        torch.manual_seed(345345345)
-
+class TestForceFieldAugmentedScoreNetwork(BaseTestScore):
     @pytest.fixture()
-    def spatial_dimension(self):
-        return 3
-
-    @pytest.fixture()
-    def num_atom_types(self):
-        return 4
-
-    @pytest.fixture()
-    def score_network_parameters(
+    def score_network(
         self, number_of_atoms, spatial_dimension, num_atom_types
     ):
         # Generate an arbitrary MLP-based score network.
-        return MLPScoreNetworkParameters(
+        score_network_parameters = MLPScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
             num_atom_types=num_atom_types,
@@ -38,9 +27,6 @@ class TestForceFieldAugmentedScoreNetwork:
             n_hidden_dimensions=2,
             hidden_dimensions_size=16,
         )
-
-    @pytest.fixture()
-    def score_network(self, score_network_parameters):
         return MLPScoreNetwork(score_network_parameters)
 
     @pytest.fixture()
@@ -55,10 +41,6 @@ class TestForceFieldAugmentedScoreNetwork:
             score_network, force_field_parameters
         )
         return augmented_score_network
-
-    @pytest.fixture()
-    def batch_size(self):
-        return 16
 
     @pytest.fixture
     def times(self, batch_size):
@@ -95,11 +77,6 @@ class TestForceFieldAugmentedScoreNetwork:
     ):
         cartesian_forces = torch.rand(batch_size, number_of_atoms, spatial_dimension)
         return cartesian_forces
-
-    @pytest.fixture
-    def atom_types(self, batch_size, number_of_atoms, num_atom_types):
-        atom_types = torch.randint(0, num_atom_types + 1, (batch_size, number_of_atoms))
-        return atom_types
 
     @pytest.fixture
     def noises(self, batch_size):
