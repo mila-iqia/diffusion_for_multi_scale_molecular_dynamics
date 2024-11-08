@@ -20,7 +20,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.geometric_utils import \
     get_cubic_point_group_symmetries
-from tests.models.score_network.conftest import BaseTestScore
+from tests.models.score_network.base_test_scores import BaseTestScore
 
 
 class BaseTestScoreEquivariance(BaseTestScore):
@@ -89,6 +89,14 @@ class BaseTestScoreEquivariance(BaseTestScore):
             CARTESIAN_FORCES: forces,
         }
         return batch
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_default_type_to_float64(self):
+        torch.set_default_dtype(torch.float64)
+        yield
+        # this returns the default type to float32 at the end of all tests in this class in order
+        # to not affect other tests.
+        torch.set_default_dtype(torch.float32)
 
     @pytest.fixture()
     def output(self, batch, score_network):

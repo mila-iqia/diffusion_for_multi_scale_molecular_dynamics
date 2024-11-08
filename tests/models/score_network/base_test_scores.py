@@ -4,13 +4,6 @@ import torch
 
 class BaseTestScore:
     """Base class defining common fixtures for all tests."""
-    @pytest.fixture(scope="class", autouse=True)
-    def set_default_type_to_float64(self):
-        torch.set_default_dtype(torch.float64)
-        yield
-        # this returns the default type to float32 at the end of all tests in this class in order
-        # to not affect other tests.
-        torch.set_default_dtype(torch.float32)
 
     @pytest.fixture(scope="class", autouse=True)
     def set_seed(self):
