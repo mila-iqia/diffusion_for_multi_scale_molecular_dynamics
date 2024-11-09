@@ -377,7 +377,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         return should_match
 
     @pytest.fixture()
-    def atom_output_should_be_tested_for_rational_equivariance(self):
+    def atom_output_should_be_tested_for_rotational_equivariance(self):
         return True
 
     def test_rotation_equivariance(
@@ -388,7 +388,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         rotated_basis_vectors,
         cartesian_rotations,
         rotated_scores_should_match,
-        atom_output_should_be_tested_for_rational_equivariance
+        atom_output_should_be_tested_for_rotational_equivariance
     ):
 
         # The score is ~ nabla_x ln P. There must a be a basis change to turn it into a cartesian score of the
@@ -419,7 +419,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             )
             torch.testing.assert_close(output.L, rotated_output.L)
 
-            if atom_output_should_be_tested_for_rational_equivariance:
+            if atom_output_should_be_tested_for_rotational_equivariance:
                 torch.testing.assert_close(output.A, rotated_output.A)
         else:
             with pytest.raises(AssertionError):
@@ -483,7 +483,7 @@ class TestEquivarianceDiffusionMACE(BaseTestScoreEquivariance):
 class TestEquivarianceMaceWithEquivariantScorePredictionHead(BaseTestScoreEquivariance):
 
     @pytest.fixture()
-    def atom_output_should_be_tested_for_rational_equivariance(self):
+    def atom_output_should_be_tested_for_rotational_equivariance(self):
         return False
 
     @pytest.fixture()
