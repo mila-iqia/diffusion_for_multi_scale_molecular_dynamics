@@ -1,8 +1,9 @@
-import einops
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     LossParameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
+    get_probability_at_previous_time_step
 
 
 class D3PMLossCalculator(torch.nn.Module):
@@ -59,7 +60,8 @@ class D3PMLossCalculator(torch.nn.Module):
             q_matrices=q_matrices,
             q_bar_matrices=q_bar_matrices,
             q_bar_tm1_matrices=q_bar_tm1_matrices,
-            small_epsilon=self.eps)
+            small_epsilon=self.eps,
+        )
 
         # The predicted probabilities
         p_atm1_given_at = self.get_p_atm1_given_at(
@@ -68,7 +70,8 @@ class D3PMLossCalculator(torch.nn.Module):
             q_matrices=q_matrices,
             q_bar_matrices=q_bar_matrices,
             q_bar_tm1_matrices=q_bar_tm1_matrices,
-            small_epsilon=self.eps)
+            small_epsilon=self.eps,
+        )
 
         # get the KL divergence between posterior and predicted probabilities
         # do not reduce (average) yet as we will replace the samples with t=1 with a NLL loss
@@ -78,49 +81,6 @@ class D3PMLossCalculator(torch.nn.Module):
             log_p, q_atm1_given_at_and_a0, reduction="none"
         )
         return kl_loss
-
-    @classmethod
-    def _get_probability_atm1_given_at_and_a0_like(
-        cls,
-        one_hot_a0_like: torch.Tensor,
-        one_hot_at: torch.Tensor,
-        q_matrices: torch.Tensor,
-        q_bar_matrices: torch.Tensor,
-        q_bar_tm1_matrices: torch.Tensor,
-        small_epsilon: float,
-    ) -> torch.Tensor:
-        r"""Compute P(a_{t-1} | a_t, a0_like), for given a0_like.
-
-        .. math::
-            P(a_{t-1} | a_t, a0_like) = (a0_like^T \cdot \bar{Q}_{t-1} \cdot a_{t-1}) (a_{t-1}^T \cdot Q_t \cdot a_t) /
-                                            (a0_like^T \cdot \bar{Q}_{t} \cdot a_t)
-
-        Args:
-            one_hot_a0_like: a one-hot representation of a class type, as a tensor with dimension
-                [batch_size, number_of_atoms, num_classes]
-            one_hot_at: a one-hot representation of a class type at current time step, as a tensor with dimension
-                [batch_size, number_of_atoms, num_classes]
-             q_matrices: transition matrices at current time step :math:`{Q}_{t}` of dimension
-                [batch_size, number_of_atoms, num_classes, num_classes].
-            q_bar_matrices: one-shot transition matrices at current time step :math:`\bar{Q}_{t}` of dimension
-                [batch_size, number_of_atoms, num_classes, num_classes].
-            q_bar_tm1_matrices: one-shot transition matrices at previous time step :math:`\bar{Q}_{t-1}` of dimension
-                [batch_size, number_of_atoms, num_classes, num_classes].
-            small_epsilon: minimum value for the denominator, to avoid division by zero.
-
-        Returns:
-            one-step transition normalized probabilities of dimension [batch_size, number_of_atoms, num_type_atoms]
-        """
-        numerator1 = einops.einsum(one_hot_a0_like, q_bar_tm1_matrices, "... j, ... j i -> ... i")
-        numerator2 = einops.einsum(q_matrices, one_hot_at, "... i j, ... j -> ... i")
-        numerator = numerator1 * numerator2
-
-        den1 = einops.einsum(q_bar_matrices, one_hot_at, "... i j, ... j -> ... i")
-        den2 = einops.einsum(one_hot_a0_like, den1, "... j, ... j -> ...").clip(min=small_epsilon)
-
-        denominator = einops.repeat(den2, "... -> ... num_classes", num_classes=numerator.shape[-1])
-
-        return numerator / denominator
 
     @classmethod
     def get_q_atm1_given_at_and_a0(
@@ -150,12 +110,15 @@ class D3PMLossCalculator(torch.nn.Module):
         Returns:
             probabilities over classes,  of dimension [batch_size, num_classes, num_classes]
         """
-        q_atm1_given_at_and_0 = cls._get_probability_atm1_given_at_and_a0_like(one_hot_a0,
-                                                                               one_hot_at,
-                                                                               q_matrices,
-                                                                               q_bar_matrices,
-                                                                               q_bar_tm1_matrices,
-                                                                               small_epsilon)
+        q_atm1_given_at_and_0 = get_probability_at_previous_time_step(
+            probability_at_zeroth_timestep=one_hot_a0,
+            one_hot_probability_at_current_timestep=one_hot_at,
+            q_matrices=q_matrices,
+            q_bar_matrices=q_bar_matrices,
+            q_bar_tm1_matrices=q_bar_tm1_matrices,
+            small_epsilon=small_epsilon,
+            probability_at_zeroth_timestep_are_logits=False,
+        )
         return q_atm1_given_at_and_0
 
     @classmethod
@@ -166,7 +129,7 @@ class D3PMLossCalculator(torch.nn.Module):
         q_matrices: torch.Tensor,
         q_bar_matrices: torch.Tensor,
         q_bar_tm1_matrices: torch.Tensor,
-        small_epsilon: float
+        small_epsilon: float,
     ) -> torch.Tensor:
         r"""Compute p(a_{t-1} | a_t).
 
@@ -190,14 +153,15 @@ class D3PMLossCalculator(torch.nn.Module):
         Returns:
             one-step transition normalized probabilities of dimension [batch_size, num_classes, num_classes]
         """
-        predicted_p_a0_given_at = torch.nn.functional.softmax(predicted_logits, dim=-1)
-        p_atm1_at = cls._get_probability_atm1_given_at_and_a0_like(predicted_p_a0_given_at,
-                                                                   one_hot_at,
-                                                                   q_matrices,
-                                                                   q_bar_matrices,
-                                                                   q_bar_tm1_matrices,
-                                                                   small_epsilon)
-
+        p_atm1_at = get_probability_at_previous_time_step(
+            probability_at_zeroth_timestep=predicted_logits,
+            one_hot_probability_at_current_timestep=one_hot_at,
+            q_matrices=q_matrices,
+            q_bar_matrices=q_bar_matrices,
+            q_bar_tm1_matrices=q_bar_tm1_matrices,
+            small_epsilon=small_epsilon,
+            probability_at_zeroth_timestep_are_logits=True,
+        )
         return p_atm1_at
 
     def calculate_unreduced_loss(

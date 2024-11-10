@@ -94,7 +94,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         # atom: unnormalized estimate of p(a_0 | a_t)
         # relative coordinates: estimate of \sigma \nabla_{x_t} p_{t|0}(x_t | x_0)
         # lattices: TODO
-        self.score_network = create_score_network(hyper_params.score_network_parameters)
+        self.axl_network = create_score_network(hyper_params.score_network_parameters)
 
         # loss is an AXL object with one loss for each element (atom type, coordinate, lattice)
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
@@ -310,7 +310,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         }
 
         use_conditional = None if no_conditional is False else False
-        model_predictions = self.score_network(
+        model_predictions = self.axl_network(
             augmented_batch, conditional=use_conditional
         )
         # this output is expected to be an AXL object
@@ -524,7 +524,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             self.generator = instantiate_generator(
                 sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
                 noise_parameters=self.hyper_params.diffusion_sampling_parameters.noise_parameters,
-                sigma_normalized_score_network=self.score_network,  # TODO use A and L too
+                axl_network=self.axl_network,  # TODO use A and L too
             )
             logger.info(f"Generator type : {type(self.generator)}")
 

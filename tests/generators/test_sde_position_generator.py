@@ -49,11 +49,16 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
         return sampling_parameters
 
     @pytest.fixture()
+    def atom_types(self, number_of_samples, number_of_atoms):
+        return torch.zeros(number_of_samples, number_of_atoms).long()
+
+    @pytest.fixture()
     def sde(
         self,
         noise_parameters,
         sampling_parameters,
-        sigma_normalized_score_network,
+        axl_network,
+        atom_types,
         unit_cell_sample,
         initial_diffusion_time,
         final_diffusion_time,
@@ -61,7 +66,8 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
         sde = SDE(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
-            sigma_normalized_score_network=sigma_normalized_score_network,
+            axl_network=axl_network,
+            atom_types=atom_types,
             unit_cells=unit_cell_sample,
             initial_diffusion_time=initial_diffusion_time,
             final_diffusion_time=final_diffusion_time,
@@ -108,13 +114,11 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
         torch.testing.assert_close(computed_g_squared, expected_g_squared)
 
     @pytest.fixture()
-    def sde_generator(
-        self, noise_parameters, sampling_parameters, sigma_normalized_score_network
-    ):
+    def sde_generator(self, noise_parameters, sampling_parameters, axl_network):
         generator = ExplodingVarianceSDEPositionGenerator(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
-            sigma_normalized_score_network=sigma_normalized_score_network,
+            axl_network=axl_network,
         )
         return generator
 

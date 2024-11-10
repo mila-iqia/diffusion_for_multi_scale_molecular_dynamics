@@ -1,14 +1,15 @@
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
-    PredictorCorrectorPositionGenerator
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
+    PredictorCorrectorAXLGenerator
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
 from tests.generators.conftest import BaseTestGenerator
 
 
-class FakePCGenerator(PredictorCorrectorPositionGenerator):
+class FakePCGenerator(PredictorCorrectorAXLGenerator):
     """A dummy PC generator for the purpose of testing."""
 
     def __init__(
@@ -16,29 +17,47 @@ class FakePCGenerator(PredictorCorrectorPositionGenerator):
         number_of_discretization_steps: int,
         number_of_corrector_steps: int,
         spatial_dimension: int,
+        num_atom_types: int,
         initial_sample: torch.Tensor,
     ):
         super().__init__(
-            number_of_discretization_steps, number_of_corrector_steps, spatial_dimension
+            number_of_discretization_steps,
+            number_of_corrector_steps,
+            spatial_dimension,
+            num_atom_types,
         )
         self.initial_sample = initial_sample
 
-    def initialize(self, number_of_samples: int):
+    def initialize(
+        self, number_of_samples: int, device: torch.device = torch.device("cpu")
+    ):
         return self.initial_sample
 
     def predictor_step(
         self,
-        x_ip1: torch.Tensor,
+        axl_ip1: AXL,
         ip1: int,
         unit_cell: torch.Tensor,
         forces: torch.Tensor,
     ) -> torch.Tensor:
-        return 1.2 * x_ip1 + 3.4 + ip1 / 111.0
+        updated_axl = AXL(
+            A=axl_ip1.A,
+            X=map_relative_coordinates_to_unit_cell(
+                1.2 * axl_ip1.X + 3.4 + ip1 / 111.0
+            ),
+            L=axl_ip1.L,
+        )
+        return updated_axl
 
     def corrector_step(
-        self, x_i: torch.Tensor, i: int, unit_cell: torch.Tensor, forces: torch.Tensor
+        self, axl_i: torch.Tensor, i: int, unit_cell: torch.Tensor, forces: torch.Tensor
     ) -> torch.Tensor:
-        return 0.56 * x_i + 7.89 + i / 117.0
+        updated_axl = AXL(
+            A=axl_i.A,
+            X=map_relative_coordinates_to_unit_cell(0.56 * axl_i.X + 7.89 + i / 117.0),
+            L=axl_i.L,
+        )
+        return updated_axl
 
 
 @pytest.mark.parametrize("number_of_discretization_steps", [1, 5, 10])
@@ -49,8 +68,18 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         torch.manual_seed(1234567)
 
     @pytest.fixture
-    def initial_sample(self, number_of_samples, number_of_atoms, spatial_dimension):
-        return torch.rand(number_of_samples, number_of_atoms, spatial_dimension)
+    def initial_sample(
+        self, number_of_samples, number_of_atoms, spatial_dimension, num_atom_types
+    ):
+        return AXL(
+            A=torch.randint(
+                0, num_atom_types + 1, (number_of_samples, number_of_atoms)
+            ),
+            X=torch.rand(number_of_samples, number_of_atoms, spatial_dimension),
+            L=torch.rand(
+                number_of_samples, spatial_dimension * (spatial_dimension - 1)
+            ),  # TODO placeholder
+        )
 
     @pytest.fixture
     def generator(
@@ -58,12 +87,14 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         number_of_discretization_steps,
         number_of_corrector_steps,
         spatial_dimension,
+        num_atom_types,
         initial_sample,
     ):
         generator = FakePCGenerator(
             number_of_discretization_steps,
             number_of_corrector_steps,
             spatial_dimension,
+            num_atom_types,
             initial_sample,
         )
         return generator
@@ -81,22 +112,32 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         list_i.reverse()
         list_j = list(range(number_of_corrector_steps))
 
-        noisy_sample = map_relative_coordinates_to_unit_cell(initial_sample)
-        x_ip1 = noisy_sample
+        noisy_sample = map_axl_composition_to_unit_cell(
+            initial_sample, torch.device("cpu")
+        )
+        composition_ip1 = noisy_sample
         for i in list_i:
-            xi = map_relative_coordinates_to_unit_cell(
+            composition_i = map_axl_composition_to_unit_cell(
                 generator.predictor_step(
-                    x_ip1, i + 1, unit_cell_sample, torch.zeros_like(x_ip1)
-                )
+                    composition_ip1,
+                    i + 1,
+                    unit_cell_sample,
+                    torch.zeros_like(composition_ip1.X),
+                ),
+                torch.device("cpu"),
             )
             for _ in list_j:
-                xi = map_relative_coordinates_to_unit_cell(
+                composition_i = map_axl_composition_to_unit_cell(
                     generator.corrector_step(
-                        xi, i, unit_cell_sample, torch.zeros_like(xi)
-                    )
+                        composition_i,
+                        i,
+                        unit_cell_sample,
+                        torch.zeros_like(composition_i.X),
+                    ),
+                    torch.device("cpu"),
                 )
-            x_ip1 = xi
-        return xi
+            composition_ip1 = composition_i
+        return composition_i
 
     def test_sample(
         self, generator, number_of_samples, expected_samples, unit_cell_sample
@@ -104,4 +145,5 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         computed_samples = generator.sample(
             number_of_samples, torch.device("cpu"), unit_cell_sample
         )
+
         torch.testing.assert_close(expected_samples, computed_samples)

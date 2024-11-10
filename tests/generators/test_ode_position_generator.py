@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
-    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
+    ExplodingVarianceODEAXLGenerator, ODESamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
@@ -14,7 +14,7 @@ from tests.generators.conftest import BaseTestGenerator
 @pytest.mark.parametrize("sigma_min", [0.15])
 @pytest.mark.parametrize("record_samples", [False, True])
 @pytest.mark.parametrize("number_of_samples", [8])
-class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
+class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
 
     @pytest.fixture()
     def noise_parameters(self, total_time_steps, sigma_min):
@@ -44,12 +44,15 @@ class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
 
     @pytest.fixture()
     def ode_generator(
-        self, noise_parameters, sampling_parameters, sigma_normalized_score_network
+        self,
+        noise_parameters,
+        sampling_parameters,
+        axl_network,
     ):
-        generator = ExplodingVarianceODEPositionGenerator(
+        generator = ExplodingVarianceODEAXLGenerator(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
-            sigma_normalized_score_network=sigma_normalized_score_network,
+            axl_network=axl_network,
         )
 
         return generator
@@ -78,15 +81,13 @@ class TestExplodingVarianceODEPositionGenerator(BaseTestGenerator):
         unit_cell_sample,
     ):
         # Just a smoke test that we can sample without crashing.
-        relative_coordinates = ode_generator.sample(
-            number_of_samples, device, unit_cell_sample
-        )
+        sampled_axl = ode_generator.sample(number_of_samples, device, unit_cell_sample)
 
-        assert relative_coordinates.shape == (
+        assert sampled_axl.X.shape == (
             number_of_samples,
             number_of_atoms,
             spatial_dimension,
         )
 
-        assert relative_coordinates.min() >= 0.0
-        assert relative_coordinates.max() < 1.0
+        assert sampled_axl.X.min() >= 0.0
+        assert sampled_axl.X.max() < 1.0
