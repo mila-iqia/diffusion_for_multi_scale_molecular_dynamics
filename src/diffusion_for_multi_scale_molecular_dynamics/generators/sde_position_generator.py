@@ -133,7 +133,7 @@ class SDE(torch.nn.Module):
 
         sigma_normalized_scores = self.get_model_predictions(
             diffusion_time, flat_relative_coordinates, self.atom_types
-        ).X  # we are only using the sigma normalized score forthe relative coordinates diffusion
+        ).X  # we are only using the sigma normalized score for the relative coordinates diffusion
         flat_sigma_normalized_scores = einops.rearrange(
             sigma_normalized_scores, "batch natom space -> batch (natom space)"
         )

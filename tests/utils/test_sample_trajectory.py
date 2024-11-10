@@ -362,14 +362,14 @@ def test_record_corrector(
             [getattr(axl, axl_field) for axl in list_axl_i_corr], dim=0
         )
         torch.testing.assert_close(corrector_i, target_corrector_i)
-        corrector_corrected_im1 = torch.stack(
+        corrector_corrected_i1 = torch.stack(
             sample_trajectory.data[f"corrector_{axl_name}_corrected_i"], dim=0
         )
-        target_corrector_corrected_im1 = torch.stack(
+        target_corrector_corrected_i1 = torch.stack(
             [getattr(axl, axl_field) for axl in list_corrected_axl_i], dim=0
         )
         torch.testing.assert_close(
-            corrector_corrected_im1, target_corrector_corrected_im1
+            corrector_corrected_i1, target_corrector_corrected_i1
         )
 
         corrector_mo_i = torch.stack(

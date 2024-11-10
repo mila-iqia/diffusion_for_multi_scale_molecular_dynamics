@@ -38,7 +38,7 @@ class AXLGenerator(ABC):
     ) -> AXL:
         """Sample.
 
-        This method draws a position sample.
+        This method draws a configuration sample.
 
         Args:
             number_of_samples : number of samples to draw.

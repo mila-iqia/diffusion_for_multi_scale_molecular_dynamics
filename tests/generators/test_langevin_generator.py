@@ -210,7 +210,7 @@ class TestLangevinGenerator(BaseTestGenerator):
                 q_bar_matrices=q_bar_matrices,
                 q_bar_tm1_matrices=q_bar_tm1_matrices,
                 small_epsilon=small_epsilon,
-                probability_at_zeroth_timestep_are_onehot=False,
+                probability_at_zeroth_timestep_are_logits=True,
             )
             gumbel_distribution = torch.log(p_atm1_given_at) + u
 

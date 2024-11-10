@@ -68,34 +68,36 @@ def get_probability_at_previous_time_step(
     q_bar_matrices: torch.Tensor,
     q_bar_tm1_matrices: torch.Tensor,
     small_epsilon: float,
-    probability_at_zeroth_timestep_are_onehot: bool = True,
+    probability_at_zeroth_timestep_are_logits: bool = False,
 ) -> torch.Tensor:
-    r"""Compute :math:`P(a_{t-1} | a_t, a_0)`, for given probability distribution a_0 and a_t.
+    r"""Compute :math:`P(a_{t-1} | a_t, \gamma_0)`, for given probability distribution :math:`\gamma_0` and a one-hot
+        distribution :math:`a_t`.
 
     .. math::
-        P(a_{t-1} | a_t, a0_like) = (a_0^T \cdot \bar{Q}_{t-1} \cdot a_{t-1}) (a_{t-1}^T \cdot Q_t \cdot a_t) /
-                                        (a_0^T \cdot \bar{Q}_{t} \cdot a_t)
+        P(a_{t-1} | a_t, \gamma_0) = (\gamma_0^T \cdot \bar{Q}_{t-1} \cdot a_{t-1}) (a_{t-1}^T \cdot Q_t \cdot a_t) /
+                                        (\gamma_0^T \cdot \bar{Q}_{t} \cdot a_t)
 
     Args:
-        probability_at_zeroth_timestep: a probability representation of a class type (one-hot
+        probability_at_zeroth_timestep: :math:`\gamma_0` a probability representation of a class type (one-hot
             distribution or normalized distribution), as a tensor with dimension
             [batch_size, number_of_atoms, num_classes]
-        one_hot_probability_at_current_timestep: a one-hot representation of a class type at current time step, as a
-            tensor with dimension [batch_size, number_of_atoms, num_classes]
-         q_matrices: transition matrices at current time step :math:`{Q}_{t}` of dimension
+        one_hot_probability_at_current_timestep: :math:`a_t` a one-hot representation of a class type at current time
+            step, as a tensor with dimension [batch_size, number_of_atoms, num_classes]
+         q_matrices: :math:`{Q}_{t}` transition matrices at current time step of dimension
             [batch_size, number_of_atoms, num_classes, num_classes].
-        q_bar_matrices: one-shot transition matrices at current time step :math:`\bar{Q}_{t}` of dimension
+        q_bar_matrices: :math:`\bar{Q}_{t}` one-shot transition matrices at current time step of dimension
             [batch_size, number_of_atoms, num_classes, num_classes].
-        q_bar_tm1_matrices: one-shot transition matrices at previous time step :math:`\bar{Q}_{t-1}` of dimension
+        q_bar_tm1_matrices: :math:`\bar{Q}_{t-1}` one-shot transition matrices at previous time step of dimension
             [batch_size, number_of_atoms, num_classes, num_classes].
         small_epsilon: minimum value for the denominator, to avoid division by zero.
-        probability_at_zeroth_timestep_are_onehot: if True, assume the probability_at_zeroth_timestep sum to 1.
-            If False, assume they are not and use a softmax on the last dimension to normalize. Defaults to True.
+        probability_at_zeroth_timestep_are_logits: if True, assume the probability_at_zeroth_timestep do not sum to 1
+            and use a softmax on the last dimension to normalize. If False, assume the probabilities are normalized.
+            Defaults to False.
 
     Returns:
         one-step transition normalized probabilities of dimension [batch_size, number_of_atoms, num_type_atoms]
     """
-    if not probability_at_zeroth_timestep_are_onehot:
+    if probability_at_zeroth_timestep_are_logits:
         probability_at_zeroth_timestep = torch.nn.functional.softmax(
             probability_at_zeroth_timestep, dim=-1
         )

@@ -93,8 +93,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         sigma_noise: float,
         unit_cell: torch.Tensor,  # TODO replace with AXL-L
         cartesian_forces: torch.Tensor,
-    ) -> torch.Tensor:
-        """Get sigma normalized scores.
+    ) -> AXL:
+        """Get the outputs of an axl-network.
 
         Args:
             composition : AXL composition with:
@@ -109,7 +109,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 spatial_dimension]
 
         Returns:
-            sigma normalized score: sigma x Score(x, t).
+            axl network output:
+                 atom type: logits of p(a_0 | a_t).
+                 relative coordinates: sigma normalized score: sigma x Score(x, t).
+                 lattice: TODO.
         """
         number_of_samples = composition.X.shape[0]
 

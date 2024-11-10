@@ -248,7 +248,7 @@ def test_get_probability_at_previous_time_step_from_logits(
         q_bar_matrices,
         q_bar_tm1_matrices,
         small_epsilon=loss_eps,
-        probability_at_zeroth_timestep_are_onehot=False,
+        probability_at_zeroth_timestep_are_logits=True,
     )
 
     assert torch.allclose(
@@ -272,7 +272,7 @@ def test_get_probability_at_previous_time_step_from_one_hot_probabilities(
         q_bar_matrices,
         q_bar_tm1_matrices,
         small_epsilon=loss_eps,
-        probability_at_zeroth_timestep_are_onehot=True,
+        probability_at_zeroth_timestep_are_logits=False,
     )
 
     assert torch.allclose(
