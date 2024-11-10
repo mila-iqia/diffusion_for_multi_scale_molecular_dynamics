@@ -12,12 +12,12 @@ from typing import Any, AnyStr, Dict, Optional, Union
 
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
+    SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
 from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
     load_sampling_parameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
-    SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
     AXLDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
@@ -119,23 +119,21 @@ def extract_and_validate_parameters(hyper_params: Dict[AnyStr, Any]):
     return noise_parameters, sampling_parameters
 
 
-def get_sigma_normalized_score_network(
-    checkpoint_path: Union[str, Path]
-) -> ScoreNetwork:
-    """Get sigma-normalized score network.
+def get_axl_network(checkpoint_path: Union[str, Path]) -> ScoreNetwork:
+    """Get AXL network.
 
     Args:
         checkpoint_path : path where the checkpoint is written.
 
     Returns:
-        sigma_normalized score network: read from the checkpoint.
+        axl network network: read from the checkpoint.
     """
     logger.info("Loading checkpoint...")
     pl_model = AXLDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
     pl_model.eval()
 
-    sigma_normalized_score_network = pl_model.sigma_normalized_score_network
-    return sigma_normalized_score_network
+    axl_network = pl_model.axl_network
+    return axl_network
 
 
 def create_samples_and_write_to_disk(
@@ -159,13 +157,13 @@ def create_samples_and_write_to_disk(
     Returns:
         None
     """
-    sigma_normalized_score_network = get_sigma_normalized_score_network(checkpoint_path)
+    axl_network = get_axl_network(checkpoint_path)
 
     logger.info("Instantiate generator...")
     position_generator = instantiate_generator(
         sampling_parameters=sampling_parameters,
         noise_parameters=noise_parameters,
-        sigma_normalized_score_network=sigma_normalized_score_network,
+        axl_network=axl_network,
     )
 
     logger.info("Generating samples...")

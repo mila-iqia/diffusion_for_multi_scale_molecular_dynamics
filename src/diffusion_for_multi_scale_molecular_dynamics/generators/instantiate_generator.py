@@ -1,8 +1,8 @@
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import \
-    ExplodingVarianceODEPositionGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
+    ExplodingVarianceODEAXLGenerator
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import \
     ExplodingVarianceSDEPositionGenerator
@@ -15,7 +15,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
 def instantiate_generator(
     sampling_parameters: SamplingParameters,
     noise_parameters: NoiseParameters,
-    sigma_normalized_score_network: ScoreNetwork,
+    axl_network: ScoreNetwork,
 ):
     """Instantiate generator."""
     assert sampling_parameters.algorithm in [
@@ -29,19 +29,19 @@ def instantiate_generator(
             generator = LangevinGenerator(
                 sampling_parameters=sampling_parameters,
                 noise_parameters=noise_parameters,
-                sigma_normalized_score_network=sigma_normalized_score_network,
+                axl_network=axl_network,
             )
         case "ode":
-            generator = ExplodingVarianceODEPositionGenerator(
+            generator = ExplodingVarianceODEAXLGenerator(
                 sampling_parameters=sampling_parameters,
                 noise_parameters=noise_parameters,
-                sigma_normalized_score_network=sigma_normalized_score_network,
+                axl_network=axl_network,
             )
         case "sde":
             generator = ExplodingVarianceSDEPositionGenerator(
                 sampling_parameters=sampling_parameters,
                 noise_parameters=noise_parameters,
-                sigma_normalized_score_network=sigma_normalized_score_network,
+                axl_network=axl_network,
             )
         case _:
             raise NotImplementedError(

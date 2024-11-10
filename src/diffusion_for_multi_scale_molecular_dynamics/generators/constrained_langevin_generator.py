@@ -6,16 +6,15 @@ from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
     RelativeCoordinatesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
 
 
 @dataclass(kw_only=True)
@@ -40,16 +39,14 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         self,
         noise_parameters: NoiseParameters,
         sampling_parameters: ConstrainedLangevinGeneratorParameters,
-        sigma_normalized_score_network: ScoreNetwork,
+        axl_network: ScoreNetwork,
     ):
         """Init method."""
-        super().__init__(
-            noise_parameters, sampling_parameters, sigma_normalized_score_network
-        )
+        super().__init__(noise_parameters, sampling_parameters, axl_network)
 
         self.constraint_relative_coordinates = torch.from_numpy(
             sampling_parameters.constrained_relative_coordinates
-        )
+        )  # TODO constraint the atom type as well
 
         assert (
             len(self.constraint_relative_coordinates.shape) == 2
@@ -72,13 +69,20 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
 
         self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
 
-    def _apply_constraint(self, x: torch.Tensor, device: torch.device) -> None:
-        """This method applies the coordinate constraint in place on the input configuration."""
+    def _apply_constraint(self, composition: AXL, device: torch.device) -> AXL:
+        """This method applies the coordinate constraint on the input configuration."""
+        x = composition.X
         x[:, self.constraint_mask] = self.constraint_relative_coordinates.to(device)
+        updated_axl = AXL(
+            A=composition.A,
+            X=x,
+            L=composition.L,
+        )
+        return updated_axl
 
     def sample(
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Sample.
 
         This method draws  samples, imposing the satisfaction of positional constraints.
@@ -90,7 +94,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
                 Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
-            samples: relative coordinates samples.
+            samples: composition samples as AXL namedtuple (atom types, reduced coordinates, lattice vectors)
         """
         assert unit_cell.size() == (
             number_of_samples,
@@ -103,42 +107,43 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
 
         # Initialize a configuration that satisfy the constraint, but is otherwise random.
         # Since the noising process is 'atom-per-atom', the non-constrained position should have no impact.
-        x0_known = map_relative_coordinates_to_unit_cell(
-            self.initialize(number_of_samples)
-        ).to(device)
-        self._apply_constraint(x0_known, device)
+        composition0_known = self.initialize(number_of_samples, device)
+        # this is an AXL objet
 
-        x_ip1 = map_relative_coordinates_to_unit_cell(
-            self.initialize(number_of_samples)
-        ).to(device)
-        forces = torch.zeros_like(x_ip1)
+        composition0_known = self._apply_constraint(composition0_known, device)
 
-        broadcasting = torch.ones(
+        composition_ip1 = self.initialize(number_of_samples, device)
+        forces = torch.zeros_like(composition_ip1.X)
+
+        coordinates_broadcasting = torch.ones(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
         ).to(device)
 
         for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
             sigma_i = self.noise.sigma[i]
-            broadcast_sigmas_i = sigma_i * broadcasting
+            broadcast_sigmas_i = sigma_i * coordinates_broadcasting
             # Noise an example satisfying the constraints from t_0 to t_i
-            x_i_known = self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
-                x0_known, broadcast_sigmas_i
+            x_i_known = (
+                self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
+                    composition0_known.X, broadcast_sigmas_i
+                )
             )
             # Denoise from t_{i+1} to t_i
-            x_i = map_relative_coordinates_to_unit_cell(
-                self.predictor_step(x_ip1, i + 1, unit_cell, forces)
+            composition_i = self.predictor_step(
+                composition_ip1, i + 1, unit_cell, forces
             )
 
             # Combine the known and unknown
+            x_i = composition_i.X
             x_i[:, self.constraint_mask] = x_i_known[:, self.constraint_mask]
+            composition_i = AXL(A=composition_i.A, X=x_i, L=composition_i.L)
 
             for _ in range(self.number_of_corrector_steps):
-                x_i = map_relative_coordinates_to_unit_cell(
-                    self.corrector_step(x_i, i, unit_cell, forces)
-                )
-            x_ip1 = x_i
+                composition_i = self.corrector_step(composition_i, i, unit_cell, forces)
+
+            composition_ip1 = composition_i
 
         # apply the constraint one last time
-        self._apply_constraint(x_i, device)
+        composition_i = self._apply_constraint(composition_i, device)
 
-        return x_i
+        return composition_i
