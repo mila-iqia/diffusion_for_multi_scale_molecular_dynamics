@@ -1,8 +1,15 @@
-"""Score Network.
+r"""Score Network.
 
 This module implements score networks for positions in relative coordinates.
 Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
+
+The coordinates part of the output aims to calculate
+
+.. math::
+    output.X \propto nabla_X \ln P(x,t)
+
+where X is relative coordinates.
 """
 
 from dataclasses import dataclass

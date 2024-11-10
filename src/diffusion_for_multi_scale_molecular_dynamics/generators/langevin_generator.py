@@ -140,7 +140,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
     ) -> torch.Tensor:
-        """Generic update for the relative coordinates.
+        r"""Generic update for the relative coordinates.
 
         This is useful for both the predictor and the corrector step. The score weight and gaussian weight noise differs
         in these two settings.
@@ -148,7 +148,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         Args:
             relative_coordinates: starting coordinates. Dimension: [number_of_samples, number_of_atoms,
                 spatial_dimension]
-            sigma_normalized_scores: output of the model - an estimate of the normalized score sigma \nabla log p(x).
+
+            sigma_normalized_scores: output of the model - an estimate of the normalized
+                score :math:`\sigma \nabla log p(x)`.
                 Dimension: [number_of_samples, number_of_atoms, spatial_dimension]
             sigma_i: noise parameter for variance exploding noise scheduler. Dimension: [number_of_samples]
             score_weight: prefactor in front of the normalized score update. Should be g2_i in the predictor step and
@@ -210,7 +212,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             q_bar_matrices=q_bar_matrices_i,
             q_bar_tm1_matrices=q_bar_tm1_matrices_i,
             small_epsilon=self.small_epsilon,
-            probability_at_zeroth_timestep_are_onehot=False,
+            probability_at_zeroth_timestep_are_logits=True,
         )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
         # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
         a_im1 = torch.argmax(torch.log(one_step_transition_probs) + u, dim=-1)

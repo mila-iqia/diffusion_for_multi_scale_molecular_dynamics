@@ -1,4 +1,3 @@
-import itertools
 from typing import Callable
 
 import einops
@@ -8,10 +7,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    ExplodingVariance
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+    NoiseScheduler
 
 
 def get_normalized_score_function(
@@ -20,7 +19,7 @@ def get_normalized_score_function(
     basis_vectors: torch.Tensor,
 ) -> Callable:
     """Get normalizd score function."""
-    variance_calculator = ExplodingVariance(noise_parameters)
+    variance_calculator = NoiseScheduler(noise_parameters)
 
     def normalized_score_function(
         relative_coordinates: torch.Tensor, times: torch.Tensor
@@ -48,20 +47,3 @@ def get_normalized_score_function(
         return sigma_normalized_scores
 
     return normalized_score_function
-
-
-def get_cubic_point_group_symmetries():
-    """Get cubic point group symmetries."""
-    permutations = [
-        torch.diag(torch.ones(3))[[idx]] for idx in itertools.permutations([0, 1, 2])
-    ]
-    sign_changes = [
-        torch.diag(torch.tensor(diag))
-        for diag in itertools.product([-1.0, 1.0], repeat=3)
-    ]
-    symmetries = []
-    for permutation in permutations:
-        for sign_change in sign_changes:
-            symmetries.append(permutation @ sign_change)
-
-    return symmetries
