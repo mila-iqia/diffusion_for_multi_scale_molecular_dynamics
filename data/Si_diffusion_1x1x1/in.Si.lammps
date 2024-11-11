@@ -19,7 +19,7 @@ pair_coeff * * ${SW_PATH} Si
 
 velocity all create ${T} ${SEED}
 
-dump 1 all yaml 1 dump.Si-${T}-${S}.yaml id type x y z fx fy fz
+dump 1 all yaml 1 dump.${T}-${S}.yaml id type x y z fx fy fz
 
 thermo_style yaml
 thermo 1

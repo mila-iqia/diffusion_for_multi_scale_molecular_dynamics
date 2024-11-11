@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ../data_generation_functions.sh
+
 TEMPERATURE=300
 BOX_SIZE=1
 MAX_ATOM=8
@@ -8,37 +10,7 @@ CROP=10000
 NTRAIN_RUN=10
 NVALID_RUN=5
 
-SW_PATH="../../stillinger_weber_coefficients/Si.sw"
+SW_PATH="../stillinger_weber_coefficients/Si.sw"
+IN_PATH="in.Si.lammps"
 
-NRUN=$(($NTRAIN_RUN + $NVALID_RUN))
-
-# Generate the data
-for SEED in $(seq 1 $NRUN); do
-  if [ "$SEED" -le $NTRAIN_RUN ]; then
-    MODE="train"
-  else
-    MODE="valid"
-  fi
-  echo "Creating LAMMPS data for ${MODE}_run_${SEED}..."
-  mkdir -p "${MODE}_run_${SEED}"
-  cd "${MODE}_run_${SEED}"
-  lmp  -echo none -screen none < ../in.Si.lammps -v STEP $(($STEP + $CROP)) -v T $TEMPERATURE -v S $BOX_SIZE -v SEED $SEED -v SW_PATH $SW_PATH
-
-  # extract the thermodynamic outputs in a yaml file
-  egrep  '^(keywords:|data:$|---$|\.\.\.$|  - \[)' log.lammps > thermo_log.yaml
-
-  mkdir -p "uncropped_outputs"
-  mv "dump.Si-${TEMPERATURE}-${BOX_SIZE}.yaml" uncropped_outputs/
-  mv thermo_log.yaml uncropped_outputs/
-
-  python ../../crop_lammps_outputs.py \
-      --lammps_yaml "uncropped_outputs/dump.Si-${TEMPERATURE}-${BOX_SIZE}.yaml" \
-      --lammps_thermo "uncropped_outputs/thermo_log.yaml" \
-      --crop $CROP \
-      --output_dir ./
-
-  cd ..
-done
-
-# process the data
-python ../process_lammps_data.py --data "./" --processed_datadir "./processed/" --max_atom ${MAX_ATOM}
+create_data_function $TEMPERATURE $BOX_SIZE $MAX_ATOM $STEP $CROP $NTRAIN_RUN $NVALID_RUN $SW_PATH $IN_PATH
