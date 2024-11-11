@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ../data_generation_functions.sh
+
 TEMPERATURE=300
 BOX_SIZE=1
 MAX_ATOM=8
