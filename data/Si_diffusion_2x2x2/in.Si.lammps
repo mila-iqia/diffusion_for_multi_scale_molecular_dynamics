@@ -14,7 +14,7 @@ mass 1 28.0855
 group Si type 1
 
 pair_style sw
-pair_coeff * * ../../si.sw Si
+pair_coeff * * ${SW_PATH} Si
 
 velocity all create ${T} ${SEED}
 
