@@ -153,8 +153,11 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         )
 
         # basis_vectors is composed of ROWS of basis vectors
-        coordinates_scores = einops.einsum(basis_vectors, cartesian_scores,
-                                           "batch i alpha, batch natoms alpha -> batch natoms i")
+        coordinates_scores = einops.einsum(
+            basis_vectors,
+            cartesian_scores,
+            "batch i alpha, batch natoms alpha -> batch natoms i",
+        )
 
         atom_types_scores = mace_axl_scores.A.reshape(
             batch_size, number_of_atoms, self.num_atom_types + 1

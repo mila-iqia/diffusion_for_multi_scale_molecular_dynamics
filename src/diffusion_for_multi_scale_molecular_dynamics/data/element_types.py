@@ -20,8 +20,12 @@ class ElementTypes:
         self._elements = sorted(elements)
         self._ids = list(range(len(self._elements)))
 
-        self._element_to_id_map: Dict[str, int] = {k: v for k, v in zip(self._elements, self._ids)}
-        self._id_to_element_map: Dict[int, str] = {k: v for k, v in zip(self._ids, self._elements)}
+        self._element_to_id_map: Dict[str, int] = {
+            k: v for k, v in zip(self._elements, self._ids)
+        }
+        self._id_to_element_map: Dict[int, str] = {
+            k: v for k, v in zip(self._ids, self._elements)
+        }
 
         self._element_to_id_map[NULL_ELEMENT] = NULL_ELEMENT_ID
         self._id_to_element_map[NULL_ELEMENT_ID] = NULL_ELEMENT

@@ -7,6 +7,7 @@ class LatticeNoiser:
     This class provides methods to generate noisy lattices.
     TODO this is a placeholder
     """
+
     @staticmethod
     def get_noisy_lattice_vectors(real_lattice_vectors: torch.Tensor) -> torch.Tensor:
         """Get noisy lattice vectors.

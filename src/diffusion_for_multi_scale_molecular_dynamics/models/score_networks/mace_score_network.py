@@ -193,8 +193,11 @@ class MACEScoreNetwork(ScoreNetwork):
         # The expected output of the score network is a COORDINATE SCORE, i.e. something like nabla_x ln P.
         # Note that the basis_vectors is composed of ROWS of basis vectors
         basis_vectors = batch[UNIT_CELL]
-        coordinates_scores = einops.einsum(basis_vectors, cartesian_scores,
-                                           "batch i alpha, batch natoms alpha -> batch natoms i")
+        coordinates_scores = einops.einsum(
+            basis_vectors,
+            cartesian_scores,
+            "batch i alpha, batch natoms alpha -> batch natoms i",
+        )
 
         flat_atom_type_scores = self.atom_types_prediction_head(
             flat_node_features, flat_times

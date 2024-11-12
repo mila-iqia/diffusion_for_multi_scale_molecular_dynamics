@@ -227,7 +227,7 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
         Args:
             noise_parameters : the diffusion noise parameters.
             sampling_parameters: the parameters needed for sampling.
-            sigma_normalized_score_network : the score network to use for drawing samples.
+            axl_network: the score network to use for drawing samples.
         """
         self.initial_diffusion_time = torch.tensor(0.0)
         self.final_diffusion_time = torch.tensor(1.0)
@@ -256,15 +256,21 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
             final_diffusion_time=self.final_diffusion_time,
         )
 
-    def initialize(self, number_of_samples: int, device: torch.device = torch.device("cpu")):
+    def initialize(
+        self, number_of_samples: int, device: torch.device = torch.device("cpu")
+    ):
         """This method must initialize the samples from the fully noised distribution."""
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
         ).to(device)
-        atom_types = torch.zeros(number_of_samples, self.number_of_atoms).long().to(device)
+        atom_types = (
+            torch.zeros(number_of_samples, self.number_of_atoms).long().to(device)
+        )
         lattice_vectors = torch.zeros(
             number_of_samples, self.spatial_dimension * (self.spatial_dimension - 1)
-        ).to(device)  # TODO placeholder
+        ).to(
+            device
+        )  # TODO placeholder
         init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
         return init_composition
 
