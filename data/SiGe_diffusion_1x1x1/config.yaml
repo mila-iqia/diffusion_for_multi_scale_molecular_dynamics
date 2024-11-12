@@ -1,0 +1,6 @@
+# Configuration for the dataloader
+batch_size: 1024
+num_workers: 0
+max_atom: 8
+spatial_dimension: 3
+elements: [Si, Ge]
