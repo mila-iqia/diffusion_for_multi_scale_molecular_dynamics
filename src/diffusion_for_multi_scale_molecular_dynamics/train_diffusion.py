@@ -119,7 +119,7 @@ def run(args, output_dir, hyper_params):
     if hyper_params["seed"] is not None:
         pytorch_lightning.seed_everything(hyper_params["seed"])
 
-    data_params = LammpsLoaderParameters(**hyper_params["data"])
+    data_params = LammpsLoaderParameters(**hyper_params["data"], elements=hyper_params["elements"])
 
     datamodule = LammpsForDiffusionDataModule(
         lammps_run_dir=args.data,
