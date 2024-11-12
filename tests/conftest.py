@@ -91,13 +91,13 @@ class TestDiffusionDataBase:
         return 8
 
     @pytest.fixture()
-    def num_unique_elements(self):
+    def num_atom_types(self):
         """Number of types of atoms in fake data."""
         return 5
 
     @pytest.fixture
-    def unique_elements(self, num_unique_elements):
-        return [generate_random_string(size=3) for _ in range(num_unique_elements)]
+    def unique_elements(self, num_atom_types):
+        return [generate_random_string(size=3) for _ in range(num_atom_types)]
 
     @pytest.fixture()
     def spatial_dimension(self):
