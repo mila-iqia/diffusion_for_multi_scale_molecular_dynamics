@@ -10,13 +10,13 @@ function create_data_function() {
 
     TEMPERATURE="$1"
     BOX_SIZE="$2"
-    MAX_ATOM="$3"
-    STEP="$4"
-    CROP="$5"
-    NTRAIN_RUN="$6"
-    NVALID_RUN="$7"
-    SW_PATH="$8"
-    IN_PATH="$9"
+    STEP="$3"
+    CROP="$4"
+    NTRAIN_RUN="$5"
+    NVALID_RUN="$6"
+    SW_PATH="$7"
+    IN_PATH="$8"
+    CONFIG_PATH="$9"
 
     NRUN=$(($NTRAIN_RUN + $NVALID_RUN))
 
@@ -52,5 +52,5 @@ function create_data_function() {
     done
 
     # process the data
-    python ../process_lammps_data.py --data "./" --processed_datadir "./processed/" --max_atom ${MAX_ATOM}
+    python ../process_lammps_data.py --data "./" --processed_datadir "./processed/" --config ${CONFIG_PATH}
 }
