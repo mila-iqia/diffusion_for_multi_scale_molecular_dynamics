@@ -17,6 +17,7 @@ class ElementTypes:
         Args:
             elements: list all the elements that could be present in the data.
         """
+        self.validate_elements(elements)
         self._elements = sorted(elements)
         self._ids = list(range(len(self._elements)))
 
@@ -29,6 +30,12 @@ class ElementTypes:
 
         self._element_to_id_map[NULL_ELEMENT] = NULL_ELEMENT_ID
         self._id_to_element_map[NULL_ELEMENT_ID] = NULL_ELEMENT
+
+    @staticmethod
+    def validate_elements(elements: List[str]):
+        """Validate elements."""
+        assert NULL_ELEMENT not in elements, f"The element '{NULL_ELEMENT}' is reserved and should not be used."
+        assert len(set(elements)) == len(elements), "Each entry in the elements list should be unique."
 
     @property
     def number_of_atom_types(self) -> int:

@@ -51,3 +51,7 @@ class TestElementTypes:
     def test_get_element_bad_element_id(self, element_types, bad_element_id):
         with pytest.raises(KeyError):
             element_types.get_element(bad_element_id)
+
+    def test_validate_elements(self):
+        with pytest.raises(AssertionError):
+            ElementTypes.validate_elements(["A", "A", "B"])
