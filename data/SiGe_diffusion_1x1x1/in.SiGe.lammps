@@ -22,7 +22,8 @@ pair_coeff * * ${SW_PATH} Si Ge
 
 velocity all create ${T} ${SEED}
 
-dump 1 all yaml 1 dump.${T}-${S}.yaml id type x y z fx fy fz
+dump dump_id all yaml 1 dump.${T}-${S}.yaml id element x y z fx fy fz
+dump_modify dump_id element Si Ge
 
 thermo_style yaml
 thermo 1
