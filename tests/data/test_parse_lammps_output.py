@@ -9,6 +9,7 @@ from src.diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs 
     parse_lammps_dump, parse_lammps_output, parse_lammps_thermo_log)
 from tests.fake_data_utils import (create_dump_yaml_documents,
                                    generate_fake_configuration,
+                                   generate_fake_unique_elements,
                                    generate_parse_dump_output_dataframe,
                                    write_to_yaml)
 
@@ -27,17 +28,17 @@ def fake_yaml_content():
     # fake LAMMPS output file with 4 MD steps in 1D for 3 atoms
     np.random.seed(23423)
     box = [[0, 0.6], [0, 1.6], [0, 2.6]]
-    keywords = ["id", "type", "x", "y", "z", "fx", "fy", "fz"]
+    keywords = ["id", "element", "x", "y", "z", "fx", "fy", "fz"]
 
     number_of_documents = 4
-    list_atom_types = [1, 2, 1]
+    list_elements = ['Ab', 'Cd', 'Ab']
 
     yaml_content = []
     for doc_idx in range(number_of_documents):
 
         data = []
-        for id, atom_type in enumerate(list_atom_types):
-            row = [id, atom_type] + list(np.random.rand(6))
+        for id, element in enumerate(list_elements):
+            row = [id, element] + list(np.random.rand(6))
             data.append(row)
 
         doc = dict(keywords=keywords, box=box, data=data)
@@ -144,17 +145,20 @@ def number_of_configurations():
 
 
 @pytest.fixture()
-def num_atom_types():
+def num_unique_elements():
     return 5
 
 
 @pytest.fixture
-def configurations(number_of_configurations, spatial_dimension, number_of_atoms, num_atom_types):
+def configurations(number_of_configurations, spatial_dimension, number_of_atoms, num_unique_elements):
     """Generate multiple fake configurations."""
     np.random.seed(23423423)
+
+    unique_elements = generate_fake_unique_elements(num_unique_elements)
+
     configurations = [
         generate_fake_configuration(
-            spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms, num_atom_types=num_atom_types
+            spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms, unique_elements=unique_elements
         )
         for _ in range(number_of_configurations)
     ]

@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import Any, AnyStr, Dict, Union
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
-    load_sampling_parameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
+    load_sampling_parameters
 from diffusion_for_multi_scale_molecular_dynamics.metrics.sampling_metrics_parameters import \
     SamplingMetricsParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \

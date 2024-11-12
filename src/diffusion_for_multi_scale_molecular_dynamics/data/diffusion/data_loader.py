@@ -14,6 +14,8 @@ from torch.utils.data import DataLoader
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import \
     LammpsProcessorForDiffusion
+from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
+    NULL_ELEMENT, ElementTypes)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
 
@@ -31,6 +33,7 @@ class LammpsLoaderParameters:
     num_workers: int = 0
     max_atom: int = 64
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
+    elements: list[str]  # the elements that can exist.
 
 
 class LammpsForDiffusionDataModule(pl.LightningDataModule):
@@ -63,6 +66,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         self.max_atom = hyper_params.max_atom  # number of atoms to pad tensors
         self.spatial_dim = hyper_params.spatial_dimension
 
+        self.element_types = ElementTypes(hyper_params.elements)
+
         if hyper_params.batch_size is None:
             assert (
                 hyper_params.valid_batch_size is not None
@@ -86,7 +91,9 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
 
     @staticmethod
     def dataset_transform(
-        x: Dict[typing.AnyStr, typing.Any], spatial_dim: int = 3
+        x: Dict[typing.AnyStr, typing.Any],
+        element_types: ElementTypes,
+        spatial_dim: int = 3,
     ) -> Dict[str, torch.Tensor]:
         """Format the tensors for the Datasets library.
 
@@ -96,6 +103,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         Args:
             x: raw columns from the processed data files. Should contain natom, box, type, position and
                 relative_positions.
+            element_types: object that knows the relationship between elements and their integer ids.
             spatial_dim (optional): number of spatial dimensions. Defaults to 3.
 
         Returns:
@@ -111,9 +119,14 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         )  # size: (batchsize, spatial dimension)
         for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
+
+        element_ids = []
+        for row in x["element"]:
+            element_ids.append(list(map(element_types.get_element_id, row)))
         transformed_x[ATOM_TYPES] = torch.as_tensor(
-            x[ATOM_TYPES]
+            element_ids
         ).long()  # size: (batchsize, max atom)
+
         transformed_x["potential_energy"] = torch.as_tensor(
             x["potential_energy"]
         )  # size: (batchsize, )
@@ -140,9 +153,11 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
                 f"Hyper-parameter max_atom is smaller than an example in the dataset with {natom} atoms."
             )
 
-        x[ATOM_TYPES] = F.pad(
-            torch.as_tensor(x[ATOM_TYPES]).long(), (0, max_atom - natom), "constant", -1
-        )
+        padded_elements = max_atom * [NULL_ELEMENT]
+        for idx, element in enumerate(x["element"]):
+            padded_elements[idx] = element
+        x["element"] = padded_elements
+
         for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
             x[pos] = F.pad(
                 torch.as_tensor(x[pos]).float(),
@@ -197,10 +212,18 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         # set_transform is applied on-the-fly and is less costly upfront. Works with batches, so we can't use it for
         # padding
         self.train_dataset.set_transform(
-            partial(self.dataset_transform, spatial_dim=self.spatial_dim)
+            partial(
+                self.dataset_transform,
+                element_types=self.element_types,
+                spatial_dim=self.spatial_dim,
+            )
         )
         self.valid_dataset.set_transform(
-            partial(self.dataset_transform, spatial_dim=self.spatial_dim)
+            partial(
+                self.dataset_transform,
+                element_types=self.element_types,
+                spatial_dim=self.spatial_dim,
+            )
         )
 
     def train_dataloader(self) -> DataLoader:

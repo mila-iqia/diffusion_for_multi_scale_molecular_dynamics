@@ -6,6 +6,8 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader imp
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
+from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
+    _get_hyperparameters
 
 
 def main():
@@ -13,12 +15,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', help='path to a LAMMPS data set', required=True)
     parser.add_argument('--processed_datadir', help='path to the processed data directory', required=True)
-    parser.add_argument('--max_atom', help='maximum number of atoms', required=True)
+    parser.add_argument("--config", help="config file with dataloader hyper-parameters, such as "
+                                         "batch_size, elements, ... -  in yaml format")
     args = parser.parse_args()
 
     lammps_run_dir = args.data
     processed_dataset_dir = args.processed_datadir
-    data_params = LammpsLoaderParameters(batch_size=128, num_workers=0, max_atom=int(args.max_atom))
+    hyper_params = _get_hyperparameters(config_file_path=args.config)
+
+    data_params = LammpsLoaderParameters(**hyper_params)
 
     with tempfile.TemporaryDirectory() as tmp_work_dir:
         data_module = LammpsForDiffusionDataModule(lammps_run_dir=lammps_run_dir,

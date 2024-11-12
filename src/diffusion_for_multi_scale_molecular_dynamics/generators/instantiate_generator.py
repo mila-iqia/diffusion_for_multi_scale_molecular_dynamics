@@ -1,9 +1,9 @@
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
+    SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import \
     ExplodingVarianceODEAXLGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
-    SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import \
     ExplodingVarianceSDEPositionGenerator
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
