@@ -20,6 +20,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_pr
     MaceMLPScorePredictionHeadParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+from tests.fake_data_utils import generate_random_string
 from tests.models.score_network.base_test_score_network import \
     BaseTestScoreNetwork
 
@@ -50,6 +51,10 @@ class BaseScoreNetworkGeneralTests(BaseTestScoreNetwork):
     @pytest.fixture(params=[2, 3, 16])
     def num_atom_types(self, request):
         return request.param
+
+    @pytest.fixture
+    def unique_elements(self, num_atom_types):
+        return [generate_random_string(size=3) for _ in range(num_atom_types)]
 
     @pytest.fixture()
     def score_network_parameters(self, *args):
@@ -138,8 +143,8 @@ class BaseScoreNetworkGeneralTests(BaseTestScoreNetwork):
         }
 
     @pytest.fixture()
-    def global_parameters_dictionary(self, spatial_dimension):
-        return dict(spatial_dimension=spatial_dimension, irrelevant=123)
+    def global_parameters_dictionary(self, spatial_dimension, unique_elements):
+        return dict(spatial_dimension=spatial_dimension, irrelevant=123, elements=unique_elements)
 
     @pytest.fixture()
     def score_network_dictionary(
