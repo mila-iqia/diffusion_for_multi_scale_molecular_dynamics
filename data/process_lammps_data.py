@@ -1,5 +1,6 @@
 """Create the processed data."""
 import argparse
+import logging
 import tempfile
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
@@ -8,6 +9,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
     _get_hyperparameters
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -22,6 +25,11 @@ def main():
     lammps_run_dir = args.data
     processed_dataset_dir = args.processed_datadir
     hyper_params = _get_hyperparameters(config_file_path=args.config)
+
+    logger.info("Starting process_lammps_data.py script with arguments")
+    logger.info(f"   --data : {args.data}")
+    logger.info(f"   --processed_datadir : {args.processed_datadir}")
+    logger.info(f"   --config: {args.config}")
 
     data_params = LammpsLoaderParameters(**hyper_params)
 
