@@ -42,6 +42,16 @@ class ElementTypes:
         """Number of atom types."""
         return len(self._elements)
 
+    @property
+    def elements(self) -> List[str]:
+        """The sorted elements."""
+        return self._elements
+
+    @property
+    def element_ids(self) -> List[int]:
+        """The sorted elements."""
+        return self._ids
+
     def get_element(self, element_id: int) -> str:
         """Get element.
 
