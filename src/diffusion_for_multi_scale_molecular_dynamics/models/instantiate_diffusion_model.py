@@ -15,6 +15,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     create_score_network_parameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_energy_oracle import \
+    LammpsOracleParameters
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
     load_diffusion_sampling_parameters
 
@@ -30,10 +32,11 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
     Returns:
         Diffusion model randomly initialized
     """
+    elements = hyper_params["elements"]
     globals_dict = dict(
         max_atom=hyper_params["data"]["max_atom"],
         spatial_dimension=hyper_params.get("spatial_dimension", 3),
-        elements=hyper_params["elements"]
+        elements=elements
     )
 
     score_network_dict = hyper_params["model"]["score_network"]
@@ -54,6 +57,11 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
 
     diffusion_sampling_parameters = load_diffusion_sampling_parameters(hyper_params)
 
+    oracle_parameters = None
+    if "oracle" in hyper_params:
+        oracle_dict = hyper_params["oracle"]
+        oracle_parameters = LammpsOracleParameters(**oracle_dict, elements=elements)
+
     diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,
         loss_parameters=loss_parameters,
@@ -61,6 +69,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
         scheduler_parameters=scheduler_parameters,
         noise_parameters=noise_parameters,
         diffusion_sampling_parameters=diffusion_sampling_parameters,
+        oracle_parameters=oracle_parameters
     )
 
     model = AXLDiffusionLightningModel(diffusion_params)

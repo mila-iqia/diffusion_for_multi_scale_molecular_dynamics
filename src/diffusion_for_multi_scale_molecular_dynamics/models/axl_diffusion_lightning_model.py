@@ -35,8 +35,10 @@ from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import 
     LatticeNoiser
 from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
     RelativeCoordinatesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
-    compute_oracle_energies
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
+    OracleParameters
+from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_energy_oracle import \
+    LammpsEnergyOracle
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
@@ -68,6 +70,7 @@ class AXLDiffusionParameters:
     # convergence parameter for the Ewald-like sum of the perturbation kernel for coordinates.
     kmax_target_score: int = 4
     diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
+    oracle_parameters: Optional[OracleParameters] = None
 
 
 class AXLDiffusionLightningModel(pl.LightningModule):
@@ -114,6 +117,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.generator = None
         self.structure_ks_metric = None
         self.energy_ks_metric = None
+        self.oracle = None
 
         self.draw_samples = hyper_params.diffusion_sampling_parameters is not None
         if self.draw_samples:
@@ -124,6 +128,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 self.structure_ks_metric = KolmogorovSmirnovMetrics()
             if self.metrics_parameters.compute_energies:
                 self.energy_ks_metric = KolmogorovSmirnovMetrics()
+                assert self.hyper_params.oracle_parameters is not None, \
+                    "Energies cannot be computed without a configured energy oracle."
+                self.oracle = LammpsEnergyOracle(self.hyper_params.oracle_parameters)
 
     def configure_optimizers(self):
         """Returns the combination of optimizer(s) and learning rate scheduler(s) to train with.
@@ -548,7 +555,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and self.metrics_parameters.compute_energies:
             logger.info("       * Computing sample energies")
-            sample_energies = compute_oracle_energies(samples_batch)
+            sample_energies = self.oracle.compute_oracle_energies(samples_batch)
             logger.info("       * Registering sample energies")
             self.energy_ks_metric.register_predicted_samples(sample_energies.cpu())
 
