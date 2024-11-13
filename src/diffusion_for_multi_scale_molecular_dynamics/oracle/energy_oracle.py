@@ -8,7 +8,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_POSITIONS, UNIT_CELL)
+    AXL_COMPOSITION, CARTESIAN_POSITIONS, UNIT_CELL)
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class EnergyOracle:
         ), f"the field '{UNIT_CELL}' must be present in the sample dictionary"
 
         # Dimension [batch_size, space_dimension, space_dimension]
-        batched_basis_vectors = samples[UNIT_CELL].detach().cpu().numpy()
+        batched_basis_vectors = samples[UNIT_CELL].detach().cpu().numpy()  # TODO: use the AXL_COMPOSITION
 
         # Dimension [batch_size, number_of_atoms, space_dimension]
         batched_cartesian_positions = (
@@ -69,7 +69,7 @@ class EnergyOracle:
         )
 
         # Dimension [batch_size, number_of_atoms]
-        batched_atom_types = samples[ATOM_TYPES].detach().cpu().numpy()
+        batched_atom_types = samples[AXL_COMPOSITION].A.detach().cpu().numpy()
 
         logger.info("Compute energy from Oracle")
         list_energy = []
