@@ -12,8 +12,6 @@ import pandas as pd
 import yaml
 from pymatgen.core import Element
 
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
-    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.oracle import \
     SW_COEFFICIENTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import (
@@ -35,17 +33,15 @@ class LammpsEnergyOracle(EnergyOracle):
     def __init__(
         self,
         lammps_oracle_parameters: LammpsOracleParameters,
-        element_types: ElementTypes,
         sw_coefficients_dir: Path = SW_COEFFICIENTS_DIR,
     ):
         """Init method.
 
         Args:
             lammps_oracle_parameters : parameters for the LAMMPS Oracle.
-            element_types : object that knows how to transform element strings into ids and vice versa.
             sw_coefficients_dir : the directory where the sw cofficient files can be found.
         """
-        super().__init__(lammps_oracle_parameters, element_types)
+        super().__init__(lammps_oracle_parameters)
         self.sw_coefficients_file_path = str(
             sw_coefficients_dir / lammps_oracle_parameters.sw_coeff_filename
         )

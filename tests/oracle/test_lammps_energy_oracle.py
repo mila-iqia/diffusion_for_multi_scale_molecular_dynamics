@@ -46,17 +46,27 @@ class TestLammpsEnergyOracle:
 
     @pytest.fixture()
     def unique_elements(self, number_of_unique_elements):
-        if number_of_unique_elements == 1:
-            return ['Si']
-        elif number_of_unique_elements == 2:
-            return ['Si', 'Ge']
+        match number_of_unique_elements:
+            case 1:
+                elements = ['Si']
+            case 2:
+                elements = ['Si', 'Ge']
+            case _:
+                raise NotImplementedError()
+
+        return elements
 
     @pytest.fixture()
-    def lammps_oracle_parameters(self, number_of_unique_elements):
-        if number_of_unique_elements == 1:
-            return LammpsOracleParameters(sw_coeff_filename='Si.sw')
-        elif number_of_unique_elements == 2:
-            return LammpsOracleParameters(sw_coeff_filename='SiGe.sw')
+    def lammps_oracle_parameters(self, number_of_unique_elements, unique_elements):
+        match number_of_unique_elements:
+            case 1:
+                sw_coeff_filename = 'Si.sw'
+            case 2:
+                sw_coeff_filename = 'SiGe.sw'
+            case _:
+                raise NotImplementedError()
+
+        return LammpsOracleParameters(sw_coeff_filename=sw_coeff_filename, elements=unique_elements)
 
     @pytest.fixture()
     def element_types(self, unique_elements):
@@ -87,8 +97,7 @@ class TestLammpsEnergyOracle:
 
     @pytest.fixture()
     def oracle(self, element_types, lammps_oracle_parameters):
-        return LammpsEnergyOracle(lammps_oracle_parameters=lammps_oracle_parameters,
-                                  element_types=element_types)
+        return LammpsEnergyOracle(lammps_oracle_parameters=lammps_oracle_parameters)
 
     def test_compute_energy_and_forces(self, oracle, element_types, cartesian_positions, box, atom_types, tmp_path):
 

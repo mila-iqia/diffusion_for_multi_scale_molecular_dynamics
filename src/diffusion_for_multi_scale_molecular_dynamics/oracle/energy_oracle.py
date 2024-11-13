@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import AnyStr, Dict
+from typing import AnyStr, Dict, List
 
 import numpy as np
 import torch
@@ -16,18 +16,18 @@ logger = logging.getLogger(__name__)
 @dataclass(kw_only=True)
 class OracleParameters:
     """Lammps Oracle Parameters."""
-
     name: str  # what kind of Oracle
+    elements: List[str]  # unique elements
 
 
 class EnergyOracle:
     """Energy oracle base class."""
     def __init__(
-        self, oracle_parameters: OracleParameters, element_types: ElementTypes, **kwargs
+        self, oracle_parameters: OracleParameters, **kwargs
     ):
         """Init method."""
         self._oracle_parameters = oracle_parameters
-        self._element_types = element_types
+        self._element_types = ElementTypes(oracle_parameters.elements)
 
     def _compute_one_configuration_energy(
         self,
