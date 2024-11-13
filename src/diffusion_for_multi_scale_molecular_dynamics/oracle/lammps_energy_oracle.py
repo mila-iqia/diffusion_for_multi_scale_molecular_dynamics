@@ -1,6 +1,7 @@
 """Call LAMMPS to get the forces and energy in a given configuration."""
 
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
@@ -15,16 +16,19 @@ from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.oracle import \
     SW_COEFFICIENTS_DIR
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import (
+    EnergyOracle, OracleParameters)
 
 
 @dataclass(kw_only=True)
-class LammpsOracleParameters:
+class LammpsOracleParameters(OracleParameters):
     """Lammps Oracle Parameters."""
+    name: str = 'lammps'
     sw_coeff_filename: str  # Stillinger-Weber potential filename
 
 
-class LammpsCalculator:
-    """Lammps calculator.
+class LammpsEnergyOracle(EnergyOracle):
+    """Lammps energy oracle.
 
     This class invokes LAMMPS to get the forces and energy in a given configuration.
     """
@@ -32,7 +36,6 @@ class LammpsCalculator:
         self,
         lammps_oracle_parameters: LammpsOracleParameters,
         element_types: ElementTypes,
-        tmp_work_dir: Path,
         sw_coefficients_dir: Path = SW_COEFFICIENTS_DIR,
     ):
         """Init method.
@@ -40,15 +43,12 @@ class LammpsCalculator:
         Args:
             lammps_oracle_parameters : parameters for the LAMMPS Oracle.
             element_types : object that knows how to transform element strings into ids and vice versa.
-            tmp_work_dir : a temporary working directory.
             sw_coefficients_dir : the directory where the sw cofficient files can be found.
         """
-        self._lammps_oracle_parameters = lammps_oracle_parameters
-        self._element_types = element_types
+        super().__init__(lammps_oracle_parameters, element_types)
         self.sw_coefficients_file_path = str(
-            sw_coefficients_dir / self._lammps_oracle_parameters.sw_coeff_filename
+            sw_coefficients_dir / lammps_oracle_parameters.sw_coeff_filename
         )
-        self.tmp_work_dir = tmp_work_dir
 
         assert os.path.isfile(
             self.sw_coefficients_file_path
@@ -99,8 +99,8 @@ class LammpsCalculator:
         )  # 0 is the last step index - so run 0 means no MD update - just get the initial forces
         return commands
 
-    def compute_energy_and_forces(
-        self, cartesian_positions: np.ndarray, box: np.ndarray, atom_types: np.ndarray
+    def _compute_energy_and_forces(
+        self, cartesian_positions: np.ndarray, box: np.ndarray, atom_types: np.ndarray, dump_file_path: Path
     ):
         """Call LAMMPS to compute the energy and forces on all atoms in a configuration.
 
@@ -108,23 +108,18 @@ class LammpsCalculator:
             cartesian_positions: atomic positions in Euclidean space as a n_atom x spatial dimension array
             box: spatial dimension x spatial dimension array representing the periodic box. Assumed to be orthogonal.
             atom_types: n_atom array with an index representing the type of each atom
+            dump_file_path: a temporary file where lammps will dump results.
+
         Returns:
             energy: energy of configuration
             forces: forces on each atom in the configuration
         """
-        assert np.allclose(
-            box, np.diag(np.diag(box))
-        ), "only orthogonal LAMMPS box are valid"
-
-        dump_file_path = self.tmp_work_dir / "dump.yaml"
+        assert np.allclose(box, np.diag(np.diag(box))), "only orthogonal LAMMPS box are valid"
 
         # create a lammps run, turning off logging
-        lmp = lammps.lammps(
-            cmdargs=["-log", "none", "-echo", "none", "-screen", "none"]
-        )
-        commands = self._create_lammps_commands(
-            cartesian_positions, box, atom_types, dump_file_path
-        )
+        lmp = lammps.lammps(cmdargs=["-log", "none", "-echo", "none", "-screen", "none"])
+
+        commands = self._create_lammps_commands(cartesian_positions, box, atom_types, dump_file_path)
         for command in commands:
             lmp.command(command)
 
@@ -132,9 +127,6 @@ class LammpsCalculator:
         with open(dump_file_path, "r") as f:
             dump_yaml = yaml.safe_load_all(f)
             doc = next(iter(dump_yaml))
-
-        # clean up!
-        dump_file_path.unlink()
 
         forces = pd.DataFrame(doc["data"], columns=doc["keywords"]).sort_values(
             "id"
@@ -148,3 +140,18 @@ class LammpsCalculator:
         energy = ke + pe
 
         return energy, forces
+
+    def _compute_one_configuration_energy(self, cartesian_positions: np.ndarray,
+                                          basis_vectors: np.ndarray,
+                                          atom_types: np.ndarray) -> float:
+
+        with tempfile.TemporaryDirectory() as tmp_work_dir:
+            dump_file_path = Path(tmp_work_dir) / "dump.yaml"
+            energy, _ = self._compute_energy_and_forces(cartesian_positions,
+                                                        basis_vectors,
+                                                        atom_types,
+                                                        dump_file_path)
+            # clean up!
+            dump_file_path.unlink()
+
+        return energy

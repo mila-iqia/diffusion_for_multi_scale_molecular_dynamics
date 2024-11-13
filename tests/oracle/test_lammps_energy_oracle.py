@@ -1,15 +1,18 @@
 import einops
 import numpy as np
 import pytest
+import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
-from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_calculator import (
-    LammpsCalculator, LammpsOracleParameters)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    ATOM_TYPES, CARTESIAN_POSITIONS, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_energy_oracle import (
+    LammpsEnergyOracle, LammpsOracleParameters)
 
 
 @pytest.mark.not_on_github
-class TestLammpsCalculator:
+class TestLammpsEnergyOracle:
 
     @pytest.fixture(scope="class", autouse=True)
     def set_seed(self):
@@ -64,18 +67,40 @@ class TestLammpsCalculator:
         return np.random.choice(element_types.element_ids, num_atoms, replace=True)
 
     @pytest.fixture()
-    def calculator(self, element_types, lammps_oracle_parameters, tmp_path):
-        calculator = LammpsCalculator(lammps_oracle_parameters=lammps_oracle_parameters,
-                                      element_types=element_types,
-                                      tmp_work_dir=tmp_path)
-        return calculator
+    def batch_size(self):
+        return 4
 
-    def test_calculator(self, calculator, element_types, cartesian_positions, box, atom_types, tmp_path):
+    @pytest.fixture()
+    def samples(self, batch_size, num_atoms, spatial_dimension, element_types):
 
-        energy, forces = calculator.compute_energy_and_forces(cartesian_positions, box, atom_types)
+        list_acells = 5. + 5.0 * torch.rand(batch_size)
+        basis_vectors = torch.stack([acell * torch.eye(spatial_dimension) for acell in list_acells])
+
+        relative_coordinates = torch.rand(batch_size, num_atoms, spatial_dimension)
+        cartesian_positions = einops.einsum(basis_vectors, relative_coordinates,
+                                            "batch d1 d2, batch natoms d2 -> batch natoms d1")
+
+        atom_types = torch.randint(element_types.number_of_atom_types, (batch_size, num_atoms))
+
+        batch = {UNIT_CELL: basis_vectors, CARTESIAN_POSITIONS: cartesian_positions, ATOM_TYPES: atom_types}
+        return batch
+
+    @pytest.fixture()
+    def oracle(self, element_types, lammps_oracle_parameters):
+        return LammpsEnergyOracle(lammps_oracle_parameters=lammps_oracle_parameters,
+                                  element_types=element_types)
+
+    def test_compute_energy_and_forces(self, oracle, element_types, cartesian_positions, box, atom_types, tmp_path):
+
+        dump_file_path = tmp_path / "dump.yaml"
+        energy, forces = oracle._compute_energy_and_forces(cartesian_positions, box, atom_types, dump_file_path)
 
         np.testing.assert_allclose(cartesian_positions, forces[['x', 'y', 'z']].values, rtol=1e-5)
 
         expected_atoms = [element_types.get_element(id) for id in atom_types]
         computed_atoms = forces['element'].to_list()
         assert expected_atoms == computed_atoms
+
+    def test_compute_oracle_energies(self, oracle, samples, batch_size):
+        energies = oracle.compute_oracle_energies(samples)
+        assert len(energies) == batch_size
