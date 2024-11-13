@@ -6,7 +6,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_POSITIONS, UNIT_CELL)
+    AXL, AXL_COMPOSITION, CARTESIAN_POSITIONS, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_energy_oracle import (
     LammpsEnergyOracle, LammpsOracleParameters)
 
@@ -92,8 +92,11 @@ class TestLammpsEnergyOracle:
 
         atom_types = torch.randint(element_types.number_of_atom_types, (batch_size, num_atoms))
 
-        batch = {UNIT_CELL: basis_vectors, CARTESIAN_POSITIONS: cartesian_positions, ATOM_TYPES: atom_types}
-        return batch
+        axl_composition = AXL(X=relative_coordinates, A=atom_types, L=basis_vectors)
+
+        return {UNIT_CELL: basis_vectors,
+                CARTESIAN_POSITIONS: cartesian_positions,
+                AXL_COMPOSITION: axl_composition}
 
     @pytest.fixture()
     def oracle(self, element_types, lammps_oracle_parameters):
