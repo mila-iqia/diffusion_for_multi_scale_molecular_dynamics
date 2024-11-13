@@ -37,8 +37,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_n
     RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
-from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_energy_oracle import \
-    LammpsEnergyOracle
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
+    create_energy_oracle
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
@@ -130,7 +130,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 self.energy_ks_metric = KolmogorovSmirnovMetrics()
                 assert self.hyper_params.oracle_parameters is not None, \
                     "Energies cannot be computed without a configured energy oracle."
-                self.oracle = LammpsEnergyOracle(self.hyper_params.oracle_parameters)
+                self.oracle = create_energy_oracle(self.hyper_params.oracle_parameters)
 
     def configure_optimizers(self):
         """Returns the combination of optimizer(s) and learning rate scheduler(s) to train with.

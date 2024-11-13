@@ -28,8 +28,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
-from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_energy_oracle import (
-    LammpsEnergyOracle, LammpsOracleParameters)
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import (
+    create_energy_oracle, create_energy_oracle_parameters)
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
@@ -96,12 +96,10 @@ def main(args: Optional[Any] = None):
 
     oracle_parameters = None
     if "oracle" in hyper_params:
-        oracle_dict = hyper_params["oracle"]
-
         assert "elements" in hyper_params, \
             "elements are needed to define the energy oracle."
         elements = hyper_params["elements"]
-        oracle_parameters = LammpsOracleParameters(**oracle_dict, elements=elements)
+        oracle_parameters = create_energy_oracle_parameters(hyper_params["oracle"], elements)
 
     create_samples_and_write_to_disk(
         noise_parameters=noise_parameters,
@@ -200,7 +198,7 @@ def create_samples_and_write_to_disk(
 
     if oracle_parameters:
         logger.info("Compute energy from Oracle...")
-        oracle = LammpsEnergyOracle(oracle_parameters)
+        oracle = create_energy_oracle(oracle_parameters)
         sample_energies = oracle.compute_oracle_energies(samples_batch)
 
         logger.info("Writing energies to disk...")
