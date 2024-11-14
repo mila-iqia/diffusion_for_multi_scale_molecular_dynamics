@@ -212,8 +212,11 @@ class D3PMLossCalculator(torch.nn.Module):
             q_bar_tm1_matrices,
         )
 
-        # -log p_\theta(a_0 | a_t)
+        # -log tilde_p_\theta(a_0 | a_t)
+        # the logit for a_0 = MASK is -infinity, which leads to log P(a_0 = MASK | a_t) = -inf.
+        # We remove this.
         nll_term = -torch.nn.functional.log_softmax(predicted_logits, dim=-1)
+        nll_term[..., -1] = 0.0
 
         # if t == 1 (0 for python indexing convention), use the NLL term, otherwise use the KL + \lambda_{CE} NLL
         d3pm_loss = torch.where(
