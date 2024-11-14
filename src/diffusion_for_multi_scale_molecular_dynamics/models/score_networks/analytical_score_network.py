@@ -63,6 +63,10 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         """
         super(AnalyticalScoreNetwork, self).__init__(hyper_params)
 
+        assert hyper_params.num_atom_types == 1, \
+            "The analytical score network is only appropriate for a single atom type."
+
+        self.number_of_atomic_classes = hyper_params.num_atom_types + 1  # account for the MASK class.
         self.natoms = hyper_params.number_of_atoms
         self.spatial_dimension = hyper_params.spatial_dimension
         self.nd = self.natoms * self.spatial_dimension
@@ -140,6 +144,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
         xt = batch[NOISY_AXL_COMPOSITION].X
+        batch_size = xt.shape[0]
         xt.requires_grad_(True)
 
         list_unnormalized_log_prob = []
@@ -164,8 +169,12 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         )
         sigma_normalized_scores = broadcast_sigmas * scores
 
+        # Mimic perfect predictions of single possible atomic type.
+        atomic_logits = torch.zeros(batch_size, self.natoms, self.number_of_atomic_classes)
+        atomic_logits[..., -1] = -torch.inf
+
         axl_scores = AXL(
-            A=torch.zeros_like(sigma_normalized_scores),
+            A=atomic_logits,
             X=sigma_normalized_scores,
             L=torch.zeros_like(sigma_normalized_scores),
         )
@@ -255,6 +264,7 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
         """
         sigmas = batch[NOISE]  # dimension: [batch_size, 1]
         xt = batch[NOISY_AXL_COMPOSITION].X
+        batch_size = xt.shape[0]
 
         broadcast_sigmas = einops.repeat(
             sigmas,
@@ -274,8 +284,12 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
             broadcast_sigmas / broadcast_effective_sigmas * misnormalized_scores
         )
 
+        # Mimic perfect predictions of single possible atomic type.
+        atomic_logits = torch.zeros(batch_size, self.natoms, self.number_of_atomic_classes)
+        atomic_logits[..., -1] = -torch.inf
+
         axl_scores = AXL(
-            A=torch.zeros_like(sigma_normalized_scores),
+            A=atomic_logits,
             X=sigma_normalized_scores,
             L=torch.zeros_like(sigma_normalized_scores),
         )
