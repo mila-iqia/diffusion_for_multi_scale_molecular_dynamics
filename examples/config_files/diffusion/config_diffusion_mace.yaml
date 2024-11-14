@@ -10,6 +10,8 @@ accumulate_grad_batches: 1  # make this number of forward passes before doing a 
 # results will not be reproducible)
 seed: 1234
 
+elements: [Si]
+
 # data
 data:
   batch_size: 512
@@ -20,9 +22,10 @@ data:
 spatial_dimension: 3
 model:
   loss:
-    algorithm: mse
+    coordinates_algorithm: mse
   score_network:
     architecture: diffusion_mace
+    num_atom_types: 1
     number_of_atoms: 8
     r_max: 5.0
     num_bessel: 8
@@ -79,13 +82,17 @@ diffusion_sampling:
     sigma_min: 0.001  # default value
     sigma_max: 0.5  # default value
   sampling:
-    algorithm: ode
+    algorithm: predictor_corrector
     spatial_dimension: 3
     number_of_atoms: 8
     number_of_samples: 16
     sample_every_n_epochs: 5
     record_samples: True
     cell_dimensions: [5.43, 5.43, 5.43]
+
+oracle:
+  name: lammps
+  sw_coeff_filename: Si.sw
 
 logging:
   #  - csv
