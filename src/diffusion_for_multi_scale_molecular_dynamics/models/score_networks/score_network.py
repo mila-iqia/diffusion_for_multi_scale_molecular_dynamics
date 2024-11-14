@@ -28,9 +28,7 @@ class ScoreNetworkParameters:
     architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
     num_atom_types: int  # number of possible atomic species - not counting the MASK class used in the diffusion
-    conditional_prob: float = (
-        0.0  # probability of making a conditional forward - else, do an unconditional forward
-    )
+    conditional_prob: float = 0.0  # probability of making a conditional forward - else, do an unconditional forward
     conditional_gamma: float = (
         2.0  # conditional score weighting - see eq. B45 in MatterGen
     )
@@ -173,6 +171,10 @@ class ScoreNetwork(torch.nn.Module):
                 f"{self.spatial_dimension}]"
             )
 
+    def _impose_non_mask_atomic_type_prediction(self, output: AXL):
+        # Force the last logit to be -infinity, making it impossible for the model to predict MASK.
+        output.A[..., self.num_atom_types] = -torch.inf
+
     def forward(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: Optional[bool] = None
     ) -> AXL:
@@ -194,11 +196,12 @@ class ScoreNetwork(torch.nn.Module):
                 )
                 < self.conditional_prob
             )
+
         if not conditional:
-            return self._forward_unchecked(batch, conditional=False)
+            output = self._forward_unchecked(batch, conditional=False)
         else:
             # TODO this is not going to work
-            return self._forward_unchecked(
+            output = self._forward_unchecked(
                 batch, conditional=True
             ) * self.conditional_gamma + self._forward_unchecked(
                 batch, conditional=False
@@ -206,9 +209,13 @@ class ScoreNetwork(torch.nn.Module):
                 1 - self.conditional_gamma
             )
 
+        self._impose_non_mask_atomic_type_prediction(output)
+
+        return output
+
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Forward unchecked.
 
         This method assumes that the input data has already been checked with respect to expectations
