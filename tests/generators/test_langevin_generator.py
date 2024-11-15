@@ -19,6 +19,14 @@ from tests.generators.conftest import BaseTestGenerator
 
 class TestLangevinGenerator(BaseTestGenerator):
 
+    @pytest.fixture(params=[1, 5, 10])
+    def num_atom_types(self, request):
+        return request.param
+
+    @pytest.fixture()
+    def num_atomic_classes(self, num_atom_types):
+        return num_atom_types + 1
+
     @pytest.fixture(params=[0, 1, 2])
     def number_of_corrector_steps(self, request):
         return request.param
@@ -36,10 +44,6 @@ class TestLangevinGenerator(BaseTestGenerator):
             corrector_step_epsilon=0.25,
         )
         return noise_parameters
-
-    @pytest.fixture(params=[1, 5, 10])
-    def num_atom_types(self, request):
-        return request.param
 
     @pytest.fixture()
     def small_epsilon(self):
@@ -91,13 +95,13 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_samples,
         number_of_atoms,
         spatial_dimension,
-        num_atom_types,
+        num_atomic_classes,
         device,
     ):
         return AXL(
             A=torch.randint(
-                0, num_atom_types + 1, (number_of_samples, number_of_atoms)
-            ),
+                0, num_atomic_classes, (number_of_samples, number_of_atoms)
+            ).to(device),
             X=map_relative_coordinates_to_unit_cell(
                 torch.rand(number_of_samples, number_of_atoms, spatial_dimension)
             ).to(device),
@@ -117,10 +121,11 @@ class TestLangevinGenerator(BaseTestGenerator):
         total_time_steps,
         number_of_samples,
         unit_cell_sample,
-        num_atom_types,
+        num_atomic_classes,
+        device
     ):
 
-        sampler = NoiseScheduler(noise_parameters, num_classes=num_atom_types)
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(device)
         noise, _ = sampler.get_all_sampling_parameters()
         sigma_min = noise_parameters.sigma_min
         list_sigma = noise.sigma
@@ -167,12 +172,13 @@ class TestLangevinGenerator(BaseTestGenerator):
         total_time_steps,
         number_of_samples,
         unit_cell_sample,
-        num_atom_types,
+        num_atomic_classes,
         small_epsilon,
         number_of_atoms,
+        device
     ):
 
-        sampler = NoiseScheduler(noise_parameters, num_classes=num_atom_types + 1)
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(device)
         noise, _ = sampler.get_all_sampling_parameters()
         list_sigma = noise.sigma
         list_time = noise.time
@@ -198,7 +204,7 @@ class TestLangevinGenerator(BaseTestGenerator):
                 axl_i, t_i, sigma_i, unit_cell_sample, forces
             ).A
 
-            onehot_at = class_index_to_onehot(axl_i.A, num_classes=num_atom_types + 1)
+            onehot_at = class_index_to_onehot(axl_i.A, num_classes=num_atomic_classes)
             q_matrices = list_q_matrices[index_i - 1]
             q_bar_matrices = list_q_bar_matrices[index_i - 1]
             q_bar_tm1_matrices = list_q_bar_tm1_matrices[index_i - 1]
@@ -227,10 +233,10 @@ class TestLangevinGenerator(BaseTestGenerator):
         total_time_steps,
         number_of_samples,
         unit_cell_sample,
-        num_atom_types,
+        num_atomic_classes,
     ):
 
-        sampler = NoiseScheduler(noise_parameters, num_classes=num_atom_types)
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes)
         noise, _ = sampler.get_all_sampling_parameters()
         sigma_min = noise_parameters.sigma_min
         epsilon = noise_parameters.corrector_step_epsilon
