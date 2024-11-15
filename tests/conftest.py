@@ -37,8 +37,16 @@ def pytest_collection_modifyitems(config, items):
 
 
 _available_devices = [torch.device("cpu")]
+
 if torch.cuda.is_available():
     _available_devices.append(torch.device("cuda"))
+
+if torch.backends.mps.is_available():
+    # MPS is an Apple-specific device. Its connections to pytorch are still incomplete at this time.
+    # The environment variable
+    #   PYTORCH_ENABLE_MPS_FALLBACK=1
+    # should be set to use this device so that a cpu fallback can be used for missing operations.
+    _available_devices.append(torch.device("mps"))
 
 
 @pytest.fixture(params=_available_devices)
@@ -52,6 +60,8 @@ def accelerator(device):
         return "cpu"
     elif str(device) == "cuda":
         return "gpu"
+    elif str(device) == "mps":
+        return "mps"
     else:
         raise ValueError("Wrong device")
 
