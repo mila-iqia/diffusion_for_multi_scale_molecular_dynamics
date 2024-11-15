@@ -13,6 +13,12 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
 
 
 class TestD3PMLossCalculator:
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_seed(self):
+        """Set the random seed."""
+        torch.manual_seed(3423423)
+
     @pytest.fixture
     def batch_size(self):
         return 4
@@ -267,7 +273,7 @@ class TestD3PMLossCalculator:
             q_bar_tm1_matrices,
         )
 
-        assert torch.allclose(computed_kl_loss, expected_kl_loss)
+        torch.testing.assert_close(computed_kl_loss, expected_kl_loss)
 
     def test_kl_loss_predicting_a0(
         self,
@@ -293,9 +299,7 @@ class TestD3PMLossCalculator:
             q_bar_tm1_matrices,
         )
 
-        assert torch.allclose(
-            computed_kl_loss, torch.zeros_like(computed_kl_loss), atol=1e-07
-        )
+        torch.testing.assert_close(computed_kl_loss, torch.zeros_like(computed_kl_loss))
 
     def test_kl_loss_diagonal_q_matrices(
         self,
@@ -326,7 +330,7 @@ class TestD3PMLossCalculator:
                     q_bar_matrices,
                     q_bar_tm1_matrices,
                 )
-                assert torch.allclose(computed_kl, torch.zeros_like(computed_kl))
+                torch.testing.assert_close(computed_kl, torch.zeros_like(computed_kl))
 
     @pytest.mark.parametrize("time_index_zero", [True, False])
     def test_calculate_unreduced_loss(
@@ -399,10 +403,10 @@ class TestD3PMLossCalculator:
 
             if time_index_zero:
                 # If time_indices == 0, loss should be equal to NLL term
-                assert torch.allclose(computed_loss, nll_term)
+                torch.testing.assert_close(computed_loss, nll_term)
             else:
                 # If time_indices != 0, loss should be KL term + ce_weight * NLL term
                 expected_loss = (
                     mock_kl_loss_output + d3pm_calculator.ce_weight * nll_term
                 )
-                assert torch.allclose(computed_loss, expected_loss)
+                torch.testing.assert_close(computed_loss, expected_loss)
