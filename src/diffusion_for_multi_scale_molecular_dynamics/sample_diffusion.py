@@ -12,6 +12,8 @@ from typing import Any, AnyStr, Dict, Optional, Union
 
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
+    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
@@ -24,8 +26,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
-    compute_oracle_energies
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
+    OracleParameters
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import (
+    create_energy_oracle, create_energy_oracle_parameters)
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
@@ -87,9 +91,20 @@ def main(args: Optional[Any] = None):
         hyper_params
     )
 
+    if "elements" in hyper_params:
+        ElementTypes.validate_elements(hyper_params["elements"])
+
+    oracle_parameters = None
+    if "oracle" in hyper_params:
+        assert "elements" in hyper_params, \
+            "elements are needed to define the energy oracle."
+        elements = hyper_params["elements"]
+        oracle_parameters = create_energy_oracle_parameters(hyper_params["oracle"], elements)
+
     create_samples_and_write_to_disk(
         noise_parameters=noise_parameters,
         sampling_parameters=sampling_parameters,
+        oracle_parameters=oracle_parameters,
         device=device,
         checkpoint_path=args.checkpoint,
         output_path=args.output,
@@ -139,6 +154,7 @@ def get_axl_network(checkpoint_path: Union[str, Path]) -> ScoreNetwork:
 def create_samples_and_write_to_disk(
     noise_parameters: NoiseParameters,
     sampling_parameters: SamplingParameters,
+    oracle_parameters: Union[OracleParameters, None],
     device: torch.device,
     checkpoint_path: Union[str, Path],
     output_path: Union[str, Path],
@@ -180,12 +196,14 @@ def create_samples_and_write_to_disk(
     with open(output_directory / "samples.pt", "wb") as fd:
         torch.save(samples_batch, fd)
 
-    logger.info("Compute energy from Oracle...")
-    sample_energies = compute_oracle_energies(samples_batch)
+    if oracle_parameters:
+        logger.info("Compute energy from Oracle...")
+        oracle = create_energy_oracle(oracle_parameters)
+        sample_energies = oracle.compute_oracle_energies(samples_batch)
 
-    logger.info("Writing energies to disk...")
-    with open(output_directory / "energies.pt", "wb") as fd:
-        torch.save(sample_energies, fd)
+        logger.info("Writing energies to disk...")
+        with open(output_directory / "energies.pt", "wb") as fd:
+            torch.save(sample_energies, fd)
 
     if sampling_parameters.record_samples:
         logger.info("Writing sampling trajectories to disk...")

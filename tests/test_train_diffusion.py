@@ -8,7 +8,7 @@ that the results are correct.
 import glob
 import os
 import re
-from typing import Union
+from typing import List, Union
 
 import numpy as np
 import pytest
@@ -109,6 +109,7 @@ def get_score_network(
 def get_config(
     number_of_atoms: int,
     num_atom_types: int,
+    unique_elements: List[str],
     max_epoch: int,
     architecture: str,
     head_name: Union[str, None],
@@ -158,6 +159,7 @@ def get_config(
         exp_name="smoke_test",
         seed=9999,
         spatial_dimension=3,
+        elements=unique_elements,
         data=data_config,
         model=model_config,
         optimizer=optimizer_config,
@@ -183,6 +185,12 @@ def get_config(
     ],
 )
 class TestTrainDiffusion(TestDiffusionDataBase):
+
+    @pytest.fixture(autouse=True)
+    def skip_mps_accelerator(self, accelerator):
+        if accelerator == 'mps':
+            pytest.skip("Skipping MPS accelerator: it is incompatible with KeOps and leads to segfaults")
+
     @pytest.fixture()
     def max_epoch(self):
         return 5
@@ -196,6 +204,7 @@ class TestTrainDiffusion(TestDiffusionDataBase):
         self,
         number_of_atoms,
         num_atom_types,
+        unique_elements,
         max_epoch,
         architecture,
         head_name,
@@ -204,6 +213,7 @@ class TestTrainDiffusion(TestDiffusionDataBase):
         return get_config(
             number_of_atoms,
             num_atom_types=num_atom_types,
+            unique_elements=unique_elements,
             max_epoch=max_epoch,
             architecture=architecture,
             head_name=head_name,

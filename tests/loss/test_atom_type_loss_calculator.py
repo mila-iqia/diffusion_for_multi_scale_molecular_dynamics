@@ -13,6 +13,12 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
 
 
 class TestD3PMLossCalculator:
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_seed(self):
+        """Set the random seed."""
+        torch.manual_seed(3423423)
+
     @pytest.fixture
     def batch_size(self):
         return 4
@@ -267,7 +273,7 @@ class TestD3PMLossCalculator:
             q_bar_tm1_matrices,
         )
 
-        assert torch.allclose(computed_kl_loss, expected_kl_loss)
+        torch.testing.assert_close(computed_kl_loss, expected_kl_loss)
 
     def test_kl_loss_predicting_a0(
         self,
@@ -293,9 +299,7 @@ class TestD3PMLossCalculator:
             q_bar_tm1_matrices,
         )
 
-        assert torch.allclose(
-            computed_kl_loss, torch.zeros_like(computed_kl_loss), atol=1e-07
-        )
+        torch.testing.assert_close(computed_kl_loss, torch.zeros_like(computed_kl_loss))
 
     def test_kl_loss_diagonal_q_matrices(
         self,
@@ -326,7 +330,7 @@ class TestD3PMLossCalculator:
                     q_bar_matrices,
                     q_bar_tm1_matrices,
                 )
-                assert torch.allclose(computed_kl, torch.zeros_like(computed_kl))
+                torch.testing.assert_close(computed_kl, torch.zeros_like(computed_kl))
 
     @pytest.mark.parametrize("time_index_zero", [True, False])
     def test_calculate_unreduced_loss(
@@ -337,7 +341,9 @@ class TestD3PMLossCalculator:
         number_of_atoms,
         num_classes,
     ):
-        predicted_probs = torch.randn(batch_size, number_of_atoms, num_classes)
+        predicted_logits = torch.randn(batch_size, number_of_atoms, num_classes)
+        predicted_logits[..., -1] = -torch.inf
+
         real_atom_types = (
             torch.eye(num_classes)
             .unsqueeze(0)
@@ -373,7 +379,7 @@ class TestD3PMLossCalculator:
         ) as mock_kl_loss:
             # Call the function under test
             computed_loss = d3pm_calculator.calculate_unreduced_loss(
-                predicted_probs,
+                predicted_logits,
                 real_atom_types,
                 noisy_atom_types,
                 time_indices,
@@ -383,7 +389,7 @@ class TestD3PMLossCalculator:
             )
 
             mock_kl_loss.assert_called_once_with(
-                predicted_probs,
+                predicted_logits,
                 real_atom_types,
                 noisy_atom_types,
                 q_matrices,
@@ -392,14 +398,15 @@ class TestD3PMLossCalculator:
             )
 
             # Compute expected NLL term
-            nll_term = -torch.nn.functional.log_softmax(predicted_probs, dim=-1)
+            nll_term = -torch.nn.functional.log_softmax(predicted_logits, dim=-1)
+            nll_term[..., -1] = 0.0
 
             if time_index_zero:
                 # If time_indices == 0, loss should be equal to NLL term
-                assert torch.allclose(computed_loss, nll_term)
+                torch.testing.assert_close(computed_loss, nll_term)
             else:
                 # If time_indices != 0, loss should be KL term + ce_weight * NLL term
                 expected_loss = (
                     mock_kl_loss_output + d3pm_calculator.ce_weight * nll_term
                 )
-                assert torch.allclose(computed_loss, expected_loss)
+                torch.testing.assert_close(computed_loss, expected_loss)

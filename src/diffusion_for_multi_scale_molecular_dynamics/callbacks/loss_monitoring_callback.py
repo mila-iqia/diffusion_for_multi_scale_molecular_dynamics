@@ -67,7 +67,9 @@ class LossMonitoringCallback(Callback):
         # Compute the square errors per atoms
         batched_squared_errors = (
             (
-                outputs["unreduced_loss"].X  # prediction normalized scores for coordinates
+                outputs[
+                    "unreduced_loss"
+                ].X  # prediction normalized scores for coordinates
                 - outputs["target_coordinates_normalized_conditional_scores"]
             )
             ** 2

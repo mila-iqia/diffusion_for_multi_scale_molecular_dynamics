@@ -87,15 +87,13 @@ class MLPScoreNetwork(ScoreNetwork):
             )
         self.non_linearity = nn.ReLU()
 
-        self.output_layers = AXL(
-            A=nn.Linear(
-                hyper_params.hidden_dimensions_size, atom_type_output_dimension
-            ),
-            X=nn.Linear(
-                hyper_params.hidden_dimensions_size, coordinate_output_dimension
-            ),
-            L=nn.Identity(),  # TODO placeholder
-        )
+        # Create a self nn object to be discoverable to be placed on the correct device
+        self.output_A_layer = nn.Linear(hyper_params.hidden_dimensions_size, atom_type_output_dimension)
+        self.output_X_layer = nn.Linear(hyper_params.hidden_dimensions_size, coordinate_output_dimension)
+        self.output_L_layer = nn.Identity()
+        self.output_layers = AXL(A=self.output_A_layer,
+                                 X=self.output_X_layer,
+                                 L=self.output_L_layer)  # TODO placeholder
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MLPScoreNetwork, self)._check_batch(batch)

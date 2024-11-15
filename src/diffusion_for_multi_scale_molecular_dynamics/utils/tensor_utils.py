@@ -74,6 +74,10 @@ def broadcast_batch_matrix_tensor_to_all_dimensions(
     # reshape the batch_values array to have the same dimension as final_shape, with all values identical
     # for a given batch index.
     number_of_dimensions = len(final_shape)
-    reshape_dimension = torch.Size([batch_size] + (number_of_dimensions - 1) * [1]) + matrix_size
-    broadcast_values = batch_values.reshape(reshape_dimension).expand(torch.Size(final_shape) + matrix_size)
+    reshape_dimension = (
+        torch.Size([batch_size] + (number_of_dimensions - 1) * [1]) + matrix_size
+    )
+    broadcast_values = batch_values.reshape(reshape_dimension).expand(
+        torch.Size(final_shape) + matrix_size
+    )
     return broadcast_values

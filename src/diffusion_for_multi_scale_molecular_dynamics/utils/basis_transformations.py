@@ -116,10 +116,7 @@ def map_relative_coordinates_to_unit_cell(
     return normalized_relative_coordinates
 
 
-def map_axl_composition_to_unit_cell(
-        composition: AXL,
-        device: torch.device
-    ) -> AXL:
+def map_axl_composition_to_unit_cell(composition: AXL, device: torch.device) -> AXL:
     """Map relative coordinates in an AXL namedtuple back to unit cell and update the namedtuple.
 
     Args:
@@ -129,10 +126,10 @@ def map_axl_composition_to_unit_cell(
     Returns:
         normalized_composition: AXL namedtuple with relative coordinates in the unit cell i.e. in the range [0, 1).
     """
-    normalized_relative_coordinates = map_relative_coordinates_to_unit_cell(composition.X).to(device)
+    normalized_relative_coordinates = map_relative_coordinates_to_unit_cell(
+        composition.X
+    ).to(device)
     normalized_composition = AXL(
-        A=composition.A,
-        X=normalized_relative_coordinates,
-        L=composition.L
+        A=composition.A, X=normalized_relative_coordinates, L=composition.L
     )
     return normalized_composition

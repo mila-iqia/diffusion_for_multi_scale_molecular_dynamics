@@ -10,6 +10,8 @@ accumulate_grad_batches: 1  # make this number of forward passes before doing a 
 # results will not be reproducible)
 seed: 1234
 
+elements: [Si]
+
 # data
 data:
   batch_size: 512
@@ -20,9 +22,10 @@ data:
 spatial_dimension: 3
 model:
   loss:
-    algorithm: mse
+    coordinates_algorithm: mse
   score_network:
     architecture: diffusion_mace
+    num_atom_types: 1
     number_of_atoms: 8
     r_max: 5.0
     num_bessel: 'orion~choices([128, 256, 512])'
@@ -79,6 +82,7 @@ diffusion_sampling:
     sigma_min: 0.001  # default value
     sigma_max: 0.5  # default value
   sampling:
+    num_atom_types: 1
     spatial_dimension: 3
     number_of_corrector_steps: 1
     number_of_atoms: 8

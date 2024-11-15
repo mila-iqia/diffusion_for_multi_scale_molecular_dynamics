@@ -10,6 +10,8 @@ accumulate_grad_batches: 1  # make this number of forward passes before doing a 
 # results will not be reproducible)
 seed: 1234
 
+elements: ["Si"]
+
 # data
 data:
   batch_size: 1024
@@ -20,12 +22,14 @@ data:
 spatial_dimension: 3
 model:
   loss:
-    algorithm: mse
+    coordinates_algorithm: mse
   score_network:
     architecture: mlp
+    num_atom_types: 1
     number_of_atoms: 8
     n_hidden_dimensions: 2
-    embedding_dimensions_size: 16
+    noise_embedding_dimensions_size: 16
+    atom_type_embedding_dimensions_size: 16
     hidden_dimensions_size: 64
     conditional_prob: 0.0
     conditional_gamma: 2
@@ -43,6 +47,7 @@ diffusion_sampling:
     sigma_max: 0.1 
   sampling:
     algorithm: predictor_corrector
+    num_atom_types: 1
     spatial_dimension: 3
     number_of_atoms: 8
     number_of_samples: 16
@@ -87,6 +92,11 @@ model_checkpoint:
 loss_monitoring: 
   number_of_bins: 50
   sample_every_n_epochs: 25
+
+oracle:
+  name: lammps
+  sw_coeff_filename: Si.sw
+
 
 logging:
 #  - comet

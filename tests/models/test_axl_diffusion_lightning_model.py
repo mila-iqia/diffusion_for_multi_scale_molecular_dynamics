@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+
+import numpy as np
 import pytest
 import torch
 from pytorch_lightning import LightningDataModule, Trainer
@@ -21,12 +24,33 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_FORCES, RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import (
+    EnergyOracle, OracleParameters)
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import (
+    ENERGY_ORACLE_BY_NAME, ORACLE_PARAMETERS_BY_NAME)
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
     DiffusionSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
+from tests.fake_data_utils import generate_random_string
+
+
+@dataclass(kw_only=True)
+class FakeOracleParameters(OracleParameters):
+    name = "test"
+
+
+class FakeEnergyOracle(EnergyOracle):
+
+    def _compute_one_configuration_energy(
+        self,
+        cartesian_positions: np.ndarray,
+        basis_vectors: np.ndarray,
+        atom_types: np.ndarray,
+    ) -> float:
+        return np.random.rand()
 
 
 class FakePositionsDataModule(LightningDataModule):
@@ -43,6 +67,7 @@ class FakePositionsDataModule(LightningDataModule):
         all_relative_coordinates = torch.rand(
             dataset_size, number_of_atoms, spatial_dimension
         )
+        potential_energies = torch.rand(dataset_size)
         all_atom_types = torch.randint(
             0, num_atom_types, (dataset_size, number_of_atoms)
         )
@@ -53,9 +78,10 @@ class FakePositionsDataModule(LightningDataModule):
                 ATOM_TYPES: atom_configuration,
                 "box": box,
                 CARTESIAN_FORCES: torch.zeros_like(coordinate_configuration),
+                "potential_energy": potential_energy
             }
-            for coordinate_configuration, atom_configuration in zip(
-                all_relative_coordinates, all_atom_types
+            for coordinate_configuration, atom_configuration, potential_energy in zip(
+                all_relative_coordinates, all_atom_types, potential_energies
             )
         ]
         self.train_data, self.val_data, self.test_data = None, None, None
@@ -92,6 +118,10 @@ class TestPositionDiffusionLightningModel:
     @pytest.fixture()
     def num_atom_types(self):
         return 4
+
+    @pytest.fixture
+    def unique_elements(self, num_atom_types):
+        return [generate_random_string(size=3) for _ in range(num_atom_types)]
 
     @pytest.fixture()
     def unit_cell_size(self):
@@ -156,8 +186,9 @@ class TestPositionDiffusionLightningModel:
     def diffusion_sampling_parameters(self, sampling_parameters):
         noise_parameters = NoiseParameters(total_time_steps=5)
         metrics_parameters = SamplingMetricsParameters(
-            structure_factor_max_distance=1.0
-        )
+            structure_factor_max_distance=1.0,
+            compute_energies=True,
+            compute_structure_factor=False)
         diffusion_sampling_parameters = DiffusionSamplingParameters(
             sampling_parameters=sampling_parameters,
             noise_parameters=noise_parameters,
@@ -169,6 +200,7 @@ class TestPositionDiffusionLightningModel:
     def hyper_params(
         self,
         number_of_atoms,
+        unique_elements,
         num_atom_types,
         spatial_dimension,
         optimizer_parameters,
@@ -189,6 +221,8 @@ class TestPositionDiffusionLightningModel:
 
         noise_parameters = NoiseParameters(total_time_steps=15)
 
+        oracle_parameters = OracleParameters(name='test', elements=unique_elements)
+
         hyper_params = AXLDiffusionParameters(
             score_network_parameters=score_network_parameters,
             optimizer_parameters=optimizer_parameters,
@@ -196,6 +230,7 @@ class TestPositionDiffusionLightningModel:
             noise_parameters=noise_parameters,
             loss_parameters=loss_parameters,
             diffusion_sampling_parameters=diffusion_sampling_parameters,
+            oracle_parameters=oracle_parameters
         )
         return hyper_params
 
@@ -241,7 +276,13 @@ class TestPositionDiffusionLightningModel:
         return sigmas
 
     @pytest.fixture()
-    def lightning_model(self, hyper_params):
+    def lightning_model(self, mocker, hyper_params):
+        fake_oracle_parameters_by_name = dict(test=FakeOracleParameters)
+        fake_energy_oracle_by_name = dict(test=FakeEnergyOracle)
+
+        mocker.patch.dict(ORACLE_PARAMETERS_BY_NAME, fake_oracle_parameters_by_name)
+        mocker.patch.dict(ENERGY_ORACLE_BY_NAME, fake_energy_oracle_by_name)
+
         lightning_model = AXLDiffusionLightningModel(hyper_params)
         return lightning_model
 
