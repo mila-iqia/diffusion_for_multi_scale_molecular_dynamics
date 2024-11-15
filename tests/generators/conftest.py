@@ -50,10 +50,10 @@ class BaseTestGenerator:
         return 6
 
     @pytest.fixture()
-    def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples):
+    def unit_cell_sample(self, unit_cell_size, spatial_dimension, number_of_samples, device):
         return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(
             number_of_samples, 1, 1
-        )
+        ).to(device)
 
     @pytest.fixture()
     def cell_dimensions(self, unit_cell_size, spatial_dimension):
