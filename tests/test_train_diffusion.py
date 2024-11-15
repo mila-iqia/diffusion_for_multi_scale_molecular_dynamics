@@ -185,6 +185,12 @@ def get_config(
     ],
 )
 class TestTrainDiffusion(TestDiffusionDataBase):
+
+    @pytest.fixture(autouse=True)
+    def skip_mps_accelerator(self, accelerator):
+        if accelerator == 'mps':
+            pytest.skip("Skipping MPS accelerator: it is incompatible with KeOps and leads to segfaults")
+
     @pytest.fixture()
     def max_epoch(self):
         return 5
