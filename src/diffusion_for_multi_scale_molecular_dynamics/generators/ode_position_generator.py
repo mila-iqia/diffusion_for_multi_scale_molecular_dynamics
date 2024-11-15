@@ -186,7 +186,7 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
             samples: samples as AXL composition
         """
         initial_composition = map_axl_composition_to_unit_cell(
-            self.initialize(number_of_samples), device
+            self.initialize(number_of_samples, device), device
         )
 
         ode_term = self.generate_ode_term(unit_cell, atom_types=initial_composition.A)
