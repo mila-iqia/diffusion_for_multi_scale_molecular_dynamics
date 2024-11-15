@@ -1,6 +1,7 @@
 """Call LAMMPS to get the forces and energy in a given configuration."""
 
 import os
+import warnings
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -14,6 +15,7 @@ from diffusion_for_multi_scale_molecular_dynamics.oracle import \
     SW_COEFFICIENTS_DIR
 
 
+@warnings.deprecated("DO NOT USE THIS METHOD. It will be refactored away and replaced by LammpsEnergyOracle.")
 def get_energy_and_forces_from_lammps(
     cartesian_positions: np.ndarray,
     box: np.ndarray,
