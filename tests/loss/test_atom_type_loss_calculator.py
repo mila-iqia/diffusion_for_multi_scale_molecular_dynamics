@@ -21,7 +21,7 @@ class TestD3PMLossCalculator:
 
     @pytest.fixture
     def batch_size(self):
-        return 4
+        return 64
 
     @pytest.fixture
     def number_of_atoms(self):
@@ -30,6 +30,14 @@ class TestD3PMLossCalculator:
     @pytest.fixture
     def num_atom_types(self):
         return 5
+
+    @pytest.fixture
+    def total_number_of_times_steps(self):
+        return 8
+
+    @pytest.fixture
+    def time_indices(self, batch_size, total_number_of_times_steps):
+        return torch.randint(0, total_number_of_times_steps, (batch_size,))
 
     @pytest.fixture
     def num_classes(self, num_atom_types):
@@ -124,8 +132,16 @@ class TestD3PMLossCalculator:
         return 1.0e-12
 
     @pytest.fixture
-    def loss_parameters(self, loss_eps):
-        return LossParameters(coordinates_algorithm=None, atom_types_eps=loss_eps)
+    def atom_types_ce_weight(self):
+        return 0.1
+
+    @pytest.fixture
+    def loss_parameters(self, loss_eps, atom_types_ce_weight):
+        return LossParameters(
+            coordinates_algorithm=None,
+            atom_types_eps=loss_eps,
+            atom_types_ce_weight=atom_types_ce_weight,
+        )
 
     @pytest.fixture
     def d3pm_calculator(self, loss_parameters):
@@ -199,12 +215,22 @@ class TestD3PMLossCalculator:
         return expected_q
 
     @pytest.fixture
-    def expected_kl_loss(
-        self, expected_p_atm1_given_at, expected_q_atm1_given_at_and_a0
+    def expected_vb_loss(
+        self, time_indices, expected_p_atm1_given_at, expected_q_atm1_given_at_and_a0
     ):
+        assert (
+            0 in time_indices
+        ), "For a good test, the index 0 should appear in the time indices!"
+
         kl_loss = KLDivLoss(reduction="none")
         log_p = torch.log(expected_p_atm1_given_at)
-        return kl_loss(input=log_p, target=expected_q_atm1_given_at_and_a0)
+        vb_loss = kl_loss(input=log_p, target=expected_q_atm1_given_at_and_a0)
+
+        for batch_idx, time_index in enumerate(time_indices):
+            if time_index == 0:
+                vb_loss[batch_idx] = -log_p[batch_idx]
+
+        return vb_loss
 
     def test_get_p_atm1_at(
         self,
@@ -252,7 +278,7 @@ class TestD3PMLossCalculator:
             computed_q_atm1_given_at_and_a0, expected_q_atm1_given_at_and_a0
         )
 
-    def test_kl_loss(
+    def test_variational_bound_loss(
         self,
         predicted_logits,
         one_hot_a0,
@@ -260,44 +286,49 @@ class TestD3PMLossCalculator:
         q_matrices,
         q_bar_matrices,
         q_bar_tm1_matrices,
+        time_indices,
         d3pm_calculator,
         loss_eps,
-        expected_kl_loss,
+        expected_vb_loss,
     ):
-        computed_kl_loss = d3pm_calculator.kl_loss_term(
+        computed_vb_loss = d3pm_calculator.variational_bound_loss_term(
             predicted_logits,
             one_hot_a0,
             one_hot_at,
             q_matrices,
             q_bar_matrices,
             q_bar_tm1_matrices,
+            time_indices,
         )
 
-        torch.testing.assert_close(computed_kl_loss, expected_kl_loss)
+        torch.testing.assert_close(computed_vb_loss, expected_vb_loss)
 
-    def test_kl_loss_predicting_a0(
+    def test_vb_loss_predicting_a0(
         self,
         one_hot_a0,
         one_hot_at,
         q_matrices,
         q_bar_matrices,
         q_bar_tm1_matrices,
+        time_indices,
         d3pm_calculator,
-        loss_eps,
-        expected_kl_loss,
     ):
         # The KL should vanish when p_\theta(. | a_t) predicts a0 with probability 1.
 
         predicted_logits = torch.log(one_hot_a0)
 
-        computed_kl_loss = d3pm_calculator.kl_loss_term(
+        computed_vb_loss = d3pm_calculator.variational_bound_loss_term(
             predicted_logits,
             one_hot_a0,
             one_hot_at,
             q_matrices,
             q_bar_matrices,
             q_bar_tm1_matrices,
+            time_indices,
         )
+
+        non_zero_time_step_mask = time_indices != 0
+        computed_kl_loss = computed_vb_loss[non_zero_time_step_mask]
 
         torch.testing.assert_close(computed_kl_loss, torch.zeros_like(computed_kl_loss))
 
@@ -311,6 +342,7 @@ class TestD3PMLossCalculator:
         #  or
         #   2) the prediction is equal to the posterior; this follows because the prediction is normalized.
         predicted_logits = torch.rand(1, 1, num_classes)
+        time_indices = torch.tensor([1])  # non-zero to compute the KL
 
         q_matrices = torch.eye(num_classes).view(1, 1, num_classes, num_classes)
         q_bar_matrices = torch.eye(num_classes).view(1, 1, num_classes, num_classes)
@@ -322,18 +354,64 @@ class TestD3PMLossCalculator:
                 one_hot_a0[0, 0, i] = 1.0
                 one_hot_at[0, 0, j] = 1.0
 
-                computed_kl = d3pm_calculator.kl_loss_term(
+                computed_kl = d3pm_calculator.variational_bound_loss_term(
                     predicted_logits,
                     one_hot_a0,
                     one_hot_at,
                     q_matrices,
                     q_bar_matrices,
                     q_bar_tm1_matrices,
+                    time_indices,
                 )
                 torch.testing.assert_close(computed_kl, torch.zeros_like(computed_kl))
 
-    @pytest.mark.parametrize("time_index_zero", [True, False])
+    def test_cross_entropy_loss_term(self, predicted_logits, d3pm_calculator):
+        computed_ce_loss = d3pm_calculator.cross_entropy_loss_term(predicted_logits)
+
+        p = torch.softmax(predicted_logits, dim=-1)
+        log_p = torch.log(p)
+        expected_ce_loss = -log_p
+        torch.testing.assert_close(computed_ce_loss, expected_ce_loss)
+
     def test_calculate_unreduced_loss(
+        self,
+        predicted_logits,
+        one_hot_a0,
+        one_hot_at,
+        q_matrices,
+        q_bar_matrices,
+        q_bar_tm1_matrices,
+        time_indices,
+        d3pm_calculator,
+        atom_types_ce_weight,
+    ):
+        vb_loss = d3pm_calculator.variational_bound_loss_term(
+            predicted_logits,
+            one_hot_a0,
+            one_hot_at,
+            q_matrices,
+            q_bar_matrices,
+            q_bar_tm1_matrices,
+            time_indices,
+        )
+
+        ce_loss = d3pm_calculator.cross_entropy_loss_term(predicted_logits)
+        expected_losss = vb_loss + atom_types_ce_weight * ce_loss
+
+        computed_loss = d3pm_calculator.calculate_unreduced_loss(
+            predicted_logits,
+            one_hot_a0,
+            one_hot_at,
+            time_indices,
+            q_matrices,
+            q_bar_matrices,
+            q_bar_tm1_matrices,
+        )
+
+        torch.testing.assert_close(computed_loss, expected_losss)
+
+    @pytest.mark.parametrize("time_index_zero", [True, False])
+    def test_variational_bound_call(
         self,
         time_index_zero,
         d3pm_calculator,
@@ -363,7 +441,7 @@ class TestD3PMLossCalculator:
         )
 
         # Mock the KL loss term output
-        mock_kl_loss_output = torch.randn(batch_size, number_of_atoms, num_classes)
+        mock_vb_loss_output = torch.randn(batch_size, number_of_atoms, num_classes)
 
         # Define time_indices: 0 for NLL and 1 for KL + NLL (depending on parametrize input)
         if time_index_zero:
@@ -375,10 +453,12 @@ class TestD3PMLossCalculator:
 
         # Patch the kl_loss_term method
         with patch.object(
-            d3pm_calculator, "kl_loss_term", return_value=mock_kl_loss_output
-        ) as mock_kl_loss:
+            d3pm_calculator,
+            "variational_bound_loss_term",
+            return_value=mock_vb_loss_output,
+        ) as mock_vb_loss:
             # Call the function under test
-            computed_loss = d3pm_calculator.calculate_unreduced_loss(
+            _ = d3pm_calculator.calculate_unreduced_loss(
                 predicted_logits,
                 real_atom_types,
                 noisy_atom_types,
@@ -388,25 +468,12 @@ class TestD3PMLossCalculator:
                 q_bar_tm1_matrices,
             )
 
-            mock_kl_loss.assert_called_once_with(
+            mock_vb_loss.assert_called_once_with(
                 predicted_logits,
                 real_atom_types,
                 noisy_atom_types,
                 q_matrices,
                 q_bar_matrices,
                 q_bar_tm1_matrices,
+                time_indices,
             )
-
-            # Compute expected NLL term
-            nll_term = -torch.nn.functional.log_softmax(predicted_logits, dim=-1)
-            nll_term[..., -1] = 0.0
-
-            if time_index_zero:
-                # If time_indices == 0, loss should be equal to NLL term
-                torch.testing.assert_close(computed_loss, nll_term)
-            else:
-                # If time_indices != 0, loss should be KL term + ce_weight * NLL term
-                expected_loss = (
-                    mock_kl_loss_output + d3pm_calculator.ce_weight * nll_term
-                )
-                torch.testing.assert_close(computed_loss, expected_loss)
