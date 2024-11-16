@@ -371,6 +371,7 @@ class TestD3PMLossCalculator:
         p = torch.softmax(predicted_logits, dim=-1)
         log_p = torch.log(p)
         expected_ce_loss = -log_p
+        expected_ce_loss[..., -1] = 0.0  # squash the divergent MASK value.
         torch.testing.assert_close(computed_ce_loss, expected_ce_loss)
 
     def test_calculate_unreduced_loss(

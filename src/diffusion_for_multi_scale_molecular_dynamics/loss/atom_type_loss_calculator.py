@@ -34,6 +34,8 @@ class D3PMLossCalculator(torch.nn.Module):
                 [batch_size, number_of_atoms, num_classes].
         """
         nll_term = -torch.nn.functional.log_softmax(predicted_logits, dim=-1)
+        # The last logit is -inf, which leads to p(a_{0} = MASK) = 0. This diverges and must be squashed.
+        nll_term[..., -1] = 0.0
         return nll_term
 
     def variational_bound_loss_term(
