@@ -122,10 +122,12 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_samples,
         unit_cell_sample,
         num_atomic_classes,
-        device
+        device,
     ):
 
-        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(device)
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(
+            device
+        )
         noise, _ = sampler.get_all_sampling_parameters()
         sigma_min = noise_parameters.sigma_min
         list_sigma = noise.sigma
@@ -163,11 +165,16 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
 
+    @pytest.mark.parametrize("one_atom_type_transition_per_step", [True, False])
+    @pytest.mark.parametrize("atom_type_greedy_sampling", [True, False])
     def test_predictor_step_atom_types(
         self,
         mocker,
-        pc_generator,
+        one_atom_type_transition_per_step,
+        atom_type_greedy_sampling,
         noise_parameters,
+        sampling_parameters,
+        axl_network,
         axl_i,
         total_time_steps,
         number_of_samples,
@@ -175,10 +182,21 @@ class TestLangevinGenerator(BaseTestGenerator):
         num_atomic_classes,
         small_epsilon,
         number_of_atoms,
-        device
+        device,
     ):
+        sampling_parameters.one_atom_type_transition_per_step = (
+            one_atom_type_transition_per_step
+        )
+        sampling_parameters.atom_type_greedy_sampling = atom_type_greedy_sampling
+        pc_generator = LangevinGenerator(
+            noise_parameters=noise_parameters,
+            sampling_parameters=sampling_parameters,
+            axl_network=axl_network,
+        )
 
-        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(device)
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(
+            device
+        )
         noise, _ = sampler.get_all_sampling_parameters()
         list_sigma = noise.sigma
         list_time = noise.time
@@ -218,9 +236,43 @@ class TestLangevinGenerator(BaseTestGenerator):
                 small_epsilon=small_epsilon,
                 probability_at_zeroth_timestep_are_logits=True,
             )
+
+            if atom_type_greedy_sampling:
+                # remove the noise component so we are sampling the max value from the prob distribution
+                samples_with_only_masks = torch.all(
+                    axl_i.A == num_atomic_classes - 1, dim=-1
+                )
+                for sample_idx, sample_is_just_mask in enumerate(
+                    samples_with_only_masks
+                ):
+                    if not sample_is_just_mask:
+                        u[sample_idx, :, :] = 0.0
+
             gumbel_distribution = torch.log(p_atm1_given_at) + u
 
             expected_atom_types = torch.argmax(gumbel_distribution, dim=-1)
+
+            if one_atom_type_transition_per_step:
+                new_atom_types = axl_i.A.clone()
+                for sample_idx in range(number_of_samples):
+                    # find the prob scores for each transition in this sample
+                    sample_probs = []
+                    for atom_idx in range(number_of_atoms):
+                        old_atom_id = axl_i.A[sample_idx, atom_idx]
+                        new_atom_id = expected_atom_types[sample_idx, atom_idx]
+                        # compare old id to new id - if same, no transition
+                        if old_atom_id != new_atom_id:
+                            # different, record the gumbel score
+                            sample_probs.append(
+                                gumbel_distribution[sample_idx, atom_idx, :].max()
+                            )
+                        else:
+                            sample_probs.append(-torch.inf)
+                    highest_score_transition = torch.argmax(torch.tensor(sample_probs))
+                    new_atom_types[sample_idx, highest_score_transition] = (
+                        expected_atom_types[sample_idx, highest_score_transition]
+                    )
+                expected_atom_types = new_atom_types
 
             torch.testing.assert_close(computed_sample.A, expected_atom_types)
 
