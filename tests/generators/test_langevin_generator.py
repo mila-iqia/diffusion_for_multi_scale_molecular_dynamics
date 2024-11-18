@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
     class_index_to_onehot, get_probability_at_previous_time_step)
-from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
 from tests.generators.conftest import BaseTestGenerator
 

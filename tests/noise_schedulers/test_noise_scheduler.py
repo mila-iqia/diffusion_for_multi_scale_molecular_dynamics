@@ -4,7 +4,7 @@ import torch
 
 from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.variance_sampler import \
+from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
 
 

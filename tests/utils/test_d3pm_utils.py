@@ -1,6 +1,10 @@
 import pytest
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
+    NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
     class_index_to_onehot, compute_q_at_given_a0, compute_q_at_given_atm1,
     get_probability_at_previous_time_step)
@@ -278,3 +282,42 @@ def test_get_probability_at_previous_time_step_from_one_hot_probabilities(
     assert torch.allclose(
         computed_q_atm1_given_at_and_a0, expected_p_atm1_given_at_from_onehot
     )
+
+
+@pytest.mark.parametrize("total_time_steps", [2, 5, 10])
+def test_prob_a0_given_a1_is_never_mask(number_of_atoms, num_classes, total_time_steps, loss_eps):
+    noise_parameters = NoiseParameters(total_time_steps=total_time_steps)
+    noise_scheduler = NoiseScheduler(noise_parameters=noise_parameters, num_classes=num_classes)
+
+    logits = torch.rand(1, number_of_atoms, num_classes)
+    logits[..., -1] = -torch.inf
+
+    atom_shape = (1, number_of_atoms)
+    q_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
+        batch_values=noise_scheduler._q_matrix_array[0].unsqueeze(0), final_shape=atom_shape
+    )
+
+    q_bar_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
+        batch_values=noise_scheduler._q_bar_matrix_array[0].unsqueeze(0), final_shape=atom_shape
+    )
+
+    q_bar_tm1_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
+        batch_values=noise_scheduler._q_bar_tm1_matrix_array[0].unsqueeze(0), final_shape=atom_shape
+    )
+
+    a1 = torch.randint(0, num_classes, (1, number_of_atoms))
+    a1_onehot = class_index_to_onehot(a1, num_classes)
+
+    p_a0_given_a1 = get_probability_at_previous_time_step(logits,
+                                                          a1_onehot,
+                                                          q_matrices,
+                                                          q_bar_matrices,
+                                                          q_bar_tm1_matrices,
+                                                          small_epsilon=loss_eps,
+                                                          probability_at_zeroth_timestep_are_logits=True)
+
+    mask_probability = p_a0_given_a1[..., -1]
+    torch.testing.assert_allclose(mask_probability, torch.zeros_like(mask_probability))
+
+    total_probability = p_a0_given_a1.sum(dim=-1)
+    torch.testing.assert_allclose(total_probability, torch.ones_like(total_probability))

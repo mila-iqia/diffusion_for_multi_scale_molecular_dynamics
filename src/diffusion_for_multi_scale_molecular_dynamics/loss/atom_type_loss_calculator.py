@@ -16,7 +16,29 @@ class D3PMLossCalculator(torch.nn.Module):
         self.ce_weight = loss_parameters.atom_types_ce_weight
         self.eps = loss_parameters.atom_types_eps
 
-    def kl_loss_term(
+    def cross_entropy_loss_term(self, predicted_logits: torch.Tensor) -> torch.Tensor:
+        r"""Compute the cross entropy component of the loss.
+
+        This corresponds to this:
+
+        .. math::
+
+            -\log \tilde p_\theta(a_{0} | a_{t})
+
+        Args:
+            predicted_logits: output of the score network estimating class logits
+                :math:`\tilde p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_classes] where num_classes
+                includes the MASK token
+        Returns:
+            nll_term: the negative log-likelihood of the predictions of dimension
+                [batch_size, number_of_atoms, num_classes].
+        """
+        nll_term = -torch.nn.functional.log_softmax(predicted_logits, dim=-1)
+        # The last logit is -inf, which leads to p(a_{0} = MASK) = 0. This diverges and must be squashed.
+        nll_term[..., -1] = 0.0
+        return nll_term
+
+    def variational_bound_loss_term(
         self,
         predicted_logits: torch.Tensor,
         one_hot_real_atom_types: torch.Tensor,
@@ -24,20 +46,20 @@ class D3PMLossCalculator(torch.nn.Module):
         q_matrices: torch.Tensor,
         q_bar_matrices: torch.Tensor,
         q_bar_tm1_matrices: torch.Tensor,
+        time_indices: torch.Tensor
     ) -> torch.Tensor:
-        r"""Compute the KL component of the loss.
+        r"""Compute the variational bound part of the loss.
 
         This corresponds to this:
 
         .. math::
 
-            D_{KL}[q(a_{t-1} | a_t, a_0) || p_\theta(a_{t-1} | a_{t})]
-
-        We are ignoring the t=1 case here as we will use a NLL loss instead.
+            t == 1 : -log(p_\theta(a_{0} | a_{1})
+            t != 1 : D_{KL}[q(a_{t-1} | a_t, a_0) || p_\theta(a_{t-1} | a_{t})]
 
         Args:
             predicted_logits: output of the score network estimating class logits
-                :math:`p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_classes] where num_classes
+                :math:`\tilde p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_classes] where num_classes
                 includes the MASK token
             one_hot_real_atom_types: real atom types :math:`a_0` in one-hot format of dimension
                 [batch_size, number_of_atoms, num_type_atoms, num_classes]
@@ -49,9 +71,10 @@ class D3PMLossCalculator(torch.nn.Module):
                 [batch_size, number_of_atoms, num_type_atoms, num_classes]
             q_bar_tm1_matrices: one-shot transition matrices at previous step :math:`\bar{Q}_{t-1}` of dimension
                 [batch_size, number_of_atoms, num_type_atoms, num_classes]. An identity matrix is used for t=0.
+            time_indices: time indices sampled of dimension [batch_size]
 
         Returns:
-            torch.Tensor: unreduced KL loss of dimension [batch_size, number_of_atoms, num_classes]
+            torch.Tensor: unreduced variational bound loss of dimension [batch_size, number_of_atoms, num_classes]
         """
         # The posterior probabilities
         q_atm1_given_at_and_a0 = self.get_q_atm1_given_at_and_a0(
@@ -76,11 +99,19 @@ class D3PMLossCalculator(torch.nn.Module):
         # get the KL divergence between posterior and predicted probabilities
         # do not reduce (average) yet as we will replace the samples with t=1 with a NLL loss
         # input of kl_div should be log-probabilities.
+        # time_indices.view(-1, 1, 1) == 0,
+
         log_p = torch.log(p_atm1_given_at.clip(min=self.eps))
         kl_loss = torch.nn.functional.kl_div(
             log_p, q_atm1_given_at_and_a0, reduction="none"
         )
-        return kl_loss
+
+        variational_bound_loss = kl_loss
+
+        first_time_step_mask = time_indices == 0
+        variational_bound_loss[first_time_step_mask] = -log_p[first_time_step_mask]
+
+        return variational_bound_loss
 
     @classmethod
     def get_q_atm1_given_at_and_a0(
@@ -180,9 +211,9 @@ class D3PMLossCalculator(torch.nn.Module):
 
         .. math::
 
-             L_a = E_{a_0 ~ p_\textrm{data}} [ \sum_{t=2}^T E_{a_t ~ p_{t|0}[
-                    [D_{KL}[q(a_{t-1} | a_t, a_0) || p_theta(a_{t-1} | a_{t}] - \lambda_CE log p_\theta(a_0 | a_t)]
-                    - E_{a_1 ~ p_{t=1| 0}} log p_\theta(a_0 | a_1)]
+             L_a = E_{a_0 ~ p_\textrm{data}} [ - E_{a_1 ~ p_{t=1| 0}} log p_\theta(a_0 | a_1)
+                + \sum_{t=2}^T E_{a_t ~ p_{t|0}} [ D_{KL}[q(a_{t-1} | a_t, a_0) || p_theta(a_{t-1} | a_{t}] ]
+                + \lambda_CE \sum_{t=1}^T  -log p_\theta(a_0 | a_t)]
 
         Args:
             predicted_logits: output of the score network logits for :math:`p(a_0 | a_t)`
@@ -202,26 +233,20 @@ class D3PMLossCalculator(torch.nn.Module):
         Returns:
             unreduced_loss: a tensor of shape [batch_size, number_of_atoms, num_type_atoms]. It's mean is the loss.
         """
-        # D_{KL}[q(a_{t-1} | a_t, a_0) || p_\theta(a_{t-1} | a_{t}]
-        kl_term = self.kl_loss_term(
+        # if t == 1 (0 for python indexing convention), use the NLL term, otherwise use the KL term
+        vb_term = self.variational_bound_loss_term(
             predicted_logits,
             one_hot_real_atom_types,
             one_hot_noisy_atom_types,
             q_matrices,
             q_bar_matrices,
             q_bar_tm1_matrices,
+            time_indices
         )
 
         # -log tilde_p_\theta(a_0 | a_t)
-        # the logit for a_0 = MASK is -infinity, which leads to log P(a_0 = MASK | a_t) = -inf.
-        # We remove this.
-        nll_term = -torch.nn.functional.log_softmax(predicted_logits, dim=-1)
-        nll_term[..., -1] = 0.0
+        ce_term = self.cross_entropy_loss_term(predicted_logits)
 
-        # if t == 1 (0 for python indexing convention), use the NLL term, otherwise use the KL + \lambda_{CE} NLL
-        d3pm_loss = torch.where(
-            time_indices.view(-1, 1, 1) == 0,
-            nll_term,
-            kl_term + self.ce_weight * nll_term,
-        )
+        d3pm_loss = vb_term + self.ce_weight * ce_term
+
         return d3pm_loss
