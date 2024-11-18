@@ -49,6 +49,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self.axl_network = axl_network
         self.small_epsilon = sampling_parameters.small_epsilon
 
+        self.one_atom_type_transition_per_step = (
+            sampling_parameters.one_atom_type_transition_per_step
+        )
+        self.atom_type_greedy_sampling = sampling_parameters.atom_type_greedy_sampling
+
         if sampling_parameters.record_samples:
             self.sample_trajectory_recorder = PredictorCorrectorSampleTrajectory()
         else:
@@ -215,8 +220,40 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             probability_at_zeroth_timestep_are_logits=True,
         )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
         # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
-        a_im1 = torch.argmax(torch.log(one_step_transition_probs) + u, dim=-1)
-        # a_im1 has shape: number_of_samples, number_of_atoms and is a LongTensor
+        if self.atom_type_greedy_sampling:
+            # greedy sampling for sequences that are not all masks
+            all_masked = torch.all(
+                atom_types_i == self.num_classes - 1, dim=-1
+            )  # dim: number_of_samples,
+            # replace u with a constant for the samples that are not all MASK
+            u = torch.where(all_masked.view(-1, 1, 1), u, 0.0)
+            # this is equivalent to sampling the most likely atom type - i.e. greedy sampling
+
+        # find the updated atom types by sampling from the transition probabilities using the gumbel-softmax trick
+        # we also keep the associated scores in memory so we can compare which transitions are the most likely
+        max_logits_per_atom, updated_atom_types = torch.max(
+            torch.log(one_step_transition_probs) + u, dim=-1
+        )
+
+        if not self.one_atom_type_transition_per_step:
+            a_im1 = updated_atom_types  # we are done
+
+        else:
+            # force a single transition for each sample
+            atoms_have_changed_types = (
+                updated_atom_types != atom_types_i
+            )  # num_samples, num_atoms bool tensor
+            max_transition_per_sample = torch.argmax(
+                torch.where(atoms_have_changed_types, max_logits_per_atom, -torch.inf),
+                dim=-1,
+            )
+            a_im1 = atom_types_i.clone()
+            a_im1[torch.arange(number_of_samples), max_transition_per_sample] = (
+                updated_atom_types[
+                    torch.arange(number_of_samples), max_transition_per_sample
+                ]
+            )
+            # TODO some sanity check at the last step because this approach does not guarantee a full transition...
         return a_im1
 
     def predictor_step(
