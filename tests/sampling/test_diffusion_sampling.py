@@ -25,7 +25,7 @@ class DummyGenerator(AXLGenerator):
     ) -> torch.Tensor:
         self._counter += number_of_samples
         rel_coordinates = self._relative_coordinates[
-            self._counter - number_of_samples : self._counter
+            self._counter - number_of_samples:self._counter
         ]
         return AXL(
             A=torch.zeros_like(rel_coordinates[..., 0]).long(),
