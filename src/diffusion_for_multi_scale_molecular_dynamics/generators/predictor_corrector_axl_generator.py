@@ -21,6 +21,7 @@ class PredictorCorrectorSamplingParameters(SamplingParameters):
     small_epsilon: float = 1e-8
     one_atom_type_transition_per_step: bool = True
     atom_type_greedy_sampling: bool = True
+    atom_type_transition_in_corrector: bool = False
 
 
 class PredictorCorrectorAXLGenerator(AXLGenerator):

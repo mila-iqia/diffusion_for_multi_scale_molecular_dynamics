@@ -55,6 +55,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             sampling_parameters.one_atom_type_transition_per_step
         )
         self.atom_type_greedy_sampling = sampling_parameters.atom_type_greedy_sampling
+        self.atom_type_transition_in_corrector = sampling_parameters.atom_type_transition_in_corrector
 
         self.record = sampling_parameters.record_samples
         self.record_corrector = sampling_parameters.record_samples_corrector_steps
@@ -374,8 +375,23 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i.X, model_predictions_i.X, sigma_i, eps_i, sqrt_2eps_i
         )
 
+        if self.atom_type_transition_in_corrector:
+            q_matrices_i = self.noise.q_matrix[index_i].to(composition_i.X)
+            q_bar_matrices_i = self.noise.q_bar_matrix[index_i].to(composition_i.X)
+            q_bar_tm1_matrices_i = self.noise.q_bar_tm1_matrix[index_i].to(composition_i.X)
+            # atom types update
+            corrected_a_i = self.atom_types_update(
+                model_predictions_i.A,
+                composition_i.A,
+                q_matrices_i,
+                q_bar_matrices_i,
+                q_bar_tm1_matrices_i,
+            )
+        else:
+            corrected_a_i = composition_i.A
+
         corrected_composition_i = AXL(
-            A=composition_i.A,
+            A=corrected_a_i,
             X=corrected_x_i,
             L=unit_cell,  # TODO replace with AXL-L
         )
