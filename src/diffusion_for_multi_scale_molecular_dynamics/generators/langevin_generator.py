@@ -94,6 +94,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             )
         )
 
+    def _draw_binary_sample(self, number_of_samples):
+        # this is used to determine if a MASK sample should be demasked or not in greedy sampling
+        return torch.rand(number_of_samples, self.number_of_atoms)
+
     def _get_model_predictions(
         self,
         composition: AXL,
