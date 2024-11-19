@@ -121,7 +121,7 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture
     def unique_elements(self, num_atom_types):
-        return [generate_random_string(size=3) for _ in range(num_atom_types)]
+        return [generate_random_string(size=8) for _ in range(num_atom_types)]
 
     @pytest.fixture()
     def unit_cell_size(self):
