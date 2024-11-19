@@ -1,5 +1,7 @@
 import dataclasses
 
+from typing import Tuple
+
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import (
@@ -228,18 +230,19 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             small_epsilon=self.small_epsilon,
             probability_at_zeroth_timestep_are_logits=True,
         )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
-        # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
+
         if self.atom_type_greedy_sampling:
-            # greedy sampling for sequences that are not all masks
-            all_masked = torch.all(
-                atom_types_i == self.num_classes - 1, dim=-1
-            )  # dim: number_of_samples,
-            # replace u with a constant for the samples that are not all MASK
-            u = torch.where(all_masked.view(-1, 1, 1), u, 0.0)
-            # this is equivalent to sampling the most likely atom type - i.e. greedy sampling
+            # if we use greedy sampling, we will update the transition probabilities for the MASK token
+            # so that we have a non-zero chance of doing a transition from MASK to not-MASK at any time step
+            # this will also affect the random gumbel noise u
+            one_step_transition_probs, u = self.adjust_atom_types_probabilities_for_greedy_sampling(
+                one_step_transition_probs,
+                atom_types_i,
+                u
+            )
 
         # find the updated atom types by sampling from the transition probabilities using the gumbel-softmax trick
-        # we also keep the associated scores in memory so we can compare which transitions are the most likely
+        # we also keep the associated scores in memory, so we can compare which transitions are the most likely
         max_logits_per_atom, updated_atom_types = torch.max(
             torch.log(one_step_transition_probs) + u, dim=-1
         )
@@ -264,6 +267,45 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             )
             # TODO some sanity check at the last step because this approach does not guarantee a full transition...
         return a_im1
+
+    def adjust_atom_types_probabilities_for_greedy_sampling(
+            self,
+            one_step_transition_probs: torch.Tensor,
+            atom_types_i: torch.LongTensor,
+            u: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Update the transition probabilities and the gumbel random variables to allow greedy sampling.
+
+        At time step i, for every atom in a sample, we sample a random number. If it is larger than the probability of
+        that atom being in the MASK class, then we will sample greedily a new atom type (i.e. the most likely). To do
+        that, we simply replace the probability of the MASK class to zero and the gumbel noise u to zero. For non-MASK
+        atoms, we do nothing. For samples with only MASK atoms, we also do nothing.
+
+        Args:
+            one_step_transition_probs: class distributions at time t-1 given distribution at time t. p(a_{t-1} | a_t)
+            atom_types_i: indices of atom types at time i. Dimension: [number_of_samples, number_of_atoms]
+            u: gumbel noise used for sampling. Dimension: [number_of_samples, number_of_atoms, num_classes]
+
+        Returns:
+            one_step_transition_probs: probabilities are updated so a MASK to non-MASK transition can happen
+            u: set to a constant for samples with at least 1 non-MASK atom
+        """
+        # check which samples have at least 1 non-MASK atom
+        all_masked = torch.all(atom_types_i == self.num_classes - 1, dim=-1)  # dim: number_of_samples,
+
+        # we will first erase the probability of staying MASK for some atoms randomly by drawing from a binary
+        # distribution given by one_step_transition_probs[:, :, -1] i.e. the probabilities related to the MASK class.
+        # sample to override the MASK probability as the most likely
+        binary_sample = self._draw_binary_sample(atom_types_i.shape[0])
+        sampled_unmasked = binary_sample > one_step_transition_probs[:, :, -1]
+        # if we override the MASK probability & there's already a non-MASK sample, use a greedy sampling for that atom
+        do_greedy_sampling = torch.logical_and(~all_masked.view(-1, 1), sampled_unmasked)
+        # replace the probability of getting a mask for those by 0 - so that stat cannot be sampled
+        one_step_transition_probs[:, :, -1] = torch.where(do_greedy_sampling, 0, one_step_transition_probs[:, :, -1])
+
+        # replace u with a constant for samples with a non-MASK token present - this ensures a greedy sampling
+        u = torch.where(all_masked.view(-1, 1, 1), u, 0.0)
+        return one_step_transition_probs, u
 
     def predictor_step(
         self,
