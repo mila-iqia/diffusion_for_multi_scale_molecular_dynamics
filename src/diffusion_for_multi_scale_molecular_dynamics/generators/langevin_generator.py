@@ -62,6 +62,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         self.record = sampling_parameters.record_samples
+        self.record_corrector = sampling_parameters.record_samples_corrector_steps
 
         if self.record:
             self.sample_trajectory_recorder = SampleTrajectory()
@@ -463,7 +464,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             L=unit_cell,  # TODO replace with AXL-L
         )
 
-        if self.record:
+        if self.record and self.record_corrector:
             # Keep the record on the CPU
             entry = dict(time_step_index=index_i)
             list_keys = ['composition_i', 'corrected_composition_i', 'model_predictions_i']
