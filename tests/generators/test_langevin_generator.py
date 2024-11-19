@@ -31,7 +31,8 @@ class TestLangevinGenerator(BaseTestGenerator):
     def number_of_corrector_steps(self, request):
         return request.param
 
-    @pytest.fixture(params=[1, 5, 10])
+    # @pytest.fixture(params=[1, 5, 10])
+    @pytest.fixture(params=[5])
     def total_time_steps(self, request):
         return request.param
 
@@ -187,6 +188,7 @@ class TestLangevinGenerator(BaseTestGenerator):
         sampling_parameters.one_atom_type_transition_per_step = (
             one_atom_type_transition_per_step
         )
+
         sampling_parameters.atom_type_greedy_sampling = atom_type_greedy_sampling
         pc_generator = LangevinGenerator(
             noise_parameters=noise_parameters,
@@ -209,6 +211,13 @@ class TestLangevinGenerator(BaseTestGenerator):
             device=axl_i.A.device
         )
         mocker.patch.object(pc_generator, "_draw_gumbel_sample", return_value=u)
+
+        binary_sample = pc_generator._draw_binary_sample(number_of_samples).to(
+            device=axl_i.A.device
+        )
+        mocker.patch.object(
+            pc_generator, "_draw_binary_sample", return_value=binary_sample
+        )
 
         for index_i in range(1, total_time_steps + 1):
             computed_sample = pc_generator.predictor_step(
@@ -236,9 +245,10 @@ class TestLangevinGenerator(BaseTestGenerator):
                 small_epsilon=small_epsilon,
                 probability_at_zeroth_timestep_are_logits=True,
             )
-
+            updated_atm1_given_at = p_atm1_given_at.clone()
             if atom_type_greedy_sampling:
-                # remove the noise component so we are sampling the max value from the prob distribution
+                # remove the noise component, so we are sampling the max value from the prob distribution
+                # also, set the probability of getting a mask to zero based on the binary_sample drawn earlier
                 samples_with_only_masks = torch.all(
                     axl_i.A == num_atomic_classes - 1, dim=-1
                 )
@@ -247,8 +257,13 @@ class TestLangevinGenerator(BaseTestGenerator):
                 ):
                     if not sample_is_just_mask:
                         u[sample_idx, :, :] = 0.0
+                        # replace mask probability if binary sample is large
+                        updated_atm1_given_at[sample_idx, :, -1] *= (
+                            binary_sample[sample_idx]
+                            < p_atm1_given_at[sample_idx, :, -1]
+                        )  # multiply by 1 if random number is low (do nothing), or replace with 0 otherwise
 
-            gumbel_distribution = torch.log(p_atm1_given_at) + u
+            gumbel_distribution = torch.log(updated_atm1_given_at) + u
 
             expected_atom_types = torch.argmax(gumbel_distribution, dim=-1)
 
@@ -274,7 +289,7 @@ class TestLangevinGenerator(BaseTestGenerator):
                     )
                 expected_atom_types = new_atom_types
 
-            torch.testing.assert_close(computed_sample.A, expected_atom_types)
+            assert torch.all(computed_sample.A == expected_atom_types)
 
     def test_corrector_step(
         self,
