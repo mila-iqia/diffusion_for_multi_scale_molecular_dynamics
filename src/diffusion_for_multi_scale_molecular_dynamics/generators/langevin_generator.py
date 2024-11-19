@@ -382,10 +382,14 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         composition_im1 = AXL(A=a_im1, X=x_im1, L=unit_cell)  # TODO : Deal with L correctly
 
         if self.record:
-            entry = dict(time_step_index=index_i,
-                         composition_i=composition_i,
-                         composition_im1=composition_im1,
-                         model_predictions_i=model_predictions_i)
+            # Keep the record on the CPU
+            entry = dict(time_step_index=index_i)
+            list_keys = ['composition_i', 'composition_im1', 'model_predictions_i']
+            list_axl = [composition_i, composition_im1, model_predictions_i]
+
+            for key, axl in zip(list_keys, list_axl):
+                record_axl = AXL(A=axl.A.detach().cpu(), X=axl.X.detach().cpu(), L=axl.L.detach().cpu())
+                entry[key] = record_axl
             self.sample_trajectory_recorder.record(key="predictor_step", entry=entry)
 
         return composition_im1
@@ -460,10 +464,15 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         if self.record:
-            entry = dict(time_step_index=index_i,
-                         composition_i=composition_i,
-                         corrected_composition_i=corrected_composition_i,
-                         model_predictions_i=model_predictions_i)
+            # Keep the record on the CPU
+            entry = dict(time_step_index=index_i)
+            list_keys = ['composition_i', 'corrected_composition_i', 'model_predictions_i']
+            list_axl = [composition_i, corrected_composition_i, model_predictions_i]
+
+            for key, axl in zip(list_keys, list_axl):
+                record_axl = AXL(A=axl.A.detach().cpu(), X=axl.X.detach().cpu(), L=axl.L.detach().cpu())
+                entry[key] = record_axl
+
             self.sample_trajectory_recorder.record(key="corrector_step", entry=entry)
 
         return corrected_composition_i
