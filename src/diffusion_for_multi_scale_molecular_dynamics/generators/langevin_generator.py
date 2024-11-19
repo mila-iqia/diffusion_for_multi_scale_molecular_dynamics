@@ -57,7 +57,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             sampling_parameters.one_atom_type_transition_per_step
         )
         self.atom_type_greedy_sampling = sampling_parameters.atom_type_greedy_sampling
-        self.atom_type_transition_in_corrector = sampling_parameters.atom_type_transition_in_corrector
+        self.atom_type_transition_in_corrector = (
+            sampling_parameters.atom_type_transition_in_corrector
+        )
 
         self.record = sampling_parameters.record_samples
         self.record_corrector = sampling_parameters.record_samples_corrector_steps
@@ -239,10 +241,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             # if we use greedy sampling, we will update the transition probabilities for the MASK token
             # so that we have a non-zero chance of doing a transition from MASK to not-MASK at any time step
             # this will also affect the random gumbel noise u
-            one_step_transition_probs, u = self.adjust_atom_types_probabilities_for_greedy_sampling(
-                one_step_transition_probs,
-                atom_types_i,
-                u
+            one_step_transition_probs, u = (
+                self.adjust_atom_types_probabilities_for_greedy_sampling(
+                    one_step_transition_probs, atom_types_i, u
+                )
             )
 
         # find the updated atom types by sampling from the transition probabilities using the gumbel-softmax trick
@@ -273,10 +275,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         return a_im1
 
     def adjust_atom_types_probabilities_for_greedy_sampling(
-            self,
-            one_step_transition_probs: torch.Tensor,
-            atom_types_i: torch.LongTensor,
-            u: torch.Tensor,
+        self,
+        one_step_transition_probs: torch.Tensor,
+        atom_types_i: torch.LongTensor,
+        u: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Update the transition probabilities and the gumbel random variables to allow greedy sampling.
 
@@ -295,7 +297,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             u: set to a constant for samples with at least 1 non-MASK atom
         """
         # check which samples have at least 1 non-MASK atom
-        all_masked = torch.all(atom_types_i == self.num_classes - 1, dim=-1)  # dim: number_of_samples,
+        all_masked = torch.all(
+            atom_types_i == self.num_classes - 1, dim=-1
+        )  # dim: number_of_samples,
 
         # we will first erase the probability of staying MASK for some atoms randomly by drawing from a binary
         # distribution given by one_step_transition_probs[:, :, -1] i.e. the probabilities related to the MASK class.
@@ -303,9 +307,13 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         binary_sample = self._draw_binary_sample(atom_types_i.shape[0])
         sampled_unmasked = binary_sample > one_step_transition_probs[:, :, -1]
         # if we override the MASK probability & there's already a non-MASK sample, use a greedy sampling for that atom
-        do_greedy_sampling = torch.logical_and(~all_masked.view(-1, 1), sampled_unmasked)
+        do_greedy_sampling = torch.logical_and(
+            ~all_masked.view(-1, 1), sampled_unmasked
+        )
         # replace the probability of getting a mask for those by 0 - so that stat cannot be sampled
-        one_step_transition_probs[:, :, -1] = torch.where(do_greedy_sampling, 0, one_step_transition_probs[:, :, -1])
+        one_step_transition_probs[:, :, -1] = torch.where(
+            do_greedy_sampling, 0, one_step_transition_probs[:, :, -1]
+        )
 
         # replace u with a constant for samples with a non-MASK token present - this ensures a greedy sampling
         u = torch.where(all_masked.view(-1, 1, 1), u, 0.0)
@@ -424,7 +432,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         if self.atom_type_transition_in_corrector:
             q_matrices_i = self.noise.q_matrix[index_i].to(composition_i.X)
             q_bar_matrices_i = self.noise.q_bar_matrix[index_i].to(composition_i.X)
-            q_bar_tm1_matrices_i = self.noise.q_bar_tm1_matrix[index_i].to(composition_i.X)
+            q_bar_tm1_matrices_i = self.noise.q_bar_tm1_matrix[index_i].to(
+                composition_i.X
+            )
             # atom types update
             corrected_a_i = self.atom_types_update(
                 model_predictions_i.A,
