@@ -10,50 +10,64 @@ from pathlib import Path
 
 import numpy as np
 import ovito
-import torch
 from ovito.io import import_file
 from ovito.modifiers import (AffineTransformationModifier,
                              CombineDatasetsModifier, CreateBondsModifier)
 from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 
+from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
+    ElementTypes
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+
+UNKNOWN_ATOM_TYPE = "X"
+
 _cif_directory_template = "cif_files_trajectory_{trajectory_index}"
 _cif_file_name_template = "diffusion_positions_step_{time_index}.cif"
 
 
 def create_cif_files(
+    elements: list[str],
     visualization_artifacts_path: Path,
     trajectory_index: int,
-    ode_trajectory_pickle: Path,
+    trajectory_axl_compositions: AXL,
 ):
     """Create cif files.
 
     Args:
+        elements: list of unique elements present in the samples
         visualization_artifacts_path : where the various visualization artifacts should be written to disk.
         trajectory_index : the index of the trajectory to be loaded.
-        ode_trajectory_pickle : Path to the data pickle written by ODESampleTrajectory.
+        trajectory_axl_compositions: AXL that contains the trajectories, where each field
+            has dimension [samples, time, ...]
 
     Returns:
         None
     """
-    data = torch.load(ode_trajectory_pickle, map_location=torch.device("cpu"))
+    element_types = ElementTypes(elements)
+    atom_type_map = dict()
+    for element in elements:
+        id = element_types.get_element_id(element)
+        atom_type_map[id] = element
+
+    mask_id = np.max(element_types.element_ids) + 1
+    atom_type_map[mask_id] = UNKNOWN_ATOM_TYPE
 
     cif_directory = visualization_artifacts_path / _cif_directory_template.format(
         trajectory_index=trajectory_index
     )
     cif_directory.mkdir(exist_ok=True, parents=True)
 
-    basis_vectors = data["unit_cell"][trajectory_index].numpy()
-    lattice = Lattice(matrix=basis_vectors, pbc=(True, True, True))
-    trajectory_relative_coordinates = data["relative_coordinates"][
-        trajectory_index
-    ].numpy()
+    trajectory_atom_types = trajectory_axl_compositions.A[trajectory_index].numpy()
+    trajectory_relative_coordinates = trajectory_axl_compositions.X[trajectory_index].numpy()
+    trajectory_lattices = trajectory_axl_compositions.L[trajectory_index].numpy()
 
-    for time_idx, relative_coordinates in tqdm(
-        enumerate(trajectory_relative_coordinates), "Write CIFs"
+    for time_idx, (atom_types, relative_coordinates, basis_vectors) in tqdm(
+        enumerate(zip(trajectory_atom_types, trajectory_relative_coordinates, trajectory_lattices)), "Write CIFs"
     ):
-        number_of_atoms = relative_coordinates.shape[0]
-        species = number_of_atoms * ["Si"]
+
+        lattice = Lattice(matrix=basis_vectors, pbc=(True, True, True))
+        species = list(map(atom_type_map.get, atom_types))
 
         structure = Structure(
             lattice=lattice,
