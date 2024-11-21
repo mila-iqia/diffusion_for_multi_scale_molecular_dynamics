@@ -276,13 +276,17 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         composition_im1 = AXL(A=a_im1, X=x_im1, L=unit_cell)  # TODO : Deal with L correctly
-        composition_i.L = unit_cell  # TODO : Deal with L correctly
+
+        # TODO : Deal with L correctly
+        composition_i_for_recording = AXL(A=composition_i.A,
+                                          X=composition_i.X,
+                                          L=unit_cell)
 
         if self.record:
             # Keep the record on the CPU
             entry = dict(time_step_index=index_i)
             list_keys = ['composition_i', 'composition_im1', 'model_predictions_i']
-            list_axl = [composition_i, composition_im1, model_predictions_i]
+            list_axl = [composition_i_for_recording, composition_im1, model_predictions_i]
 
             for key, axl in zip(list_keys, list_axl):
                 record_axl = AXL(A=axl.A.detach().cpu(), X=axl.X.detach().cpu(), L=axl.L.detach().cpu())
@@ -343,13 +347,17 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             X=corrected_x_i,
             L=unit_cell,  # TODO replace with AXL-L
         )
-        composition_i.L = unit_cell  # TODO deal with L correctly
+
+        # TODO : Deal with L correctly
+        composition_i_for_recording = AXL(A=composition_i.A,
+                                          X=composition_i.X,
+                                          L=unit_cell)
 
         if self.record and self.record_corrector:
             # Keep the record on the CPU
             entry = dict(time_step_index=index_i)
             list_keys = ['composition_i', 'corrected_composition_i', 'model_predictions_i']
-            list_axl = [composition_i, corrected_composition_i, model_predictions_i]
+            list_axl = [composition_i_for_recording, corrected_composition_i, model_predictions_i]
 
             for key, axl in zip(list_keys, list_axl):
                 record_axl = AXL(A=axl.A.detach().cpu(), X=axl.X.detach().cpu(), L=axl.L.detach().cpu())
