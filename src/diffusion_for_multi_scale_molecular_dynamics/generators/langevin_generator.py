@@ -276,6 +276,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         composition_im1 = AXL(A=a_im1, X=x_im1, L=unit_cell)  # TODO : Deal with L correctly
+        composition_i.L = unit_cell  # TODO : Deal with L correctly
 
         if self.record:
             # Keep the record on the CPU
@@ -342,6 +343,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             X=corrected_x_i,
             L=unit_cell,  # TODO replace with AXL-L
         )
+        composition_i.L = unit_cell  # TODO deal with L correctly
 
         if self.record and self.record_corrector:
             # Keep the record on the CPU
