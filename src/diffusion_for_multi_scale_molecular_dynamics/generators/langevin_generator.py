@@ -250,7 +250,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         # find the updated atom types by sampling from the transition probabilities using the gumbel-softmax trick
         # we also keep the associated scores in memory, so we can compare which transitions are the most likely
         max_logits_per_atom, updated_atom_types = torch.max(
-            torch.log(one_step_transition_probs) + u, dim=-1
+            torch.log(one_step_transition_probs + self.small_epsilon) + u, dim=-1
         )
 
         if not self.one_atom_type_transition_per_step:
@@ -301,15 +301,23 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             atom_types_i == self.num_classes - 1, dim=-1
         )  # dim: number_of_samples,
 
+        # we can only do greedy sampling for atoms that are masked
+        atom_is_masked = atom_types_i == self.num_classes - 1
+
         # we will first erase the probability of staying MASK for some atoms randomly by drawing from a binary
         # distribution given by one_step_transition_probs[:, :, -1] i.e. the probabilities related to the MASK class.
         # sample to override the MASK probability as the most likely
-        binary_sample = self._draw_binary_sample(atom_types_i.shape[0])
-        sampled_unmasked = binary_sample > one_step_transition_probs[:, :, -1]
-        # if we override the MASK probability & there's already a non-MASK sample, use a greedy sampling for that atom
-        do_greedy_sampling = torch.logical_and(
-            ~all_masked.view(-1, 1), sampled_unmasked
+        binary_sample = self._draw_binary_sample(atom_types_i.shape[0]).to(
+            device=atom_types_i.device
         )
+        unmask_this_sample = binary_sample > one_step_transition_probs[:, :, -1]
+        # if we override the MASK probability & there's already a non-MASK sample & that atom is masked,
+        # use a greedy sampling for that atom
+        do_greedy_sampling = torch.logical_and(
+            ~all_masked.view(-1, 1),
+            unmask_this_sample,
+        )
+        do_greedy_sampling = torch.logical_and(do_greedy_sampling, atom_is_masked)
         # replace the probability of getting a mask for those by 0 - so that stat cannot be sampled
         one_step_transition_probs[:, :, -1] = torch.where(
             do_greedy_sampling, 0, one_step_transition_probs[:, :, -1]
@@ -421,6 +429,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 self.noise_parameters.sigma_min
             )  # no need to change device, this is a float
             t_i = 0.0  # same for device - this is a float
+            idx = index_i
         else:
             idx = index_i - 1  # python starts indices at zero
             sigma_i = self.noise.sigma[idx].to(composition_i.X)
@@ -435,11 +444,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         if self.atom_type_transition_in_corrector:
-            q_matrices_i = self.noise.q_matrix[index_i].to(composition_i.X)
-            q_bar_matrices_i = self.noise.q_bar_matrix[index_i].to(composition_i.X)
-            q_bar_tm1_matrices_i = self.noise.q_bar_tm1_matrix[index_i].to(
-                composition_i.X
-            )
+            q_matrices_i = self.noise.q_matrix[idx].to(composition_i.X)
+            q_bar_matrices_i = self.noise.q_bar_matrix[idx].to(composition_i.X)
+            q_bar_tm1_matrices_i = self.noise.q_bar_tm1_matrix[idx].to(composition_i.X)
             # atom types update
             corrected_a_i = self.atom_types_update(
                 model_predictions_i.A,

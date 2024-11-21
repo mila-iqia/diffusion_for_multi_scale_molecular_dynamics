@@ -31,8 +31,7 @@ class TestLangevinGenerator(BaseTestGenerator):
     def number_of_corrector_steps(self, request):
         return request.param
 
-    # @pytest.fixture(params=[1, 5, 10])
-    @pytest.fixture(params=[5])
+    @pytest.fixture(params=[1, 5, 10])
     def total_time_steps(self, request):
         return request.param
 
@@ -219,22 +218,21 @@ class TestLangevinGenerator(BaseTestGenerator):
             pc_generator, "_draw_binary_sample", return_value=binary_sample
         )
 
-        for index_i in range(1, total_time_steps + 1):
+        for index_i in range(total_time_steps - 1, -1, -1):
             computed_sample = pc_generator.predictor_step(
-                axl_i, index_i, unit_cell_sample, forces
+                axl_i, index_i + 1, unit_cell_sample, forces
             )
-
-            sigma_i = list_sigma[index_i - 1]
-            t_i = list_time[index_i - 1]
+            sigma_i = list_sigma[index_i]
+            t_i = list_time[index_i]
 
             p_ao_given_at_i = pc_generator._get_model_predictions(
                 axl_i, t_i, sigma_i, unit_cell_sample, forces
             ).A
 
             onehot_at = class_index_to_onehot(axl_i.A, num_classes=num_atomic_classes)
-            q_matrices = list_q_matrices[index_i - 1]
-            q_bar_matrices = list_q_bar_matrices[index_i - 1]
-            q_bar_tm1_matrices = list_q_bar_tm1_matrices[index_i - 1]
+            q_matrices = list_q_matrices[index_i]
+            q_bar_matrices = list_q_bar_matrices[index_i]
+            q_bar_tm1_matrices = list_q_bar_tm1_matrices[index_i]
 
             p_atm1_given_at = get_probability_at_previous_time_step(
                 probability_at_zeroth_timestep=p_ao_given_at_i,
@@ -257,13 +255,17 @@ class TestLangevinGenerator(BaseTestGenerator):
                 ):
                     if not sample_is_just_mask:
                         u[sample_idx, :, :] = 0.0
-                        # replace mask probability if binary sample is large
-                        updated_atm1_given_at[sample_idx, :, -1] *= (
-                            binary_sample[sample_idx]
-                            < p_atm1_given_at[sample_idx, :, -1]
-                        )  # multiply by 1 if random number is low (do nothing), or replace with 0 otherwise
+                        # replace mask probability if random number is larger than prob. of staying mask
+                        for atom_idx in range(number_of_atoms):
+                            if axl_i.A[sample_idx, atom_idx] == num_atomic_classes - 1:
+                                updated_atm1_given_at[sample_idx, atom_idx, -1] *= (
+                                    binary_sample[sample_idx, atom_idx]
+                                    < p_atm1_given_at[sample_idx, atom_idx, -1]
+                                )  # multiply by 1 if random number is low (do nothing), or replace with 0 otherwise
 
-            gumbel_distribution = torch.log(updated_atm1_given_at) + u
+            gumbel_distribution = (
+                torch.log(updated_atm1_given_at + 1e-8) + u
+            )  # avoid log(zero)
 
             expected_atom_types = torch.argmax(gumbel_distribution, dim=-1)
 
