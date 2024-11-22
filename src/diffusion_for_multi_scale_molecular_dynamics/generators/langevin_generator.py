@@ -48,6 +48,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = sampling_parameters.number_of_atoms
+        self.masked_atom_type_index = self.num_classes - 1
         self.axl_network = axl_network
         self.small_epsilon = sampling_parameters.small_epsilon
 
@@ -231,8 +232,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         if self.atom_type_greedy_sampling:
             # if we use greedy sampling, we will update the transition probabilities for the MASK token
-            # so that we have a non-zero chance of doing a transition from MASK to not-MASK at any time step
-            # this will also affect the random gumbel noise u
+            # For a_i = MASK, we define "greedy sampling" as first determining if a_{i-1} should also be MASK based on
+            # p(a_{i-1} = MASK | a_i = MASK). If a_{i-1} should be unmasked, its atom type is selected as the one with
+            # the highest probability (i.e., no stochastic sampling). Stochasticity is removed by setting the relevant
+            # row of u to zero.
             one_step_transition_probs, u = (
                 self.adjust_atom_types_probabilities_for_greedy_sampling(
                     one_step_transition_probs, atom_types_i, u
@@ -290,11 +293,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         """
         # check which samples have at least 1 non-MASK atom
         all_masked = torch.all(
-            atom_types_i == self.num_classes - 1, dim=-1
+            atom_types_i == self.masked_atom_type_index, dim=-1
         )  # dim: number_of_samples,
 
         # we can only do greedy sampling for atoms that are masked
-        atom_is_masked = atom_types_i == self.num_classes - 1
+        atom_is_masked = atom_types_i == self.masked_atom_type_index
 
         # we will first erase the probability of staying MASK for some atoms randomly by drawing from a binary
         # distribution given by one_step_transition_probs[:, :, -1] i.e. the probabilities related to the MASK class.
@@ -302,20 +305,23 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         binary_sample = self._draw_binary_sample(atom_types_i.shape[0]).to(
             device=atom_types_i.device
         )
-        unmask_this_sample = binary_sample > one_step_transition_probs[:, :, -1]
+        unmask_this_atom = binary_sample > one_step_transition_probs[:, :, -1]
         # if we override the MASK probability & there's already a non-MASK sample & that atom is masked,
         # use a greedy sampling for that atom
         do_greedy_sampling = torch.logical_and(
             ~all_masked.view(-1, 1),
-            unmask_this_sample,
+            unmask_this_atom,
         )
         do_greedy_sampling = torch.logical_and(do_greedy_sampling, atom_is_masked)
-        # replace the probability of getting a mask for those by 0 - so that stat cannot be sampled
+        # replace the probability of getting a mask for those by 0 - so that state cannot be sampled
         one_step_transition_probs[:, :, -1] = torch.where(
             do_greedy_sampling, 0, one_step_transition_probs[:, :, -1]
         )
 
         # replace u with a constant for samples with a non-MASK token present - this ensures a greedy sampling
+        # In the current choice of \beta_t = 1 / (T-t+1), a greedy sampling will always select the MASK type if that
+        # probability is not set to zero - except at the last generation step. This might not hold if the \beta schedule
+        # is modified.
         u = torch.where(all_masked.view(-1, 1, 1), u, 0.0)
         return one_step_transition_probs, u
 
