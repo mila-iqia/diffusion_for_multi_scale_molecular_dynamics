@@ -1,5 +1,6 @@
 from typing import Tuple
 import dataclasses
+from typing import Tuple
 
 import torch
 
@@ -237,18 +238,18 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             probability_at_zeroth_timestep_are_logits=True,
         )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
 
-        # sample new atom types from p(a_{t-1} | a_t) using the gumbel trick
         if self.atom_type_greedy_sampling:
-            # greedy sampling for sequences that are not all masks
-            all_masked = torch.all(
-                atom_types_i == self.num_classes - 1, dim=-1
-            )  # dim: number_of_samples,
-            # replace u with a constant for the samples that are not all MASK
-            u = torch.where(all_masked.view(-1, 1, 1), u, 0.0)
-            # this is equivalent to sampling the most likely atom type - i.e. greedy sampling
+            # if we use greedy sampling, we will update the transition probabilities for the MASK token
+            # so that we have a non-zero chance of doing a transition from MASK to not-MASK at any time step
+            # this will also affect the random gumbel noise u
+            one_step_transition_probs, u = self.adjust_atom_types_probabilities_for_greedy_sampling(
+                one_step_transition_probs,
+                atom_types_i,
+                u
+            )
 
         # find the updated atom types by sampling from the transition probabilities using the gumbel-softmax trick
-        # we also keep the associated scores in memory so we can compare which transitions are the most likely
+        # we also keep the associated scores in memory, so we can compare which transitions are the most likely
         max_logits_per_atom, updated_atom_types = torch.max(
             torch.log(one_step_transition_probs) + u, dim=-1
         )
