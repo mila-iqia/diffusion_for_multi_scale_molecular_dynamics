@@ -225,7 +225,7 @@ class TestLangevinGenerator(BaseTestGenerator):
             sigma_i = list_sigma[index_i]
             t_i = list_time[index_i]
 
-            p_ao_given_at_i = pc_generator._get_model_predictions(
+            p_a0_given_at_i = pc_generator._get_model_predictions(
                 axl_i, t_i, sigma_i, unit_cell_sample, forces
             ).A
 
@@ -235,7 +235,7 @@ class TestLangevinGenerator(BaseTestGenerator):
             q_bar_tm1_matrices = list_q_bar_tm1_matrices[index_i]
 
             p_atm1_given_at = get_probability_at_previous_time_step(
-                probability_at_zeroth_timestep=p_ao_given_at_i,
+                probability_at_zeroth_timestep=p_a0_given_at_i,
                 one_hot_probability_at_current_timestep=onehot_at,
                 q_matrices=q_matrices,
                 q_bar_matrices=q_bar_matrices,
