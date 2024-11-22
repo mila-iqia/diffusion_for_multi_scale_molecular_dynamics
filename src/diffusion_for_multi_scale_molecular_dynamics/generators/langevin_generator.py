@@ -242,10 +242,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             # if we use greedy sampling, we will update the transition probabilities for the MASK token
             # so that we have a non-zero chance of doing a transition from MASK to not-MASK at any time step
             # this will also affect the random gumbel noise u
-            one_step_transition_probs, u = self.adjust_atom_types_probabilities_for_greedy_sampling(
-                one_step_transition_probs,
-                atom_types_i,
-                u
+            one_step_transition_probs, u = (
+                self.adjust_atom_types_probabilities_for_greedy_sampling(
+                    one_step_transition_probs, atom_types_i, u
+                )
             )
 
         # find the updated atom types by sampling from the transition probabilities using the gumbel-softmax trick
@@ -320,6 +320,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
         do_greedy_sampling = torch.logical_and(do_greedy_sampling, atom_is_masked)
         # replace the probability of getting a mask for those by 0 - so that state cannot be sampled
+
         one_step_transition_probs[:, :, -1] = torch.where(
             do_greedy_sampling, 0, one_step_transition_probs[:, :, -1]
         )
