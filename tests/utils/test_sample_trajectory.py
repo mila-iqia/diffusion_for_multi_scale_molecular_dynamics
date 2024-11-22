@@ -1,13 +1,11 @@
 from copy import deepcopy
 
-import einops
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, AXL_NAME_DICT)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
-    PredictorCorrectorSampleTrajectory
+    SampleTrajectory
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -57,18 +55,8 @@ def basis_vectors(batch_size):
 
 
 @pytest.fixture(scope="module")
-def list_i_indices(number_of_predictor_steps):
+def list_time_indices(number_of_predictor_steps):
     return torch.arange(number_of_predictor_steps - 1, -1, -1)
-
-
-@pytest.fixture(scope="module")
-def list_sigmas(number_of_predictor_steps):
-    return torch.rand(number_of_predictor_steps)
-
-
-@pytest.fixture(scope="module")
-def list_times(number_of_predictor_steps):
-    return torch.rand(number_of_predictor_steps)
 
 
 @pytest.fixture(scope="module")
@@ -242,178 +230,104 @@ def list_corrected_axl_i(list_corrected_x_i, list_corrected_atom_types_i):
 
 @pytest.fixture(scope="module")
 def sample_trajectory(
-    number_of_corrector_steps,
-    list_i_indices,
-    list_times,
-    list_sigmas,
-    basis_vectors,
-    list_axl_i,
-    list_axl_im1,
-    predictor_model_outputs,
-    list_axl_i_corr,
-    list_corrected_axl_i,
-    corrector_model_outputs,
+        number_of_corrector_steps,
+        list_time_indices,
+        basis_vectors,
+        list_axl_i,
+        list_axl_im1,
+        predictor_model_outputs,
+        list_axl_i_corr,
+        list_corrected_axl_i,
+        corrector_model_outputs,
 ):
-    sample_trajectory = PredictorCorrectorSampleTrajectory()
-    sample_trajectory.record_unit_cell(basis_vectors)
-
+    sample_trajectory_recorder = SampleTrajectory()
     total_corrector_index = 0
 
-    for i_index, time, sigma, axl_i, axl_im1, model_predictions_i in zip(
-        list_i_indices,
-        list_times,
-        list_sigmas,
+    for time_step_index, axl_i, axl_im1, model_predictions_i in zip(
+        list_time_indices,
         list_axl_i,
         list_axl_im1,
         predictor_model_outputs,
     ):
-        sample_trajectory.record_predictor_step(
-            i_index=i_index,
-            time=time,
-            sigma=sigma,
-            composition_i=axl_i,
-            composition_im1=axl_im1,
-            model_predictions_i=model_predictions_i,
-        )
+        entry = dict(time_step_index=time_step_index,
+                     composition_i=axl_i,
+                     composition_im1=axl_im1,
+                     model_predictions_i=model_predictions_i)
+        sample_trajectory_recorder.record(key="predictor_step", entry=entry)
 
         for _ in range(number_of_corrector_steps):
             axl_i = list_axl_i_corr[total_corrector_index]
             corrected_axl_i = list_corrected_axl_i[total_corrector_index]
             model_predictions_i = corrector_model_outputs[total_corrector_index]
-            sample_trajectory.record_corrector_step(
-                i_index=i_index,
-                time=time,
-                sigma=sigma,
-                composition_i=axl_i,
-                corrected_composition_i=corrected_axl_i,
-                model_predictions_i=model_predictions_i,
-            )
+            entry = dict(time_step_index=time_step_index,
+                         composition_i=axl_i,
+                         corrected_composition_i=corrected_axl_i,
+                         model_predictions_i=model_predictions_i)
+            sample_trajectory_recorder.record(key="corrector_step", entry=entry)
+
             total_corrector_index += 1
 
-    return sample_trajectory
+    return sample_trajectory_recorder
 
 
-def test_sample_trajectory_unit_cell(sample_trajectory, basis_vectors):
-    torch.testing.assert_close(sample_trajectory.data["unit_cell"], basis_vectors)
+@pytest.fixture(scope="module")
+def pickle_data(sample_trajectory, tmp_path_factory):
+    path_to_pickle = tmp_path_factory.mktemp("sample_trajectory") / "test.pkl"
+    sample_trajectory.write_to_pickle(path_to_pickle)
+    data = torch.load(path_to_pickle)
+    return data
 
 
-def test_record_predictor(
-    sample_trajectory,
-    list_times,
-    list_sigmas,
-    list_axl_i,
-    list_axl_im1,
-    predictor_model_outputs,
-):
-    torch.testing.assert_close(
-        torch.tensor(sample_trajectory.data["predictor_time"]), list_times
-    )
-    torch.testing.assert_close(
-        torch.tensor(sample_trajectory.data["predictor_sigma"]), list_sigmas
-    )
-    for axl_field, axl_name in AXL_NAME_DICT.items():
-        predictor_i = torch.stack(
-            sample_trajectory.data[f"predictor_{axl_name}_i"], dim=0
-        )
-        target_predictor_i = torch.stack(
-            [getattr(axl, axl_field) for axl in list_axl_i], dim=0
-        )
-        torch.testing.assert_close(predictor_i, target_predictor_i)
-        predictor_im1 = torch.stack(
-            sample_trajectory.data[f"predictor_{axl_name}_im1"], dim=0
-        )
-        target_predictor_im1 = torch.stack(
-            [getattr(axl, axl_field) for axl in list_axl_im1], dim=0
-        )
-        torch.testing.assert_close(predictor_im1, target_predictor_im1)
+def test_predictor_step(number_of_predictor_steps,
+                        pickle_data,
+                        list_time_indices,
+                        list_axl_i,
+                        list_axl_im1,
+                        predictor_model_outputs):
+    assert "predictor_step" in pickle_data
+    predictor_step_data = pickle_data["predictor_step"]
 
-        predictor_mo_i = torch.stack(
-            sample_trajectory.data[f"predictor_{axl_name}_model_predictions"], dim=0
-        )
-        target_predictor_model_outputs = torch.stack(
-            [getattr(axl, axl_field) for axl in predictor_model_outputs], dim=0
-        )
-        torch.testing.assert_close(predictor_mo_i, target_predictor_model_outputs)
+    assert len(predictor_step_data) == number_of_predictor_steps
+
+    for step_idx in range(number_of_predictor_steps):
+        entry = predictor_step_data[step_idx]
+        assert entry['time_step_index'] == list_time_indices[step_idx]
+        torch.testing.assert_close(entry['composition_i'], list_axl_i[step_idx])
+        torch.testing.assert_close(entry['composition_im1'], list_axl_im1[step_idx])
+        torch.testing.assert_close(entry['model_predictions_i'], predictor_model_outputs[step_idx])
 
 
-def test_record_corrector(
-    sample_trajectory,
+def test_corrector_step(
+    number_of_predictor_steps,
     number_of_corrector_steps,
-    list_times,
-    list_sigmas,
+    pickle_data,
+    list_time_indices,
     list_axl_i_corr,
     list_corrected_axl_i,
     corrector_model_outputs,
 ):
 
-    torch.testing.assert_close(
-        torch.tensor(sample_trajectory.data["corrector_time"]),
-        torch.repeat_interleave(list_times, number_of_corrector_steps),
-    )
-    torch.testing.assert_close(
-        torch.tensor(sample_trajectory.data["corrector_sigma"]),
-        torch.repeat_interleave(list_sigmas, number_of_corrector_steps),
-    )
-    for axl_field, axl_name in AXL_NAME_DICT.items():
-        corrector_i = torch.stack(
-            sample_trajectory.data[f"corrector_{axl_name}_i"], dim=0
-        )
-        target_corrector_i = torch.stack(
-            [getattr(axl, axl_field) for axl in list_axl_i_corr], dim=0
-        )
-        torch.testing.assert_close(corrector_i, target_corrector_i)
-        corrector_corrected_i = torch.stack(
-            sample_trajectory.data[f"corrector_{axl_name}_corrected_i"], dim=0
-        )
-        target_corrector_corrected_i = torch.stack(
-            [getattr(axl, axl_field) for axl in list_corrected_axl_i], dim=0
-        )
-        torch.testing.assert_close(
-            corrector_corrected_i, target_corrector_corrected_i
-        )
+    assert "corrector_step" in pickle_data
+    corrector_step_data = pickle_data["corrector_step"]
 
-        corrector_mo_i = torch.stack(
-            sample_trajectory.data[f"corrector_{axl_name}_model_predictions"], dim=0
-        )
-        target_corrector_model_outputs = torch.stack(
-            [getattr(axl, axl_field) for axl in corrector_model_outputs], dim=0
-        )
-        torch.testing.assert_close(corrector_mo_i, target_corrector_model_outputs)
+    assert len(corrector_step_data) == number_of_predictor_steps * number_of_corrector_steps
+
+    global_step_idx = 0
+    for predictor_step_idx in range(number_of_predictor_steps):
+        expected_time_index = list_time_indices[predictor_step_idx]
+
+        for corrector_step_idx in range(number_of_corrector_steps):
+            entry = corrector_step_data[global_step_idx]
+            assert entry['time_step_index'] == expected_time_index
+            torch.testing.assert_close(entry['composition_i'], list_axl_i_corr[global_step_idx])
+            torch.testing.assert_close(entry['corrected_composition_i'], list_corrected_axl_i[global_step_idx])
+            torch.testing.assert_close(entry['model_predictions_i'], corrector_model_outputs[global_step_idx])
+            global_step_idx += 1
 
 
-def test_standardize_data_and_write_pickle(
-    sample_trajectory,
-    basis_vectors,
-    list_times,
-    list_sigmas,
-    list_x_i,
-    predictor_model_outputs,
-    tmp_path,
-):
-    pickle_path = str(tmp_path / "test_pickle_path.pkl")
-    sample_trajectory.write_to_pickle(pickle_path)
-
-    with open(pickle_path, "rb") as fd:
-        standardized_data = torch.load(fd)
-
-    reordered_scores = einops.rearrange(
-        torch.stack([axl.X for axl in predictor_model_outputs], dim=0),
-        "t b n d -> b t n d",
-    )
-    reordered_relative_coordinates = einops.rearrange(list_x_i, "t b n d -> b t n d")
-
-    torch.testing.assert_close(standardized_data["unit_cell"], basis_vectors)
-    torch.testing.assert_close(standardized_data["time"], list_times)
-    torch.testing.assert_close(standardized_data["sigma"], list_sigmas)
-    torch.testing.assert_close(
-        standardized_data["relative_coordinates"], reordered_relative_coordinates
-    )
-    torch.testing.assert_close(standardized_data["normalized_scores"], reordered_scores)
-
-
-def test_reset(sample_trajectory, tmp_path):
+def test_reset(sample_trajectory):
     # We don't want to affect other tests!
     copied_sample_trajectory = deepcopy(sample_trajectory)
-    assert len(copied_sample_trajectory.data.keys()) != 0
+    assert len(copied_sample_trajectory._internal_data.keys()) != 0
     copied_sample_trajectory.reset()
-    assert len(copied_sample_trajectory.data.keys()) == 0
+    assert len(copied_sample_trajectory._internal_data.keys()) == 0
