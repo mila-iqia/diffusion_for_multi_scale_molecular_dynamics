@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 from dataclasses import dataclass
 
@@ -18,7 +19,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
-    SDESampleTrajectory
+    SampleTrajectory
 
 logger = logging.getLogger(__name__)
 
@@ -240,9 +241,13 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
         self.spatial_dimension = sampling_parameters.spatial_dimension
         self.absolute_solver_tolerance = sampling_parameters.absolute_solver_tolerance
         self.relative_solver_tolerance = sampling_parameters.relative_solver_tolerance
-        self.record_samples = sampling_parameters.record_samples
-        if self.record_samples:
-            self.sample_trajectory_recorder = SDESampleTrajectory()
+        self.record = sampling_parameters.record_samples
+        if self.record:
+            self.sample_trajectory_recorder = SampleTrajectory()
+            self.sample_trajectory_recorder.record(key="noise_parameters",
+                                                   entry=dataclasses.asdict(noise_parameters))
+            self.sample_trajectory_recorder.record(key="sampling_parameters",
+                                                   entry=dataclasses.asdict(sampling_parameters))
 
     def get_sde(self, unit_cells: torch.Tensor, atom_types: torch.LongTensor) -> SDE:
         """Get SDE."""
@@ -326,7 +331,7 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
             )
             logger.info("SDE solver Finished.")
 
-        if self.record_samples:
+        if self.record:
             self.record_sample(sde, ys, sde_times)
 
         # only the final sde time (ie, diffusion time t0) is the real sample.
@@ -355,8 +360,6 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
         Returns:
             None
         """
-        self.sample_trajectory_recorder.record_unit_cell(sde.unit_cells)
-
         list_normalized_scores = []
         sigmas = []
         evaluation_times = []
@@ -392,9 +395,11 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
             space=self.spatial_dimension,
         )
 
-        self.sample_trajectory_recorder.record_sde_solution(
-            times=evaluation_times,
-            sigmas=sigmas,
-            relative_coordinates=record_relative_coordinates,
-            normalized_scores=record_normalized_scores,
-        )
+        entry = dict(unit_cell=sde.unit_cells,
+                     times=evaluation_times,
+                     sigmas=sigmas,
+                     relative_coordinates=record_relative_coordinates,
+                     normalized_scores=record_normalized_scores
+                     )
+
+        self.sample_trajectory_recorder.record(key='sde', entry=entry)

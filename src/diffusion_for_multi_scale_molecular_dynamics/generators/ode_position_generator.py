@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 from dataclasses import dataclass
 from typing import Callable
@@ -19,8 +20,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
-from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
-    NoOpODESampleTrajectory, ODESampleTrajectory)
+from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
+    SampleTrajectory
 
 logger = logging.getLogger(__name__)
 
@@ -79,12 +80,14 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         )  # add 1 for the MASK class
         self.absolute_solver_tolerance = sampling_parameters.absolute_solver_tolerance
         self.relative_solver_tolerance = sampling_parameters.relative_solver_tolerance
-        self.record_samples = sampling_parameters.record_samples
+        self.record = sampling_parameters.record_samples
 
-        if self.record_samples:
-            self.sample_trajectory_recorder = ODESampleTrajectory()
-        else:
-            self.sample_trajectory_recorder = NoOpODESampleTrajectory()
+        if self.record:
+            self.sample_trajectory_recorder = SampleTrajectory()
+            self.sample_trajectory_recorder.record(key="noise_parameters",
+                                                   entry=dataclasses.asdict(noise_parameters))
+            self.sample_trajectory_recorder.record(key="sampling_parameters",
+                                                   entry=dataclasses.asdict(sampling_parameters))
 
     def _get_ode_prefactor(self, times):
         """Get ODE prefactor.
@@ -219,7 +222,7 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         sol = jit_solver.solve(to.InitialValueProblem(y0=y0, t_eval=t_eval))
         logger.info("ODE solver Finished.")
 
-        if self.record_samples:
+        if self.record:
             self.record_sample(ode_term, sol, evaluation_times, unit_cell)
 
         # sol.ys has dimensions [number of samples, number of times, number of features]
@@ -261,7 +264,6 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         """
         number_of_samples = sol.ys.shape[0]
 
-        self.sample_trajectory_recorder.record_unit_cell(unit_cell)
         record_relative_coordinates = einops.rearrange(
             sol.ys,
             "batch times (natom space) -> batch times natom space",
@@ -285,14 +287,15 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
             natom=self.number_of_atoms,
             space=self.spatial_dimension,
         )
-        self.sample_trajectory_recorder.record_ode_solution(
-            times=evaluation_times,
-            sigmas=sigmas,
-            relative_coordinates=record_relative_coordinates,
-            normalized_scores=record_normalized_scores,
-            stats=sol.stats,
-            status=sol.status,
-        )
+
+        entry = dict(times=evaluation_times,
+                     sigmas=sigmas,
+                     relative_coordinates=record_relative_coordinates,
+                     normalized_scores=record_normalized_scores,
+                     unit_cell=unit_cell,
+                     stats=sol.stats,
+                     status=sol.status)
+        self.sample_trajectory_recorder.record(key='ode', entry=entry)
 
     def initialize(
         self, number_of_samples: int, device: torch.device = torch.device("cpu")

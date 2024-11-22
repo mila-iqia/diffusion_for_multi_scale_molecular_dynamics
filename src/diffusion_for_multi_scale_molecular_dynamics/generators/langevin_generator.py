@@ -1,3 +1,5 @@
+import dataclasses
+
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import (
@@ -14,8 +16,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
     class_index_to_onehot, get_probability_at_previous_time_step)
-from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
-    NoOpPredictorCorrectorSampleTrajectory, PredictorCorrectorSampleTrajectory)
+from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
+    SampleTrajectory
 
 
 class LangevinGenerator(PredictorCorrectorAXLGenerator):
@@ -49,10 +51,16 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self.axl_network = axl_network
         self.small_epsilon = sampling_parameters.small_epsilon
 
-        if sampling_parameters.record_samples:
-            self.sample_trajectory_recorder = PredictorCorrectorSampleTrajectory()
-        else:
-            self.sample_trajectory_recorder = NoOpPredictorCorrectorSampleTrajectory()
+        self.record = sampling_parameters.record_samples
+        self.record_corrector = sampling_parameters.record_samples_corrector_steps
+
+        if self.record:
+            self.sample_trajectory_recorder = SampleTrajectory()
+            self.sample_trajectory_recorder.record(key="noise", entry=self.noise)
+            self.sample_trajectory_recorder.record(key="noise_parameters",
+                                                   entry=dataclasses.asdict(noise_parameters))
+            self.sample_trajectory_recorder.record(key="sampling_parameters",
+                                                   entry=dataclasses.asdict(sampling_parameters))
 
     def initialize(
         self, number_of_samples: int, device: torch.device = torch.device("cpu")
@@ -267,19 +275,18 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i
         )
 
-        composition_im1 = AXL(A=a_im1, X=x_im1, L=composition_i.L)  # TODO placeholder
+        composition_im1 = AXL(A=a_im1, X=x_im1, L=unit_cell)  # TODO : Deal with L correctly
 
-        self.sample_trajectory_recorder.record_unit_cell(
-            unit_cell=unit_cell
-        )  # TODO replace with AXL-L
-        self.sample_trajectory_recorder.record_predictor_step(
-            i_index=index_i,
-            time=t_i,
-            sigma=sigma_i,
-            composition_i=composition_i,
-            composition_im1=composition_im1,
-            model_predictions_i=model_predictions_i,
-        )
+        if self.record:
+            # Keep the record on the CPU
+            entry = dict(time_step_index=index_i)
+            list_keys = ['composition_i', 'composition_im1', 'model_predictions_i']
+            list_axl = [composition_i, composition_im1, model_predictions_i]
+
+            for key, axl in zip(list_keys, list_axl):
+                record_axl = AXL(A=axl.A.detach().cpu(), X=axl.X.detach().cpu(), L=axl.L.detach().cpu())
+                entry[key] = record_axl
+            self.sample_trajectory_recorder.record(key="predictor_step", entry=entry)
 
         return composition_im1
 
@@ -333,16 +340,19 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         corrected_composition_i = AXL(
             A=composition_i.A,
             X=corrected_x_i,
-            L=composition_i.L,
+            L=unit_cell,  # TODO replace with AXL-L
         )
 
-        self.sample_trajectory_recorder.record_corrector_step(
-            i_index=index_i,
-            time=t_i,
-            sigma=sigma_i,
-            composition_i=composition_i,
-            corrected_composition_i=corrected_composition_i,
-            model_predictions_i=model_predictions_i,
-        )
+        if self.record and self.record_corrector:
+            # Keep the record on the CPU
+            entry = dict(time_step_index=index_i)
+            list_keys = ['composition_i', 'corrected_composition_i', 'model_predictions_i']
+            list_axl = [composition_i, corrected_composition_i, model_predictions_i]
+
+            for key, axl in zip(list_keys, list_axl):
+                record_axl = AXL(A=axl.A.detach().cpu(), X=axl.X.detach().cpu(), L=axl.L.detach().cpu())
+                entry[key] = record_axl
+
+            self.sample_trajectory_recorder.record(key="corrector_step", entry=entry)
 
         return corrected_composition_i
