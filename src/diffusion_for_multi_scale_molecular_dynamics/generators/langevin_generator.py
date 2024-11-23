@@ -81,9 +81,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         # all atoms are initialized as masked
         atom_types = torch.ones(number_of_samples, self.number_of_atoms).long().to(
             device
-        ) * (self.num_classes - 1)
+        ) * self.masked_atom_type_index
         # relative coordinates are sampled from the uniform distribution
-        relative_coordinates = torch.rand(
+        # relative_coordinates = torch.rand(
+        relative_coordinates = torch.zeros(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
         ).to(device)
         lattice_vectors = torch.zeros_like(relative_coordinates).to(
@@ -252,11 +253,15 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         # find the updated atom types by sampling from the transition probabilities using the gumbel-softmax trick
         # we also keep the associated scores in memory, so we can compare which transitions are the most likely
         max_logits_per_atom, updated_atom_types = torch.max(
-            torch.log(one_step_transition_probs) + u, dim=-1
+            torch.log(one_step_transition_probs + self.small_epsilon) + u, dim=-1
         )
 
         if not self.one_atom_type_transition_per_step:
-            a_im1 = updated_atom_types  # we are done
+            a_im1 = torch.where(
+                atom_types_i == self.masked_atom_type_index,
+                updated_atom_types,
+                atom_types_i
+            ) # we are done
 
         else:
             # force a single transition for each sample
@@ -264,7 +269,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 updated_atom_types != atom_types_i
             )  # num_samples, num_atoms bool tensor
             max_transition_per_sample = torch.argmax(
-                torch.where(atoms_have_changed_types, max_logits_per_atom, -torch.inf),
+                torch.where(
+                    torch.logical_and(atoms_have_changed_types, atom_types_i == self.masked_atom_type_index),
+                    max_logits_per_atom,
+                    -torch.inf
+                ),
                 dim=-1,
             )
             a_im1 = atom_types_i.clone()

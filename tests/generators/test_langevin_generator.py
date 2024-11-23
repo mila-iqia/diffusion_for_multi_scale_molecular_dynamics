@@ -16,7 +16,7 @@ from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_sch
     NoiseScheduler
 from tests.generators.conftest import BaseTestGenerator
 
-
+torch.manual_seed(0)
 class TestLangevinGenerator(BaseTestGenerator):
 
     @pytest.fixture(params=[1, 5, 10])
@@ -278,7 +278,7 @@ class TestLangevinGenerator(BaseTestGenerator):
                         old_atom_id = axl_i.A[sample_idx, atom_idx]
                         new_atom_id = expected_atom_types[sample_idx, atom_idx]
                         # compare old id to new id - if same, no transition
-                        if old_atom_id != new_atom_id:
+                        if old_atom_id != new_atom_id and old_atom_id == num_atomic_classes - 1:
                             # different, record the gumbel score
                             sample_probs.append(
                                 gumbel_distribution[sample_idx, atom_idx, :].max()
@@ -290,6 +290,14 @@ class TestLangevinGenerator(BaseTestGenerator):
                         expected_atom_types[sample_idx, highest_score_transition]
                     )
                 expected_atom_types = new_atom_types
+
+            else:
+                # we can only update MASK samples
+                for sample_idx in range(number_of_samples):
+                    for atom_idx in range(number_of_atoms):
+                        old_atom_id = axl_i.A[sample_idx, atom_idx]
+                        if old_atom_id != num_atomic_classes - 1:
+                            expected_atom_types[sample_idx, atom_idx] = old_atom_id
 
             assert torch.all(computed_sample.A == expected_atom_types)
 
