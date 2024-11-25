@@ -122,10 +122,12 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_samples,
         unit_cell_sample,
         num_atomic_classes,
-        device
+        device,
     ):
 
-        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(device)
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(
+            device
+        )
         noise, _ = sampler.get_all_sampling_parameters()
         sigma_min = noise_parameters.sigma_min
         list_sigma = noise.sigma
@@ -163,11 +165,16 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
 
+    @pytest.mark.parametrize("one_atom_type_transition_per_step", [True, False])
+    @pytest.mark.parametrize("atom_type_greedy_sampling", [True, False])
     def test_predictor_step_atom_types(
         self,
         mocker,
-        pc_generator,
+        one_atom_type_transition_per_step,
+        atom_type_greedy_sampling,
         noise_parameters,
+        sampling_parameters,
+        axl_network,
         axl_i,
         total_time_steps,
         number_of_samples,
@@ -175,10 +182,22 @@ class TestLangevinGenerator(BaseTestGenerator):
         num_atomic_classes,
         small_epsilon,
         number_of_atoms,
-        device
+        device,
     ):
+        sampling_parameters.one_atom_type_transition_per_step = (
+            one_atom_type_transition_per_step
+        )
 
-        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(device)
+        sampling_parameters.atom_type_greedy_sampling = atom_type_greedy_sampling
+        pc_generator = LangevinGenerator(
+            noise_parameters=noise_parameters,
+            sampling_parameters=sampling_parameters,
+            axl_network=axl_network,
+        )
+
+        sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(
+            device
+        )
         noise, _ = sampler.get_all_sampling_parameters()
         list_sigma = noise.sigma
         list_time = noise.time
@@ -192,25 +211,31 @@ class TestLangevinGenerator(BaseTestGenerator):
         )
         mocker.patch.object(pc_generator, "_draw_gumbel_sample", return_value=u)
 
-        for index_i in range(1, total_time_steps + 1):
+        binary_sample = pc_generator._draw_binary_sample(number_of_samples).to(
+            device=axl_i.A.device
+        )
+        mocker.patch.object(
+            pc_generator, "_draw_binary_sample", return_value=binary_sample
+        )
+
+        for index_i in range(total_time_steps - 1, -1, -1):
             computed_sample = pc_generator.predictor_step(
-                axl_i, index_i, unit_cell_sample, forces
+                axl_i, index_i + 1, unit_cell_sample, forces
             )
+            sigma_i = list_sigma[index_i]
+            t_i = list_time[index_i]
 
-            sigma_i = list_sigma[index_i - 1]
-            t_i = list_time[index_i - 1]
-
-            p_ao_given_at_i = pc_generator._get_model_predictions(
+            p_a0_given_at_i = pc_generator._get_model_predictions(
                 axl_i, t_i, sigma_i, unit_cell_sample, forces
             ).A
 
             onehot_at = class_index_to_onehot(axl_i.A, num_classes=num_atomic_classes)
-            q_matrices = list_q_matrices[index_i - 1]
-            q_bar_matrices = list_q_bar_matrices[index_i - 1]
-            q_bar_tm1_matrices = list_q_bar_tm1_matrices[index_i - 1]
+            q_matrices = list_q_matrices[index_i]
+            q_bar_matrices = list_q_bar_matrices[index_i]
+            q_bar_tm1_matrices = list_q_bar_tm1_matrices[index_i]
 
             p_atm1_given_at = get_probability_at_previous_time_step(
-                probability_at_zeroth_timestep=p_ao_given_at_i,
+                probability_at_zeroth_timestep=p_a0_given_at_i,
                 one_hot_probability_at_current_timestep=onehot_at,
                 q_matrices=q_matrices,
                 q_bar_matrices=q_bar_matrices,
@@ -218,11 +243,55 @@ class TestLangevinGenerator(BaseTestGenerator):
                 small_epsilon=small_epsilon,
                 probability_at_zeroth_timestep_are_logits=True,
             )
-            gumbel_distribution = torch.log(p_atm1_given_at) + u
+            updated_atm1_given_at = p_atm1_given_at.clone()
+            if atom_type_greedy_sampling:
+                # remove the noise component, so we are sampling the max value from the prob distribution
+                # also, set the probability of getting a mask to zero based on the binary_sample drawn earlier
+                samples_with_only_masks = torch.all(
+                    axl_i.A == num_atomic_classes - 1, dim=-1
+                )
+                for sample_idx, sample_is_just_mask in enumerate(
+                    samples_with_only_masks
+                ):
+                    if not sample_is_just_mask:
+                        u[sample_idx, :, :] = 0.0
+                        # replace mask probability if random number is larger than prob. of staying mask
+                        for atom_idx in range(number_of_atoms):
+                            if axl_i.A[sample_idx, atom_idx] == num_atomic_classes - 1:
+                                updated_atm1_given_at[sample_idx, atom_idx, -1] *= (
+                                    binary_sample[sample_idx, atom_idx]
+                                    < p_atm1_given_at[sample_idx, atom_idx, -1]
+                                )  # multiply by 1 if random number is low (do nothing), or replace with 0 otherwise
+
+            gumbel_distribution = (
+                torch.log(updated_atm1_given_at + 1e-8) + u
+            )  # avoid log(zero)
 
             expected_atom_types = torch.argmax(gumbel_distribution, dim=-1)
 
-            torch.testing.assert_close(computed_sample.A, expected_atom_types)
+            if one_atom_type_transition_per_step:
+                new_atom_types = axl_i.A.clone()
+                for sample_idx in range(number_of_samples):
+                    # find the prob scores for each transition in this sample
+                    sample_probs = []
+                    for atom_idx in range(number_of_atoms):
+                        old_atom_id = axl_i.A[sample_idx, atom_idx]
+                        new_atom_id = expected_atom_types[sample_idx, atom_idx]
+                        # compare old id to new id - if same, no transition
+                        if old_atom_id != new_atom_id:
+                            # different, record the gumbel score
+                            sample_probs.append(
+                                gumbel_distribution[sample_idx, atom_idx, :].max()
+                            )
+                        else:
+                            sample_probs.append(-torch.inf)
+                    highest_score_transition = torch.argmax(torch.tensor(sample_probs))
+                    new_atom_types[sample_idx, highest_score_transition] = (
+                        expected_atom_types[sample_idx, highest_score_transition]
+                    )
+                expected_atom_types = new_atom_types
+
+            assert torch.all(computed_sample.A == expected_atom_types)
 
     def test_corrector_step(
         self,

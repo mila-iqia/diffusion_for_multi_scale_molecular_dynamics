@@ -19,10 +19,13 @@ class PredictorCorrectorSamplingParameters(SamplingParameters):
     algorithm: str = "predictor_corrector"
     number_of_corrector_steps: int = 1
     small_epsilon: float = 1e-8
+    one_atom_type_transition_per_step: bool = True
+    atom_type_greedy_sampling: bool = True
+    atom_type_transition_in_corrector: bool = False
 
 
 class PredictorCorrectorAXLGenerator(AXLGenerator):
-    """This defines the interface for predictor-corrector AXL (atom types, reduced coordinates and lattice) generators."""
+    """Defines the interface for predictor-corrector AXL (atom types, relative coordinates and lattice) generators."""
 
     def __init__(
         self,
