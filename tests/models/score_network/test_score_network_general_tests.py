@@ -216,6 +216,7 @@ class TestMLPScoreNetwork(BaseScoreNetworkGeneralTests):
             number_of_atoms=number_of_atoms,
             num_atom_types=num_atom_types,
             noise_embedding_dimensions_size=embedding_dimensions_size,
+            time_embedding_dimensions_size=embedding_dimensions_size,
             atom_type_embedding_dimensions_size=embedding_dimensions_size,
             n_hidden_dimensions=n_hidden_dimensions,
             hidden_dimensions_size=hidden_dimensions_size,

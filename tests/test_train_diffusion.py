@@ -69,6 +69,7 @@ def get_score_network(
             number_of_atoms=number_of_atoms,
             num_atom_types=num_atom_types,
             noise_embedding_dimensions_size=8,
+            time_embedding_dimensions_size=8,
             atom_type_embedding_dimensions_size=8,
             n_hidden_dimensions=2,
             hidden_dimensions_size=16,

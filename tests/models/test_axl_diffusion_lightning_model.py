@@ -214,6 +214,7 @@ class TestPositionDiffusionLightningModel:
             num_atom_types=num_atom_types,
             n_hidden_dimensions=3,
             noise_embedding_dimensions_size=8,
+            time_embedding_dimensions_size=8,
             atom_type_embedding_dimensions_size=8,
             hidden_dimensions_size=8,
             spatial_dimension=spatial_dimension,
