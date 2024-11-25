@@ -12,9 +12,6 @@ class D3PMLossCalculator(torch.nn.Module):
     def __init__(self, loss_parameters: LossParameters):
         """Initialize method."""
         super().__init__()
-        # loss prefactor weight
-        self.lambda_weight = loss_parameters.atom_types_lambda_weight
-
         # weight of the cross-entropy component
         self.ce_weight = loss_parameters.atom_types_ce_weight
         self.eps = loss_parameters.atom_types_eps
@@ -252,4 +249,4 @@ class D3PMLossCalculator(torch.nn.Module):
 
         d3pm_loss = vb_term + self.ce_weight * ce_term
 
-        return self.lambda_weight * d3pm_loss
+        return d3pm_loss

@@ -8,9 +8,11 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing im
 @dataclass(kw_only=True)
 class LossParameters:
     """Specific Hyper-parameters for the loss function."""
+    atom_types_lambda_weight: float = 1.0  # weighting prefactor for atom-type loss.
+    relative_coordinates_lambda_weight: float = 1.0  # weighting prefactor for the coordinates loss.
+    lattice_lambda_weight: float = 1.0  # weighting prefactor for the lattice loss.
 
     coordinates_algorithm: str
-    atom_types_lambda_weight: float = 1.0  # weighting prefactor for atom-type loss.
     atom_types_ce_weight: float = 0.001  # default value in google D3PM repo
     atom_types_eps: float = 1e-8  # avoid divisions by zero
     # https://github.com/google-research/google-research/blob/master/d3pm/images/config.py
