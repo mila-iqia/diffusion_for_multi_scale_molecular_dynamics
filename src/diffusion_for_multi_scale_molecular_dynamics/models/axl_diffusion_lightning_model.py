@@ -102,6 +102,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         # loss is an AXL object with one loss for each element (atom type, coordinate, lattice)
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
+        self.loss_weights = AXL(A=hyper_params.loss_parameters.atom_types_lambda_weight,
+                                X=hyper_params.loss_parameters.relative_coordinates_lambda_weight,
+                                L=hyper_params.loss_parameters.lattice_lambda_weight)
+
         # noisy samplers for atom types, coordinates and lattice vectors
         self.noisers = AXL(
             A=AtomTypesNoiser(),
@@ -346,16 +350,15 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             model_predictions.L
         )
 
-        # TODO consider having weights in front of each component
-        aggregated_loss = (
-            unreduced_loss_coordinates.mean(
+        aggregated_weighted_loss = (
+            self.loss_weights.X * unreduced_loss_coordinates.mean(
                 dim=-1
             )  # batch, num_atoms, spatial_dimension
-            + unreduced_loss_lattice
-            + unreduced_loss_atom_types.mean(dim=-1)  # batch, num_atoms, num_atom_types
+            + self.loss_weights.L * unreduced_loss_lattice
+            + self.loss_weights.A * unreduced_loss_atom_types.mean(dim=-1)  # batch, num_atoms, num_atom_types
         )
 
-        loss = torch.mean(aggregated_loss)
+        weighted_loss = torch.mean(aggregated_weighted_loss)
 
         unreduced_loss = AXL(
             A=unreduced_loss_atom_types.detach(),
@@ -373,7 +376,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         output = dict(
             unreduced_loss=unreduced_loss,
-            loss=loss,
+            loss=weighted_loss,
             sigmas=sigmas,
             model_predictions=model_predictions_detached,
             target_coordinates_normalized_conditional_scores=target_coordinates_normalized_conditional_scores,
