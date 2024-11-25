@@ -1,5 +1,4 @@
 import dataclasses
-
 from typing import Tuple
 
 import torch
@@ -383,12 +382,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         composition_im1 = AXL(A=a_im1, X=x_im1, L=unit_cell)  # TODO : Deal with L correctly
 
-        # TODO : Deal with L correctly
-        composition_i_for_recording = AXL(A=composition_i.A,
-                                          X=composition_i.X,
-                                          L=unit_cell)
-
         if self.record:
+            # TODO : Deal with L correctly
+            composition_i_for_recording = AXL(A=composition_i.A,
+                                              X=composition_i.X,
+                                              L=unit_cell)
             # Keep the record on the CPU
             entry = dict(time_step_index=index_i)
             list_keys = ['composition_i', 'composition_im1', 'model_predictions_i']
@@ -470,12 +468,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             L=unit_cell,  # TODO replace with AXL-L
         )
 
-        # TODO : Deal with L correctly
-        composition_i_for_recording = AXL(A=composition_i.A,
-                                          X=composition_i.X,
-                                          L=unit_cell)
-
         if self.record and self.record_corrector:
+            # TODO : Deal with L correctly
+            composition_i_for_recording = AXL(A=composition_i.A,
+                                              X=composition_i.X,
+                                              L=unit_cell)
             # Keep the record on the CPU
             entry = dict(time_step_index=index_i)
             list_keys = ['composition_i', 'corrected_composition_i', 'model_predictions_i']
