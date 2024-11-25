@@ -7,7 +7,7 @@ from torch import nn
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 
@@ -22,6 +22,9 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
     hidden_dimensions_size: int  # the dimensions of the hidden layers.
     noise_embedding_dimensions_size: (
         int  # the dimension of the embedding of the noise parameter.
+    )
+    time_embedding_dimensions_size: (
+        int  # the dimension of the embedding of the time parameter.
     )
     atom_type_embedding_dimensions_size: (
         int  # the dimension of the embedding of the atom types
@@ -57,11 +60,16 @@ class MLPScoreNetwork(ScoreNetwork):
         input_dimension = (
             coordinate_output_dimension
             + hyper_params.noise_embedding_dimensions_size
+            + hyper_params.time_embedding_dimensions_size
             + self._natoms * hyper_params.atom_type_embedding_dimensions_size
         )
 
         self.noise_embedding_layer = nn.Linear(
             1, hyper_params.noise_embedding_dimensions_size
+        )
+
+        self.time_embedding_layer = nn.Linear(
+            1, hyper_params.time_embedding_dimensions_size
         )
 
         self.atom_type_embedding_layer = nn.Linear(
@@ -126,6 +134,11 @@ class MLPScoreNetwork(ScoreNetwork):
             sigmas
         )  # shape [batch_size, noise_embedding_dimension]
 
+        times = batch[TIME].to(relative_coordinates.device)  # shape [batch_size, 1]
+        time_embedding = self.time_embedding_layer(
+            times
+        )  # shape [batch_size, time_embedding_dimension]
+
         atom_types = batch[NOISY_AXL_COMPOSITION].A
         atom_types_one_hot = class_index_to_onehot(
             atom_types, num_classes=self.num_classes
@@ -138,6 +151,7 @@ class MLPScoreNetwork(ScoreNetwork):
             [
                 self.flatten(relative_coordinates),
                 noise_embedding,
+                time_embedding,
                 self.flatten(atom_type_embedding),
             ],
             dim=1,
