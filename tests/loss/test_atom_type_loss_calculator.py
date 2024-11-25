@@ -216,7 +216,7 @@ class TestD3PMLossCalculator:
 
     @pytest.fixture
     def expected_vb_loss(
-        self, time_indices, expected_p_atm1_given_at, expected_q_atm1_given_at_and_a0
+        self, time_indices, one_hot_a0, expected_p_atm1_given_at, expected_q_atm1_given_at_and_a0
     ):
         assert (
             0 in time_indices
@@ -228,7 +228,7 @@ class TestD3PMLossCalculator:
 
         for batch_idx, time_index in enumerate(time_indices):
             if time_index == 0:
-                vb_loss[batch_idx] = -log_p[batch_idx]
+                vb_loss[batch_idx] = -log_p[batch_idx] * one_hot_a0[batch_idx]
 
         return vb_loss
 
@@ -365,13 +365,14 @@ class TestD3PMLossCalculator:
                 )
                 torch.testing.assert_close(computed_kl, torch.zeros_like(computed_kl))
 
-    def test_cross_entropy_loss_term(self, predicted_logits, d3pm_calculator):
-        computed_ce_loss = d3pm_calculator.cross_entropy_loss_term(predicted_logits)
+    def test_cross_entropy_loss_term(self, predicted_logits, one_hot_a0, d3pm_calculator):
+        computed_ce_loss = d3pm_calculator.cross_entropy_loss_term(predicted_logits, one_hot_a0)
 
         p = torch.softmax(predicted_logits, dim=-1)
         log_p = torch.log(p)
-        expected_ce_loss = -log_p
-        expected_ce_loss[..., -1] = 0.0  # squash the divergent MASK value.
+        log_p[..., -1] = 0.0
+        expected_ce_loss = -log_p * one_hot_a0
+
         torch.testing.assert_close(computed_ce_loss, expected_ce_loss)
 
     def test_calculate_unreduced_loss(
@@ -396,7 +397,7 @@ class TestD3PMLossCalculator:
             time_indices,
         )
 
-        ce_loss = d3pm_calculator.cross_entropy_loss_term(predicted_logits)
+        ce_loss = d3pm_calculator.cross_entropy_loss_term(predicted_logits, one_hot_a0)
         expected_losss = vb_loss + atom_types_ce_weight * ce_loss
 
         computed_loss = d3pm_calculator.calculate_unreduced_loss(
@@ -423,16 +424,12 @@ class TestD3PMLossCalculator:
         predicted_logits = torch.randn(batch_size, number_of_atoms, num_classes)
         predicted_logits[..., -1] = -torch.inf
 
-        real_atom_types = (
-            torch.eye(num_classes)
-            .unsqueeze(0)
-            .repeat(batch_size, number_of_atoms, 1, 1)
-        )
-        noisy_atom_types = (
-            torch.eye(num_classes)
-            .unsqueeze(0)
-            .repeat(batch_size, number_of_atoms, 1, 1)
-        )
+        real_atom_types = torch.randint(0, num_classes, (batch_size, number_of_atoms))
+        real_atom_types = class_index_to_onehot(real_atom_types, num_classes=num_classes)
+
+        noisy_atom_types = torch.randint(0, num_classes, (batch_size, number_of_atoms))
+        noisy_atom_types = class_index_to_onehot(noisy_atom_types, num_classes=num_classes)
+
         q_matrices = torch.randn(batch_size, number_of_atoms, num_classes, num_classes)
         q_bar_matrices = torch.randn(
             batch_size, number_of_atoms, num_classes, num_classes

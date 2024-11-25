@@ -16,7 +16,9 @@ class D3PMLossCalculator(torch.nn.Module):
         self.ce_weight = loss_parameters.atom_types_ce_weight
         self.eps = loss_parameters.atom_types_eps
 
-    def cross_entropy_loss_term(self, predicted_logits: torch.Tensor) -> torch.Tensor:
+    def cross_entropy_loss_term(self,
+                                predicted_logits: torch.Tensor,
+                                one_hot_real_atom_types: torch.Tensor) -> torch.Tensor:
         r"""Compute the cross entropy component of the loss.
 
         This corresponds to this:
@@ -29,14 +31,21 @@ class D3PMLossCalculator(torch.nn.Module):
             predicted_logits: output of the score network estimating class logits
                 :math:`\tilde p(a_0 | a_t)` of dimension [batch_size, number_of_atoms, num_classes] where num_classes
                 includes the MASK token
+            one_hot_real_atom_types: real atom types :math:`a_0` in one-hot format of dimension
+                [batch_size, number_of_atoms, num_type_atoms, num_classes]
+
         Returns:
-            nll_term: the negative log-likelihood of the predictions of dimension
+            cross_entropy: the negative log-likelihood of the predictions for the actual class, of dimension
                 [batch_size, number_of_atoms, num_classes].
         """
         nll_term = -torch.nn.functional.log_softmax(predicted_logits, dim=-1)
         # The last logit is -inf, which leads to p(a_{0} = MASK) = 0. This diverges and must be squashed.
         nll_term[..., -1] = 0.0
-        return nll_term
+
+        # We must restrict the value of a0 to its actual value, which is done by multiplying by delta_{a0, actual_a0}
+        cross_entropy = one_hot_real_atom_types * nll_term
+
+        return cross_entropy
 
     def variational_bound_loss_term(
         self,
@@ -109,7 +118,9 @@ class D3PMLossCalculator(torch.nn.Module):
         variational_bound_loss = kl_loss
 
         first_time_step_mask = time_indices == 0
-        variational_bound_loss[first_time_step_mask] = -log_p[first_time_step_mask]
+        # We must restrict the value of a0 to its actual value, which is done by multiplying by delta_{a0, actual_a0}
+        variational_bound_loss[first_time_step_mask] = (-log_p[first_time_step_mask]
+                                                        * one_hot_real_atom_types[first_time_step_mask])
 
         return variational_bound_loss
 
@@ -245,7 +256,7 @@ class D3PMLossCalculator(torch.nn.Module):
         )
 
         # -log tilde_p_\theta(a_0 | a_t)
-        ce_term = self.cross_entropy_loss_term(predicted_logits)
+        ce_term = self.cross_entropy_loss_term(predicted_logits, one_hot_real_atom_types)
 
         d3pm_loss = vb_term + self.ce_weight * ce_term
 
