@@ -16,7 +16,7 @@ setup_analysis_logger()
 
 base_path = ROOT_DIR / "../experiments/atom_types_only_experiments/experiments"
 data_path = base_path / "output/run1/trajectory_samples"
-pickle_path = data_path / "trajectories_sample_epoch=99.pt"
+pickle_path = data_path / "trajectories_sample_epoch=999.pt"
 visualization_artifacts_path = data_path / "trajectory_cif_files"
 
 elements = ["Si", "Ge"]

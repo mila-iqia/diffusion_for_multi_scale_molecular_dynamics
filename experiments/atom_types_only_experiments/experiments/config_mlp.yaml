@@ -9,7 +9,7 @@
 #================================================================================
 exp_name: atom_types_only_PSEUDO
 run_name: run1
-max_epoch: 10000
+max_epoch: 1000
 log_every_n_steps: 1
 gradient_clipping: 0.0
 accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
@@ -34,7 +34,7 @@ spatial_dimension: 3
 model:
   loss:
     coordinates_algorithm: mse
-    atom_types_ce_weight: 10.0 
+    atom_types_ce_weight: 1.0 
     atom_types_lambda_weight: 1.0  
     relative_coordinates_lambda_weight: 0.0  
     lattice_lambda_weight: 0.0  
@@ -42,35 +42,36 @@ model:
     architecture: mlp
     num_atom_types: 2
     number_of_atoms: 8
-    n_hidden_dimensions: 6
-    noise_embedding_dimensions_size: 256
-    atom_type_embedding_dimensions_size: 256
-    hidden_dimensions_size: 256
+    n_hidden_dimensions: 3
+    noise_embedding_dimensions_size: 32
+    time_embedding_dimensions_size: 32
+    atom_type_embedding_dimensions_size: 8 
+    hidden_dimensions_size: 64
     conditional_prob: 0.0
     conditional_gamma: 2
-    condition_embedding_size: 128
+    condition_embedding_size: 4
   noise:
-    total_time_steps: 10
+    total_time_steps: 100
     sigma_min: 0.0001 
     sigma_max: 0.2
 
 # optimizer and scheduler
 optimizer:
   name: adamw
-  learning_rate: 0.001
+  learning_rate: 0.0001
   weight_decay: 5.0e-8
 
 
 scheduler:
   name: CosineAnnealingLR
-  T_max: 10000
+  T_max: 1000
   eta_min: 0.0
 
 # early stopping
 early_stopping:
   metric: validation_epoch_loss
   mode: min
-  patience: 10000
+  patience: 1000
 
 model_checkpoint:
   monitor: validation_epoch_loss
@@ -80,7 +81,7 @@ model_checkpoint:
 # Sampling from the generative model
 diffusion_sampling:
   noise:
-    total_time_steps: 10
+    total_time_steps: 100
     sigma_min: 0.0001
     sigma_max: 0.2
     corrector_step_epsilon: 2.0e-7
@@ -103,7 +104,7 @@ diffusion_sampling:
 
 sampling_visualization:
   record_every_n_epochs:  1
-  first_record_epoch: 9999
+  first_record_epoch: 999
   record_trajectories: True
   record_energies: False
   record_structure: False
