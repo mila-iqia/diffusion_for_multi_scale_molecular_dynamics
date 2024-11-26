@@ -70,8 +70,9 @@ def get_probability_at_previous_time_step(
     small_epsilon: float,
     probability_at_zeroth_timestep_are_logits: bool = False,
 ) -> torch.Tensor:
-    r"""Compute :math:`P(a_{t-1} | a_t, \gamma_0)`, for given probability distribution :math:`\gamma_0` and a one-hot
-        distribution :math:`a_t`.
+    r"""Compute :math:`P(a_{t-1} | a_t, \gamma_0)`.
+
+    For given probability distribution :math:`\gamma_0` and a one-hot distribution :math:`a_t`.
 
     .. math::
         P(a_{t-1} | a_t, \gamma_0) = (\gamma_0^T \cdot \bar{Q}_{t-1} \cdot a_{t-1}) (a_{t-1}^T \cdot Q_t \cdot a_t) /
