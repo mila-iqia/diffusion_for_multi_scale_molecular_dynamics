@@ -1,0 +1,94 @@
+accumulate_grad_batches: 1
+data:
+  atom_types_demo: True
+  use_physical_positions: True
+  batch_size: 256
+  max_atom: 16
+  num_atom_types: 4
+  num_workers: 4
+  train_num_samples: 8192
+  valid_num_samples: 2048
+diffusion_sampling:
+  metrics:
+    compute_atom_types_demo_accuracy: true
+    compute_energies: false
+    compute_structure_factor: false
+    structure_factor_max_distance: 5.0
+  noise:
+    sigma_max: 0.00015
+    sigma_min: 0.0001
+    total_time_steps: 1000
+  sampling:
+    algorithm: predictor_corrector
+    cell_dimensions:
+    - 10
+    - 10
+    - 10
+    number_of_corrector_steps: 10
+    number_of_samples: 256
+    record_samples: false
+    sample_batchsize: 256
+    spatial_dimension: 3
+    atom_type_greedy_sampling: True
+    atom_type_transition_in_corrector: True
+    use_physical_positions: True
+early_stopping:
+  metric: validation_atom_type_accuracy
+  mode: max
+  patience: 100
+elements: [X1, X2, X3, X4]
+exp_name: chain_with_physical_positions
+gradient_clipping: 0
+log_every_n_steps: 1
+logging:
+- comet
+loss_monitoring:
+  number_of_bins: 50
+  sample_every_n_epochs: 25
+max_epoch: 200
+model:
+  loss:
+    atom_types_weight: 1.0
+    coordinates_algorithm: mse
+    coordinates_weight: 0.0
+    lattice_weight: 0.0
+  noise:
+    sigma_max: 0.00015
+    sigma_min: 0.0001
+    total_time_steps: 1000
+  score_network:
+    architecture: egnn
+    n_layers: 4
+    coordinate_hidden_dimensions_size: 128
+    coordinate_n_hidden_dimensions: 4
+    coords_agg: "mean"
+    message_hidden_dimensions_size: 128
+    message_n_hidden_dimensions: 4
+    node_hidden_dimensions_size: 128
+    node_n_hidden_dimensions: 4
+    attention: False
+    normalize: True
+    residual: True
+    tanh: False
+    edges: fully_connected
+    # radial_cutoff: 3.0
+model_checkpoint:
+  mode: max
+  monitor: validation_atom_type_accuracy
+optimizer:
+  learning_rate: 0.0002581
+  name: adamw
+  weight_decay: 1.0e-06
+run_name: debug
+sampling_visualization:
+  first_record_epoch: 0
+  record_energies: false
+  record_every_n_epochs: 1
+  record_structure: false
+  record_trajectories: false
+scheduler:
+  factor: 0.1
+  name: ReduceLROnPlateau
+  patience: 100
+seed: 1234
+spatial_dimension: 3

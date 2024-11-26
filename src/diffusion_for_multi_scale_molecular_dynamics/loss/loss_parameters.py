@@ -12,6 +12,9 @@ class LossParameters:
     coordinates_algorithm: str
     atom_types_ce_weight: float = 0.001  # default value in google D3PM repo
     atom_types_eps: float = 1e-8  # avoid divisions by zero
+    coordinates_weight: float = 1.0
+    atom_types_weight: float = 1.0
+    lattice_weight: float = 1.0
     # https://github.com/google-research/google-research/blob/master/d3pm/images/config.py
 
 

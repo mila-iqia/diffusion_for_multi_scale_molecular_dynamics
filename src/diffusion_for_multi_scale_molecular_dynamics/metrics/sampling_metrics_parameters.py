@@ -14,3 +14,4 @@ class SamplingMetricsParameters:
         False  # should the structure factor (distances distribution) be recorded
     )
     structure_factor_max_distance: float = 10.0  # cutoff for the structure factor
+    compute_atom_types_demo_accuracy: bool = False  # for the atom types demo experiment

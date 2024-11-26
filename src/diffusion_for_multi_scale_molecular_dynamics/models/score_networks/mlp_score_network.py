@@ -7,7 +7,7 @@ from torch import nn
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 
@@ -121,7 +121,8 @@ class MLPScoreNetwork(ScoreNetwork):
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         # shape [batch_size, number_of_atoms, spatial_dimension]
 
-        sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
+        # sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
+        sigmas = batch[TIME].to(relative_coordinates.device)
         noise_embedding = self.noise_embedding_layer(
             sigmas
         )  # shape [batch_size, noise_embedding_dimension]

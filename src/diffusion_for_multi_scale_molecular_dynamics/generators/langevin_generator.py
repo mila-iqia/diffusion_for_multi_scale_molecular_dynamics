@@ -61,6 +61,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             sampling_parameters.atom_type_transition_in_corrector
         )
 
+        self.use_physical_positions = sampling_parameters.use_physical_positions
+
         self.record = sampling_parameters.record_samples
         self.record_corrector = sampling_parameters.record_samples_corrector_steps
 
@@ -83,9 +85,13 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             device
         ) * (self.num_classes - 1)
         # relative coordinates are sampled from the uniform distribution
-        relative_coordinates = torch.rand(
+        relative_coordinates = torch.zeros(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
         ).to(device)
+        if self.use_physical_positions:
+            relative_coordinates[:, :, 0] = torch.linspace(
+                0, 1, self.number_of_atoms + 1
+            )[:-1].unsqueeze(0).to(device)
         lattice_vectors = torch.zeros_like(relative_coordinates).to(
             device
         )  # TODO placeholder

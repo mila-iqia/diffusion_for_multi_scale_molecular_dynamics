@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch
+from torchmetrics.classification import BinaryAccuracy
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
@@ -11,6 +12,8 @@ from diffusion_for_multi_scale_molecular_dynamics.loss import \
     create_loss_calculator
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     LossParameters
+from diffusion_for_multi_scale_molecular_dynamics.metrics.atom_types_demo_accuracy import \
+    evaluate_batch_accuracy
 from diffusion_for_multi_scale_molecular_dynamics.metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
@@ -101,6 +104,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         # loss is an AXL object with one loss for each element (atom type, coordinate, lattice)
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
+        self.loss_weights = AXL(
+            A=hyper_params.loss_parameters.atom_types_weight,
+            X=hyper_params.loss_parameters.coordinates_weight,
+            L=hyper_params.loss_parameters.lattice_weight
+        )
 
         # noisy samplers for atom types, coordinates and lattice vectors
         self.noisers = AXL(
@@ -131,6 +139,8 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 assert self.hyper_params.oracle_parameters is not None, \
                     "Energies cannot be computed without a configured energy oracle."
                 self.oracle = create_energy_oracle(self.hyper_params.oracle_parameters)
+            if self.metrics_parameters.compute_atom_types_demo_accuracy:
+                self.atom_types_demo_accuracy = BinaryAccuracy()
 
     def configure_optimizers(self):
         """Returns the combination of optimizer(s) and learning rate scheduler(s) to train with.
@@ -348,11 +358,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         # TODO consider having weights in front of each component
         aggregated_loss = (
-            unreduced_loss_coordinates.mean(
+            self.loss_weights.X * unreduced_loss_coordinates.mean(
                 dim=-1
             )  # batch, num_atoms, spatial_dimension
-            + unreduced_loss_lattice
-            + unreduced_loss_atom_types.mean(dim=-1)  # batch, num_atoms, num_atom_types
+            + self.loss_weights.L * unreduced_loss_lattice
+            + self.loss_weights.A * unreduced_loss_atom_types.mean(dim=-1)  # batch, num_atoms, num_atom_types
         )
 
         loss = torch.mean(aggregated_loss)
@@ -606,6 +616,24 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             )
             logger.info("       * Done logging sample distances")
 
+        if self.draw_samples and self.metrics_parameters.compute_atom_types_demo_accuracy:
+            logger.info("       * Computing atom type accuracy")
+            are_samples_accurate = evaluate_batch_accuracy(
+                samples_batch[AXL_COMPOSITION].A,
+                self.num_atom_types
+            )
+            epoch_accuracy = self.atom_types_demo_accuracy.forward(
+                are_samples_accurate,
+                torch.ones_like(are_samples_accurate)
+            )
+
+            self.log(
+                "validation_atom_type_accuracy",
+                epoch_accuracy.cpu(),
+                on_step=False,
+                on_epoch=True
+            )
+
     def on_validation_start(self) -> None:
         """On validation start."""
         logger.info("Starting validation.")
@@ -619,6 +647,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
 
+        if self.draw_samples and self.metrics_parameters.compute_atom_types_demo_accuracy:
+            self.atom_types_demo_accuracy.reset()
+
     def on_train_start(self) -> None:
         """On train start."""
         logger.info("Starting train.")
@@ -630,3 +661,6 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
+
+        if self.draw_samples and self.metrics_parameters.compute_atom_types_demo_accuracy:
+            self.atom_types_demo_accuracy.reset()

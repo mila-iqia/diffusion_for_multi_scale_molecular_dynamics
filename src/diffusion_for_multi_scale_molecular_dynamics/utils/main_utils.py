@@ -215,4 +215,10 @@ def _get_hyperparameters(config_file_path: Union[str, None]) -> Dict[str, Any]:
         logging.info(f"Reading in hyperparameters from file {config_file_path}")
         with open(config_file_path, "r") as stream:
             hyper_params = yaml.load(stream, Loader=yaml.FullLoader)
+        num_atom_types = hyper_params["data"]["num_atom_types"]
+        num_atoms = hyper_params["data"]["max_atom"]
+        hyper_params["model"]["score_network"]["num_atom_types"] = num_atom_types
+        hyper_params["model"]["score_network"]["number_of_atoms"] = num_atoms
+        hyper_params["diffusion_sampling"]["sampling"]["num_atom_types"] = num_atom_types
+        hyper_params["diffusion_sampling"]["sampling"]["number_of_atoms"] = num_atoms
     return hyper_params

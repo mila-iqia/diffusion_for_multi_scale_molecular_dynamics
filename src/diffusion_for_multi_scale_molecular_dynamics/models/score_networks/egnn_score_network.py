@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISE, NOISY_AXL_COMPOSITION, UNIT_CELL)
+    AXL, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 
@@ -159,7 +159,8 @@ class EGNNScoreNetwork(ScoreNetwork):
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
-        sigmas = batch[NOISE].to(relative_coordinates.device)
+        # sigmas = batch[NOISE].to(relative_coordinates.device)
+        sigmas = batch[TIME].to(relative_coordinates.device)
         repeated_sigmas = einops.repeat(
             sigmas, "batch 1 -> (batch natoms) 1", natoms=number_of_atoms
         )
