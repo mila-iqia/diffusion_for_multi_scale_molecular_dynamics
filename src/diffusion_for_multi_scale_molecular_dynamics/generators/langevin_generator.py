@@ -63,6 +63,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         self.record = sampling_parameters.record_samples
         self.record_corrector = sampling_parameters.record_samples_corrector_steps
+        self.record_atom_type_update = sampling_parameters.record_atom_type_update
+
+        if self.record_corrector or self.record_atom_type_update:
+            assert self.record, "Corrector steps or atom_type_update can only be recorded if record_samples is True."
 
         if self.record:
             self.sample_trajectory_recorder = SampleTrajectory()
@@ -274,6 +278,17 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 ]
             )
             # TODO some sanity check at the last step because this approach does not guarantee a full transition...
+
+        if self.record_atom_type_update:
+            # Keep the record on the CPU
+            entry = dict(predicted_logits=predicted_logits.detach().cpu(),
+                         one_step_transition_probabilities=one_step_transition_probs.detach().cpu(),
+                         gumbel_sample=u.cpu(),
+                         a_i=atom_types_i.cpu(),
+                         a_im1=a_im1.cpu())
+
+            self.sample_trajectory_recorder.record(key='atom_type_update', entry=entry)
+
         return a_im1
 
     def adjust_atom_types_probabilities_for_greedy_sampling(
@@ -468,7 +483,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             L=unit_cell,  # TODO replace with AXL-L
         )
 
-        if self.record and self.record_corrector:
+        if self.record_corrector:
             # TODO : Deal with L correctly
             composition_i_for_recording = AXL(A=composition_i.A,
                                               X=composition_i.X,

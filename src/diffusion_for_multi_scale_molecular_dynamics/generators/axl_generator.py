@@ -28,6 +28,7 @@ class SamplingParameters:
         False  # should the predictor and corrector steps be recorded to a file
     )
     record_samples_corrector_steps: bool = False
+    record_atom_type_update: bool = False  # record the information pertaining to generating atom types.
 
 
 class AXLGenerator(ABC):
