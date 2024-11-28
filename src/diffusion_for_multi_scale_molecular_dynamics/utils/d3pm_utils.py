@@ -99,9 +99,8 @@ def get_probability_at_previous_time_step(
         one-step transition normalized probabilities of dimension [batch_size, number_of_atoms, num_type_atoms]
     """
     if probability_at_zeroth_timestep_are_logits:
-        probability_at_zeroth_timestep = torch.nn.functional.softmax(
-            probability_at_zeroth_timestep, dim=-1
-        )
+        probability_at_zeroth_timestep = get_probability_from_logits(probability_at_zeroth_timestep,
+                                                                     lowest_probability_value=small_epsilon)
 
     numerator1 = einops.einsum(
         probability_at_zeroth_timestep, q_bar_tm1_matrices, "... j, ... j i -> ... i"
@@ -116,12 +115,35 @@ def get_probability_at_previous_time_step(
         one_hot_probability_at_current_timestep,
         "... i j, ... j -> ... i",
     )
-    den2 = einops.einsum(
-        probability_at_zeroth_timestep, den1, "... j, ... j -> ..."
-    ).clip(min=small_epsilon)
+    den2 = einops.einsum(probability_at_zeroth_timestep, den1, "... j, ... j -> ...")
 
     denominator = einops.repeat(
         den2, "... -> ... num_classes", num_classes=numerator.shape[-1]
     )
 
     return numerator / denominator
+
+
+def get_probability_from_logits(logits: torch.Tensor, lowest_probability_value: float) -> torch.Tensor:
+    """Get probability from logits.
+
+    Compute the probabilities from the logit, imposing that no class probablility can be lower than
+    lowest_probability_value.
+
+    Args:
+        logits: Unormalized values that can be turned into probabilities. Dimensions [..., num_classes]
+        lowest_probability_value: imposed lowest probability value for any class.
+
+    Returns:
+        probabilities: derived from the logits, with minimal clipped values. Dimensions [..., num_classes].
+
+    """
+    raw_probabilities = torch.nn.functional.softmax(logits, dim=-1)
+    probability_sum = raw_probabilities.sum(dim=-1)
+    torch.testing.assert_close(probability_sum, torch.ones_like(probability_sum),
+                               msg="Logits are pathological: the probabilities do not sum to one.")
+
+    clipped_probabilities = raw_probabilities.clip(min=lowest_probability_value)
+
+    probabilities = clipped_probabilities / clipped_probabilities.sum(dim=-1).unsqueeze(-1)
+    return probabilities
