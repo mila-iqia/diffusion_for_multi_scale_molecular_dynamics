@@ -32,7 +32,7 @@ class SampleTrajectoryAnalyser:
         data = torch.load(pickle_path, map_location=torch.device("cpu"))
         logger.info("Done reading data.")
 
-        noise_parameters = NoiseParameters(**data['noise_parameters'][0])
+        noise_parameters = NoiseParameters(**data['noise_parameters'])
         sampler = NoiseScheduler(noise_parameters, num_classes=num_classes)
         self.noise, _ = sampler.get_all_sampling_parameters()
 
