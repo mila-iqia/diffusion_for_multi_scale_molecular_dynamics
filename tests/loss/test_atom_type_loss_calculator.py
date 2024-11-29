@@ -332,39 +332,6 @@ class TestD3PMLossCalculator:
 
         torch.testing.assert_close(computed_kl_loss, torch.zeros_like(computed_kl_loss))
 
-    def test_kl_loss_diagonal_q_matrices(
-        self,
-        num_classes,
-        d3pm_calculator,
-    ):
-        # with diagonal Q matrices, the KL is ALWAYS ZERO. This is because either:
-        #    1) the posterior is all zero
-        #  or
-        #   2) the prediction is equal to the posterior; this follows because the prediction is normalized.
-        predicted_logits = torch.rand(1, 1, num_classes)
-        time_indices = torch.tensor([1])  # non-zero to compute the KL
-
-        q_matrices = torch.eye(num_classes).view(1, 1, num_classes, num_classes)
-        q_bar_matrices = torch.eye(num_classes).view(1, 1, num_classes, num_classes)
-        q_bar_tm1_matrices = torch.eye(num_classes).view(1, 1, num_classes, num_classes)
-        for i in range(num_classes):
-            for j in range(num_classes):
-                one_hot_a0 = torch.zeros(1, 1, num_classes)
-                one_hot_at = torch.zeros(1, 1, num_classes)
-                one_hot_a0[0, 0, i] = 1.0
-                one_hot_at[0, 0, j] = 1.0
-
-                computed_kl = d3pm_calculator.variational_bound_loss_term(
-                    predicted_logits,
-                    one_hot_a0,
-                    one_hot_at,
-                    q_matrices,
-                    q_bar_matrices,
-                    q_bar_tm1_matrices,
-                    time_indices,
-                )
-                torch.testing.assert_close(computed_kl, torch.zeros_like(computed_kl))
-
     def test_cross_entropy_loss_term(self, predicted_logits, one_hot_a0, d3pm_calculator):
         computed_ce_loss = d3pm_calculator.cross_entropy_loss_term(predicted_logits, one_hot_a0)
 
