@@ -49,6 +49,14 @@ class TestLangevinGenerator(BaseTestGenerator):
     def small_epsilon(self):
         return 1e-6
 
+    @pytest.fixture(params=[True, False])
+    def one_atom_type_transition_per_step(self, request):
+        return request.param
+
+    @pytest.fixture(params=[True, False])
+    def atom_type_greedy_sampling(self, request):
+        return request.param
+
     @pytest.fixture()
     def sampling_parameters(
         self,
@@ -60,6 +68,8 @@ class TestLangevinGenerator(BaseTestGenerator):
         unit_cell_size,
         num_atom_types,
         small_epsilon,
+        one_atom_type_transition_per_step,
+        atom_type_greedy_sampling
     ):
         sampling_parameters = PredictorCorrectorSamplingParameters(
             number_of_corrector_steps=number_of_corrector_steps,
@@ -69,6 +79,8 @@ class TestLangevinGenerator(BaseTestGenerator):
             spatial_dimension=spatial_dimension,
             num_atom_types=num_atom_types,
             small_epsilon=small_epsilon,
+            one_atom_type_transition_per_step=one_atom_type_transition_per_step,
+            atom_type_greedy_sampling=atom_type_greedy_sampling
         )
 
         return sampling_parameters
@@ -165,13 +177,10 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
 
-    @pytest.mark.parametrize("one_atom_type_transition_per_step", [True, False])
-    @pytest.mark.parametrize("atom_type_greedy_sampling", [True, False])
     def test_predictor_step_atom_types(
         self,
         mocker,
-        one_atom_type_transition_per_step,
-        atom_type_greedy_sampling,
+        pc_generator,
         noise_parameters,
         sampling_parameters,
         axl_network,
@@ -184,17 +193,6 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_atoms,
         device,
     ):
-        sampling_parameters.one_atom_type_transition_per_step = (
-            one_atom_type_transition_per_step
-        )
-
-        sampling_parameters.atom_type_greedy_sampling = atom_type_greedy_sampling
-        pc_generator = LangevinGenerator(
-            noise_parameters=noise_parameters,
-            sampling_parameters=sampling_parameters,
-            axl_network=axl_network,
-        )
-
         sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes).to(
             device
         )
@@ -244,7 +242,7 @@ class TestLangevinGenerator(BaseTestGenerator):
                 probability_at_zeroth_timestep_are_logits=True,
             )
             updated_atm1_given_at = p_atm1_given_at.clone()
-            if atom_type_greedy_sampling:
+            if sampling_parameters.atom_type_greedy_sampling:
                 # remove the noise component, so we are sampling the max value from the prob distribution
                 # also, set the probability of getting a mask to zero based on the binary_sample drawn earlier
                 samples_with_only_masks = torch.all(
@@ -269,7 +267,7 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             expected_atom_types = torch.argmax(gumbel_distribution, dim=-1)
 
-            if one_atom_type_transition_per_step:
+            if sampling_parameters.one_atom_type_transition_per_step:
                 new_atom_types = axl_i.A.clone()
                 for sample_idx in range(number_of_samples):
                     # find the prob scores for each transition in this sample
