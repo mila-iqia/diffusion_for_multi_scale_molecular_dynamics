@@ -36,9 +36,10 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         **kwargs,
     ):
         """Init method."""
+        # T = 1 is a dangerous and meaningless edge case.
         assert (
-            number_of_discretization_steps > 0
-        ), "The number of discretization steps should be larger than zero"
+            number_of_discretization_steps > 1
+        ), "The number of discretization steps should be larger than one"
         assert (
             number_of_corrector_steps >= 0
         ), "The number of corrector steps should be non-negative"
