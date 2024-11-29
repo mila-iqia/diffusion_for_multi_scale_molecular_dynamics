@@ -52,7 +52,7 @@ class IdentityRelativeCoordinatesUpdateLangevinGenerator(LangevinGenerator):
 
         return fixed_init_composition
 
-    def relative_coordinates_update(
+    def _relative_coordinates_update(
         self,
         relative_coordinates: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
