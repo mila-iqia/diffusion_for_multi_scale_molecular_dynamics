@@ -130,7 +130,7 @@ class AdaptativeCorrectorGenerator(LangevinGenerator):
 
             \epsilon_i = 2 \left(r \frac{||z||_2}{||s(x_i, t_i)||_2}\right)^2
 
-        where :math:`r` is an hyper-parameter (0.15 by default) and :math:`||\cdot||_2` is the L2 norm.
+        where :math:`r` is an hyper-parameter (0.17 by default) and :math:`||\cdot||_2` is the L2 norm.
 
         Args:
             composition_i : sampled composition (atom types, relative coordinates, lattice vectors), at time step i.
