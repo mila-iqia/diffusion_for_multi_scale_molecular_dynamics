@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
 
 
 class FakeAXLNetwork(ScoreNetwork):
-    """A fake, smooth score network for the ODE solver."""
+    """A fake score network for tests."""
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False

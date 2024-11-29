@@ -60,7 +60,7 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
         return updated_axl
 
 
-@pytest.mark.parametrize("number_of_discretization_steps", [1, 5, 10])
+@pytest.mark.parametrize("number_of_discretization_steps", [2, 5, 10])
 @pytest.mark.parametrize("number_of_corrector_steps", [0, 1, 2])
 class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
     @pytest.fixture(scope="class", autouse=True)

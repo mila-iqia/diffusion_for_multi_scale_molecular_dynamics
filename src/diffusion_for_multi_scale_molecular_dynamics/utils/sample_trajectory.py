@@ -35,5 +35,10 @@ class SampleTrajectory:
 
     def write_to_pickle(self, path_to_pickle: str):
         """Write data to pickle file."""
+        self._internal_data = dict(self._internal_data)
+        for key, value in self._internal_data.items():
+            if len(value) == 1:
+                self._internal_data[key] = value[0]
+
         with open(path_to_pickle, "wb") as fd:
             torch.save(self._internal_data, fd)

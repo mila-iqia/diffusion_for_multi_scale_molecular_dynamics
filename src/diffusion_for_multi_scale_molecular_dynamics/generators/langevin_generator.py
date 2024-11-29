@@ -1,6 +1,7 @@
 import dataclasses
 from typing import Tuple
 
+import einops
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import (
@@ -42,11 +43,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             spatial_dimension=sampling_parameters.spatial_dimension,
             num_atom_types=sampling_parameters.num_atom_types,
         )
-
         self.noise_parameters = noise_parameters
-        sampler = NoiseScheduler(
-            noise_parameters, num_classes=sampling_parameters.num_atom_types + 1
-        )
+        sampler = NoiseScheduler(noise_parameters, num_classes=self.num_classes)
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.masked_atom_type_index = self.num_classes - 1
@@ -63,23 +61,32 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         self.record = sampling_parameters.record_samples
         self.record_corrector = sampling_parameters.record_samples_corrector_steps
+        self.record_atom_type_update = sampling_parameters.record_atom_type_update
+
+        if self.record_corrector or self.record_atom_type_update:
+            assert (
+                self.record
+            ), "Corrector steps or atom_type_update can only be recorded if record_samples is True."
 
         if self.record:
             self.sample_trajectory_recorder = SampleTrajectory()
             self.sample_trajectory_recorder.record(key="noise", entry=self.noise)
-            self.sample_trajectory_recorder.record(key="noise_parameters",
-                                                   entry=dataclasses.asdict(noise_parameters))
-            self.sample_trajectory_recorder.record(key="sampling_parameters",
-                                                   entry=dataclasses.asdict(sampling_parameters))
+            self.sample_trajectory_recorder.record(
+                key="noise_parameters", entry=dataclasses.asdict(noise_parameters)
+            )
+            self.sample_trajectory_recorder.record(
+                key="sampling_parameters", entry=dataclasses.asdict(sampling_parameters)
+            )
 
     def initialize(
         self, number_of_samples: int, device: torch.device = torch.device("cpu")
     ):
         """This method must initialize the samples from the fully noised distribution."""
         # all atoms are initialized as masked
-        atom_types = torch.ones(number_of_samples, self.number_of_atoms).long().to(
-            device
-        ) * (self.num_classes - 1)
+        atom_types = (
+            torch.ones(number_of_samples, self.number_of_atoms).long().to(device)
+            * self.masked_atom_type_index
+        )
         # relative coordinates are sampled from the uniform distribution
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
@@ -154,7 +161,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         model_predictions = self.axl_network(augmented_batch, conditional=False)
         return model_predictions
 
-    def relative_coordinates_update(
+    def _relative_coordinates_update(
         self,
         relative_coordinates: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
@@ -195,13 +202,15 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         updated_coordinates = map_relative_coordinates_to_unit_cell(updated_coordinates)
         return updated_coordinates
 
-    def atom_types_update(
+    def _atom_types_update(
         self,
         predicted_logits: torch.Tensor,
         atom_types_i: torch.LongTensor,
         q_matrices_i: torch.Tensor,
         q_bar_matrices_i: torch.Tensor,
         q_bar_tm1_matrices_i: torch.Tensor,
+        atom_type_greedy_sampling: bool,
+        one_atom_type_transition_per_step: bool,
     ) -> torch.LongTensor:
         """Generic update of the atom types.
 
@@ -218,12 +227,17 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 number_of_atoms, num_classes, num_classes].
             q_bar_tm1_matrices_i:  cumulative transition matrix at time step 'i - 1'. Dimension: [number_of_samples,
                 number_of_atoms, num_classes, num_classes].
+            atom_type_greedy_sampling: boolean flag that sets whether the atom types should be selected greedily.
+            one_atom_type_transition_per_step: boolean flag that sets whether a single atom type transition can
+                occur per time step.
 
         Returns:
-            a_im1: updated atom type indices. Dimension: [number_of_samples, number_of_atoms]
+            atom_types_im1: updated atom type indices. Dimension: [number_of_samples, number_of_atoms]
         """
         number_of_samples = predicted_logits.shape[0]
-        u = self._draw_gumbel_sample(number_of_samples).to(predicted_logits.device)
+        gumbel_random_variable = self._draw_gumbel_sample(number_of_samples).to(
+            predicted_logits.device
+        )
         one_hot_atom_types_i = class_index_to_onehot(
             atom_types_i, num_classes=self.num_classes
         )
@@ -237,50 +251,97 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             probability_at_zeroth_timestep_are_logits=True,
         )  # p(a_{t-1} | a_t) as a [num_samples, num_atoms, num_classes] tensor
 
-        if self.atom_type_greedy_sampling:
-            # if we use greedy sampling, we will update the transition probabilities for the MASK token
+        if atom_type_greedy_sampling:
+            # if we use greedy sampling, we will update the transition probabilities for the MASK token.
             # For a_i = MASK, we define "greedy sampling" as first determining if a_{i-1} should also be MASK based on
             # p(a_{i-1} = MASK | a_i = MASK). If a_{i-1} should be unmasked, its atom type is selected as the one with
             # the highest probability (i.e., no stochastic sampling). Stochasticity is removed by setting the relevant
-            # row of u to zero.
-            one_step_transition_probs, u = (
-                self.adjust_atom_types_probabilities_for_greedy_sampling(
-                    one_step_transition_probs, atom_types_i, u
+            # row of gumbel_random_variable to zero.
+            one_step_transition_probs, gumbel_random_variable = (
+                self._adjust_atom_types_probabilities_for_greedy_sampling(
+                    one_step_transition_probs, atom_types_i, gumbel_random_variable
                 )
             )
 
-        # find the updated atom types by sampling from the transition probabilities using the gumbel-softmax trick
-        # we also keep the associated scores in memory, so we can compare which transitions are the most likely
-        max_logits_per_atom, updated_atom_types = torch.max(
-            torch.log(one_step_transition_probs + self.small_epsilon) + u, dim=-1
+        # Use the Gumbel-softmax trick to sample atomic types.
+        # We also keep the associated values in memory, so we can compare which transitions are the most likely.
+        # Dimensions: [num_samples, num_atoms].
+        max_gumbel_values, sampled_atom_types = torch.max(
+            torch.log(one_step_transition_probs + self.small_epsilon)
+            + gumbel_random_variable,
+            dim=-1,
         )
 
-        if not self.one_atom_type_transition_per_step:
-            a_im1 = updated_atom_types  # we are done
-
-        else:
+        if one_atom_type_transition_per_step:
             # force a single transition for each sample
-            atoms_have_changed_types = (
-                updated_atom_types != atom_types_i
-            )  # num_samples, num_atoms bool tensor
-            max_transition_per_sample = torch.argmax(
-                torch.where(atoms_have_changed_types, max_logits_per_atom, -torch.inf),
-                dim=-1,
+            atom_types_im1 = self._get_updated_atom_types_for_one_transition_per_step(
+                atom_types_i, max_gumbel_values, sampled_atom_types
             )
-            a_im1 = atom_types_i.clone()
-            a_im1[torch.arange(number_of_samples), max_transition_per_sample] = (
-                updated_atom_types[
-                    torch.arange(number_of_samples), max_transition_per_sample
-                ]
-            )
-            # TODO some sanity check at the last step because this approach does not guarantee a full transition...
-        return a_im1
+        else:
+            atom_types_im1 = sampled_atom_types
 
-    def adjust_atom_types_probabilities_for_greedy_sampling(
+        if self.record_atom_type_update:
+            # Keep the record on the CPU
+            entry = dict(
+                predicted_logits=predicted_logits.detach().cpu(),
+                one_step_transition_probabilities=one_step_transition_probs.detach().cpu(),
+                gumbel_sample=gumbel_random_variable.cpu(),
+                a_i=atom_types_i.cpu(),
+                a_im1=atom_types_im1.cpu(),
+            )
+
+            self.sample_trajectory_recorder.record(key="atom_type_update", entry=entry)
+
+        return atom_types_im1
+
+    def _get_updated_atom_types_for_one_transition_per_step(
+        self,
+        current_atom_types: torch.Tensor,
+        max_gumbel_values: torch.Tensor,
+        sampled_atom_types: torch.Tensor,
+    ):
+        """Get updated atom types for one transition per step.
+
+        Assuming the Gumbel softmax trick was used to create a new sample of atom types, this method
+        restrict the transitions from the current atom types to only the most likely one per sample.
+
+        Args:
+            current_atom_types: current indices of the atom types. Dimension: [number_of_samples, number_of_atoms]
+            max_gumbel_values: maximum Gumbel softmax values. Dimension: [number_of_samples, number_of_atoms]
+            sampled_atom_types: indices of the atom types resulting from the gumbel softmax sampling.
+                Dimension: [number_of_samples, number_of_atoms]
+
+        Returns:
+            updated_atom_types: atom types resulting from only making one transition per sample on current_atom_types.
+                Dimension: [number_of_samples, number_of_atoms]
+        """
+        number_of_samples = current_atom_types.shape[0]
+        sample_indices = torch.arange(number_of_samples)
+
+        # Boolean mask of dimensions [number_of_samples, number_of_atoms]
+        atoms_have_changed_types = sampled_atom_types != current_atom_types
+
+        # Identify the most likely transition amongst the proposed changes.
+        max_gumbel_values_restricted_to_proposed_changes = torch.where(
+            atoms_have_changed_types, max_gumbel_values, -torch.inf
+        )
+        most_likely_transition_atom_indices = torch.argmax(
+            max_gumbel_values_restricted_to_proposed_changes, dim=-1
+        )
+
+        # Restrict transitions to only the most likely ones.
+        updated_atom_types = current_atom_types.clone()
+        updated_atom_types[sample_indices, most_likely_transition_atom_indices] = (
+            sampled_atom_types[sample_indices, most_likely_transition_atom_indices]
+        )
+
+        return updated_atom_types
+
+    def _adjust_atom_types_probabilities_for_greedy_sampling(
         self,
         one_step_transition_probs: torch.Tensor,
         atom_types_i: torch.LongTensor,
-        u: torch.Tensor,
+        gumbel_random_variable: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Update the transition probabilities and the gumbel random variables to allow greedy sampling.
 
@@ -292,7 +353,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         Args:
             one_step_transition_probs: class distributions at time t-1 given distribution at time t. p(a_{t-1} | a_t)
             atom_types_i: indices of atom types at time i. Dimension: [number_of_samples, number_of_atoms]
-            u: gumbel noise used for sampling. Dimension: [number_of_samples, number_of_atoms, num_classes]
+            gumbel_random_variable: gumbel noise used for sampling.
+                Dimension: [number_of_samples, number_of_atoms, num_classes]
 
         Returns:
             one_step_transition_probs: probabilities are updated so a MASK to non-MASK transition can happen
@@ -329,8 +391,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         # In the current choice of \beta_t = 1 / (T-t+1), a greedy sampling will always select the MASK type if that
         # probability is not set to zero - except at the last generation step. This might not hold if the \beta schedule
         # is modified.
-        u = torch.where(all_masked.view(-1, 1, 1), u, 0.0)
-        return one_step_transition_probs, u
+        gumbel_random_variable = torch.where(
+            all_masked.view(-1, 1, 1), gumbel_random_variable, 0.0
+        )
+        return one_step_transition_probs, gumbel_random_variable
 
     def predictor_step(
         self,
@@ -354,46 +418,92 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             1 <= index_i <= self.number_of_discretization_steps
         ), "The predictor step can only be invoked for index_i between 1 and the total number of discretization steps."
 
+        number_of_samples = composition_i.X.shape[0]
+        number_of_atoms = composition_i.X.shape[1]
+
         idx = index_i - 1  # python starts indices at zero
         t_i = self.noise.time[idx].to(composition_i.X)
         g_i = self.noise.g[idx].to(composition_i.X)
         g2_i = self.noise.g_squared[idx].to(composition_i.X)
         sigma_i = self.noise.sigma[idx].to(composition_i.X)
-        q_matrices_i = self.noise.q_matrix[idx].to(composition_i.X)
-        q_bar_matrices_i = self.noise.q_bar_matrix[idx].to(composition_i.X)
-        q_bar_tm1_matrices_i = self.noise.q_bar_tm1_matrix[idx].to(composition_i.X)
+
+        # Broadcast the q matrices to the expected dimensions.
+        q_matrices_i = einops.repeat(
+            self.noise.q_matrix[idx].to(composition_i.X),
+            "n1 n2 -> nsamples natoms n1 n2",
+            nsamples=number_of_samples,
+            natoms=number_of_atoms,
+        )
+
+        q_bar_matrices_i = einops.repeat(
+            self.noise.q_bar_matrix[idx].to(composition_i.X),
+            "n1 n2 -> nsamples natoms n1 n2",
+            nsamples=number_of_samples,
+            natoms=number_of_atoms,
+        )
+
+        q_bar_tm1_matrices_i = einops.repeat(
+            self.noise.q_bar_tm1_matrix[idx].to(composition_i.X),
+            "n1 n2 -> nsamples natoms n1 n2",
+            nsamples=number_of_samples,
+            natoms=number_of_atoms,
+        )
 
         model_predictions_i = self._get_model_predictions(
             composition_i, t_i, sigma_i, unit_cell, cartesian_forces
         )
 
-        # atom types update
-        a_im1 = self.atom_types_update(
+        # Even if the global flag 'one_atom_type_transition_per_step' is set to True, a single atomic transition
+        # cannot be used at the last time step because it is necessary for all atoms to be unmasked at the end
+        # of the trajectory. Here, we use 'first' and 'last' with respect to a denoising trajectory, where
+        # the "first" time step is at index_i = T and the "last" time step is index_i = 1.
+        this_is_last_time_step = idx == 0
+        one_atom_type_transition_per_step = (
+            self.one_atom_type_transition_per_step and not this_is_last_time_step
+        )
+
+        a_im1 = self._atom_types_update(
             model_predictions_i.A,
             composition_i.A,
             q_matrices_i,
             q_bar_matrices_i,
             q_bar_tm1_matrices_i,
+            atom_type_greedy_sampling=self.atom_type_greedy_sampling,
+            one_atom_type_transition_per_step=one_atom_type_transition_per_step,
         )
 
-        x_im1 = self.relative_coordinates_update(
+        if this_is_last_time_step:
+            assert (a_im1 != self.masked_atom_type_index).all(), \
+                "There remains MASKED atoms at the last time step: review code, there must be a bug or invalid input."
+
+        x_im1 = self._relative_coordinates_update(
             composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i
         )
 
-        composition_im1 = AXL(A=a_im1, X=x_im1, L=unit_cell)  # TODO : Deal with L correctly
+        composition_im1 = AXL(
+            A=a_im1, X=x_im1, L=unit_cell
+        )  # TODO : Deal with L correctly
 
         if self.record:
             # TODO : Deal with L correctly
-            composition_i_for_recording = AXL(A=composition_i.A,
-                                              X=composition_i.X,
-                                              L=unit_cell)
+            composition_i_for_recording = AXL(
+                A=composition_i.A, X=composition_i.X, L=unit_cell
+            )
             # Keep the record on the CPU
             entry = dict(time_step_index=index_i)
-            list_keys = ['composition_i', 'composition_im1', 'model_predictions_i']
-            list_axl = [composition_i_for_recording, composition_im1, model_predictions_i]
+            list_keys = ["composition_i", "composition_im1", "model_predictions_i"]
+            list_axl = [
+                composition_i_for_recording,
+                composition_im1,
+                model_predictions_i,
+            ]
 
             for key, axl in zip(list_keys, list_axl):
-                record_axl = AXL(A=axl.A.detach().cpu(), X=axl.X.detach().cpu(), L=axl.L.detach().cpu())
+                record_axl = AXL(
+                    A=axl.A.detach().cpu(),
+                    X=axl.X.detach().cpu(),
+                    L=axl.L.detach().cpu(),
+                )
                 entry[key] = record_axl
             self.sample_trajectory_recorder.record(key="predictor_step", entry=entry)
 
@@ -443,7 +553,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i, t_i, sigma_i, unit_cell, cartesian_forces
         )
 
-        corrected_x_i = self.relative_coordinates_update(
+        corrected_x_i = self._relative_coordinates_update(
             composition_i.X, model_predictions_i.X, sigma_i, eps_i, sqrt_2eps_i
         )
 
@@ -452,12 +562,14 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             q_bar_matrices_i = self.noise.q_bar_matrix[idx].to(composition_i.X)
             q_bar_tm1_matrices_i = self.noise.q_bar_tm1_matrix[idx].to(composition_i.X)
             # atom types update
-            corrected_a_i = self.atom_types_update(
+            corrected_a_i = self._atom_types_update(
                 model_predictions_i.A,
                 composition_i.A,
                 q_matrices_i,
                 q_bar_matrices_i,
                 q_bar_tm1_matrices_i,
+                atom_type_greedy_sampling=self.atom_type_greedy_sampling,
+                one_atom_type_transition_per_step=self.one_atom_type_transition_per_step,
             )
         else:
             corrected_a_i = composition_i.A
@@ -468,18 +580,30 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             L=unit_cell,  # TODO replace with AXL-L
         )
 
-        if self.record and self.record_corrector:
+        if self.record_corrector:
             # TODO : Deal with L correctly
-            composition_i_for_recording = AXL(A=composition_i.A,
-                                              X=composition_i.X,
-                                              L=unit_cell)
+            composition_i_for_recording = AXL(
+                A=composition_i.A, X=composition_i.X, L=unit_cell
+            )
             # Keep the record on the CPU
             entry = dict(time_step_index=index_i)
-            list_keys = ['composition_i', 'corrected_composition_i', 'model_predictions_i']
-            list_axl = [composition_i_for_recording, corrected_composition_i, model_predictions_i]
+            list_keys = [
+                "composition_i",
+                "corrected_composition_i",
+                "model_predictions_i",
+            ]
+            list_axl = [
+                composition_i_for_recording,
+                corrected_composition_i,
+                model_predictions_i,
+            ]
 
             for key, axl in zip(list_keys, list_axl):
-                record_axl = AXL(A=axl.A.detach().cpu(), X=axl.X.detach().cpu(), L=axl.L.detach().cpu())
+                record_axl = AXL(
+                    A=axl.A.detach().cpu(),
+                    X=axl.X.detach().cpu(),
+                    L=axl.L.detach().cpu(),
+                )
                 entry[key] = record_axl
 
             self.sample_trajectory_recorder.record(key="corrector_step", entry=entry)

@@ -1,3 +1,5 @@
+from copy import copy
+
 import pytest
 import torch
 
@@ -7,7 +9,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_schedul
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
     class_index_to_onehot, compute_q_at_given_a0, compute_q_at_given_atm1,
-    get_probability_at_previous_time_step)
+    get_probability_at_previous_time_step, get_probability_from_logits)
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
     broadcast_batch_matrix_tensor_to_all_dimensions
 
@@ -321,3 +323,50 @@ def test_prob_a0_given_a1_is_never_mask(number_of_atoms, num_classes, total_time
 
     total_probability = p_a0_given_a1.sum(dim=-1)
     torch.testing.assert_allclose(total_probability, torch.ones_like(total_probability))
+
+
+@pytest.fixture()
+def logits(batch_size, num_atom_types, num_classes):
+    return torch.rand(batch_size, num_atom_types, num_classes)
+
+
+@pytest.mark.parametrize("lowest_probability_value", [1e-12, 1e-8, 1e-3])
+def test_get_probability_from_logits_general(logits, lowest_probability_value):
+    probabilities = get_probability_from_logits(logits, lowest_probability_value)
+
+    approximate_probabilities = torch.nn.functional.softmax(logits, dim=-1)
+
+    torch.testing.assert_close(probabilities, approximate_probabilities)
+
+    computed_sums = probabilities.sum(dim=-1)
+    torch.testing.assert_close(computed_sums, torch.ones_like(computed_sums))
+
+
+@pytest.mark.parametrize("lowest_probability_value", [1e-12, 1e-8, 1e-3])
+def test_get_probability_from_logits_some_zero_probabilities(logits, lowest_probability_value):
+
+    mask = torch.randint(0, 2, logits.shape).to(torch.bool)
+    mask[:, :, 0] = False  # make sure no mask is all True.
+
+    edge_case_logits = copy(logits)
+    edge_case_logits[mask] = -torch.inf
+
+    computed_probabilities = get_probability_from_logits(edge_case_logits, lowest_probability_value)
+
+    computed_sums = computed_probabilities.sum(dim=-1)
+    torch.testing.assert_close(computed_sums, torch.ones_like(computed_sums))
+
+    assert torch.all(computed_probabilities[mask] > 0.1 * lowest_probability_value)
+
+
+@pytest.mark.parametrize("lowest_probability_value", [1e-12, 1e-8, 1e-3])
+def test_get_probability_from_logits_pathological(logits, lowest_probability_value):
+
+    mask = torch.randint(0, 2, logits.shape).to(torch.bool)
+    mask[0, 0, :] = True  # All bad logits
+
+    bad_logits = copy(logits)
+    bad_logits[mask] = -torch.inf
+
+    with pytest.raises(AssertionError):
+        _ = get_probability_from_logits(bad_logits, lowest_probability_value)
