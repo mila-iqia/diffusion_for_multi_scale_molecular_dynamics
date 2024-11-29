@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Tuple
+from typing import Optional, Tuple
 
 import einops
 import torch
@@ -168,6 +168,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         sigma_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
+        z: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         r"""Generic update for the relative coordinates.
 
@@ -186,13 +187,16 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 eps_i in the corrector step. Dimension: [number_of_samples]
             gaussian_noise_weight: prefactor in front of the random noise update. Should be g_i in the predictor step
                 and sqrt_2eps_i in the corrector step. Dimension: [number_of_samples]
+            z: gaussian noise used to update the coordinates. If None, a sample is drawn from the normal distribution.
+                Dimension: [number_of_samples, number_of_atoms, spatial_dimension]. Defaults to None.
 
         Returns:
             updated_coordinates: relative coordinates after the update. Dimension: [number_of_samples, number_of_atoms,
                 spatial_dimension].
         """
         number_of_samples = relative_coordinates.shape[0]
-        z = self._draw_gaussian_sample(number_of_samples).to(relative_coordinates)
+        if z is None:
+            z = self._draw_gaussian_sample(number_of_samples).to(relative_coordinates)
         updated_coordinates = (
             relative_coordinates
             + score_weight * sigma_normalized_scores / sigma_i
@@ -518,7 +522,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
     ) -> AXL:
         """Corrector Step.
 
-        Note this is not affecting the atom types. Only the reduced coordinates and lattice vectors.
+        Note this dones not affect the atom types unless specified with the atom_type_transition_in_corrector argument.
+        Always affect the reduced coordinates and lattice vectors.
 
         Args:
             composition_i : sampled composition (atom types, relative coordinates, lattice vectors), at time step i.
