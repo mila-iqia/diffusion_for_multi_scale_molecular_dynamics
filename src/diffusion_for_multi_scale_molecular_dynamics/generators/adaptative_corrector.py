@@ -166,11 +166,13 @@ class AdaptativeCorrectorGenerator(LangevinGenerator):
         relative_coordinates_sigma_score_norm = (
             torch.linalg.norm(model_predictions_i.X, dim=-1).mean(dim=-1)
         ).view(-1, 1, 1)
+        # note that sigma_score is \sigma * s(x, t), so we need to divide the norm by sigma to get the correct step size
+        relative_coordinates_sigma_score_norm /= sigma_i
         # draw random noise
-        z = self._draw_gaussian_sample(relative_coordinates_sigma_score_norm.shape[0])
+        z = self._draw_gaussian_sample(relative_coordinates_sigma_score_norm.shape[0]).to(composition_i.X)
         # and compute the norm
         z_norm = torch.linalg.norm(z, dim=-1).mean(dim=-1).view(-1, 1, 1)
-        # note that sigma_score is \sigma * s(x, t), so we need to divide the norm by sigma to get the correct step size
+
         eps_i = (
             2
             * (
