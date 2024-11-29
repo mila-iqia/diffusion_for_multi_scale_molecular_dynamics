@@ -472,6 +472,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             one_atom_type_transition_per_step=one_atom_type_transition_per_step,
         )
 
+        if this_is_last_time_step:
+            assert (a_im1 != self.masked_atom_type_index).all(), \
+                "There remains MASKED atoms at the last time step: review code, there must be a bug or invalid input."
+
         x_im1 = self._relative_coordinates_update(
             composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i
         )
