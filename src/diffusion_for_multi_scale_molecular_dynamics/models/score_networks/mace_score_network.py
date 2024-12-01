@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import AnyStr, Dict, List, Optional
 
+import einops
 import numpy as np
 import torch
 from e3nn import o3
@@ -14,9 +15,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import (
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import (
-    MaceScorePredictionHeadParameters, instantiate_mace_prediction_head)
+    MaceMLPScorePredictionHeadParameters, MaceScorePredictionHeadParameters,
+    instantiate_mace_prediction_head)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISY_CARTESIAN_POSITIONS, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
+    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, TIME, UNIT_CELL)
 
 
 @dataclass(kw_only=True)
@@ -50,6 +52,8 @@ class MACEScoreNetworkParameters(ScoreNetworkParameters):
     radial_type: str = (
         "bessel"  # type of radial basis functions - choices=["bessel", "gaussian", "chebyshev"]
     )
+    atom_type_head_hidden_size: int = 64
+    atom_type_head_n_hidden_layers: int = 2
     prediction_head_parameters: MaceScorePredictionHeadParameters
 
 
@@ -119,20 +123,31 @@ class MACEScoreNetwork(ScoreNetwork):
             ), "Something is wrong with pretrained dimensions."
 
         self.mace_output_size = output_node_features_irreps.dim
-        self.prediction_head = instantiate_mace_prediction_head(
+        self.coordinates_prediction_head = instantiate_mace_prediction_head(
             output_node_features_irreps, hyper_params.prediction_head_parameters
+        )
+        atom_type_prediction_head_parameters = MaceMLPScorePredictionHeadParameters(
+            name="mlp",
+            hidden_dimensions_size=hyper_params.atom_type_head_hidden_size,
+            n_hidden_dimensions=hyper_params.atom_type_head_n_hidden_layers,
+            spatial_dimension=self.num_atom_types
+            + 1,  # spatial_dimension acts as the output size
+            # TODO will not work because MASK is not a valid atom type
+        )
+        self.atom_types_prediction_head = instantiate_mace_prediction_head(
+            output_node_features_irreps, atom_type_prediction_head_parameters
         )
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MACEScoreNetwork, self)._check_batch(batch)
-        number_of_atoms = batch[NOISY_RELATIVE_COORDINATES].shape[1]
+        number_of_atoms = batch[NOISY_AXL_COMPOSITION].X.shape[1]
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Forward unchecked.
 
         This method assumes that the input data has already been checked with respect to expectations
@@ -147,7 +162,7 @@ class MACEScoreNetwork(ScoreNetwork):
             output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
         """
         del conditional  # TODO implement conditional
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         batch[NOISY_CARTESIAN_POSITIONS] = torch.bmm(
             relative_coordinates, batch[UNIT_CELL]
         )  # positions in Angstrom
@@ -164,11 +179,38 @@ class MACEScoreNetwork(ScoreNetwork):
         # with this value the same for all atoms belonging to the same graph.
         times = batch[TIME].to(relative_coordinates.device)  # shape [batch_size, 1]
         flat_times = times[graph_input.batch]  # shape [batch_size * natoms, 1]
-        flat_scores = self.prediction_head(
+
+        # The output of the prediction head is a 'cartesian score'; ie it is similar to nabla_r ln P.
+        flat_cartesian_scores = self.coordinates_prediction_head(
             flat_node_features, flat_times
         )  # shape [batch_size * natoms, spatial_dim]
 
-        # Reshape the scores to have an explicit batch dimension
-        scores = flat_scores.reshape(-1, self._natoms, self.spatial_dimension)
+        # Reshape the cartesian scores to have an explicit batch dimension
+        cartesian_scores = flat_cartesian_scores.reshape(
+            -1, self._natoms, self.spatial_dimension
+        )
+
+        # The expected output of the score network is a COORDINATE SCORE, i.e. something like nabla_x ln P.
+        # Note that the basis_vectors is composed of ROWS of basis vectors
+        basis_vectors = batch[UNIT_CELL]
+        coordinates_scores = einops.einsum(
+            basis_vectors,
+            cartesian_scores,
+            "batch i alpha, batch natoms alpha -> batch natoms i",
+        )
+
+        flat_atom_type_scores = self.atom_types_prediction_head(
+            flat_node_features, flat_times
+        )  # shape [batch_size * natoms, num_atom_types]
+
+        atom_type_scores = flat_atom_type_scores.reshape(
+            -1, self._natoms, self.num_atom_types + 1
+        )
+
+        scores = AXL(
+            A=atom_type_scores,
+            X=coordinates_scores,
+            L=torch.zeros_like(atom_type_scores),  # TODO replace with real output
+        )
 
         return scores

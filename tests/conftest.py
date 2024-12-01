@@ -4,6 +4,7 @@ import torch
 
 from tests.fake_data_utils import (create_dump_yaml_documents,
                                    create_thermo_yaml_documents,
+                                   generate_random_string,
                                    get_configuration_runs, write_to_yaml)
 
 
@@ -36,8 +37,16 @@ def pytest_collection_modifyitems(config, items):
 
 
 _available_devices = [torch.device("cpu")]
+
 if torch.cuda.is_available():
     _available_devices.append(torch.device("cuda"))
+
+if torch.backends.mps.is_available():
+    # MPS is an Apple-specific device. Its connections to pytorch are still incomplete at this time.
+    # The environment variable
+    #   PYTORCH_ENABLE_MPS_FALLBACK=1
+    # should be set to use this device so that a cpu fallback can be used for missing operations.
+    _available_devices.append(torch.device("mps"))
 
 
 @pytest.fixture(params=_available_devices)
@@ -51,6 +60,8 @@ def accelerator(device):
         return "cpu"
     elif str(device) == "cuda":
         return "gpu"
+    elif str(device) == "mps":
+        return "mps"
     else:
         raise ValueError("Wrong device")
 
@@ -90,17 +101,26 @@ class TestDiffusionDataBase:
         return 8
 
     @pytest.fixture()
+    def num_atom_types(self):
+        """Number of types of atoms in fake data."""
+        return 5
+
+    @pytest.fixture
+    def unique_elements(self, num_atom_types):
+        return [generate_random_string(size=3) for _ in range(num_atom_types)]
+
+    @pytest.fixture()
     def spatial_dimension(self):
         """Spatial dimension of fake data."""
         return 3
 
     @pytest.fixture
     def train_configuration_runs(
-        self, number_of_train_runs, spatial_dimension, number_of_atoms
+        self, number_of_train_runs, spatial_dimension, number_of_atoms, unique_elements
     ):
         """Generate multiple fake 'data' runs and return their configurations."""
         return get_configuration_runs(
-            number_of_train_runs, spatial_dimension, number_of_atoms
+            number_of_train_runs, spatial_dimension, number_of_atoms, unique_elements
         )
 
     @pytest.fixture
@@ -113,11 +133,11 @@ class TestDiffusionDataBase:
 
     @pytest.fixture
     def valid_configuration_runs(
-        self, number_of_valid_runs, spatial_dimension, number_of_atoms
+        self, number_of_valid_runs, spatial_dimension, number_of_atoms, unique_elements
     ):
         """Generate multiple fake 'data' runs and return their configurations."""
         return get_configuration_runs(
-            number_of_valid_runs, spatial_dimension, number_of_atoms
+            number_of_valid_runs, spatial_dimension, number_of_atoms, unique_elements
         )
 
     @pytest.fixture

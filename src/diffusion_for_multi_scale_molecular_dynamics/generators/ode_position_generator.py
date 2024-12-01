@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 from dataclasses import dataclass
 from typing import Callable
@@ -7,18 +8,20 @@ import torch
 import torchode as to
 from torchode import Solution
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import (
+    AXLGenerator, SamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
+    VarianceScheduler
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
-from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import (
-    NoOpODESampleTrajectory, ODESampleTrajectory)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
+from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
+    SampleTrajectory
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +39,7 @@ class ODESamplingParameters(SamplingParameters):
     )
 
 
-class ExplodingVarianceODEPositionGenerator(PositionGenerator):
+class ExplodingVarianceODEAXLGenerator(AXLGenerator):
     """Exploding Variance ODE Position Generator.
 
     This class generates position samples by solving an ordinary differential equation (ODE).
@@ -47,58 +50,49 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         self,
         noise_parameters: NoiseParameters,
         sampling_parameters: ODESamplingParameters,
-        sigma_normalized_score_network: ScoreNetwork,
+        axl_network: ScoreNetwork,
     ):
         """Init method.
 
         Args:
             noise_parameters : the diffusion noise parameters.
             sampling_parameters: the parameters needed for sampling.
-            sigma_normalized_score_network : the score network to use for drawing samples.
+            axl_network : the model to use for drawing samples that predicts an AXL:
+                atom types: predicts p(a_0 | a_t)
+                relative coordinates: predicts the sigma normalized score
+                lattice: placeholder  # TODO
         """
         self.t0 = 0.0  # The "initial diffusion time", corresponding to the physical distribution.
         self.tf = 1.0  # The "final diffusion time", corresponding to the uniform distribution.
 
         self.noise_parameters = noise_parameters
-        self.sigma_normalized_score_network = sigma_normalized_score_network
+        self.exploding_variance = VarianceScheduler(noise_parameters)
+
+        self.axl_network = axl_network
 
         assert (
             self.noise_parameters.total_time_steps >= 2
         ), "There must at least be two time steps in the noise parameters to define the limits t0 and tf."
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.spatial_dimension = sampling_parameters.spatial_dimension
+        self.num_classes = (
+            sampling_parameters.num_atom_types + 1
+        )  # add 1 for the MASK class
         self.absolute_solver_tolerance = sampling_parameters.absolute_solver_tolerance
         self.relative_solver_tolerance = sampling_parameters.relative_solver_tolerance
-        self.record_samples = sampling_parameters.record_samples
+        self.record = sampling_parameters.record_samples
 
-        if self.record_samples:
-            self.sample_trajectory_recorder = ODESampleTrajectory()
-        else:
-            self.sample_trajectory_recorder = NoOpODESampleTrajectory()
+        if self.record:
+            self.sample_trajectory_recorder = SampleTrajectory()
+            self.sample_trajectory_recorder.record(key="noise_parameters",
+                                                   entry=dataclasses.asdict(noise_parameters))
+            self.sample_trajectory_recorder.record(key="sampling_parameters",
+                                                   entry=dataclasses.asdict(sampling_parameters))
 
-    def _get_exploding_variance_sigma(self, times):
-        """Get Exploding Variance Sigma.
-
-        In the 'exploding variance' scheme, the noise is defined by
-
-            sigma(t) = sigma_min^{1- t} x sigma_max^{t}
-
-        Args:
-            times : diffusion time
-
-        Returns:
-            sigmas: value of the noise parameter.
-        """
-        sigmas = (
-            self.noise_parameters.sigma_min ** (1.0 - times)
-            * self.noise_parameters.sigma_max**times
-        )
-        return sigmas
-
-    def _get_ode_prefactor(self, sigmas):
+    def _get_ode_prefactor(self, times):
         """Get ODE prefactor.
 
-        The ODE is given by
+        The ODE for the relative coordinates is given by
             dx = [-1/2 g(t)^2 x Score] dt
         with
             g(t)^2 = d sigma(t)^2 / dt
@@ -114,24 +108,21 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             Prefactor = d sigma(t) / dt
 
         Args:
-            sigmas : the values of the noise parameters.
+            times: the values of the time.
 
         Returns:
             ode prefactor: the prefactor in the ODE.
         """
-        log_ratio = torch.log(
-            torch.tensor(
-                self.noise_parameters.sigma_max / self.noise_parameters.sigma_min
-            )
-        )
-        ode_prefactor = log_ratio * sigmas
-        return ode_prefactor
+        return self.exploding_variance.get_sigma_time_derivative(times)
 
-    def generate_ode_term(self, unit_cell: torch.Tensor) -> Callable:
+    def generate_ode_term(
+        self, unit_cell: torch.Tensor, atom_types: torch.LongTensor
+    ) -> Callable:
         """Generate the ode_term needed to compute the ODE solution."""
 
         def ode_term(
-            times: torch.Tensor, flat_relative_coordinates: torch.Tensor
+            times: torch.Tensor,
+            flat_relative_coordinates: torch.Tensor,
         ) -> torch.Tensor:
             """ODE term.
 
@@ -141,13 +132,14 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
 
             Args:
                 times : ODE times, dimension [batch_size]
-                flat_relative_coordinates :  features for every time step, dimension [batch_size, number of features].
+                flat_relative_coordinates : relative coordinates features for every time step, dimension
+                    [batch_size, number of features].
 
             Returns:
                 rhs: the right-hand-side of the corresponding ODE.
             """
-            sigmas = self._get_exploding_variance_sigma(times)
-            ode_prefactor = self._get_ode_prefactor(sigmas)
+            sigmas = self.exploding_variance.get_sigma(times)
+            ode_prefactor = self._get_ode_prefactor(times)
 
             relative_coordinates = einops.rearrange(
                 flat_relative_coordinates,
@@ -157,19 +149,21 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             )
 
             batch = {
-                NOISY_RELATIVE_COORDINATES: map_relative_coordinates_to_unit_cell(
-                    relative_coordinates
+                NOISY_AXL_COMPOSITION: AXL(
+                    A=atom_types,
+                    X=map_relative_coordinates_to_unit_cell(relative_coordinates),
+                    L=unit_cell,  # TODO
                 ),
                 NOISE: sigmas.unsqueeze(-1),
                 TIME: times.unsqueeze(-1),
-                UNIT_CELL: unit_cell,
+                UNIT_CELL: unit_cell,  # TODO replace with AXL-L
                 CARTESIAN_FORCES: torch.zeros_like(
                     relative_coordinates
                 ),  # TODO: handle forces correctly.
             }
 
             # Shape [batch_size, number of atoms, spatial dimension]
-            sigma_normalized_scores = self.sigma_normalized_score_network(batch)
+            sigma_normalized_scores = self.axl_network(batch).X
             flat_sigma_normalized_scores = einops.rearrange(
                 sigma_normalized_scores, "batch natom space -> batch (natom space)"
             )
@@ -180,28 +174,28 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
 
     def sample(
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Sample.
 
-        This method draws a position sample.
+        This method draws an AXL sample.
 
         Args:
             number_of_samples : number of samples to draw.
             device: device to use (cpu, cuda, etc.). Should match the PL model location.
-            unit_cell: unit cell definition in Angstrom.
+            unit_cell: unit cell definition in Angstrom.  # TODO replace with AXL-L
                 Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
-            samples: relative coordinates samples.
+            samples: samples as AXL composition
         """
-        ode_term = self.generate_ode_term(unit_cell)
+        initial_composition = map_axl_composition_to_unit_cell(
+            self.initialize(number_of_samples, device), device
+        )
 
-        initial_relative_coordinates = map_relative_coordinates_to_unit_cell(
-            self.initialize(number_of_samples)
-        ).to(device)
+        ode_term = self.generate_ode_term(unit_cell, atom_types=initial_composition.A)
 
         y0 = einops.rearrange(
-            initial_relative_coordinates, "batch natom space -> batch (natom space)"
+            initial_composition.X, "batch natom space -> batch (natom space)"
         )
 
         evaluation_times = torch.linspace(
@@ -228,7 +222,7 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         sol = jit_solver.solve(to.InitialValueProblem(y0=y0, t_eval=t_eval))
         logger.info("ODE solver Finished.")
 
-        if self.record_samples:
+        if self.record:
             self.record_sample(ode_term, sol, evaluation_times, unit_cell)
 
         # sol.ys has dimensions [number of samples, number of times, number of features]
@@ -242,7 +236,11 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             space=self.spatial_dimension,
         )
 
-        return map_relative_coordinates_to_unit_cell(relative_coordinates)
+        updated_composition = AXL(
+            A=initial_composition.A, X=relative_coordinates, L=initial_composition.L
+        )
+
+        return map_axl_composition_to_unit_cell(updated_composition, device)
 
     def record_sample(
         self,
@@ -266,15 +264,14 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
         """
         number_of_samples = sol.ys.shape[0]
 
-        self.sample_trajectory_recorder.record_unit_cell(unit_cell)
         record_relative_coordinates = einops.rearrange(
             sol.ys,
             "batch times (natom space) -> batch times natom space",
             natom=self.number_of_atoms,
             space=self.spatial_dimension,
         )
-        sigmas = self._get_exploding_variance_sigma(evaluation_times)
-        ode_prefactor = self._get_ode_prefactor(sigmas)
+        sigmas = self.exploding_variance.get_sigma(evaluation_times)
+        ode_prefactor = self._get_ode_prefactor(evaluation_times)
         list_flat_normalized_scores = []
         for time_idx, (time, gamma) in enumerate(zip(evaluation_times, ode_prefactor)):
             times = time * torch.ones(number_of_samples).to(sol.ys)
@@ -290,18 +287,30 @@ class ExplodingVarianceODEPositionGenerator(PositionGenerator):
             natom=self.number_of_atoms,
             space=self.spatial_dimension,
         )
-        self.sample_trajectory_recorder.record_ode_solution(
-            times=evaluation_times,
-            sigmas=sigmas,
-            relative_coordinates=record_relative_coordinates,
-            normalized_scores=record_normalized_scores,
-            stats=sol.stats,
-            status=sol.status,
-        )
 
-    def initialize(self, number_of_samples: int):
+        entry = dict(times=evaluation_times,
+                     sigmas=sigmas,
+                     relative_coordinates=record_relative_coordinates,
+                     normalized_scores=record_normalized_scores,
+                     unit_cell=unit_cell,
+                     stats=sol.stats,
+                     status=sol.status)
+        self.sample_trajectory_recorder.record(key='ode', entry=entry)
+
+    def initialize(
+        self, number_of_samples: int, device: torch.device = torch.device("cpu")
+    ):
         """This method must initialize the samples from the fully noised distribution."""
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
+        ).to(device)
+        atom_types = (
+            torch.zeros(number_of_samples, self.number_of_atoms).long().to(device)
         )
-        return relative_coordinates
+        lattice_vectors = torch.zeros(
+            number_of_samples, self.spatial_dimension * (self.spatial_dimension - 1)
+        ).to(
+            device
+        )  # TODO placeholder
+        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
+        return init_composition

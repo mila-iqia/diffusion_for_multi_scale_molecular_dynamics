@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 from dataclasses import dataclass
 
@@ -5,18 +6,20 @@ import einops
 import torch
 import torchsde
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import (
-    PositionGenerator, SamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import (
+    AXLGenerator, SamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
+    VarianceScheduler
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
-    SDESampleTrajectory
+    SampleTrajectory
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +54,9 @@ class SDE(torch.nn.Module):
         self,
         noise_parameters: NoiseParameters,
         sampling_parameters: SDESamplingParameters,
-        sigma_normalized_score_network: ScoreNetwork,
-        unit_cells: torch.Tensor,
+        axl_network: ScoreNetwork,
+        atom_types: torch.LongTensor,  # TODO review formalism - this is treated as constant through the SDE solver
+        unit_cells: torch.Tensor,  # TODO replace with AXL-L
         initial_diffusion_time: torch.Tensor,
         final_diffusion_time: torch.Tensor,
     ):
@@ -64,7 +68,11 @@ class SDE(torch.nn.Module):
         Args:
             noise_parameters: parameters defining the noise schedule.
             sampling_parameters : parameters defining the sampling procedure.
-            sigma_normalized_score_network : the score network to use for drawing samples.
+            axl_network : the model to use for drawing samples that predicts an AXL:
+                atom types: predicts p(a_0 | a_t)
+                relative coordinates: predicts the sigma normalized score
+                lattice: placeholder  # TODO
+            atom_types: atom type indices. Tensor of dimensions [number_of_samples, natoms]
             unit_cells: unit cell definition in Angstrom.
                 Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
             initial_diffusion_time : initial diffusion time. Dimensionless tensor.
@@ -73,33 +81,14 @@ class SDE(torch.nn.Module):
         super().__init__()
         self.sde_type = sampling_parameters.sde_type
         self.noise_parameters = noise_parameters
-        self.sigma_normalized_score_network = sigma_normalized_score_network
-        self.unit_cells = unit_cells
+        self.exploding_variance = VarianceScheduler(noise_parameters)
+        self.axl_network = axl_network
+        self.atom_types = atom_types
+        self.unit_cells = unit_cells  # TODO replace with AXL-L
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.spatial_dimension = sampling_parameters.spatial_dimension
         self.initial_diffusion_time = initial_diffusion_time
         self.final_diffusion_time = final_diffusion_time
-
-    def _get_exploding_variance_sigma(
-        self, diffusion_time: torch.Tensor
-    ) -> torch.Tensor:
-        """Get Exploding Variance Sigma.
-
-        In the 'exploding variance' scheme, the noise is defined by
-
-            sigma(t) = sigma_min^{1- t} x sigma_max^{t}
-
-        Args:
-            diffusion_time : diffusion time
-
-        Returns:
-            sigma: value of the noise parameter.
-        """
-        sigma = (
-            self.noise_parameters.sigma_min ** (1.0 - diffusion_time)
-            * self.noise_parameters.sigma_max**diffusion_time
-        )
-        return sigma
 
     def _get_diffusion_coefficient_g_squared(
         self, diffusion_time: torch.Tensor
@@ -115,13 +104,7 @@ class SDE(torch.nn.Module):
         Returns:
             coefficient_g : the coefficient g(t)
         """
-        s_min = torch.tensor(self.noise_parameters.sigma_min)
-        ratio = torch.tensor(
-            self.noise_parameters.sigma_max / self.noise_parameters.sigma_min
-        )
-
-        g_squared = 2.0 * (s_min * ratio**diffusion_time) ** 2 * torch.log(ratio)
-        return g_squared
+        return self.exploding_variance.get_g_squared(diffusion_time)
 
     def _get_diffusion_time(self, sde_time: torch.Tensor) -> torch.Tensor:
         """Get diffusion time.
@@ -149,15 +132,15 @@ class SDE(torch.nn.Module):
         """
         diffusion_time = self._get_diffusion_time(sde_time)
 
-        sigma_normalized_scores = self.get_sigma_normalized_score(
-            diffusion_time, flat_relative_coordinates
-        )
+        sigma_normalized_scores = self.get_model_predictions(
+            diffusion_time, flat_relative_coordinates, self.atom_types
+        ).X  # we are only using the sigma normalized score for the relative coordinates diffusion
         flat_sigma_normalized_scores = einops.rearrange(
             sigma_normalized_scores, "batch natom space -> batch (natom space)"
         )
 
         g_squared = self._get_diffusion_coefficient_g_squared(diffusion_time)
-        sigma = self._get_exploding_variance_sigma(diffusion_time)
+        sigma = self.exploding_variance.get_sigma(diffusion_time)
         # Careful! The prefactor must account for the following facts:
         #   -  the SDE time is NEGATIVE the diffusion time; this introduces a minus sign dt_{diff} = -dt_{sde}
         #   -  what our model calculates is the NORMALIZED score (ie, Score x sigma). We must thus divide by sigma.
@@ -165,9 +148,12 @@ class SDE(torch.nn.Module):
 
         return prefactor * flat_sigma_normalized_scores
 
-    def get_sigma_normalized_score(
-        self, diffusion_time: torch.Tensor, flat_relative_coordinates: torch.Tensor
-    ) -> torch.Tensor:
+    def get_model_predictions(
+        self,
+        diffusion_time: torch.Tensor,
+        flat_relative_coordinates: torch.Tensor,
+        atom_types: torch.Tensor,
+    ) -> AXL:
         """Get sigma normalized score.
 
         This is a utility method to wrap around the computation of the sigma normalized score in this context,
@@ -177,13 +163,16 @@ class SDE(torch.nn.Module):
             diffusion_time : the diffusion time. Dimensionless tensor.
             flat_relative_coordinates : the flat relative coordinates.
                 Dimension [batch_size, natoms x spatial_dimensions]
+            atom_types: indices for the atom types. Dimension [batch_size, natoms]
 
         Returns:
-            sigma_normalized_score: the sigma normalized score.
-                Dimension [batch_size, natoms, spatial_dimensions]
+            model predictions: AXL with
+                A: estimate of p(a_0|a_t). Dimension [batch_size, natoms, num_classes]
+                X: sigma normalized score. Dimension [batch_size, natoms, spatial_dimensions]
+                L: placeholder  # TODO
         """
         batch_size = flat_relative_coordinates.shape[0]
-        sigma = self._get_exploding_variance_sigma(diffusion_time)
+        sigma = self.exploding_variance.get_sigma(diffusion_time)
         sigmas = einops.repeat(sigma.unsqueeze(0), "1 -> batch 1", batch=batch_size)
         times = einops.repeat(
             diffusion_time.unsqueeze(0), "1 -> batch 1", batch=batch_size
@@ -196,8 +185,10 @@ class SDE(torch.nn.Module):
             space=self.spatial_dimension,
         )
         batch = {
-            NOISY_RELATIVE_COORDINATES: map_relative_coordinates_to_unit_cell(
-                relative_coordinates
+            NOISY_AXL_COMPOSITION: AXL(
+                A=atom_types,
+                X=map_relative_coordinates_to_unit_cell(relative_coordinates),
+                L=self.unit_cells,  # TODO
             ),
             NOISE: sigmas,
             TIME: times,
@@ -206,9 +197,9 @@ class SDE(torch.nn.Module):
                 relative_coordinates
             ),  # TODO: handle forces correctly.
         }
-        # Shape [batch_size, number of atoms, spatial dimension]
-        sigma_normalized_scores = self.sigma_normalized_score_network(batch)
-        return sigma_normalized_scores
+        # Shape for the coordinates scores [batch_size, number of atoms, spatial dimension]
+        model_predictions = self.axl_network(batch)
+        return model_predictions
 
     def g(self, sde_time, y):
         """Diffusion function."""
@@ -219,7 +210,7 @@ class SDE(torch.nn.Module):
         return g_of_t * torch.ones_like(y)
 
 
-class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
+class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
     """Exploding Variance SDE Position Generator.
 
     This class generates position samples by solving a stochastic differential equation (SDE).
@@ -230,54 +221,70 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
         self,
         noise_parameters: NoiseParameters,
         sampling_parameters: SDESamplingParameters,
-        sigma_normalized_score_network: ScoreNetwork,
+        axl_network: ScoreNetwork,
     ):
         """Init method.
 
         Args:
             noise_parameters : the diffusion noise parameters.
             sampling_parameters: the parameters needed for sampling.
-            sigma_normalized_score_network : the score network to use for drawing samples.
+            axl_network: the score network to use for drawing samples.
         """
         self.initial_diffusion_time = torch.tensor(0.0)
         self.final_diffusion_time = torch.tensor(1.0)
 
         self.noise_parameters = noise_parameters
-        self.sigma_normalized_score_network = sigma_normalized_score_network
+        self.axl_network = axl_network
         self.sampling_parameters = sampling_parameters
 
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.spatial_dimension = sampling_parameters.spatial_dimension
         self.absolute_solver_tolerance = sampling_parameters.absolute_solver_tolerance
         self.relative_solver_tolerance = sampling_parameters.relative_solver_tolerance
-        self.record_samples = sampling_parameters.record_samples
-        if self.record_samples:
-            self.sample_trajectory_recorder = SDESampleTrajectory()
+        self.record = sampling_parameters.record_samples
+        if self.record:
+            self.sample_trajectory_recorder = SampleTrajectory()
+            self.sample_trajectory_recorder.record(key="noise_parameters",
+                                                   entry=dataclasses.asdict(noise_parameters))
+            self.sample_trajectory_recorder.record(key="sampling_parameters",
+                                                   entry=dataclasses.asdict(sampling_parameters))
 
-    def get_sde(self, unit_cells: torch.Tensor) -> SDE:
+    def get_sde(self, unit_cells: torch.Tensor, atom_types: torch.LongTensor) -> SDE:
         """Get SDE."""
         return SDE(
             noise_parameters=self.noise_parameters,
             sampling_parameters=self.sampling_parameters,
-            sigma_normalized_score_network=self.sigma_normalized_score_network,
+            axl_network=self.axl_network,
+            atom_types=atom_types,
             unit_cells=unit_cells,
             initial_diffusion_time=self.initial_diffusion_time,
             final_diffusion_time=self.final_diffusion_time,
         )
 
-    def initialize(self, number_of_samples: int):
+    def initialize(
+        self, number_of_samples: int, device: torch.device = torch.device("cpu")
+    ):
         """This method must initialize the samples from the fully noised distribution."""
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
+        ).to(device)
+        atom_types = (
+            torch.zeros(number_of_samples, self.number_of_atoms).long().to(device)
         )
-        return relative_coordinates
+        lattice_vectors = torch.zeros(
+            number_of_samples, self.spatial_dimension * (self.spatial_dimension - 1)
+        ).to(
+            device
+        )  # TODO placeholder
+        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
+        return init_composition
 
     def sample(
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Sample.
 
-        This method draws a position sample.
+        This method draws an AXL sample.
 
         Args:
             number_of_samples : number of samples to draw.
@@ -286,16 +293,17 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
                 Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
-            samples: relative coordinates samples.
+            samples: samples as AXL composition.
         """
-        sde = self.get_sde(unit_cell)
+        initial_composition = map_axl_composition_to_unit_cell(
+            self.initialize(number_of_samples), device
+        )
+
+        sde = self.get_sde(unit_cell, atom_types=initial_composition.A)
         sde.to(device)
 
-        initial_relative_coordinates = map_relative_coordinates_to_unit_cell(
-            self.initialize(number_of_samples)
-        ).to(device)
         y0 = einops.rearrange(
-            initial_relative_coordinates, "batch natom space -> batch (natom space)"
+            initial_composition.X, "batch natom space -> batch (natom space)"
         )
 
         sde_times = torch.linspace(
@@ -323,7 +331,7 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
             )
             logger.info("SDE solver Finished.")
 
-        if self.record_samples:
+        if self.record:
             self.record_sample(sde, ys, sde_times)
 
         # only the final sde time (ie, diffusion time t0) is the real sample.
@@ -352,8 +360,6 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
         Returns:
             None
         """
-        self.sample_trajectory_recorder.record_unit_cell(sde.unit_cells)
-
         list_normalized_scores = []
         sigmas = []
         evaluation_times = []
@@ -362,14 +368,16 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
             sde_times.flip(dims=(0,)), ys.flip(dims=(0,))
         ):
             diffusion_time = sde._get_diffusion_time(sde_time)
-            sigma = sde._get_exploding_variance_sigma(diffusion_time)
+            sigma = sde.exploding_variance.get_sigma(diffusion_time)
             sigmas.append(sigma)
             evaluation_times.append(diffusion_time)
 
             with torch.no_grad():
-                normalized_scores = sde.get_sigma_normalized_score(
-                    diffusion_time, flat_relative_coordinates
-                )
+                normalized_scores = sde.get_model_predictions(
+                    diffusion_time,
+                    flat_relative_coordinates,
+                    sde.atom_types,
+                ).X
             list_normalized_scores.append(normalized_scores)
 
         sigmas = torch.tensor(sigmas)
@@ -387,9 +395,11 @@ class ExplodingVarianceSDEPositionGenerator(PositionGenerator):
             space=self.spatial_dimension,
         )
 
-        self.sample_trajectory_recorder.record_sde_solution(
-            times=evaluation_times,
-            sigmas=sigmas,
-            relative_coordinates=record_relative_coordinates,
-            normalized_scores=record_normalized_scores,
-        )
+        entry = dict(unit_cell=sde.unit_cells,
+                     times=evaluation_times,
+                     sigmas=sigmas,
+                     relative_coordinates=record_relative_coordinates,
+                     normalized_scores=record_normalized_scores
+                     )
+
+        self.sample_trajectory_recorder.record(key='sde', entry=entry)

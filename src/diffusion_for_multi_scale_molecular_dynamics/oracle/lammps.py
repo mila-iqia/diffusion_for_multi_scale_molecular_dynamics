@@ -1,6 +1,7 @@
 """Call LAMMPS to get the forces and energy in a given configuration."""
 
 import os
+import warnings
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -10,16 +11,18 @@ import pandas as pd
 import yaml
 from pymatgen.core import Element
 
-from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR
+from diffusion_for_multi_scale_molecular_dynamics.oracle import \
+    SW_COEFFICIENTS_DIR
 
 
+@warnings.deprecated("DO NOT USE THIS METHOD. It will be refactored away and replaced by LammpsEnergyOracle.")
 def get_energy_and_forces_from_lammps(
     cartesian_positions: np.ndarray,
     box: np.ndarray,
     atom_types: np.ndarray,
     atom_type_map: Dict[int, str] = {1: "Si"},
     tmp_work_dir: str = "./",
-    pair_coeff_dir: Path = DATA_DIR,
+    pair_coeff_dir: Path = SW_COEFFICIENTS_DIR,
 ) -> Tuple[float, pd.DataFrame]:
     """Call LAMMPS to compute the forces on all atoms in a configuration.
 

@@ -56,7 +56,7 @@ class TestDataProcess(TestDiffusionDataBase):
         expected_columns = [
             "natom",
             "box",
-            "type",
+            "element",
             CARTESIAN_POSITIONS,
             CARTESIAN_FORCES,
             RELATIVE_COORDINATES,

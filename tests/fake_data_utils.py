@@ -1,3 +1,5 @@
+import random
+import string
 from collections import namedtuple
 from typing import Any, Dict, List
 
@@ -16,7 +18,7 @@ Configuration = namedtuple(
         CARTESIAN_POSITIONS,
         CARTESIAN_FORCES,
         RELATIVE_COORDINATES,
-        "types",
+        "elements",
         "ids",
         "cell_dimensions",
         "potential_energy",
@@ -26,12 +28,17 @@ Configuration = namedtuple(
 )
 
 
-def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
+def generate_fake_unique_elements(num_elements: int):
+    return [generate_random_string(size=4) for _ in range(num_elements)]
+
+
+def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int, unique_elements: List[str]):
     """Generate fake configuration.
 
     Args:
         spatial_dimension : dimension of space. Should be 1, 2 or 3.
         number_of_atoms : how many atoms to generate.
+        unique_elements: distinct element types
 
     Returns:
         configuration: a configuration object with all the data describing a configuration.
@@ -53,7 +60,7 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
         relative_coordinates=relative_coordinates,
         cartesian_positions=positions,
         cartesian_forces=np.random.rand(number_of_atoms, spatial_dimension),
-        types=np.random.randint(1, 10, number_of_atoms),
+        elements=np.random.choice(unique_elements, number_of_atoms),
         ids=np.arange(1, number_of_atoms + 1),
         cell_dimensions=cell_dimensions,
         potential_energy=potential_energy,
@@ -62,14 +69,14 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int):
     )
 
 
-def get_configuration_runs(number_of_runs, spatial_dimension, number_of_atoms):
+def get_configuration_runs(number_of_runs, spatial_dimension, number_of_atoms, unique_elements):
     """Generate multiple random configuration runs, each composed of many different configurations."""
     list_configurations = []
     for _ in range(number_of_runs):
         number_of_configs = np.random.randint(1, 16)
         configurations = [
             generate_fake_configuration(
-                spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms
+                spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms, unique_elements=unique_elements
             )
             for _ in range(number_of_configs)
         ]
@@ -94,7 +101,7 @@ def generate_parse_dump_output_dataframe(
         row = dict(
             box=configuration.cell_dimensions,
             id=list(configuration.ids),
-            type=list(configuration.types),
+            element=list(configuration.elements),
         )
         for coordinates, name in zip(
             configuration.cartesian_positions.transpose(), ["x", "y", "z"]
@@ -118,8 +125,8 @@ def create_dump_single_record(
 
     box = [[0, float(dimension)] for dimension in configuration.cell_dimensions]
 
-    # keywords should be of the form : [id, type, x, y, z, fx, fy, fz, ]
-    keywords = ["id", "type"]
+    # keywords should be of the form : [id, element, x, y, z, fx, fy, fz, ]
+    keywords = ["id", "element"]
 
     for direction, _ in zip(["x", "y", "z"], range(spatial_dimension)):
         keywords.append(direction)
@@ -130,14 +137,14 @@ def create_dump_single_record(
     # Each row of data should be a list in the same order as the keywords
     data = []
 
-    for id, type, position, force in zip(
+    for id, element, position, force in zip(
         configuration.ids,
-        configuration.types,
+        configuration.elements,
         configuration.cartesian_positions,
         configuration.cartesian_forces,
     ):
         row = (
-            [int(id), int(type)]
+            [int(id), element]
             + [float(p) for p in position]
             + [float(f) for f in force]
         )
@@ -227,7 +234,7 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
         row = dict(
             natom=number_of_atoms,
             box=box,
-            type=configuration.types,
+            element=configuration.elements,
             potential_energy=configuration.potential_energy,
             cartesian_positions=positions,
             relative_coordinates=relative_positions,
@@ -264,3 +271,8 @@ def find_aligning_permutation(
     permutation_indices = matching_indices[:, 1]
 
     return permutation_indices
+
+
+def generate_random_string(size: int):
+    chars = string.ascii_uppercase + string.ascii_lowercase
+    return ''.join(random.choice(chars) for _ in range(size))

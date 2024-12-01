@@ -7,7 +7,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISY_RELATIVE_COORDINATES, UNIT_CELL)
+    AXL, NOISY_AXL_COMPOSITION, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions)
@@ -57,7 +57,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
 
     def forward(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: Optional[bool] = None
-    ) -> torch.Tensor:
+    ) -> AXL:
         """Model forward.
 
         Args:
@@ -70,7 +70,8 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         """
         raw_scores = self._score_network(batch, conditional)
         forces = self.get_relative_coordinates_pseudo_force(batch)
-        return raw_scores + forces
+        updated_scores = AXL(A=raw_scores.A, X=raw_scores.X + forces, L=raw_scores.L)
+        return updated_scores
 
     def _get_cartesian_pseudo_forces_contributions(
         self, cartesian_displacements: torch.Tensor
@@ -109,7 +110,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         self, batch: Dict[AnyStr, torch.Tensor]
     ) -> AdjacencyInfo:
         basis_vectors = batch[UNIT_CELL]
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         cartesian_positions = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
         )
@@ -132,8 +133,8 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         bch = adj_info.edge_batch_indices
         src, dst = adj_info.adjacency_matrix
 
-        relative_coordinates = batch[NOISY_RELATIVE_COORDINATES]
-        basis_vectors = batch[UNIT_CELL]
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L
         cartesian_positions = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
         )
@@ -159,7 +160,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         bch = adj_info.edge_batch_indices
         src, dst = adj_info.adjacency_matrix
 
-        batch_size, natoms, spatial_dimension = batch[NOISY_RELATIVE_COORDINATES].shape
+        batch_size, natoms, spatial_dimension = batch[NOISY_AXL_COMPOSITION].X.shape
 
         # Combine the bch and src index into a single global index
         node_idx = natoms * bch + src
@@ -207,7 +208,7 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
             cartesian_pseudo_force_contributions, adj_info, batch
         )
 
-        basis_vectors = batch[UNIT_CELL]
+        basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L
         reciprocal_basis_vectors = get_reciprocal_basis_vectors(basis_vectors)
         relative_pseudo_forces = get_relative_coordinates_from_cartesian_positions(
             cartesian_pseudo_forces, reciprocal_basis_vectors

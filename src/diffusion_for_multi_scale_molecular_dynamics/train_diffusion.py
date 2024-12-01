@@ -14,17 +14,19 @@ from diffusion_for_multi_scale_molecular_dynamics.callbacks.callback_loader impo
     create_all_callbacks
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
+from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
+    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.loggers.logger_loader import \
     create_all_loggers
-from diffusion_for_multi_scale_molecular_dynamics.main_utils import (
-    MetricResult, get_crash_metric_result, get_optimized_metric_name_and_mode,
-    load_and_backup_hyperparameters, report_to_orion_if_on)
 from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
     load_diffusion_model
 from diffusion_for_multi_scale_molecular_dynamics.utils.hp_utils import \
     check_and_log_hp
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
     log_exp_details, setup_console_logger)
+from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import (
+    MetricResult, get_crash_metric_result, get_optimized_metric_name_and_mode,
+    load_and_backup_hyperparameters, report_to_orion_if_on)
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +121,9 @@ def run(args, output_dir, hyper_params):
     if hyper_params["seed"] is not None:
         pytorch_lightning.seed_everything(hyper_params["seed"])
 
-    data_params = LammpsLoaderParameters(**hyper_params["data"])
+    ElementTypes.validate_elements(hyper_params["elements"])
+
+    data_params = LammpsLoaderParameters(**hyper_params["data"], elements=hyper_params["elements"])
 
     datamodule = LammpsForDiffusionDataModule(
         lammps_run_dir=args.data,

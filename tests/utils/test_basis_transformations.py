@@ -1,10 +1,11 @@
 import pytest
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,
-    map_relative_coordinates_to_unit_cell)
+    map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
 
 
 @pytest.fixture
@@ -20,6 +21,11 @@ def number_of_atoms():
 @pytest.fixture
 def relative_coordinates(batch_size, number_of_atoms):
     return torch.rand(batch_size, number_of_atoms, 3)
+
+
+@pytest.fixture
+def num_atom_types():
+    return 5
 
 
 def test_get_reciprocal_basis_vectors(basis_vectors):
@@ -74,7 +80,7 @@ def test_remainder_failure():
 
 @pytest.mark.parametrize("shape", [(10,), (10, 20), (3, 4, 5)])
 def test_map_relative_coordinates_to_unit_cell_hard(shape):
-    relative_coordinates = 1e-8 * (torch.rand((10,)) - 0.5)
+    relative_coordinates = 1e-8 * (torch.rand(shape) - 0.5)
     computed_relative_coordinates = map_relative_coordinates_to_unit_cell(
         relative_coordinates
     )
@@ -95,7 +101,32 @@ def test_map_relative_coordinates_to_unit_cell_hard(shape):
 @pytest.mark.parametrize("shape", [(100, 8, 16)])
 def test_map_relative_coordinates_to_unit_cell_easy(shape):
     # Very unlikely to hit the edge cases.
-    relative_coordinates = 10.0 * (torch.rand((10,)) - 0.5)
+    relative_coordinates = 10.0 * (torch.rand(shape) - 0.5)
     expected_values = torch.remainder(relative_coordinates, 1.0)
     computed_values = map_relative_coordinates_to_unit_cell(relative_coordinates)
     torch.testing.assert_close(computed_values, expected_values)
+
+
+@pytest.mark.parametrize("shape", [(10,), (10, 20), (3, 4, 5)])
+def test_map_axl_to_unit_cell_hard(shape, num_atom_types):
+    atom_types = torch.randint(0, num_atom_types + 1, shape)
+    relative_coordinates = 1e-8 * (torch.rand(shape) - 0.5)
+    axl_composition = AXL(A=atom_types, X=relative_coordinates, L=torch.rand(shape))
+
+    computed_axl_composition = map_axl_composition_to_unit_cell(
+        axl_composition, device=torch.device("cpu")
+    )
+
+    positive_relative_coordinates_mask = relative_coordinates >= 0.0
+    assert torch.all(
+        relative_coordinates[positive_relative_coordinates_mask]
+        == computed_axl_composition.X[positive_relative_coordinates_mask]
+    )
+    torch.testing.assert_close(
+        computed_axl_composition.X[~positive_relative_coordinates_mask],
+        torch.zeros_like(
+            computed_axl_composition.X[~positive_relative_coordinates_mask]
+        ),
+    )
+    assert torch.all(computed_axl_composition.A == axl_composition.A)
+    assert torch.all(computed_axl_composition.L == axl_composition.L)

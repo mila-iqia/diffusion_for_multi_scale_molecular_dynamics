@@ -12,26 +12,30 @@ from typing import Any, AnyStr, Dict, Optional, Union
 
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
+    ElementTypes
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
+    SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
 from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
     load_sampling_parameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
-    SamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.main_utils import \
-    load_and_backup_hyperparameters
-from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import \
-    PositionDiffusionLightningModel
+from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
+    AXLDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.oracle.energies import \
-    compute_oracle_energies
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.samples.sampling import \
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
+    OracleParameters
+from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import (
+    create_energy_oracle, create_energy_oracle_parameters)
+from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
     get_git_hash, setup_console_logger)
+from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
+    load_and_backup_hyperparameters
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +91,20 @@ def main(args: Optional[Any] = None):
         hyper_params
     )
 
+    if "elements" in hyper_params:
+        ElementTypes.validate_elements(hyper_params["elements"])
+
+    oracle_parameters = None
+    if "oracle" in hyper_params:
+        assert "elements" in hyper_params, \
+            "elements are needed to define the energy oracle."
+        elements = hyper_params["elements"]
+        oracle_parameters = create_energy_oracle_parameters(hyper_params["oracle"], elements)
+
     create_samples_and_write_to_disk(
         noise_parameters=noise_parameters,
         sampling_parameters=sampling_parameters,
+        oracle_parameters=oracle_parameters,
         device=device,
         checkpoint_path=args.checkpoint,
         output_path=args.output,
@@ -119,28 +134,27 @@ def extract_and_validate_parameters(hyper_params: Dict[AnyStr, Any]):
     return noise_parameters, sampling_parameters
 
 
-def get_sigma_normalized_score_network(
-    checkpoint_path: Union[str, Path]
-) -> ScoreNetwork:
-    """Get sigma-normalized score network.
+def get_axl_network(checkpoint_path: Union[str, Path]) -> ScoreNetwork:
+    """Get AXL network.
 
     Args:
         checkpoint_path : path where the checkpoint is written.
 
     Returns:
-        sigma_normalized score network: read from the checkpoint.
+        axl network network: read from the checkpoint.
     """
     logger.info("Loading checkpoint...")
-    pl_model = PositionDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
+    pl_model = AXLDiffusionLightningModel.load_from_checkpoint(checkpoint_path)
     pl_model.eval()
 
-    sigma_normalized_score_network = pl_model.sigma_normalized_score_network
-    return sigma_normalized_score_network
+    axl_network = pl_model.axl_network
+    return axl_network
 
 
 def create_samples_and_write_to_disk(
     noise_parameters: NoiseParameters,
     sampling_parameters: SamplingParameters,
+    oracle_parameters: Union[OracleParameters, None],
     device: torch.device,
     checkpoint_path: Union[str, Path],
     output_path: Union[str, Path],
@@ -159,13 +173,13 @@ def create_samples_and_write_to_disk(
     Returns:
         None
     """
-    sigma_normalized_score_network = get_sigma_normalized_score_network(checkpoint_path)
+    axl_network = get_axl_network(checkpoint_path)
 
     logger.info("Instantiate generator...")
     position_generator = instantiate_generator(
         sampling_parameters=sampling_parameters,
         noise_parameters=noise_parameters,
-        sigma_normalized_score_network=sigma_normalized_score_network,
+        axl_network=axl_network,
     )
 
     logger.info("Generating samples...")
@@ -182,12 +196,14 @@ def create_samples_and_write_to_disk(
     with open(output_directory / "samples.pt", "wb") as fd:
         torch.save(samples_batch, fd)
 
-    logger.info("Compute energy from Oracle...")
-    sample_energies = compute_oracle_energies(samples_batch)
+    if oracle_parameters:
+        logger.info("Compute energy from Oracle...")
+        oracle = create_energy_oracle(oracle_parameters)
+        sample_energies = oracle.compute_oracle_energies(samples_batch)
 
-    logger.info("Writing energies to disk...")
-    with open(output_directory / "energies.pt", "wb") as fd:
-        torch.save(sample_energies, fd)
+        logger.info("Writing energies to disk...")
+        with open(output_directory / "energies.pt", "wb") as fd:
+            torch.save(sample_energies, fd)
 
     if sampling_parameters.record_samples:
         logger.info("Writing sampling trajectories to disk...")

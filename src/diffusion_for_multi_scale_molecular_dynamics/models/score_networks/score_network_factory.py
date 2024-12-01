@@ -65,6 +65,9 @@ def create_score_network_parameters(
     Returns:
         score_network_parameters: the dataclass configuration object describing the score network.
     """
+    assert len(global_parameters_dictionary["elements"]) == score_network_dictionary["num_atom_types"], \
+        "There should be 'num_atom_types' entries in the 'elements' list."
+
     assert (
         "architecture" in score_network_dictionary
     ), "The architecture of the score network must be specified."

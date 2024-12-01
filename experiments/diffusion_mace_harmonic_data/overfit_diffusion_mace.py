@@ -20,16 +20,18 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusio
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.samplers.noisy_relative_coordinates_sampler import \
-    NoisyRelativeCoordinatesSampler
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import (
-    ExplodingVarianceSampler, NoiseParameters)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
+    ExplodingVarianceSampler
+from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
+    RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
-from experiments.analysis.analytic_score import (get_exact_samples,
-                                                 get_unit_cells)
+from experiments.analysis.analytic_score.utils import (get_exact_samples,
+                                                       get_unit_cells)
 
 torch.set_default_dtype(torch.float64)
 
@@ -114,7 +116,7 @@ diffusion_mace_score_network_parameters = DiffusionMACEScoreNetworkParameters(
 max_epochs = 1000
 acell = 5.5
 
-noisy_relative_coordinates_sampler = NoisyRelativeCoordinatesSampler()
+relative_coordinates_noiser = RelativeCoordinatesNoiser()
 
 noise_parameters = NoiseParameters(total_time_steps=100, sigma_min=0.001, sigma_max=0.5)
 variance_sampler = ExplodingVarianceSampler(noise_parameters)
@@ -150,7 +152,7 @@ if __name__ == "__main__":
     )
     sigmas = torch.ones_like(sigmas)
 
-    xt = noisy_relative_coordinates_sampler.get_noisy_relative_coordinates_sample(
+    xt = relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
         x0, sigmas
     )
 

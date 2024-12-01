@@ -1,10 +1,10 @@
 from typing import Any, AnyStr, Dict
 
+from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
+    SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import \
     ODESamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.position_generator import \
-    SamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import \
     SDESamplingParameters

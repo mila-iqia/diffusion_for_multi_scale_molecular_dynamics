@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# This example assumes that the dataset 'si_diffusion_small' is present locally in the DATA folder.
-# It is also assumed that the user has a Comet account for logging experiments.
+# This example assumes that the dataset 'Si_diffusion_1x1x1' is present locally in the DATA folder.
 
 CONFIG=../../config_files/diffusion/config_diffusion_mlp.yaml
-DATA_DIR=../../../data/si_diffusion_1x1x1
+DATA_DIR=../../../data/Si_diffusion_1x1x1
 PROCESSED_DATA=${DATA_DIR}/processed
 DATA_WORK_DIR=${DATA_DIR}/cache/
 
 OUTPUT=output/run1
 
-python ../../../crystal_diffusion/train_diffusion.py \
+python ../../../src/diffusion_for_multi_scale_molecular_dynamics/train_diffusion.py \
+    --accelerator "cpu" \
     --config $CONFIG \
     --data $DATA_DIR \
     --processed_datadir $PROCESSED_DATA \

@@ -6,33 +6,29 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_fi
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
     MLPScoreNetwork, MLPScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, NOISE, NOISY_RELATIVE_COORDINATES, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+from tests.models.score_network.base_test_score_network import \
+    BaseTestScoreNetwork
 
 
 @pytest.mark.parametrize("number_of_atoms", [4, 8, 16])
 @pytest.mark.parametrize("radial_cutoff", [1.5, 2.0, 2.5])
-class TestForceFieldAugmentedScoreNetwork:
-    @pytest.fixture(scope="class", autouse=True)
-    def set_random_seed(self):
-        torch.manual_seed(345345345)
-
+class TestForceFieldAugmentedScoreNetwork(BaseTestScoreNetwork):
     @pytest.fixture()
-    def spatial_dimension(self):
-        return 3
-
-    @pytest.fixture()
-    def score_network_parameters(self, number_of_atoms, spatial_dimension):
+    def score_network(
+        self, number_of_atoms, spatial_dimension, num_atom_types
+    ):
         # Generate an arbitrary MLP-based score network.
-        return MLPScoreNetworkParameters(
+        score_network_parameters = MLPScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
-            embedding_dimensions_size=12,
+            num_atom_types=num_atom_types,
+            noise_embedding_dimensions_size=6,
+            time_embedding_dimensions_size=6,
+            atom_type_embedding_dimensions_size=12,
             n_hidden_dimensions=2,
             hidden_dimensions_size=16,
         )
-
-    @pytest.fixture()
-    def score_network(self, score_network_parameters):
         return MLPScoreNetwork(score_network_parameters)
 
     @pytest.fixture()
@@ -47,10 +43,6 @@ class TestForceFieldAugmentedScoreNetwork:
             score_network, force_field_parameters
         )
         return augmented_score_network
-
-    @pytest.fixture()
-    def batch_size(self):
-        return 16
 
     @pytest.fixture
     def times(self, batch_size):
@@ -94,10 +86,20 @@ class TestForceFieldAugmentedScoreNetwork:
 
     @pytest.fixture()
     def batch(
-        self, relative_coordinates, cartesian_forces, times, noises, basis_vectors
+        self,
+        relative_coordinates,
+        atom_types,
+        cartesian_forces,
+        times,
+        noises,
+        basis_vectors,
     ):
         return {
-            NOISY_RELATIVE_COORDINATES: relative_coordinates,
+            NOISY_AXL_COMPOSITION: AXL(
+                A=atom_types,
+                X=relative_coordinates,
+                L=torch.zeros_like(atom_types),  # TODO
+            ),
             TIME: times,
             UNIT_CELL: basis_vectors,
             NOISE: noises,
@@ -144,7 +146,8 @@ class TestForceFieldAugmentedScoreNetwork:
             )
         )
         cartesian_pseudo_force_contributions = (
-            force_field_augmented_score_network._get_cartesian_pseudo_forces_contributions(cartesian_displacements))
+            force_field_augmented_score_network._get_cartesian_pseudo_forces_contributions(cartesian_displacements)
+        )
 
         computed_cartesian_pseudo_forces = (
             force_field_augmented_score_network._get_cartesian_pseudo_forces(
@@ -180,7 +183,7 @@ class TestForceFieldAugmentedScoreNetwork:
         raw_scores = score_network(batch)
         augmented_scores = force_field_augmented_score_network(batch)
 
-        torch.testing.assert_allclose(augmented_scores - raw_scores, forces)
+        torch.testing.assert_allclose(augmented_scores.X - raw_scores.X, forces)
 
 
 def test_specific_scenario_sanity_check():
@@ -199,10 +202,15 @@ def test_specific_scenario_sanity_check():
 
     # Put two atoms on a straight line
     relative_coordinates = torch.tensor([[[0.35, 0.5, 0.0], [0.65, 0.5, 0.0]]])
-
+    atom_types = torch.zeros_like(relative_coordinates[..., 0])
     basis_vectors = torch.diag(torch.ones(spatial_dimension)).unsqueeze(0)
 
-    batch = {NOISY_RELATIVE_COORDINATES: relative_coordinates, UNIT_CELL: basis_vectors}
+    batch = {
+        NOISY_AXL_COMPOSITION: AXL(
+            A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
+        ),
+        UNIT_CELL: basis_vectors,
+    }
 
     forces = force_field_score_network.get_relative_coordinates_pseudo_force(batch)
 

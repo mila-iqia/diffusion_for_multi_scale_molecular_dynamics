@@ -5,19 +5,19 @@ import torch
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.loss import \
+from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     MSELossParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
+    AXLDiffusionLightningModel, AXLDiffusionParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
     OptimizerParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model import (
-    PositionDiffusionLightningModel, PositionDiffusionParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import \
-    RELATIVE_COORDINATES
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+    AXL_COMPOSITION
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 
 
@@ -29,6 +29,11 @@ def spatial_dimension():
 @pytest.fixture()
 def number_of_atoms():
     return 8
+
+
+@pytest.fixture()
+def num_atom_types():
+    return 3
 
 
 @pytest.fixture()
@@ -58,6 +63,7 @@ def sampling_parameters(
     number_of_samples,
     cell_dimensions,
     record_samples,
+    num_atom_types,
 ):
     return PredictorCorrectorSamplingParameters(
         number_of_corrector_steps=1,
@@ -66,19 +72,23 @@ def sampling_parameters(
         number_of_samples=number_of_samples,
         cell_dimensions=cell_dimensions,
         record_samples=record_samples,
+        num_atom_types=num_atom_types,
     )
 
 
 @pytest.fixture()
-def sigma_normalized_score_network(number_of_atoms, noise_parameters):
+def axl_network(number_of_atoms, noise_parameters, num_atom_types):
     score_network_parameters = MLPScoreNetworkParameters(
         number_of_atoms=number_of_atoms,
-        embedding_dimensions_size=8,
+        num_atom_types=num_atom_types,
+        noise_embedding_dimensions_size=8,
+        time_embedding_dimensions_size=8,
+        atom_type_embedding_dimensions_size=8,
         n_hidden_dimensions=2,
         hidden_dimensions_size=16,
     )
 
-    diffusion_params = PositionDiffusionParameters(
+    diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,
         loss_parameters=MSELossParameters(),
         optimizer_parameters=OptimizerParameters(name="adam", learning_rate=1e-3),
@@ -87,8 +97,8 @@ def sigma_normalized_score_network(number_of_atoms, noise_parameters):
         diffusion_sampling_parameters=None,
     )
 
-    model = PositionDiffusionLightningModel(diffusion_params)
-    return model.sigma_normalized_score_network
+    model = AXLDiffusionLightningModel(diffusion_params)
+    return model.axl_network
 
 
 @pytest.fixture()
@@ -136,7 +146,7 @@ def args(config_path, checkpoint_path, output_path):
 def test_sample_diffusion(
     mocker,
     args,
-    sigma_normalized_score_network,
+    axl_network,
     output_path,
     number_of_samples,
     number_of_atoms,
@@ -144,18 +154,22 @@ def test_sample_diffusion(
     record_samples,
 ):
     mocker.patch(
-        "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion.get_sigma_normalized_score_network",
-        return_value=sigma_normalized_score_network,
+        "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion.get_axl_network",
+        return_value=axl_network,
     )
 
     sample_diffusion.main(args)
 
     assert (output_path / "samples.pt").exists()
     samples = torch.load(output_path / "samples.pt")
-    assert samples[RELATIVE_COORDINATES].shape == (
+    assert samples[AXL_COMPOSITION].X.shape == (
         number_of_samples,
         number_of_atoms,
         spatial_dimension,
+    )
+    assert samples[AXL_COMPOSITION].A.shape == (
+        number_of_samples,
+        number_of_atoms,
     )
 
     assert (output_path / "trajectories.pt").exists() == record_samples

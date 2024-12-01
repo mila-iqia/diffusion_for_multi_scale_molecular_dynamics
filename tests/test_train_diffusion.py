@@ -8,7 +8,7 @@ that the results are correct.
 import glob
 import os
 import re
-from typing import Union
+from typing import List, Union
 
 import numpy as np
 import pytest
@@ -57,14 +57,20 @@ def get_prediction_head_parameters(name: str):
 
 
 def get_score_network(
-    architecture: str, head_name: Union[str, None], number_of_atoms: int
+    architecture: str,
+    head_name: Union[str, None],
+    number_of_atoms: int,
+    num_atom_types: int,
 ):
     if architecture == "mlp":
         assert head_name is None, "There are no head options for a MLP score network."
         score_network = dict(
             architecture="mlp",
             number_of_atoms=number_of_atoms,
-            embedding_dimensions_size=8,
+            num_atom_types=num_atom_types,
+            noise_embedding_dimensions_size=8,
+            time_embedding_dimensions_size=8,
+            atom_type_embedding_dimensions_size=8,
             n_hidden_dimensions=2,
             hidden_dimensions_size=16,
         )
@@ -77,6 +83,7 @@ def get_score_network(
             number_of_atoms=number_of_atoms,
             radial_MLP=[4, 4, 4],
             prediction_head_parameters=get_prediction_head_parameters(head_name),
+            num_atom_types=num_atom_types,
         )
 
     elif architecture == "diffusion_mace":
@@ -90,10 +97,11 @@ def get_score_network(
             number_of_mlp_layers=1,
             number_of_atoms=number_of_atoms,
             radial_MLP=[4, 4, 4],
+            num_atom_types=num_atom_types,
         )
 
     elif architecture == "egnn":
-        score_network = dict(architecture="egnn")
+        score_network = dict(architecture="egnn", num_atom_types=num_atom_types)
     else:
         raise NotImplementedError("This score network is not implemented")
     return score_network
@@ -101,6 +109,8 @@ def get_score_network(
 
 def get_config(
     number_of_atoms: int,
+    num_atom_types: int,
+    unique_elements: List[str],
     max_epoch: int,
     architecture: str,
     head_name: Union[str, None],
@@ -109,8 +119,10 @@ def get_config(
     data_config = dict(batch_size=4, num_workers=0, max_atom=number_of_atoms)
 
     model_config = dict(
-        score_network=get_score_network(architecture, head_name, number_of_atoms),
-        loss={"algorithm": "mse"},
+        score_network=get_score_network(
+            architecture, head_name, number_of_atoms, num_atom_types
+        ),
+        loss={"coordinates_algorithm": "mse"},
         noise={"total_time_steps": 10},
     )
 
@@ -121,6 +133,7 @@ def get_config(
         algorithm=sampling_algorithm,
         spatial_dimension=3,
         number_of_atoms=number_of_atoms,
+        num_atom_types=num_atom_types,
         number_of_samples=4,
         record_samples=True,
         cell_dimensions=[10.0, 10.0, 10.0],
@@ -147,6 +160,7 @@ def get_config(
         exp_name="smoke_test",
         seed=9999,
         spatial_dimension=3,
+        elements=unique_elements,
         data=data_config,
         model=model_config,
         optimizer=optimizer_config,
@@ -172,16 +186,35 @@ def get_config(
     ],
 )
 class TestTrainDiffusion(TestDiffusionDataBase):
+
+    @pytest.fixture(autouse=True)
+    def skip_mps_accelerator(self, accelerator):
+        if accelerator == 'mps':
+            pytest.skip("Skipping MPS accelerator: it is incompatible with KeOps and leads to segfaults")
+
     @pytest.fixture()
     def max_epoch(self):
         return 5
 
     @pytest.fixture()
+    def num_atom_types(self):
+        return 3
+
+    @pytest.fixture()
     def config(
-        self, number_of_atoms, max_epoch, architecture, head_name, sampling_algorithm
+        self,
+        number_of_atoms,
+        num_atom_types,
+        unique_elements,
+        max_epoch,
+        architecture,
+        head_name,
+        sampling_algorithm,
     ):
         return get_config(
             number_of_atoms,
+            num_atom_types=num_atom_types,
+            unique_elements=unique_elements,
             max_epoch=max_epoch,
             architecture=architecture,
             head_name=head_name,

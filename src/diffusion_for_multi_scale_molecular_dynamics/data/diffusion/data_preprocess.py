@@ -183,15 +183,18 @@ class LammpsProcessorForDiffusion:
             warnings.warn("Skipping this run.", UserWarning)
             return None
 
-        # the dataframe contains the following columns: id (list of atom indices), type (list of int representing
-        # atom type, x (list of x cartesian coordinates for each atom), y, z, fx (list forces in direction x for each
-        # atom), potential_energy (1 float).
+        # the dataframe contains the following columns:
+        #   - id : list of atom indices
+        #   - element : list of strings representing atom element
+        #   - x, y, z : lists of cartesian coordinates for each atom
+        #   - fx, fy, fz : lists force components for each atom
+        #   - potential_energy : 1 float.
         # Each row is a different MD step / usable example for diffusion model
         # TODO consider filtering out samples with large forces and MD steps that are too similar
         # TODO large force and similar are to be defined
-        df = df[["type", "x", "y", "z", "box", "potential_energy", "fx", "fy", "fz"]]
+        df = df[["element", "x", "y", "z", "box", "potential_energy", "fx", "fy", "fz"]]
         df = self.get_x_relative(df)  # add relative coordinates
-        df["natom"] = df["type"].apply(
+        df["natom"] = df["element"].apply(
             lambda x: len(x)
         )  # count number of atoms in a structure
 
@@ -201,11 +204,12 @@ class LammpsProcessorForDiffusion:
         df[CARTESIAN_FORCES] = df.apply(
             partial(self._flatten_positions_in_row, keys=["fx", "fy", "fz"]), axis=1
         )
+
         return df[
             [
                 "natom",
                 "box",
-                "type",
+                "element",
                 "potential_energy",
                 CARTESIAN_POSITIONS,
                 RELATIVE_COORDINATES,

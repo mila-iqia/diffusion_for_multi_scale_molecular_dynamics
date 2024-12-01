@@ -9,6 +9,8 @@ accumulate_grad_batches: 1  # make this number of forward passes before doing a 
 # results will not be reproducible)
 seed: 1234
 
+elements: [Si]
+
 # data
 data:
   batch_size: 512
@@ -19,9 +21,10 @@ data:
 spatial_dimension: 3
 model:
   loss:
-    algorithm: mse
+    coordinates_algorithm: mse
   score_network:
     architecture: mace
+    num_atom_types: 1
     use_pretrained: None
     pretrained_weights_path: ./
     number_of_atoms: 8
@@ -77,6 +80,7 @@ diffusion_sampling:
     sigma_max: 0.5  # default value
   sampling:
     algorithm: predictor_corrector
+    num_atom_types: 1
     spatial_dimension: 3
     number_of_corrector_steps: 1
     number_of_atoms: 8

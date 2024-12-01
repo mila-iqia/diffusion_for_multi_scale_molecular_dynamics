@@ -29,10 +29,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_pr
     MaceEquivariantScorePredictionHeadParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, RELATIVE_COORDINATES)
-from diffusion_for_multi_scale_molecular_dynamics.samplers.variance_sampler import \
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from experiments.analysis.analytic_score import (get_exact_samples,
-                                                 get_relative_harmonic_energy)
+from experiments.analysis.analytic_score.utils import (
+    get_exact_samples, get_relative_harmonic_energy)
 from experiments.diffusion_mace_harmonic_data.analysis_callbacks import \
     HarmonicEnergyDiffusionSamplingCallback
 

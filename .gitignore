@@ -9,6 +9,12 @@ examples/data/
 examples/*/output/
 examples/*/lightning_logs/
 
+**/train_run*/
+**/valid_run*/
+**/processed/
+**/cache/
+**/output/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -62,8 +62,8 @@ def parse_lammps_dump(lammps_dump: str) -> Dict[str, Any]:
     Returns:
         data: a dictionary with all the relevant data.
     """
-    expected_keywords = ["id", "type", "x", "y", "z", "fx", "fy", "fz"]
-    datatypes = 2 * [np.int64] + 6 * [np.float64]
+    expected_keywords = ["id", "element", "x", "y", "z", "fx", "fy", "fz"]
+    datatypes = [np.int64] + [str] + 6 * [np.float64]
 
     pd_data = defaultdict(list)
     with open(lammps_dump, "r") as stream:
