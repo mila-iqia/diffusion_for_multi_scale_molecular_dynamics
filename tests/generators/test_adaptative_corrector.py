@@ -85,7 +85,7 @@ class TestAdaptativeCorrectorGenerator(TestLangevinGenerator):
 
         z = pc_generator._draw_gaussian_sample(number_of_samples).to(axl_i.X)
         mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
-        z_norm = torch.sqrt((z**2).sum(dim=-1)).mean(
+        z_norm = torch.sqrt((z**2).sum(dim=-1).sum(dim=-1)).mean(
             dim=-1
         )  # norm of z averaged over atoms
 
@@ -107,7 +107,7 @@ class TestAdaptativeCorrectorGenerator(TestLangevinGenerator):
                 ).X
                 / sigma_i
             )
-            s_i_norm = torch.sqrt((s_i**2).sum(dim=-1)).mean(dim=-1)
+            s_i_norm = torch.sqrt((s_i**2).sum(dim=-1).sum(dim=-1)).mean(dim=-1)
             # \epsilon_i = 2 \left(r \frac{||z||_2}{||s(x_i, t_i)||_2}\right)^2
             eps_i = (
                 2

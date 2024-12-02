@@ -73,14 +73,17 @@ class AdaptiveCorrectorGenerator(LangevinGenerator):
 
         where :math:`r` is an hyper-parameter (0.17 by default) and :math:`||\cdot||_2` is the L2 norm.
         """
-        # to compute epsilon_i, we need the norm of the score. We average over the atoms.
+        # to compute epsilon_i, we need the norm of the score summed over the atoms and averaged over the mini-batch.
+        # taking the norm over the last 2 dimensions means summing the squared components over the spatial dimension and
+        # the atoms, then taking the square-root.
+        # the mean averages over the mini-batch
         relative_coordinates_sigma_score_norm = (
-            torch.linalg.norm(model_predictions_i.X, dim=-1).mean(dim=-1)
-        ).view(-1, 1, 1)
+            torch.linalg.norm(model_predictions_i.X, dim=[-2, -1]).mean()
+        ).view(1, 1, 1)
         # note that sigma_score is \sigma * s(x, t), so we need to divide the norm by sigma to get the correct step size
         relative_coordinates_sigma_score_norm /= sigma_i
-        # compute the norm of the z random noise
-        z_norm = torch.linalg.norm(z, dim=-1).mean(dim=-1).view(-1, 1, 1)
+        # compute the norm of the z random noise similarly
+        z_norm = torch.linalg.norm(z, dim=[-2, -1]).mean().view(1, 1, 1)
 
         eps_i = (
             2
