@@ -211,6 +211,8 @@ def create_samples_and_write_to_disk(
             output_directory / "trajectories.pt"
         )
 
+    logger.info("Done!")
+
 
 if __name__ == "__main__":
     main()
