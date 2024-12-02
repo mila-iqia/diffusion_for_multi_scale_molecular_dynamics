@@ -11,7 +11,8 @@ from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevin_generator import (
-    ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
+    ConstrainedLangevinGeneratorParameters,
+    ConstrainedPredictorCorrectorAXLGenerator)
 from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
     load_diffusion_model
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
@@ -84,7 +85,7 @@ if __name__ == "__main__":
         record_samples=True,
     )
 
-    position_generator = ConstrainedLangevinGenerator(
+    position_generator = ConstrainedPredictorCorrectorAXLGenerator(
         noise_parameters=noise_parameters,
         sampling_parameters=sampling_parameters,
         sigma_normalized_score_network=sigma_normalized_score_network,
