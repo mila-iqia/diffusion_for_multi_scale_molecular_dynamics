@@ -30,9 +30,6 @@ class ConstrainedPredictorCorrectorAXLGenerator:
         """Init method."""
         self.generator = generator
 
-        if hasattr(self.generator, "sample_trajectory_recorder"):
-            self.sample_trajectory_recorder = self.generator.sample_trajectory_recorder
-
         self.number_of_atoms = self.generator.number_of_atoms
         self.num_classes = self.generator.num_classes
 
@@ -132,7 +129,7 @@ class ConstrainedPredictorCorrectorAXLGenerator:
     ) -> AXL:
         """Sample.
 
-        This method draws samples, imposing the satisfaction of atomic constraints.
+        This method draws samples, imposing the satisfaction of positional constraints.
 
         Args:
             number_of_samples : number of samples to draw.
