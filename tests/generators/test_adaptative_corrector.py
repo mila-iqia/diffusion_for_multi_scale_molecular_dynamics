@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.adaptative_corrector import \
-    AdaptativeCorrectorGenerator
+from diffusion_for_multi_scale_molecular_dynamics.generators.adaptive_corrector import \
+    AdaptiveCorrectorGenerator
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
@@ -27,7 +27,7 @@ class TestAdaptativeCorrectorGenerator(TestLangevinGenerator):
     @pytest.fixture()
     def pc_generator(self, noise_parameters, sampling_parameters, axl_network):
         # override the base class
-        generator = AdaptativeCorrectorGenerator(
+        generator = AdaptiveCorrectorGenerator(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
             axl_network=axl_network,

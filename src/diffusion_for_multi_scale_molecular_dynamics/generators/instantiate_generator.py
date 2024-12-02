@@ -1,5 +1,5 @@
-from diffusion_for_multi_scale_molecular_dynamics.generators.adaptative_corrector import \
-    AdaptativeCorrectorGenerator
+from diffusion_for_multi_scale_molecular_dynamics.generators.adaptive_corrector import \
+    AdaptiveCorrectorGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
@@ -24,8 +24,8 @@ def instantiate_generator(
         "ode",
         "sde",
         "predictor_corrector",
-        "adaptative_corrector",
-    ], "Unknown algorithm. Possible choices are 'ode', 'sde', 'predictor_corrector' and 'adaptative_corrector'"
+        "adaptive_corrector",
+    ], "Unknown algorithm. Possible choices are 'ode', 'sde', 'predictor_corrector' and 'adaptive_corrector'"
 
     match sampling_parameters.algorithm:
         case "predictor_corrector":
@@ -34,8 +34,8 @@ def instantiate_generator(
                 noise_parameters=noise_parameters,
                 axl_network=axl_network,
             )
-        case "adaptative_corrector":
-            generator = AdaptativeCorrectorGenerator(
+        case "adaptive_corrector":
+            generator = AdaptiveCorrectorGenerator(
                 sampling_parameters=sampling_parameters,
                 noise_parameters=noise_parameters,
                 axl_network=axl_network,
