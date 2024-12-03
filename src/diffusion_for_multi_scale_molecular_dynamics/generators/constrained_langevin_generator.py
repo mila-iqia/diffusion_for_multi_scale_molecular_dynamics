@@ -132,7 +132,7 @@ class ConstrainedPredictorCorrectorAXLGenerator:
     ) -> AXL:
         """Sample.
 
-        This method draws samples, imposing the satisfaction of positional constraints.
+        This method draws samples, imposing the satisfaction of atomic constraints.
 
         Args:
             number_of_samples : number of samples to draw.
@@ -172,8 +172,11 @@ class ConstrainedPredictorCorrectorAXLGenerator:
             )
 
             for _ in range(self.generator.number_of_corrector_steps):
-                composition_i = self.generator.corrector_step(
+                corrected_composition_i = self.generator.corrector_step(
                     composition_i, i, unit_cell, forces
+                )
+                composition_i = self._combine_noised_and_denoised_compositions(
+                    corrected_composition_i, denoised_composition_i
                 )
 
             composition_ip1 = composition_i
