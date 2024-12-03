@@ -30,6 +30,9 @@ class ConstrainedPredictorCorrectorAXLGenerator:
         """Init method."""
         self.generator = generator
 
+        if hasattr(self.generator, "sample_trajectory_recorder"):
+            self.sample_trajectory_recorder = self.generator.sample_trajectory_recorder
+
         self.number_of_atoms = self.generator.number_of_atoms
         self.num_classes = self.generator.num_classes
 
