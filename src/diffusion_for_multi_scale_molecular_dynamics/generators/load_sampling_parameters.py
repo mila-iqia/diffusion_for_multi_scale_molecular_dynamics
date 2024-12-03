@@ -31,11 +31,12 @@ def load_sampling_parameters(
     assert algorithm in [
         "ode",
         "sde",
+        "adaptive_corrector",
         "predictor_corrector",
-    ], "Unknown algorithm. Possible choices are 'ode', 'sde' and 'predictor_corrector'"
+    ], "Unknown algorithm. Possible choices are 'ode', 'sde', 'predictor_corrector' and 'adaptive_corrector'"
 
     match algorithm:
-        case "predictor_corrector":
+        case "predictor_corrector" | "adaptive_corrector":
             sampling_parameters = PredictorCorrectorSamplingParameters(
                 **sampling_parameter_dictionary
             )
