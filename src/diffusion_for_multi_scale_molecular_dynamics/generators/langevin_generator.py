@@ -168,6 +168,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         sigma_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
+        z: torch.Tensor,
     ) -> torch.Tensor:
         r"""Generic update for the relative coordinates.
 
@@ -186,13 +187,16 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 eps_i in the corrector step. Dimension: [number_of_samples]
             gaussian_noise_weight: prefactor in front of the random noise update. Should be g_i in the predictor step
                 and sqrt_2eps_i in the corrector step. Dimension: [number_of_samples]
+            z: gaussian noise used to update the coordinates. A sample drawn from the normal distribution.
+                Dimension: [number_of_samples, number_of_atoms, spatial_dimension].
 
         Returns:
             updated_coordinates: relative coordinates after the update. Dimension: [number_of_samples, number_of_atoms,
                 spatial_dimension].
         """
         number_of_samples = relative_coordinates.shape[0]
-        z = self._draw_gaussian_sample(number_of_samples).to(relative_coordinates)
+        if z is None:
+            z = self._draw_gaussian_sample(number_of_samples).to(relative_coordinates)
         updated_coordinates = (
             relative_coordinates
             + score_weight * sigma_normalized_scores / sigma_i
@@ -201,6 +205,50 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         # map back to the range [0, 1)
         updated_coordinates = map_relative_coordinates_to_unit_cell(updated_coordinates)
         return updated_coordinates
+
+    def _relative_coordinates_update_predictor_step(
+        self,
+        relative_coordinates: torch.Tensor,
+        sigma_normalized_scores: torch.Tensor,
+        sigma_i: torch.Tensor,
+        score_weight: torch.Tensor,
+        gaussian_noise_weight: torch.Tensor,
+        z: torch.Tensor,
+    ) -> torch.Tensor:
+        """Relative coordinates update for the predictor step.
+
+        This returns the generic _relative_coordinates_update.
+        """
+        return self._relative_coordinates_update(
+            relative_coordinates,
+            sigma_normalized_scores,
+            sigma_i,
+            score_weight,
+            gaussian_noise_weight,
+            z,
+        )
+
+    def _relative_coordinates_update_corrector_step(
+        self,
+        relative_coordinates: torch.Tensor,
+        sigma_normalized_scores: torch.Tensor,
+        sigma_i: torch.Tensor,
+        score_weight: torch.Tensor,
+        gaussian_noise_weight: torch.Tensor,
+        z: torch.Tensor,
+    ) -> torch.Tensor:
+        """Relative coordinates update for the corrector step.
+
+        This returns the generic _relative_coordinates_update.
+        """
+        return self._relative_coordinates_update(
+            relative_coordinates,
+            sigma_normalized_scores,
+            sigma_i,
+            score_weight,
+            gaussian_noise_weight,
+            z,
+        )
 
     def _atom_types_update(
         self,
@@ -476,8 +524,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             assert (a_im1 != self.masked_atom_type_index).all(), \
                 "There remains MASKED atoms at the last time step: review code, there must be a bug or invalid input."
 
-        x_im1 = self._relative_coordinates_update(
-            composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i
+        # draw a gaussian noise sample and update the positions accordingly
+        z = self._draw_gaussian_sample(number_of_samples).to(composition_i.X)
+
+        x_im1 = self._relative_coordinates_update_predictor_step(
+            composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i, z
         )
 
         composition_im1 = AXL(
@@ -509,6 +560,18 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         return composition_im1
 
+    def _get_corrector_step_size(
+        self,
+        index_i: int,
+        sigma_i: torch.Tensor,
+        model_predictions_i: AXL,
+        z: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute the size of the corrector step for the relative coordinates update."""
+        # Get the epsilon from the tabulated Langevin dynamics array indexed with [0,..., N-1].
+        eps_i = self.langevin_dynamics.epsilon[index_i].to(model_predictions_i.X)
+        return eps_i
+
     def corrector_step(
         self,
         composition_i: AXL,
@@ -518,7 +581,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
     ) -> AXL:
         """Corrector Step.
 
-        Note this is not affecting the atom types. Only the reduced coordinates and lattice vectors.
+        Note this does not affect the atom types unless specified with the atom_type_transition_in_corrector
+        argument. Always affect the reduced coordinates and lattice vectors.
 
         Args:
             composition_i : sampled composition (atom types, relative coordinates, lattice vectors), at time step i.
@@ -533,9 +597,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             "The corrector step can only be invoked for index_i between 0 and "
             "the total number of discretization steps minus 1."
         )
-        # The Langevin dynamics array are indexed with [0,..., N-1]
-        eps_i = self.langevin_dynamics.epsilon[index_i].to(composition_i.X)
-        sqrt_2eps_i = self.langevin_dynamics.sqrt_2_epsilon[index_i].to(composition_i.X)
+
+        number_of_samples = composition_i.X.shape[0]
 
         if index_i == 0:
             # TODO: we are extrapolating here; the score network will never have seen this time step...
@@ -553,8 +616,16 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i, t_i, sigma_i, unit_cell, cartesian_forces
         )
 
-        corrected_x_i = self._relative_coordinates_update(
-            composition_i.X, model_predictions_i.X, sigma_i, eps_i, sqrt_2eps_i
+        # draw a gaussian noise sample and update the positions accordingly
+        z = self._draw_gaussian_sample(number_of_samples).to(composition_i.X)
+
+        # get the step size eps_i
+        eps_i = self._get_corrector_step_size(index_i, sigma_i, model_predictions_i, z)
+        # the size for the noise part is sqrt(2 * eps_i)
+        sqrt_2eps_i = torch.sqrt(2 * eps_i)
+
+        corrected_x_i = self._relative_coordinates_update_corrector_step(
+            composition_i.X, model_predictions_i.X, sigma_i, eps_i, sqrt_2eps_i, z
         )
 
         if self.atom_type_transition_in_corrector:

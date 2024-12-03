@@ -31,7 +31,7 @@ class SDESamplingParameters(SamplingParameters):
     algorithm: str = "sde"
     sde_type: str = "ito"
     method: str = "euler"
-    adaptative: bool = False
+    adaptive: bool = False
     absolute_solver_tolerance: float = (
         1.0e-7  # the absolute error tolerance passed to the SDE solver.
     )
@@ -325,7 +325,7 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
                 sde_times,
                 method=self.sampling_parameters.method,
                 dt=dt,
-                adaptive=self.sampling_parameters.adaptative,
+                adaptive=self.sampling_parameters.adaptive,
                 atol=self.sampling_parameters.absolute_solver_tolerance,
                 rtol=self.sampling_parameters.relative_solver_tolerance,
             )
