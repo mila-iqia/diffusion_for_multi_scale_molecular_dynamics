@@ -36,11 +36,7 @@ def load_sampling_parameters(
     ], "Unknown algorithm. Possible choices are 'ode', 'sde', 'predictor_corrector' and 'adaptive_corrector'"
 
     match algorithm:
-        case "predictor_corrector":
-            sampling_parameters = PredictorCorrectorSamplingParameters(
-                **sampling_parameter_dictionary
-            )
-        case "adaptive_corrector":
+        case "predictor_corrector" | "adaptive_corrector":
             sampling_parameters = PredictorCorrectorSamplingParameters(
                 **sampling_parameter_dictionary
             )
