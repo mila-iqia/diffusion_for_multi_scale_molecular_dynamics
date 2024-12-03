@@ -568,8 +568,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         z: torch.Tensor,
     ) -> torch.Tensor:
         """Compute the size of the corrector step for the relative coordinates update."""
-        del sigma_i  # sigma_i is not needed to compute \epsilon_i because it is pre-tabulated
-        del z  # noise tensor is not needed
         # Get the epsilon from the tabulated Langevin dynamics array indexed with [0,..., N-1].
         eps_i = self.langevin_dynamics.epsilon[index_i].to(model_predictions_i.X)
         return eps_i
@@ -583,7 +581,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
     ) -> AXL:
         """Corrector Step.
 
-        Note this does not not affect the atom types unless specified with the atom_type_transition_in_corrector
+        Note this does not affect the atom types unless specified with the atom_type_transition_in_corrector
         argument. Always affect the reduced coordinates and lattice vectors.
 
         Args:

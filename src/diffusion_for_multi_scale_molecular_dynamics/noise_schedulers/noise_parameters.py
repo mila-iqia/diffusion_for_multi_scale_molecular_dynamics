@@ -22,7 +22,7 @@ class NoiseParameters:
     # Default value comes from "Generative Modeling by Estimating Gradients of the Data Distribution"
     corrector_step_epsilon: float = 2e-5
 
-    # Step size scaling for the Adaptative Corrector Generator. Default value comes from github implementation
+    # Step size scaling for the Adaptive Corrector Generator. Default value comes from github implementation
     # https: // github.com / yang - song / score_sde / blob / main / configs / default_celeba_configs.py
     # for the celeba dataset. Note the suggested value for CIFAR10 is 0.16 in that repo.
     corrector_r: float = 0.17

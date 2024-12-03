@@ -12,7 +12,7 @@ from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_sch
 from tests.generators.test_langevin_generator import TestLangevinGenerator
 
 
-class TestAdaptativeCorrectorGenerator(TestLangevinGenerator):
+class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
 
     @pytest.fixture()
     def noise_parameters(self, total_time_steps):

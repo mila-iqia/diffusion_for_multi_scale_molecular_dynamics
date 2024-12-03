@@ -14,7 +14,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
 
 
 class AdaptiveCorrectorGenerator(LangevinGenerator):
-    """Langevin Dynamics Generator using only a corrector step with adaptative step size for relative coordinates.
+    """Langevin Dynamics Generator using only a corrector step with adaptive step size for relative coordinates.
 
     This class implements the Langevin Corrector generation of position samples, following
     Song et. al. 2021, namely:
