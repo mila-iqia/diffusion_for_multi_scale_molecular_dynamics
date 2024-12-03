@@ -29,6 +29,10 @@ class FakeAXLNetwork(ScoreNetwork):
 class BaseTestGenerator:
     """A base class that contains common test fixtures useful for testing generators."""
 
+    @pytest.fixture(scope="class", autouse=True)
+    def set_random_seed(self):
+        torch.manual_seed(34534534)
+
     @pytest.fixture()
     def unit_cell_size(self):
         return 10
