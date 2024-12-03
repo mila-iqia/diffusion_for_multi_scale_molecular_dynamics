@@ -123,7 +123,8 @@ def main(args: Optional[Any] = None):
 
     if 'constrained_sampling' in hyper_params:
         logger.info("Constrained Sampling is activated")
-        constrained_atom_indices = torch.Tensor(hyper_params['constrained_atom_indices'])
+        constraint_dict = hyper_params['constrained_sampling']
+        constrained_atom_indices = torch.Tensor(constraint_dict['constrained_atom_indices'])
         cif_file_path = Path(args.path_to_constraint_cif_file)
         assert cif_file_path.is_file(), "The constraint cif file does not exist."
         logger.info(f"Constrained cif file is {cif_file_path}")
