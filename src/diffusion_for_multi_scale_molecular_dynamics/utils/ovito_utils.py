@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import ovito
+import torch
 from ovito.io import import_file
 from ovito.modifiers import (AffineTransformationModifier,
                              CombineDatasetsModifier, CreateBondsModifier)
@@ -24,6 +25,18 @@ UNKNOWN_ATOM_TYPE = "X"
 
 _cif_directory_template = "cif_files_trajectory_{trajectory_index}"
 _cif_file_name_template = "diffusion_positions_step_{time_index}.cif"
+
+
+def get_composition_from_cif_file(cif_file_path: Path, elements: list[str], device):
+    """Get composition from a cif file."""
+    structure = Structure.from_file(cif_file_path)
+    element_types = ElementTypes(elements)
+
+    a = torch.Tensor([element_types.get_element_id(s.name) for s in structure.species]).to(torch.int64).to(device)
+    x = torch.from_numpy(structure.frac_coords).to(torch.float32).to(device)
+    lattice = torch.from_numpy(structure.lattice.matrix).to(torch.float32).to(device)
+    composition = AXL(A=a, X=x, L=lattice)
+    return composition
 
 
 def create_cif_files(

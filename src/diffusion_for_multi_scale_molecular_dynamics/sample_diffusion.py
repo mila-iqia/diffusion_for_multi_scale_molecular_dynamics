@@ -16,8 +16,12 @@ from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevin_generator import \
+    ConstrainedPredictorCorrectorAXLGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
+from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
+    LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
     load_sampling_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
@@ -36,6 +40,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
     get_git_hash, setup_console_logger)
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
     load_and_backup_hyperparameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.ovito_utils import \
+    get_composition_from_cif_file
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +57,11 @@ def main(args: Optional[Any] = None):
         required=True,
         help="config file with sampling parameters in yaml format.",
     )
+    parser.add_argument(
+        "--path_to_constraint_cif_file", required=False,
+        help="path to a cif file with constrained positions."
+    )
+
     parser.add_argument(
         "--checkpoint", required=True, help="path to checkpoint model to be loaded."
     )
@@ -101,12 +112,35 @@ def main(args: Optional[Any] = None):
         elements = hyper_params["elements"]
         oracle_parameters = create_energy_oracle_parameters(hyper_params["oracle"], elements)
 
-    create_samples_and_write_to_disk(
+    axl_network = get_axl_network(args.checkpoint)
+
+    logger.info("Instantiate generator...")
+    raw_generator = instantiate_generator(
+        sampling_parameters=sampling_parameters,
         noise_parameters=noise_parameters,
+        axl_network=axl_network,
+    )
+
+    if 'constrained_sampling' in hyper_params:
+        constrained_atom_indices = torch.Tensor(hyper_params['constrained_atom_indices'])
+        cif_file_path = Path(args.path_to_constraint_cif_file)
+        assert cif_file_path.is_file(), "The constraint cif file does not exist."
+
+        reference_composition = get_composition_from_cif_file(cif_file_path=cif_file_path,
+                                                              elements=elements,
+                                                              device=device)
+
+        generator = ConstrainedPredictorCorrectorAXLGenerator(raw_generator,
+                                                              reference_composition,
+                                                              constrained_atom_indices)
+    else:
+        generator = raw_generator
+
+    create_samples_and_write_to_disk(
+        generator=generator,
         sampling_parameters=sampling_parameters,
         oracle_parameters=oracle_parameters,
         device=device,
-        checkpoint_path=args.checkpoint,
         output_path=args.output,
     )
 
@@ -152,11 +186,10 @@ def get_axl_network(checkpoint_path: Union[str, Path]) -> ScoreNetwork:
 
 
 def create_samples_and_write_to_disk(
-    noise_parameters: NoiseParameters,
+    generator: LangevinGenerator,
     sampling_parameters: SamplingParameters,
     oracle_parameters: Union[OracleParameters, None],
     device: torch.device,
-    checkpoint_path: Union[str, Path],
     output_path: Union[str, Path],
 ):
     """Create Samples and write to disk.
@@ -173,19 +206,10 @@ def create_samples_and_write_to_disk(
     Returns:
         None
     """
-    axl_network = get_axl_network(checkpoint_path)
-
-    logger.info("Instantiate generator...")
-    position_generator = instantiate_generator(
-        sampling_parameters=sampling_parameters,
-        noise_parameters=noise_parameters,
-        axl_network=axl_network,
-    )
-
     logger.info("Generating samples...")
     with torch.no_grad():
         samples_batch = create_batch_of_samples(
-            generator=position_generator,
+            generator=generator,
             sampling_parameters=sampling_parameters,
             device=device,
         )
@@ -207,7 +231,7 @@ def create_samples_and_write_to_disk(
 
     if sampling_parameters.record_samples:
         logger.info("Writing sampling trajectories to disk...")
-        position_generator.sample_trajectory_recorder.write_to_pickle(
+        generator.sample_trajectory_recorder.write_to_pickle(
             output_directory / "trajectories.pt"
         )
 
