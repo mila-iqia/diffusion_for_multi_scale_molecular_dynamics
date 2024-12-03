@@ -3,6 +3,8 @@
 import logging
 from typing import Any, AnyStr, Dict
 
+import torch
+
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     create_loss_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
@@ -13,6 +15,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import \
     create_scheduler_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
     create_score_network_parameters
+from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import LatticeDataParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle_parameters
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \
@@ -63,6 +66,13 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
         regularizer_parameters = create_regularizer_parameters(regularizer_dictionary=hyper_params["regularizer"],
                                                                global_parameters_dictionary=globals_dict)
 
+    # TODO these should come from the dataset, not the config file
+    lattice_parameters = dict(
+        spatial_dimension=globals_dict["spatial_dimension"],
+        inverse_average_density=globals_dict["max_atom"] / torch.prod(hyper_params["cell_dimensions"])
+    )  # TODO inverse density should come from the dataset, not fixed like this
+    lattice_parameters = LatticeDataParameters(**lattice_parameters)
+
     diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,
         loss_parameters=loss_parameters,
@@ -70,7 +80,8 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
         scheduler_parameters=scheduler_parameters,
         regularizer_parameters=regularizer_parameters,
         diffusion_sampling_parameters=diffusion_sampling_parameters,
-        oracle_parameters=oracle_parameters
+        oracle_parameters=oracle_parameters,
+        lattice_parameters=lattice_parameters
     )
 
     model = AXLDiffusionLightningModel(diffusion_params)

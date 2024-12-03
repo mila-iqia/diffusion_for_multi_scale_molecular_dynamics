@@ -128,10 +128,10 @@ def get_sigma_normalized_score_brute_force(
     return sigma_score
 
 
-def get_sigma_normalized_score(
+def get_coordinates_sigma_normalized_score(
     relative_coordinates: torch.Tensor, sigmas: torch.Tensor, kmax: int
 ) -> torch.Tensor:
-    """Get the sigma normalized score.
+    """Get the sigma normalized score for relative coordinates from the wrapped gaussian kernel.
 
     This method branches to different formulas depending on the values of sigma and relative coordinates
     to insures rapid convergence and numerical stability.
