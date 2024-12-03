@@ -12,8 +12,6 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initiali
     instantiate_trajectory_initializer
 from diffusion_for_multi_scale_molecular_dynamics.loss import \
     create_loss_calculator
-from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
-    LossParameters
 from diffusion_for_multi_scale_molecular_dynamics.metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
@@ -75,7 +73,7 @@ class AXLDiffusionParameters:
     """AXL (atom, relative coordinates, lattice) Diffusion parameters."""
 
     score_network_parameters: ScoreNetworkParameters
-    loss_parameters: LossParameters
+    loss_parameters: AXL
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: Optional[SchedulerParameters] = None
     # convergence parameter for the Ewald-like sum of the perturbation kernel for coordinates.
@@ -255,10 +253,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         with corresponding {sigma(t)}, {xt}, {beta(t)} and {a(t)}. Note the :math:`beta(t)` is used to compute the true
         posterior :math:`q(a_{t-1} | a_t, a_0)` and :math:`p_\theta(a_{t-1} | a_t)` in the atom type loss.
 
-        For the lattice parameters, the loss is defined similarly to the coordinate diffusion. The score to approximate
-        is slightly different due to the change in the variance schedule (variance preserving instead of variance
-        exploding), a bias in the gaussian kernel and the use of a single gaussian instead of a sum over multiple
-        instances due to the periodicity.
+        For the lattice parameters, the loss is defined similarly to the coordinate diffusion.
 
         Args:
             batch : a dictionary that should contain a data sample.
@@ -656,7 +651,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             sample_distances = compute_distances_in_batch(
                 cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
                 unit_cell=map_lattice_parameters_to_unit_cell_vectors(
-                    samples_batch[LATTICE_PARAMETERS]
+                    samples_batch[AXL_COMPOSITION].L
                 ),
                 max_distance=self.metrics_parameters.structure_factor_max_distance,
             )

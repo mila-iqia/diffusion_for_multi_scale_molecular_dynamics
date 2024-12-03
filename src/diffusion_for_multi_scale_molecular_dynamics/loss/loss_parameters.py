@@ -4,6 +4,8 @@ from typing import Any, Dict
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing import \
     create_parameters_from_configuration_dictionary
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL, AXL_NAME_DICT
+from experiments.sampling_sota_model.sota_score_sampling_and_plotting import atom_types
 
 
 @dataclass(kw_only=True)
