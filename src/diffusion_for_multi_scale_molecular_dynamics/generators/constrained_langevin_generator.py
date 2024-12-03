@@ -172,11 +172,8 @@ class ConstrainedPredictorCorrectorAXLGenerator:
             )
 
             for _ in range(self.generator.number_of_corrector_steps):
-                corrected_composition_i = self.generator.corrector_step(
+                composition_i = self.generator.corrector_step(
                     composition_i, i, unit_cell, forces
-                )
-                composition_i = self._combine_noised_and_denoised_compositions(
-                    corrected_composition_i, denoised_composition_i
                 )
 
             composition_ip1 = composition_i
