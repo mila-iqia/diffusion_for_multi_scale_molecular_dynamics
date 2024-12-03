@@ -40,6 +40,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
     get_git_hash, setup_console_logger)
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
     load_and_backup_hyperparameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.ovito_utils import \
+    get_composition_from_cif_file
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +58,8 @@ def main(args: Optional[Any] = None):
         help="config file with sampling parameters in yaml format.",
     )
     parser.add_argument(
-        "--path_to_constraint_data_pickle", required=False,
-        help="path to a pickle that contains a reference compositions and fixed atom indices."
+        "--path_to_constraint_cif_file", required=False,
+        help="path to a cif file with constrained positions."
     )
 
     parser.add_argument(
@@ -119,16 +121,14 @@ def main(args: Optional[Any] = None):
         axl_network=axl_network,
     )
 
-    if args.path_to_constraint_data_pickle:
-        logger.info("Constrained Sampling is activated")
-        constraint_data_pickle_path = Path(args.path_to_constraint_data_pickle)
-        assert constraint_data_pickle_path.is_file(), "The constraint data pickle does not exist."
+    if 'constrained_sampling' in hyper_params:
+        constrained_atom_indices = torch.Tensor(hyper_params['constrained_atom_indices'])
+        cif_file_path = Path(args.path_to_constraint_cif_file)
+        assert cif_file_path.is_file(), "The constraint cif file does not exist."
 
-        constraint_data = torch.load(constraint_data_pickle_path)
-        constrained_atom_indices = constraint_data["constrained_atom_indices"]
-        logger.info(f"Constrained atom indices are {constrained_atom_indices}")
-
-        reference_composition = constraint_data["reference_composition"]
+        reference_composition = get_composition_from_cif_file(cif_file_path=cif_file_path,
+                                                              elements=elements,
+                                                              device=device)
 
         generator = ConstrainedPredictorCorrectorAXLGenerator(raw_generator,
                                                               reference_composition,
