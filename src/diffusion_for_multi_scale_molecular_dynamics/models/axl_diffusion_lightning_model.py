@@ -29,7 +29,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_POSITIONS, LATTICE_PARAMETERS, NOISE, NOISY_ATOM_TYPES,
     NOISY_AXL_COMPOSITION, NOISY_LATTICE_PARAMETERS,
     NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES, Q_BAR_TM1_MATRICES, Q_MATRICES,
-    RELATIVE_COORDINATES, TIME, TIME_INDICES, UNIT_CELL)
+    RELATIVE_COORDINATES, TIME, TIME_INDICES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \

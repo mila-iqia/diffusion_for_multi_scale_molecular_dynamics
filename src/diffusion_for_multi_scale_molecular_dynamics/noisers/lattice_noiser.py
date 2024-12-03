@@ -19,7 +19,6 @@ class LatticeNoiser:
     This class provides methods to generate noisy lattices.
     TODO this is a placeholder
     """
-
     def __init__(self, lattice_parameters: LatticeDataParameters):
         self.spatial_dimension = lattice_parameters.spatial_dimension
 
