@@ -10,6 +10,7 @@ import socket
 from pathlib import Path
 from typing import Any, AnyStr, Dict, Optional, Union
 
+import orion.client
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
@@ -234,6 +235,12 @@ def create_samples_and_write_to_disk(
         generator.sample_trajectory_recorder.write_to_pickle(
             output_directory / "trajectories.pt"
         )
+
+    # If Orion is on, report a dummy value to tell Orion the calculation is done.
+    if orion.client.cli.IS_ORION_ON:
+        logger.info("Reporting dummy results to ORION.")
+        results = dict(name='dummy', type="objective", value=0.0)
+        orion.client.report_results([results])
 
     logger.info("Done!")
 
