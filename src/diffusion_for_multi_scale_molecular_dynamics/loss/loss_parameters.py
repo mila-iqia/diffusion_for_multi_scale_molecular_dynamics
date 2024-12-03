@@ -3,33 +3,30 @@ from typing import Any, Dict
 
 from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing import \
     create_parameters_from_configuration_dictionary
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL, AXL_NAME_DICT
+from experiments.sampling_sota_model.sota_score_sampling_and_plotting import atom_types
 
 
 @dataclass(kw_only=True)
 class LossParameters:
-    """Specific Hyper-parameters for the loss function."""
-    atom_types_lambda_weight: float = 1.0  # weighting prefactor for atom-type loss.
-    relative_coordinates_lambda_weight: float = 1.0  # weighting prefactor for the coordinates loss.
-    lattice_lambda_weight: float = 1.0  # weighting prefactor for the lattice loss.
+    """Hyper-parameters for the loss function for a single modality (A, X xor L)."""
 
-    coordinates_algorithm: str
-    atom_types_ce_weight: float = 0.001  # default value in google D3PM repo
-    atom_types_eps: float = 1e-8  # avoid divisions by zero
-    # https://github.com/google-research/google-research/blob/master/d3pm/images/config.py
+    lambda_weight: float = 1.0
+    algorithm: str
 
 
 @dataclass(kw_only=True)
 class MSELossParameters(LossParameters):
     """Specific Hyper-parameters for the MSE loss function."""
 
-    coordinates_algorithm: str = "mse"
+    algorithm: str = "mse"
 
 
 @dataclass(kw_only=True)
 class WeightedMSELossParameters(LossParameters):
     """Specific Hyper-parameters for the weighted MSE loss function."""
 
-    coordinates_algorithm: str = "weighted_mse"
+    algorithm: str = "weighted_mse"
     # The default values are chosen to lead to a flat loss curve vs. sigma, based on preliminary experiments.
     # These parameters have no effect if the algorithm is 'mse'.
     # The default parameters are chosen such that weights(sigma=0.5) \sim 10^3
@@ -37,7 +34,16 @@ class WeightedMSELossParameters(LossParameters):
     exponent: float = 23.0259  # ~ 10 ln(10)
 
 
-def create_loss_parameters(model_dictionary: Dict[str, Any]) -> LossParameters:
+@dataclass(kw_only=True)
+class AtomTypeLossParameters(LossParameters):
+    algorithm = "d3pm"
+    atom_types_ce_weight: float = 0.001  # default value in google D3PM repo
+    atom_types_eps: float = 1e-8  # avoid divisions by zero
+    # https://github.com/google-research/google-research/blob/master/d3pm/images/config.py
+
+
+
+def create_loss_parameters(model_dictionary: Dict[str, Any]) -> AXL:
     """Create loss parameters.
 
     Extract the relevant information from the general configuration dictionary.
@@ -46,19 +52,34 @@ def create_loss_parameters(model_dictionary: Dict[str, Any]) -> LossParameters:
         model_dictionary : model configuration dictionary.
 
     Returns:
-        loss_parameters: the loss parameters.
+        loss_parameters: the loss parameters in an AXL named tuple.
     """
-    default_dict = dict(algorithm="mse")
-    loss_config_dictionary = model_dictionary.get("loss", default_dict)
-
-    loss_parameters = create_parameters_from_configuration_dictionary(
-        configuration=loss_config_dictionary,
-        identifier="coordinates_algorithm",
-        options=LOSS_PARAMETERS_BY_ALGO,
+    default_mse_dict = dict(algorithm="mse")
+    default_d3pm_dict = dict(algorithm="d3pm")
+    default_axl_dict = dict(
+        coordinates=default_mse_dict,
+        atom_types=default_d3pm_dict,
+        lattice_parameters=default_mse_dict
     )
+    loss_config_dictionary = model_dictionary.get("loss", default_axl_dict)
+
+    loss_parameters = {}
+    for var in ["coordinates", "atom_types", "lattice_parameters"]:
+        default_params = default_d3pm_dict if var == "atom_types" else default_mse_dict
+        loss_parameters[var] = create_parameters_from_configuration_dictionary(
+            configuration=loss_config_dictionary.get(var, default_params),
+            identifier="algorithm",
+            options=LOSS_PARAMETERS_BY_ALGO,
+    )
+    loss_parameters = AXL(
+        A=loss_parameters["atom_types"],
+        X=loss_parameters["coordinates"],
+        L=loss_parameters["lattice_parameters"]
+    )
+
     return loss_parameters
 
 
 LOSS_PARAMETERS_BY_ALGO = dict(
-    mse=MSELossParameters, weighted_mse=WeightedMSELossParameters
+    mse=MSELossParameters, weighted_mse=WeightedMSELossParameters, d3pm=AtomTypeLossParameters
 )

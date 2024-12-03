@@ -30,6 +30,8 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISY_AXL_COMPOSITION, NOISY_LATTICE_PARAMETERS,
     NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES, Q_BAR_TM1_MATRICES, Q_MATRICES,
     RELATIVE_COORDINATES, TIME, TIME_INDICES, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
@@ -54,14 +56,13 @@ from diffusion_for_multi_scale_molecular_dynamics.score.gaussian_score import ge
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_coordinates_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates, map_relative_coordinates_to_unit_cell)
+    get_positions_from_coordinates, map_relative_coordinates_to_unit_cell, map_lattice_parameters_to_unit_cell_vectors)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 from diffusion_for_multi_scale_molecular_dynamics.utils.noise_utils import \
     scale_sigma_by_number_of_atoms
 from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
     compute_distances_in_batch
-from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import broadcast_batch_tensor_to_all_dimensions
 
 logger = logging.getLogger(__name__)
 
@@ -116,9 +117,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         # loss is an AXL object with one loss for each element (atom type, coordinate, lattice)
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
-        self.loss_weights = AXL(A=hyper_params.loss_parameters.atom_types_lambda_weight,
-                                X=hyper_params.loss_parameters.relative_coordinates_lambda_weight,
-                                L=hyper_params.loss_parameters.lattice_lambda_weight)
+        self.loss_weights = AXL(A=hyper_params.loss_parameters.A.lambda_weight,
+                                X=hyper_params.loss_parameters.X.lambda_weight,
+                                L=hyper_params.loss_parameters.L.lambda_weight)
 
         # noisy samplers for atom types, coordinates and lattice vectors
         self.noisers = AXL(
@@ -239,6 +240,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         configurations {x0} and atom types {a_0}; each of these configurations is noised with a random t value,
         with corresponding {sigma(t)}, {xt}, {beta(t)} and {a(t)}. Note the :math:`beta(t)` is used to compute the true
         posterior :math:`q(a_{t-1} | a_t, a_0)` and :math:`p_\theta(a_{t-1} | a_t)` in the atom type loss.
+
+        For the lattice parameters, the loss is defined similarly to the coordinate diffusion. The score to approximate
+        is slightly difference due to the change in the variance schedule (variance preserving instead of variance
+        exploding), a bias in the gaussian kernel and the use of a single gaussian instead of a sum over multiple
+        instances due to the periodicity.
 
         Args:
             batch : a dictionary that should contain a data sample.
@@ -509,7 +515,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
-            basis_vectors = torch.diag_embed(batch["box"])  # TODO replace with AXL L
+            basis_vectors = map_lattice_parameters_to_unit_cell_vectors(output[AXL_COMPOSITION].L)
             cartesian_positions = get_positions_from_coordinates(
                 relative_coordinates=output[AXL_COMPOSITION].X,
                 basis_vectors=basis_vectors,
@@ -614,7 +620,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 cartesian_positions=samples_batch[
                     CARTESIAN_POSITIONS
                 ],  # TODO replace with AXL
-                unit_cell=samples_batch[UNIT_CELL],
+                unit_cell=map_lattice_parameters_to_unit_cell_vectors(samples_batch[LATTICE_PARAMETERS]),
                 max_distance=self.metrics_parameters.structure_factor_max_distance,
             )
 
