@@ -3,6 +3,9 @@ from typing import Tuple
 
 import torch
 
+from experiments.analysis.analytic_score.repaint.plot_repaint_analytical_score_trajectories import \
+    spatial_dimension
+
 
 @dataclass(kw_only=True)
 class LatticeDataParameters:
@@ -10,6 +13,7 @@ class LatticeDataParameters:
 
     TODO: this might belong elsewhere
     """
+
     inverse_average_density: float  # inverse of the average volume of unit cell scales by the number of atoms
     spatial_dimension: int = 3
 
@@ -20,6 +24,7 @@ class LatticeNoiser:
     This class provides methods to generate noisy lattices.
     TODO this is a placeholder
     """
+
     def __init__(self, lattice_parameters: LatticeDataParameters):
         self.inverse_density = lattice_parameters.inverse_average_density
         self.spatial_dimension = lattice_parameters.spatial_dimension
@@ -69,22 +74,30 @@ class LatticeNoiser:
         """
         # TODO add angles
         assert (
-                real_lattice_parameters.shape == sigmas_n.shape
+            real_lattice_parameters.shape == sigmas_n.shape
         ), "sigmas array is expected to be of the same shape as the real_lattice_parameters array"
 
         assert (
-                alpha_bars.shape == sigmas_n.shape
+            alpha_bars.shape == sigmas_n.shape
         ), "sigmas array is expected to be of the same shape as the alpha_bars array"
 
-        z_scores = LatticeNoiser._get_gaussian_noise(
-            real_lattice_parameters.shape
-        ).to(sigmas_n)
+        z_scores = self._get_gaussian_noise(real_lattice_parameters.shape).to(
+            sigmas_n
+        )
 
-        noise_width = (1 - alpha_bars) * sigmas_n ** 2
+        noise_width = (1 - alpha_bars) * sigmas_n**2
         sqrt_alpha_bars = torch.sqrt(alpha_bars)
-        average_density = torch.pow(num_atoms / self.inverse_density, 1 / self.spatial_dimension)
-        noisy_lattice_parameters_avg = sqrt_alpha_bars * real_lattice_parameters + \
-                                       (1 - sqrt_alpha_bars) * average_density
+        average_density = torch.zeros_like(num_atoms)
+        average_density[:, :self.spatial_dimension] = torch.pow(
+            num_atoms[:, :self.spatial_dimension],
+            1 / self.spatial_dimension,
+        )  / self.inverse_density
+
+        noisy_lattice_parameters_avg = (
+            sqrt_alpha_bars * real_lattice_parameters
+            + (1 - sqrt_alpha_bars) * average_density
+        )
+        # we are not limiting the range of value to anything
         noisy_lattice_parameters = noise_width * z_scores + noisy_lattice_parameters_avg
 
         return noisy_lattice_parameters
