@@ -7,7 +7,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_n
 
 
 @pytest.mark.parametrize("shape", [(10, 1), (4, 5, 3), (2, 2, 2, 2)])
-class TestNoisyRelativeCoordinatesSampler:
+class TestRelativeCoordinatesNoiser:
 
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
@@ -44,7 +44,7 @@ class TestNoisyRelativeCoordinatesSampler:
     ):
         mocker.patch.object(
             RelativeCoordinatesNoiser,
-            "_get_gaussian_noise",
+            "get_gaussian_noise",
             return_value=fake_gaussian_sample,
         )
 

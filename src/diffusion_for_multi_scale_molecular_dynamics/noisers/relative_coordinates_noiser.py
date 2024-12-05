@@ -16,7 +16,7 @@ class RelativeCoordinatesNoiser:
     """
 
     @staticmethod
-    def _get_gaussian_noise(shape: Tuple[int]) -> torch.Tensor:
+    def get_gaussian_noise(shape: Tuple[int]) -> torch.Tensor:
         """Get Gaussian noise.
 
         Get a sample from N(0, 1) of dimensions shape.
@@ -57,7 +57,7 @@ class RelativeCoordinatesNoiser:
             real_relative_coordinates.shape == sigmas.shape
         ), "sigmas array is expected to be of the same shape as the real_relative_coordinates array"
 
-        z_scores = RelativeCoordinatesNoiser._get_gaussian_noise(
+        z_scores = RelativeCoordinatesNoiser.get_gaussian_noise(
             real_relative_coordinates.shape
         ).to(sigmas)
         return RelativeCoordinatesNoiser.get_noisy_relative_coordinates_sample_given_z_scores(real_relative_coordinates,
