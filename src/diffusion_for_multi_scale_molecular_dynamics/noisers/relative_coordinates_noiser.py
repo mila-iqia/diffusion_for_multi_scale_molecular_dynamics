@@ -60,6 +60,25 @@ class RelativeCoordinatesNoiser:
         z_scores = RelativeCoordinatesNoiser._get_gaussian_noise(
             real_relative_coordinates.shape
         ).to(sigmas)
+        return RelativeCoordinatesNoiser.get_noisy_relative_coordinates_sample_given_z_scores(real_relative_coordinates,
+                                                                                              sigmas, z_scores)
+
+    @staticmethod
+    def get_noisy_relative_coordinates_sample_given_z_scores(real_relative_coordinates, sigmas, z_scores):
+        """Get noisy relative coordinates sample given z-scores.
+
+        Args:
+            real_relative_coordinates : relative coordinates of real data. Should be between 0 and 1.
+            real_relative_coordinates is assumed to have an arbitrary shape.
+            sigmas : variance of the perturbation kernel. Tensor is assumed to be of the same shape as
+                real_relative_coordinates.
+            z_scores: random variables, assumed to be drawn from a Gaussian(0, 1), of same shape as
+                real_relative_coordinates.
+
+        Returns:
+            noisy_relative_coordinates: a sample of noised relative coordinates, of the same
+                shape as real_relative_coordinates.
+        """
         noise = (sigmas * z_scores).to(real_relative_coordinates)
         noisy_relative_coordinates = map_relative_coordinates_to_unit_cell(
             real_relative_coordinates + noise
