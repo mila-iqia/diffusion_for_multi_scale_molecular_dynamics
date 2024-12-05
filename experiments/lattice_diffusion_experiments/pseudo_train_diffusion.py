@@ -3,13 +3,14 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import patch  # noqa
 
-from patches.identity_noiser import RelativeCoordinatesIdentityNoiser  # noqa
+from patches.identity_noiser import \
+    RelativeCoordinatesIdentityNoiser
 from patches.lattice_demo_dataloader import LatticeDemoDataModule  # noqa
-from patches.lattice_demo_dataloader import LatticeDemoParameters  # noqa
+from patches.lattice_demo_dataloader import LatticeDemoParameters
 
 from diffusion_for_multi_scale_molecular_dynamics import ROOT_DIR  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import \
-    LammpsLoaderParameters
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import \
+    LammpsDataModuleParameters
 from diffusion_for_multi_scale_molecular_dynamics.train_diffusion import \
     main as train_diffusion_main  # noqa
 
@@ -29,7 +30,7 @@ OUTPUT_PATH = str(EXP_PATH / "output")
 def lattice_dm_wrapper(
     lammps_run_dir: str,
     processed_dataset_dir: str,
-    hyper_params: LammpsLoaderParameters,
+    hyper_params: LammpsDataModuleParameters,
     working_cache_dir: Optional[str] = None,
 ):
     """This replaces the arguments from the normal datamodule to the experiment one."""
@@ -80,6 +81,5 @@ if __name__ == "__main__":
     with (
         patch(target=target_dm, new=lattice_dm_wrapper),
         patch(target=target_x_noiser, new=RelativeCoordinatesIdentityNoiser),
-        # patch(target=target_a_noiser, new=AtomTypesIdentityNoiser),
     ):
         train_diffusion_main(args)
