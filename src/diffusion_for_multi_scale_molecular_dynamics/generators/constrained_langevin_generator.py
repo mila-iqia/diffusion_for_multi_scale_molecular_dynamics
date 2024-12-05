@@ -1,16 +1,11 @@
-import einops
 import torch
 from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
+from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
+    SamplingConstraint
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
-    AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
-    RelativeCoordinatesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
-    class_index_to_onehot
 
 
 class ConstrainedPredictorCorrectorAXLGenerator:
@@ -24,108 +19,60 @@ class ConstrainedPredictorCorrectorAXLGenerator:
     def __init__(
         self,
         generator: LangevinGenerator,
-        reference_composition: AXL,
-        constrained_atom_indices: torch.Tensor,
+        sampling_constraint: SamplingConstraint,
     ):
         """Init method."""
         self.generator = generator
+        self.sampling_constraint = sampling_constraint
+
+        self.starting_free_diffusion_time_step = (
+            self.sampling_constraint.sampling_constraint_parameters.starting_free_diffusion_time_step
+        )
+
+        self.constrained_atom_indices = (
+            self.sampling_constraint.sampling_constraint_parameters.constrained_atom_indices
+        )
+
+        # Tensor dimensions: [number_of_time_steps, number_of_atoms, ...]
+        self.constraint_compositions = self.sampling_constraint.constraint_compositions
+
+        assert (
+            self.generator.noise_parameters
+            == self.sampling_constraint.sampling_constraint_parameters.noise_parameters
+        ), "Noise parameters are inconsistent between generator and constraint."
 
         if hasattr(self.generator, "sample_trajectory_recorder"):
             self.sample_trajectory_recorder = self.generator.sample_trajectory_recorder
 
         self.number_of_atoms = self.generator.number_of_atoms
+        self.all_atom_indices = torch.arange(self.number_of_atoms)
         self.num_classes = self.generator.num_classes
 
-        self.reference_composition = reference_composition
-        self.constraint_indices = constrained_atom_indices
+    def _apply_constraint(
+        self, predicted_composition: AXL, time_index: int, device: torch.device
+    ) -> AXL:
+        """This method applies the constraints from the sampling_constraint."""
+        if time_index > self.starting_free_diffusion_time_step:
+            atom_indices = torch.arange(self.number_of_atoms)
+        else:
+            atom_indices = self.constrained_atom_indices
 
-        assert (
-            len(self.reference_composition.X.shape) == 2
-        ), "The constrained relative coordinates have the wrong shape"
+        constrained_x = predicted_composition.X.clone()
+        constrained_a = predicted_composition.A.clone()
 
-        assert (
-            len(self.reference_composition.A.shape) == 1
-        ), "The constrained atom types have the wrong shape"
-
-        assert (
-            len(constrained_atom_indices.shape) == 1
-        ), "The constrained_atom_indices array has the wrong shape"
-
-        self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
-        self.atom_type_noiser = AtomTypesNoiser()
-
-    def _apply_constraint(self, composition: AXL, device: torch.device) -> AXL:
-        """This method applies the coordinate constraint on the input configuration."""
-        constrained_x = composition.X.clone()
-        constrained_x[:, self.constraint_indices] = self.reference_composition.X[
-            self.constraint_indices
+        constrained_x[:, atom_indices] = self.constraint_compositions.X[
+            time_index, atom_indices
         ].to(device)
-
-        constrained_a = composition.A.clone()
-        constrained_a[:, self.constraint_indices] = self.reference_composition.A[
-            self.constraint_indices
+        constrained_a[:, atom_indices] = self.constraint_compositions.A[
+            time_index, atom_indices
         ].to(device)
 
         constrained_composition = AXL(
             A=constrained_a,
             X=constrained_x,
-            L=composition.L,
+            L=predicted_composition.L,
         )
         return constrained_composition
-
-    def _get_noised_known_composition(
-        self, i: int, number_of_samples: int, device: torch.device
-    ) -> AXL:
-        """This method applies the noise to the known composition."""
-        # Initialize compositions that satisfies the constraint, but is otherwise random.
-        # Since the noising process is 'atom-per-atom', the non-constrained position should have no impact.
-        composition0_known = self.generator.initialize(number_of_samples, device)
-        composition0_known = self._apply_constraint(composition0_known, device)
-
-        q_bar_matrices_i = einops.repeat(
-            self.generator.noise.q_bar_matrix[i].to(device),
-            "n1 n2 -> nsamples natoms n1 n2",
-            nsamples=number_of_samples,
-            natoms=self.number_of_atoms,
-        )
-
-        sigma_i = self.generator.noise.sigma[i]
-        coordinates_broadcasting = torch.ones_like(composition0_known.X)
-        broadcast_sigmas_i = sigma_i * coordinates_broadcasting
-
-        # Noise an example satisfying the constraints from t_0 to t_i
-        x_i_known = (
-            self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
-                composition0_known.X, broadcast_sigmas_i
-            )
-        )
-
-        one_hot_a_i = class_index_to_onehot(
-            composition0_known.A, num_classes=self.num_classes
-        )
-        a_i_known = self.atom_type_noiser.get_noisy_atom_types_sample(
-            one_hot_a_i, q_bar_matrices_i
-        )
-
-        noised_composition = AXL(A=a_i_known, X=x_i_known, L=composition0_known.L)
-        return noised_composition
-
-    def _combine_noised_and_denoised_compositions(
-        self, noised_composition: AXL, denoised_composition: AXL
-    ) -> AXL:
-
-        updated_x = denoised_composition.X.clone()
-        updated_a = denoised_composition.A.clone()
-
-        updated_x[:, self.constraint_indices] = noised_composition.X[
-            :, self.constraint_indices
-        ]
-        updated_a[:, self.constraint_indices] = noised_composition.A[
-            :, self.constraint_indices
-        ]
-
-        composition_i = AXL(A=updated_a, X=updated_x, L=denoised_composition.L)
-        return composition_i
 
     def sample(
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
@@ -156,20 +103,11 @@ class ConstrainedPredictorCorrectorAXLGenerator:
         forces = torch.zeros_like(composition_ip1.X)
 
         for i in tqdm(range(self.generator.number_of_discretization_steps - 1, -1, -1)):
-
-            # Noise from t_0 to t_i
-            noised_composition_i = self._get_noised_known_composition(
-                i, number_of_samples, device
-            )
-
             # Denoise from t_{i+1} to t_i
-            denoised_composition_i = self.generator.predictor_step(
+            predicted_composition_i = self.generator.predictor_step(
                 composition_ip1, i + 1, unit_cell, forces
             )
-
-            composition_i = self._combine_noised_and_denoised_compositions(
-                noised_composition_i, denoised_composition_i
-            )
+            composition_i = self._apply_constraint(predicted_composition_i, i, device)
 
             for _ in range(self.generator.number_of_corrector_steps):
                 composition_i = self.generator.corrector_step(
@@ -179,6 +117,6 @@ class ConstrainedPredictorCorrectorAXLGenerator:
             composition_ip1 = composition_i
 
         # apply the constraint one last time
-        composition_i = self._apply_constraint(composition_i, device)
+        composition_i = self._apply_constraint(composition_i, 0, device)
 
         return composition_i
