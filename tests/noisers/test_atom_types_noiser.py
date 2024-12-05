@@ -7,7 +7,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser impo
 
 
 @pytest.mark.parametrize("shape", [(10, 1), (4, 5, 3), (2, 2, 2, 2)])
-class TestNoisyAtomTypesSampler:
+class TestAtomTypeNoiser:
 
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
@@ -46,12 +46,12 @@ class TestNoisyAtomTypesSampler:
         assert torch.all(computed_noisy_atom_types >= 0)
         assert torch.all(computed_noisy_atom_types < num_classes)
 
-    def test_get_noisy_relative_coordinates_sample(
+    def test_get_noisy_atom_types_sample(
         self, mocker, real_atom_types_one_hot, q_bar_matrices, fake_uniform_noise
     ):
         mocker.patch.object(
             AtomTypesNoiser,
-            "_get_uniform_noise",
+            "get_uniform_noise",
             return_value=fake_uniform_noise,
         )
         computed_samples = AtomTypesNoiser.get_noisy_atom_types_sample(

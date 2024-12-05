@@ -13,7 +13,7 @@ class AtomTypesNoiser:
     """
 
     @staticmethod
-    def _get_uniform_noise(shape: Tuple[int]) -> torch.Tensor:
+    def get_uniform_noise(shape: Tuple[int]) -> torch.Tensor:
         """Get uniform noise.
 
         Get a sample from U(0, 1) of dimensions shape.
@@ -48,13 +48,22 @@ class AtomTypesNoiser:
             real_onehot_atom_types.shape == q_bar.shape[:-1]
         ), "q_bar array first dimensions should match real_atom_types array"
 
-        u = AtomTypesNoiser._get_uniform_noise(real_onehot_atom_types.shape).to(q_bar)
+        device = real_onehot_atom_types.device
+
+        u = AtomTypesNoiser.get_uniform_noise(real_onehot_atom_types.shape).to(q_bar).to(device)
         # we need to sample from q(x_t | x_0)
         posterior_at_probabilities = compute_q_at_given_a0(
             real_onehot_atom_types, q_bar
         )
+
+        return AtomTypesNoiser.get_noisy_atom_type_sample_from_uniform_variable_and_probabilities(
+            posterior_at_probabilities, u)
+
+    @staticmethod
+    def get_noisy_atom_type_sample_from_uniform_variable_and_probabilities(posterior_at_probabilities, u):
+        """Get noisy atom type sample from uniform variable and probabilities."""
         # gumbel trick to sample from a distribution
-        noise = -torch.log(-torch.log(u)).to(real_onehot_atom_types.device)
+        noise = -torch.log(-torch.log(u))
         noisy_atom_types = torch.log(posterior_at_probabilities) + noise
         noisy_atom_types = torch.argmax(noisy_atom_types, dim=-1)
         return noisy_atom_types
