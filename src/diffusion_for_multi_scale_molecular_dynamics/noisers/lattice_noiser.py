@@ -3,6 +3,9 @@ from typing import Tuple
 
 import torch
 
+from experiments.analysis.analytic_score.repaint.plot_repaint_analytical_score_trajectories import \
+    spatial_dimension
+
 
 @dataclass(kw_only=True)
 class LatticeDataParameters:
@@ -19,6 +22,7 @@ class LatticeNoiser:
     This class provides methods to generate noisy lattices.
     TODO this is a placeholder
     """
+
     def __init__(self, lattice_parameters: LatticeDataParameters):
         self.spatial_dimension = lattice_parameters.spatial_dimension
 
