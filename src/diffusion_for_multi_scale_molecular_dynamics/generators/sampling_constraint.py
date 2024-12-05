@@ -5,6 +5,8 @@ from pathlib import Path
 import einops
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.loss import \
+    D3PMLossCalculator
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
@@ -36,6 +38,9 @@ class SamplingConstraintParameters:
 
     # reference composition at t=0
     reference_composition: AXL
+
+    # Small parameter to avoid dividing by zero in atom type probabilities.
+    small_epsilon: float = 1.0e-12
 
     def __post_init__(self):
         """Post init method, to validate input."""
@@ -130,6 +135,8 @@ def create_sampling_constraint(
     # Account for the MASK class
     num_classes = sampling_constraint_parameters.num_atom_types + 1
 
+    masked_atom_index = num_classes - 1
+
     sampler = NoiseScheduler(
         sampling_constraint_parameters.noise_parameters, num_classes=num_classes
     )
@@ -142,43 +149,75 @@ def create_sampling_constraint(
     x_0 = sampling_constraint_parameters.reference_composition.X
     l_0 = sampling_constraint_parameters.reference_composition.L
 
+    number_of_atoms, spatial_dimension = x_0.shape
+
+    trajectory_a = torch.empty(total_time_steps, number_of_atoms, dtype=torch.int64)
+    trajectory_x = torch.empty(total_time_steps, number_of_atoms, spatial_dimension)
+    trajectory_l = torch.empty(total_time_steps, spatial_dimension, spatial_dimension)
+
     one_hot_a_0 = class_index_to_onehot(a_0, num_classes=num_classes)
-    number_of_atoms = x_0.shape[0]
+
+    a_ip1 = masked_atom_index * torch.ones(number_of_atoms, dtype=torch.int64)
+    one_hot_a_ip1 = class_index_to_onehot(a_ip1, num_classes=num_classes)
 
     coordinates_broadcasting = torch.ones_like(x_0)
 
     # Use the same Z-scores for all noising. This insures that all noised structures are "close" to each other.
-    z_scores = RelativeCoordinatesNoiser._get_gaussian_noise(x_0.shape)
+    z_scores = relative_coordinates_noiser.get_gaussian_noise(x_0.shape)
 
-    list_x = [x_0]
-    list_a = [a_0]
-    list_l = [l_0]
+    atom_is_unmasked = torch.zeros(number_of_atoms, dtype=torch.bool)
 
-    for time_idx in torch.arange(1, total_time_steps):
+    for time_idx in torch.arange(total_time_steps - 1, 0, -1):
         sigmas_i = noise.sigma[time_idx] * coordinates_broadcasting
-        q_bar_matrices_i = einops.repeat(
-            noise.q_bar_matrix[time_idx],
-            "n1 n2 -> natoms n1 n2",
-            natoms=number_of_atoms,
-        )
-
         x_i = relative_coordinates_noiser.get_noisy_relative_coordinates_sample_given_z_scores(
             x_0, sigmas_i, z_scores
         )
 
-        a_i = atom_type_noiser.get_noisy_atom_types_sample(
-            one_hot_a_0, q_bar_matrices_i
+        q_matrices = einops.repeat(
+            noise.q_matrix[time_idx],
+            "n1 n2 -> natoms n1 n2",
+            natoms=number_of_atoms,
         )
 
-        list_x.append(x_i)
-        list_a.append(a_i)
-        list_l.append(l_0)  # TODO : take care of L correctly.
+        q_bar_matrices = einops.repeat(
+            noise.q_bar_matrix[time_idx],
+            "n1 n2 -> natoms n1 n2",
+            natoms=number_of_atoms,
+        )
+        q_bar_tm1_matrices = einops.repeat(
+            noise.q_bar_tm1_matrix[time_idx],
+            "n1 n2 -> natoms n1 n2",
+            natoms=number_of_atoms,
+        )
 
-    constraint_compositions = AXL(
-        A=torch.stack(list_a, dim=0),
-        X=torch.stack(list_x, dim=0),
-        L=torch.stack(list_l, dim=0),
-    )
+        atom_type_probabilities = (
+            D3PMLossCalculator.get_q_atm1_given_at_and_a0(one_hot_a_0,
+                                                          one_hot_a_ip1,
+                                                          q_matrices,
+                                                          q_bar_matrices,
+                                                          q_bar_tm1_matrices,
+                                                          sampling_constraint_parameters.small_epsilon))
+
+        uniform_noise = atom_type_noiser.get_uniform_noise(one_hot_a_0.shape)
+
+        a_i = (
+            AtomTypesNoiser.get_noisy_atom_type_sample_from_uniform_variable_and_probabilities(atom_type_probabilities,
+                                                                                               uniform_noise))
+
+        a_i[atom_is_unmasked] = a_ip1[atom_is_unmasked]
+
+        trajectory_a[time_idx] = a_i
+        trajectory_x[time_idx] = x_i
+        trajectory_l[time_idx] = l_0
+
+        a_ip1 = a_i
+        atom_is_unmasked = a_i != masked_atom_index
+
+    trajectory_a[0] = a_0
+    trajectory_x[0] = x_0
+    trajectory_l[0] = l_0
+
+    constraint_compositions = AXL(A=trajectory_a, X=trajectory_x, L=trajectory_l)
 
     sampling_constraint = SamplingConstraint(
         sampling_constraint_parameters=sampling_constraint_parameters,
