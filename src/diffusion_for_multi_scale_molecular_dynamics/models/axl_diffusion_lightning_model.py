@@ -36,8 +36,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_schedul
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
     AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
-    LatticeDataParameters, LatticeNoiser
+from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import (
+    LatticeDataParameters, LatticeNoiser)
 from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
     RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
@@ -52,11 +52,14 @@ from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling im
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
     DiffusionSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.score.gaussian_score import get_lattice_sigma_normalized_score
+from diffusion_for_multi_scale_molecular_dynamics.score.gaussian_score import \
+    get_lattice_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_coordinates_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates, map_relative_coordinates_to_unit_cell, map_lattice_parameters_to_unit_cell_vectors)
+    get_positions_from_coordinates,
+    map_lattice_parameters_to_unit_cell_vectors,
+    map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 from diffusion_for_multi_scale_molecular_dynamics.utils.noise_utils import \
@@ -117,9 +120,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         # loss is an AXL object with one loss for each element (atom type, coordinate, lattice)
         self.loss_calculator = create_loss_calculator(hyper_params.loss_parameters)
 
-        self.loss_weights = AXL(A=hyper_params.loss_parameters.A.lambda_weight,
-                                X=hyper_params.loss_parameters.X.lambda_weight,
-                                L=hyper_params.loss_parameters.L.lambda_weight)
+        self.loss_weights = AXL(
+            A=hyper_params.loss_parameters.A.lambda_weight,
+            X=hyper_params.loss_parameters.X.lambda_weight,
+            L=hyper_params.loss_parameters.L.lambda_weight,
+        )
 
         # noisy samplers for atom types, coordinates and lattice vectors
         self.noisers = AXL(
@@ -151,8 +156,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 self.structure_ks_metric = KolmogorovSmirnovMetrics()
             if self.metrics_parameters.compute_energies:
                 self.energy_ks_metric = KolmogorovSmirnovMetrics()
-                assert self.hyper_params.oracle_parameters is not None, \
-                    "Energies cannot be computed without a configured energy oracle."
+                assert (
+                    self.hyper_params.oracle_parameters is not None
+                ), "Energies cannot be computed without a configured energy oracle."
                 self.oracle = create_energy_oracle(self.hyper_params.oracle_parameters)
 
     def configure_optimizers(self):
@@ -515,7 +521,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
-            basis_vectors = map_lattice_parameters_to_unit_cell_vectors(output[AXL_COMPOSITION].L)
+            basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
+                output[AXL_COMPOSITION].L
+            )
             cartesian_positions = get_positions_from_coordinates(
                 relative_coordinates=output[AXL_COMPOSITION].X,
                 basis_vectors=basis_vectors,
@@ -620,7 +628,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 cartesian_positions=samples_batch[
                     CARTESIAN_POSITIONS
                 ],  # TODO replace with AXL
-                unit_cell=map_lattice_parameters_to_unit_cell_vectors(samples_batch[LATTICE_PARAMETERS]),
+                unit_cell=map_lattice_parameters_to_unit_cell_vectors(
+                    samples_batch[LATTICE_PARAMETERS]
+                ),
                 max_distance=self.metrics_parameters.structure_factor_max_distance,
             )
 

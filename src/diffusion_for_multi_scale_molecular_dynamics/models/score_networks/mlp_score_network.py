@@ -85,6 +85,9 @@ class MLPScoreNetwork(ScoreNetwork):
 
         coordinate_output_dimension = self.spatial_dimension * self._natoms
         atom_type_output_dimension = self._natoms * self.num_classes
+        lattice_parameters_output_dimension = int(
+            self.spatial_dimension * (self.spatial_dimension + 1) / 2
+        )
 
         input_dimension = (
             hyper_params.relative_coordinates_embedding_dimensions_size
@@ -150,10 +153,12 @@ class MLPScoreNetwork(ScoreNetwork):
         self.output_X_layer = nn.Linear(
             hyper_params.hidden_dimensions_size, coordinate_output_dimension
         )
-        self.output_L_layer = nn.Identity()
+        self.output_L_layer = nn.Linear(
+            hyper_params.hidden_dimensions_size, lattice_parameters_output_dimension
+        )
         self.output_layers = AXL(
             A=self.output_A_layer, X=self.output_X_layer, L=self.output_L_layer
-        )  # TODO placeholder
+        )
 
     def _create_mlp(
         self,
@@ -300,6 +305,8 @@ class MLPScoreNetwork(ScoreNetwork):
             atom_types_one_hot
         )  # shape [batch_size, atom_type_embedding_dimension]
 
+        # TODO lattice parameters should be used here
+
         input = torch.cat(
             [
                 relative_coordinates_embedding,
@@ -343,7 +350,7 @@ class MLPScoreNetwork(ScoreNetwork):
         atom_types_output = self.output_layers.A(output).reshape(
             atom_types_one_hot.shape
         )
-        lattice_output = torch.zeros_like(atom_types_output)  # TODO placeholder
+        lattice_output = self.output_L_layer(output)
 
         axl_output = AXL(A=atom_types_output, X=coordinates_output, L=lattice_output)
         return axl_output

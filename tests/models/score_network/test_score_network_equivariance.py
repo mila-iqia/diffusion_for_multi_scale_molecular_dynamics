@@ -77,6 +77,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         cartesian_positions,
         atom_types,
         basis_vectors,
+        lattice_parameters,
         times,
         noises,
         forces,
@@ -85,12 +86,12 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types,
                 X=relative_coordinates,
-                L=torch.zeros_like(atom_types),  # TODO
+                L=lattice_parameters,
             ),
             NOISY_CARTESIAN_POSITIONS: cartesian_positions,
             TIME: times,
             NOISE: noises,
-            UNIT_CELL: basis_vectors,
+            UNIT_CELL: basis_vectors,  # TODO link to lattice parameters
             CARTESIAN_FORCES: forces,
         }
         return batch
@@ -168,6 +169,15 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         return basis_vectors
 
     @pytest.fixture()
+    def lattice_parameters(self, basis_vectors, spatial_dimension):
+        lattice_dim = int(spatial_dimension * (spatial_dimension + 1) / 2)
+        lattice_values = torch.zeros(basis_vectors.shape[0], lattice_dim)
+        lattice_values[:, :spatial_dimension] = torch.diagonal(
+            basis_vectors, dim1=-2, dim2=-1
+        )
+        return lattice_values
+
+    @pytest.fixture()
     def rotated_basis_vectors(
         self, cartesian_rotations, basis_vectors, are_basis_vectors_rotated
     ):
@@ -237,6 +247,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         cartesian_positions,
         atom_types,
         basis_vectors,
+        lattice_parameters,
         times,
         noises,
         forces,
@@ -246,6 +257,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             cartesian_positions,
             atom_types,
             basis_vectors,
+            lattice_parameters,
             times,
             noises,
             forces,
@@ -259,6 +271,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         cartesian_positions,
         atom_types,
         basis_vectors,
+        lattice_parameters,
         times,
         noises,
         forces,
@@ -279,6 +292,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             new_cartesian_positions,
             atom_types,
             basis_vectors,
+            lattice_parameters,
             times,
             noises,
             forces,
@@ -293,6 +307,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         cartesian_positions,
         atom_types,
         basis_vectors,
+        lattice_parameters,
         times,
         noises,
         forces,
@@ -317,6 +332,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             new_cartesian_positions,
             atom_types,
             rotated_basis_vectors,
+            lattice_parameters,  # TODO rotate those as well
             times,
             noises,
             forces,
@@ -330,6 +346,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         cartesian_positions,
         atom_types,
         basis_vectors,
+        lattice_parameters,
         times,
         noises,
         forces,
@@ -361,6 +378,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             new_cartesian_positions,
             new_atom_types,
             basis_vectors,
+            lattice_parameters,
             times,
             noises,
             forces,

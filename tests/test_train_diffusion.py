@@ -164,6 +164,7 @@ def get_config(
         seed=9999,
         spatial_dimension=3,
         elements=unique_elements,
+        cell_dimensions=[10., 10., 10.],
         data=data_config,
         model=model_config,
         optimizer=optimizer_config,
