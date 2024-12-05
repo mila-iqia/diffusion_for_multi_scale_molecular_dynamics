@@ -5,7 +5,8 @@ import torch
 from torch.nn import KLDivLoss
 
 from diffusion_for_multi_scale_molecular_dynamics.loss import (
-    D3PMLossCalculator, AXLLossParameters)
+    D3PMLossCalculator)
+from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import AtomTypeLossParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
@@ -137,10 +138,10 @@ class TestD3PMLossCalculator:
 
     @pytest.fixture
     def loss_parameters(self, loss_eps, atom_types_ce_weight):
-        return AXLLossParameters(
-            coordinates_algorithm=None,
-            atom_types_eps=loss_eps,
-            atom_types_ce_weight=atom_types_ce_weight,
+        return AtomTypeLossParameters(
+            algorithm=None,
+            eps=loss_eps,
+            ce_weight=atom_types_ce_weight,
         )
 
     @pytest.fixture

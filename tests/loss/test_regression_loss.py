@@ -4,7 +4,8 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.loss import \
     create_loss_calculator
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import (
-    MSELossParameters, WeightedMSELossParameters)
+    MSELossParameters, WeightedMSELossParameters, AtomTypeLossParameters)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from src.diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
     broadcast_batch_tensor_to_all_dimensions
 
@@ -72,7 +73,12 @@ def algorithm(request):
 
 
 @pytest.fixture()
-def loss_parameters(algorithm, sigma0, exponent):
+def atom_types_loss_params():
+    return AtomTypeLossParameters(algorithm="d3pm")
+
+
+@pytest.fixture()
+def loss_parameters(algorithm, sigma0, exponent, atom_types_loss_params):
     match algorithm:
         case "mse":
             parameters = MSELossParameters()
@@ -80,7 +86,12 @@ def loss_parameters(algorithm, sigma0, exponent):
             parameters = WeightedMSELossParameters(sigma0=sigma0, exponent=exponent)
         case _:
             raise ValueError(f"Unknown loss algorithm {algorithm}")
-    return parameters
+    axl_parameters = AXL(
+        X=parameters,
+        A=atom_types_loss_params,
+        L=parameters
+    )
+    return axl_parameters
 
 
 @pytest.fixture()

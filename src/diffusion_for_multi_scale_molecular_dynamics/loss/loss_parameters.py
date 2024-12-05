@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from typing import Any, Dict
 
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing import \
     create_parameters_from_configuration_dictionary
-from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL, AXL_NAME_DICT
-from experiments.sampling_sota_model.sota_score_sampling_and_plotting import atom_types
 
 
 @dataclass(kw_only=True)
@@ -36,11 +35,10 @@ class WeightedMSELossParameters(LossParameters):
 
 @dataclass(kw_only=True)
 class AtomTypeLossParameters(LossParameters):
-    algorithm = "d3pm"
-    atom_types_ce_weight: float = 0.001  # default value in google D3PM repo
-    atom_types_eps: float = 1e-8  # avoid divisions by zero
+    algorithm: str = "d3pm"
+    ce_weight: float = 0.001  # default value in google D3PM repo
+    eps: float = 1e-8  # avoid divisions by zero
     # https://github.com/google-research/google-research/blob/master/d3pm/images/config.py
-
 
 
 def create_loss_parameters(model_dictionary: Dict[str, Any]) -> AXL:
@@ -59,7 +57,7 @@ def create_loss_parameters(model_dictionary: Dict[str, Any]) -> AXL:
     default_axl_dict = dict(
         coordinates=default_mse_dict,
         atom_types=default_d3pm_dict,
-        lattice_parameters=default_mse_dict
+        lattice_parameters=default_mse_dict,
     )
     loss_config_dictionary = model_dictionary.get("loss", default_axl_dict)
 
@@ -70,16 +68,18 @@ def create_loss_parameters(model_dictionary: Dict[str, Any]) -> AXL:
             configuration=loss_config_dictionary.get(var, default_params),
             identifier="algorithm",
             options=LOSS_PARAMETERS_BY_ALGO,
-    )
+        )
     loss_parameters = AXL(
         A=loss_parameters["atom_types"],
         X=loss_parameters["coordinates"],
-        L=loss_parameters["lattice_parameters"]
+        L=loss_parameters["lattice_parameters"],
     )
 
     return loss_parameters
 
 
 LOSS_PARAMETERS_BY_ALGO = dict(
-    mse=MSELossParameters, weighted_mse=WeightedMSELossParameters, d3pm=AtomTypeLossParameters
+    mse=MSELossParameters,
+    weighted_mse=WeightedMSELossParameters,
+    d3pm=AtomTypeLossParameters,
 )
