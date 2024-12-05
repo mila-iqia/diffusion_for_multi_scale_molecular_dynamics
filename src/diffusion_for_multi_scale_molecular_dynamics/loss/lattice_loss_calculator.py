@@ -1,16 +1,14 @@
-import torch
+from diffusion_for_multi_scale_molecular_dynamics.loss.coordinates_loss_calculator import \
+    CoordinatesLossCalculator
 
 
-class LatticeLossCalculator(torch.nn.Module):
+class LatticeLossCalculator(CoordinatesLossCalculator):
     """Class to calculate the loss for the lattice vectors.
 
-    Placeholder for now.
+    The loss for the lattice parameters is the same as for the coordinates. We simply inherit from the coordinates loss.
+    This is an empty shell for now - we could revisit this to create a different loss for the lattice parameters.
     """
 
     def __init__(self):
         """Placeholder for now."""
         super().__init__()
-
-    def calculate_unreduced_loss(self, *args):
-        """Placeholder for now."""
-        return 0
