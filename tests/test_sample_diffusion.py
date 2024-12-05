@@ -7,6 +7,9 @@ import yaml
 from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import (
+    SamplingConstraintParameters, create_sampling_constraint,
+    write_sampling_constraint)
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     MSELossParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
@@ -65,8 +68,40 @@ def record_samples(request):
 
 
 @pytest.fixture()
-def noise_parameters():
-    return NoiseParameters(total_time_steps=10)
+def starting_free_diffusion_time_step(total_time_steps):
+    return total_time_steps // 2
+
+
+@pytest.fixture()
+def total_time_steps():
+    return 10
+
+
+@pytest.fixture()
+def noise_parameters(total_time_steps):
+    return NoiseParameters(total_time_steps=total_time_steps)
+
+
+@pytest.fixture()
+def sampling_constraint_parameters(
+    noise_parameters,
+    num_atom_types,
+    starting_free_diffusion_time_step,
+    constrained_atom_indices,
+    reference_composition,
+):
+    return SamplingConstraintParameters(
+        noise_parameters=noise_parameters,
+        num_atom_types=num_atom_types,
+        starting_free_diffusion_time_step=starting_free_diffusion_time_step,
+        constrained_atom_indices=constrained_atom_indices,
+        reference_composition=reference_composition,
+    )
+
+
+@pytest.fixture()
+def sampling_constraint(sampling_constraint_parameters):
+    return create_sampling_constraint(sampling_constraint_parameters)
 
 
 @pytest.fixture()
@@ -135,11 +170,9 @@ def apply_constraint(request):
 
 
 @pytest.fixture()
-def constraint_data_pickle_path(tmp_path, reference_composition, constrained_atom_indices):
+def path_to_sampling_constraint_pickle(tmp_path, sampling_constraint):
     path_to_pickle = tmp_path / "pickle_path.pkl"
-    data = dict(reference_composition=reference_composition,
-                constrained_atom_indices=constrained_atom_indices)
-    torch.save(data, path_to_pickle)
+    write_sampling_constraint(sampling_constraint, path_to_pickle)
     return path_to_pickle
 
 
@@ -158,7 +191,7 @@ def output_path(tmp_path):
 
 
 @pytest.fixture()
-def args(config_path, checkpoint_path, output_path, constraint_data_pickle_path, apply_constraint, device):
+def args(config_path, checkpoint_path, output_path, path_to_sampling_constraint_pickle, apply_constraint, device):
     """Input arguments for main."""
     input_args = [
         f"--config={config_path}",
@@ -168,7 +201,7 @@ def args(config_path, checkpoint_path, output_path, constraint_data_pickle_path,
     ]
 
     if apply_constraint:
-        input_args.append(f"--path_to_constraint_data_pickle={constraint_data_pickle_path}")
+        input_args.append(f"--path_to_sampling_constraint_pickle={path_to_sampling_constraint_pickle}")
 
     return input_args
 

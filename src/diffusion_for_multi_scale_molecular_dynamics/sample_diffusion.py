@@ -25,6 +25,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator 
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
     load_sampling_parameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
+    read_sampling_constraint
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
     AXLDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
@@ -57,8 +59,8 @@ def main(args: Optional[Any] = None):
         help="config file with sampling parameters in yaml format.",
     )
     parser.add_argument(
-        "--path_to_constraint_data_pickle", required=False,
-        help="path to a pickle that contains a reference compositions and fixed atom indices."
+        "--path_to_sampling_constraint_pickle", required=False,
+        help="path to a pickle that contains reference compositions and fixed atom indices."
     )
 
     parser.add_argument(
@@ -120,20 +122,13 @@ def main(args: Optional[Any] = None):
         axl_network=axl_network,
     )
 
-    if args.path_to_constraint_data_pickle:
+    if args.path_to_sampling_constraint_pickle:
         logger.info("Constrained Sampling is activated")
-        constraint_data_pickle_path = Path(args.path_to_constraint_data_pickle)
+        constraint_data_pickle_path = Path(args.path_to_sampling_constraint_pickle)
         assert constraint_data_pickle_path.is_file(), "The constraint data pickle does not exist."
 
-        constraint_data = torch.load(constraint_data_pickle_path)
-        constrained_atom_indices = constraint_data["constrained_atom_indices"]
-        logger.info(f"Constrained atom indices are {constrained_atom_indices}")
-
-        reference_composition = constraint_data["reference_composition"]
-
-        generator = ConstrainedPredictorCorrectorAXLGenerator(raw_generator,
-                                                              reference_composition,
-                                                              constrained_atom_indices)
+        sampling_constraint = read_sampling_constraint(args.path_to_sampling_constraint_pickle)
+        generator = ConstrainedPredictorCorrectorAXLGenerator(raw_generator, sampling_constraint)
     else:
         generator = raw_generator
 
