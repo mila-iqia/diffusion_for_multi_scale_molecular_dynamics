@@ -33,7 +33,7 @@ LATTICE_PARAMETERS = "lattice_parameters"
 NOISY_LATTICE_PARAMETERS = "noisy_lattice_parameters"
 
 AXL = namedtuple("AXL", ["A", "X", "L"])
-AXL_NAME_DICT = {"A": ATOM_TYPES, "X": RELATIVE_COORDINATES, "L": UNIT_CELL}
+AXL_NAME_DICT = {"A": ATOM_TYPES, "X": RELATIVE_COORDINATES, "L": LATTICE_PARAMETERS}
 
 NOISY_AXL_COMPOSITION = "noisy_axl"
 AXL_COMPOSITION = "original_axl"
