@@ -401,14 +401,16 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         aggregated_weighted_loss = (
             self.loss_weights.X
             * unreduced_loss_coordinates.mean(
-                dim=-1
+                dim=(-2, -1)
             )  # batch, num_atoms, spatial_dimension
             + self.loss_weights.L
             * unreduced_loss_lattice.mean(
                 dim=-1
             )  # batch, spatial_dimension  TODO add angles
             + self.loss_weights.A
-            * unreduced_loss_atom_types.mean(dim=-1)  # batch, num_atoms, num_atom_types
+            * unreduced_loss_atom_types.mean(
+                dim=(-2, -1)
+            )  # batch, num_atoms, num_atom_types
         )
 
         weighted_loss = torch.mean(aggregated_weighted_loss)
