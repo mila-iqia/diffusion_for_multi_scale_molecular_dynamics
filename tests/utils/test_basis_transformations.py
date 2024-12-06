@@ -5,7 +5,9 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,
-    map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
+    map_axl_composition_to_unit_cell,
+    map_lattice_parameters_to_unit_cell_vectors,
+    map_relative_coordinates_to_unit_cell)
 
 
 @pytest.fixture
@@ -130,3 +132,33 @@ def test_map_axl_to_unit_cell_hard(shape, num_atom_types):
     )
     assert torch.all(computed_axl_composition.A == axl_composition.A)
     assert torch.all(computed_axl_composition.L == axl_composition.L)
+
+
+@pytest.fixture
+def lattice_parameters(basis_vectors):
+    spatial_dimension = basis_vectors.shape[-1]
+    lattice_params = torch.zeros(
+        basis_vectors.shape[0], int(spatial_dimension * (spatial_dimension + 1) / 2)
+    )
+    for s in range(spatial_dimension):
+        lattice_params[:, s] = basis_vectors[:, s, s]
+    return lattice_params
+
+
+@pytest.fixture
+def expected_unit_cell_vectors(basis_vectors):
+    unit_cell_vectors = torch.zeros_like(basis_vectors)
+    for s in range(basis_vectors.shape[-1]):
+        unit_cell_vectors[:, s, s] = basis_vectors[:, s, s]
+    return unit_cell_vectors
+
+
+def test_map_lattice_parameters_to_unit_cell_vectors(
+    lattice_parameters, expected_unit_cell_vectors
+):
+    calculated_lattice_parameters = map_lattice_parameters_to_unit_cell_vectors(
+        lattice_parameters
+    )
+    torch.testing.assert_allclose(
+        calculated_lattice_parameters, expected_unit_cell_vectors
+    )

@@ -31,10 +31,12 @@ class TestScoreNetworkBasicCheck(BaseTestScoreNetwork):
         times = torch.rand(batch_size, 1)
         noises = torch.rand(batch_size, 1)
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
+        lattice_params = torch.zeros(batch_size, int(spatial_dimension * (spatial_dimension + 1) / 2))
+        lattice_params[:, :spatial_dimension] = torch.diagonal(unit_cell, dim1=-2, dim2=-1)
         atom_types = torch.randint(0, num_atom_types + 1, (batch_size, number_of_atoms))
         return {
             NOISY_AXL_COMPOSITION: AXL(
-                A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
+                A=atom_types, X=relative_coordinates, L=lattice_params
             ),
             TIME: times,
             NOISE: noises,
@@ -134,14 +136,15 @@ class TestScoreNetworkBasicCheck(BaseTestScoreNetwork):
             case "time_range2":
                 bad_batch_dict[TIME][0, 0] = -0.05
 
-            case "cell_name":
-                bad_batch_dict["bad_unit_cell_key"] = bad_batch_dict[UNIT_CELL]
-                del bad_batch_dict[UNIT_CELL]
-
-            case "cell_shape":
-                shape = bad_batch_dict[UNIT_CELL].shape
-                bad_batch_dict[UNIT_CELL] = bad_batch_dict[UNIT_CELL].reshape(
-                    shape[0] // 2, shape[1] * 2, shape[2]
+            case "lattice_shape":
+                shape = bad_batch_dict[NOISY_AXL_COMPOSITION].L.shape
+                bad_shaped_lattice = bad_batch_dict[NOISY_AXL_COMPOSITION].L.reshape(
+                    shape[0] // 2, shape[1] * 2
+                )
+                bad_batch_dict[NOISY_AXL_COMPOSITION] = AXL(
+                    A=bad_batch_dict[NOISY_AXL_COMPOSITION].A,
+                    X=bad_batch_dict[NOISY_AXL_COMPOSITION].X,
+                    L=bad_shaped_lattice,
                 )
 
         return bad_batch_dict
@@ -165,8 +168,7 @@ class TestScoreNetworkBasicCheck(BaseTestScoreNetwork):
             "atom_types_range2",
             "time_range1",
             "time_range2",
-            "cell_name",
-            "cell_shape",
+            "lattice_shape",
         ],
     )
     def test_check_batch_bad(self, score_network, bad_batch):

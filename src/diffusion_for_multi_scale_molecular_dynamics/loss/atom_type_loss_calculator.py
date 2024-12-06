@@ -1,7 +1,7 @@
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
-    LossParameters
+    AtomTypeLossParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     get_probability_at_previous_time_step
 
@@ -9,16 +9,16 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
 class D3PMLossCalculator(torch.nn.Module):
     """Class to calculate the discrete diffusion loss."""
 
-    def __init__(self, loss_parameters: LossParameters):
+    def __init__(self, loss_parameters: AtomTypeLossParameters):
         """Initialize method."""
         super().__init__()
         # weight of the cross-entropy component
-        self.ce_weight = loss_parameters.atom_types_ce_weight
-        self.eps = loss_parameters.atom_types_eps
+        self.ce_weight = loss_parameters.ce_weight
+        self.eps = loss_parameters.eps
 
-    def cross_entropy_loss_term(self,
-                                predicted_logits: torch.Tensor,
-                                one_hot_real_atom_types: torch.Tensor) -> torch.Tensor:
+    def cross_entropy_loss_term(
+        self, predicted_logits: torch.Tensor, one_hot_real_atom_types: torch.Tensor
+    ) -> torch.Tensor:
         r"""Compute the cross entropy component of the loss.
 
         This corresponds to this:
@@ -55,7 +55,7 @@ class D3PMLossCalculator(torch.nn.Module):
         q_matrices: torch.Tensor,
         q_bar_matrices: torch.Tensor,
         q_bar_tm1_matrices: torch.Tensor,
-        time_indices: torch.Tensor
+        time_indices: torch.Tensor,
     ) -> torch.Tensor:
         r"""Compute the variational bound part of the loss.
 
@@ -119,8 +119,9 @@ class D3PMLossCalculator(torch.nn.Module):
 
         first_time_step_mask = time_indices == 0
         # We must restrict the value of a0 to its actual value, which is done by multiplying by delta_{a0, actual_a0}
-        variational_bound_loss[first_time_step_mask] = (-log_p[first_time_step_mask]
-                                                        * one_hot_real_atom_types[first_time_step_mask])
+        variational_bound_loss[first_time_step_mask] = (
+            -log_p[first_time_step_mask] * one_hot_real_atom_types[first_time_step_mask]
+        )
 
         return variational_bound_loss
 
@@ -252,11 +253,13 @@ class D3PMLossCalculator(torch.nn.Module):
             q_matrices,
             q_bar_matrices,
             q_bar_tm1_matrices,
-            time_indices
+            time_indices,
         )
 
         # -log tilde_p_\theta(a_0 | a_t)
-        ce_term = self.cross_entropy_loss_term(predicted_logits, one_hot_real_atom_types)
+        ce_term = self.cross_entropy_loss_term(
+            predicted_logits, one_hot_real_atom_types
+        )
 
         d3pm_loss = vb_term + self.ce_weight * ce_term
 

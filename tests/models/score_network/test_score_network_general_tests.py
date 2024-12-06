@@ -120,6 +120,13 @@ class BaseScoreNetworkGeneralTests(BaseTestScoreNetwork):
     def noises(self, batch_size):
         return torch.rand(batch_size, 1)
 
+    @pytest.fixture
+    def lattice_parameters(self, basis_vectors, spatial_dimension):
+        lattice_dim = int(spatial_dimension * (spatial_dimension + 1) / 2)
+        lattice_params = torch.zeros(basis_vectors.shape[0], lattice_dim)
+        lattice_params[:, :spatial_dimension] = torch.diagonal(basis_vectors, dim1=-2, dim2=-1)
+        return lattice_params
+
     @pytest.fixture()
     def batch(
         self,
@@ -128,16 +135,17 @@ class BaseScoreNetworkGeneralTests(BaseTestScoreNetwork):
         times,
         noises,
         basis_vectors,
+        lattice_parameters,
         atom_types,
     ):
         return {
             NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types,
                 X=relative_coordinates,
-                L=torch.zeros_like(atom_types),  # TODO
+                L=lattice_parameters,
             ),
             TIME: times,
-            UNIT_CELL: basis_vectors,
+            UNIT_CELL: basis_vectors,  # TODO remove this
             NOISE: noises,
             CARTESIAN_FORCES: cartesian_forces,
         }
