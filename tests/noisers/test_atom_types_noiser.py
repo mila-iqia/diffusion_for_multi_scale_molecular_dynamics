@@ -7,7 +7,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser impo
 
 
 @pytest.mark.parametrize("shape", [(10, 1), (4, 5, 3), (2, 2, 2, 2)])
-class TestNoisyAtomTypesSampler:
+class TestAtomTypesNoiser:
 
     @pytest.fixture(scope="class", autouse=True)
     def set_random_seed(self):
