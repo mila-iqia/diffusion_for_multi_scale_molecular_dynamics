@@ -36,10 +36,14 @@ class ConstrainedPredictorCorrectorAXLGenerator:
         # Tensor dimensions: [number_of_time_steps, number_of_atoms, ...]
         self.constraint_compositions = self.sampling_constraint.constraint_compositions
 
-        assert (
-            self.generator.noise_parameters
-            == self.sampling_constraint.sampling_constraint_parameters.noise_parameters
-        ), "Noise parameters are inconsistent between generator and constraint."
+        important_noise_fields = ['total_time_steps', 'sigma_min', 'sigma_max']
+        for field in important_noise_fields:
+            generator_value = getattr(self.generator.noise_parameters, field)
+            sampling_constraint_value = (
+                getattr(sampling_constraint.sampling_constraint_parameters.noise_parameters, field))
+
+            assert generator_value == sampling_constraint_value, \
+                "Noise parameters are inconsistent between generator and constraint."
 
         if hasattr(self.generator, "sample_trajectory_recorder"):
             self.sample_trajectory_recorder = self.generator.sample_trajectory_recorder
