@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
@@ -133,3 +134,26 @@ def map_axl_composition_to_unit_cell(composition: AXL, device: torch.device) -> 
         A=composition.A, X=normalized_relative_coordinates, L=composition.L
     )
     return normalized_composition
+
+
+def map_lattice_parameters_to_unit_cell_vectors(
+    lattice_parameters: torch.Tensor,
+) -> torch.Tensor:
+    """Map the lattice parameters in an AXL namedtuple back to vectors used to describe the lattice explicitly.
+
+    The lattice parameters are a set of spatial dimension x (spatial dimension + 1) / 2 variables describing the length
+    of the vectors and the angles.
+    TODO we are currently assuming the angles to be fixed at 90 degrees.
+
+    Args:
+        lattice_parameters: lattice parameters used in AXL diffusion model i.e. the vector norms and angles.
+            Dimension: [..., spatial dimension x (spatial dimension + 1) / 2]
+
+    Returns:
+        unit_cell_vectors: unit vectors. Dimension: [..., spatial dimension, spatial dimension].
+    """
+    # TODO we assume a diagonal map here
+    last_dim_size = lattice_parameters.shape[-1]
+    spatial_dimension = int((-1 + np.sqrt(1 + 8 * last_dim_size)) / 2)
+    vector_lengths = lattice_parameters[..., :spatial_dimension]
+    return torch.diag_embed(vector_lengths)
