@@ -52,7 +52,7 @@ class ConstrainedPredictorCorrectorAXLGenerator:
         self, predicted_composition: AXL, time_index: int, device: torch.device
     ) -> AXL:
         """This method applies the constraints from the sampling_constraint."""
-        if time_index > self.starting_free_diffusion_time_step:
+        if time_index >= self.starting_free_diffusion_time_step:
             atom_indices = torch.arange(self.number_of_atoms)
         else:
             atom_indices = self.constrained_atom_indices
@@ -100,6 +100,7 @@ class ConstrainedPredictorCorrectorAXLGenerator:
         )
 
         composition_ip1 = self.generator.initialize(number_of_samples, device)
+
         forces = torch.zeros_like(composition_ip1.X)
 
         for i in tqdm(range(self.generator.number_of_discretization_steps - 1, -1, -1)):

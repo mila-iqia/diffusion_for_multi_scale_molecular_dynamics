@@ -157,7 +157,7 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
         ).to(device)
 
         for time_idx in torch.arange(total_time_steps - 1):
-            if starting_free_diffusion_time_step < time_idx:
+            if starting_free_diffusion_time_step <= time_idx:
                 atom_indices = torch.arange(number_of_atoms)
             else:
                 atom_indices = constrained_atom_indices
