@@ -153,16 +153,28 @@ def map_lattice_parameters_to_unit_cell_vectors(
         unit_cell_vectors: unit vectors. Dimension: [..., spatial dimension, spatial dimension].
     """
     last_dim_size = lattice_parameters.shape[-1]
-    spatial_dimension = int((-1 + np.sqrt(1 + 8 * last_dim_size)) / 2)
+    spatial_dimension = get_spatial_dimension_from_number_of_lattice_parameters(
+        last_dim_size
+    )
 
     # TODO we assume a diagonal map here  - we need to revisit this when we introduce angles in the lattice box
-    torch.allclose(lattice_parameters[..., spatial_dimension:],
-                   torch.zeros_like(lattice_parameters[..., spatial_dimension:]))
+    assert torch.allclose(
+        lattice_parameters[..., spatial_dimension:],
+        torch.zeros_like(lattice_parameters[..., spatial_dimension:]),
+    ), "Only orthogonal boxes are supported for now."
 
     vector_lengths = lattice_parameters[..., :spatial_dimension]
+
     return torch.diag_embed(vector_lengths)
 
 
 def get_number_of_lattice_parameters(spatial_dimension: int) -> int:
     """Compute the number of independent lattice parameters from the spatial dimension."""
     return int(spatial_dimension * (spatial_dimension + 1) / 2)
+
+
+def get_spatial_dimension_from_number_of_lattice_parameters(
+    number_of_lattice_parameters: int,
+) -> int:
+    """Compute the spatial dimension for the number of lattice parameters."""
+    return int((-1 + np.sqrt(1 + 8 * number_of_lattice_parameters)) / 2)
