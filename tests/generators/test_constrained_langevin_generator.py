@@ -21,10 +21,14 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
         elif request.param == "half":
             return total_time_steps // 2
 
-    @pytest.fixture()
-    def constrained_atom_indices(self, number_of_atoms):
-        number_of_constraints = number_of_atoms // 2
-        return torch.randperm(number_of_atoms)[:number_of_constraints]
+    @pytest.fixture(params=["some", "None"])
+    def constrained_atom_indices(self, number_of_atoms, request):
+        match request.param:
+            case "some":
+                number_of_constraints = number_of_atoms // 2
+                return torch.randperm(number_of_atoms)[:number_of_constraints]
+            case "None":
+                return torch.tensor([], dtype=torch.long)
 
     @pytest.fixture()
     def reference_composition(
