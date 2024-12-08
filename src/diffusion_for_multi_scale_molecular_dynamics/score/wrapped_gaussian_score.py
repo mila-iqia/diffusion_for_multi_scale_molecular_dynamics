@@ -30,11 +30,65 @@ Relevant papers:
 
 from typing import Optional
 
+import einops
 import numpy as np
 import torch
 
 SIGMA_THRESHOLD = torch.Tensor([1.0 / np.sqrt(2.0 * np.pi)])
 U_THRESHOLD = torch.Tensor([0.5])
+
+
+def get_wrapped_gaussians(
+    relative_coordinates: torch.tensor, sigmas: torch.tensor, kmax: int
+):
+    """Get Wrapped Gaussians.
+
+    Args:
+        relative_coordinates : input relative coordinates: should be between 0 and 1.
+            relative_coordinates has dimensions [..., number_of_atoms, spatial_dimension], where (...)
+            are arbitrary batch dimensions.
+        sigmas : the values of sigma. Should have the same dimension as relative coordinates.
+        kmax : largest positive integer in the sum. The sum is from -kmax to +kmax.
+
+    Returns:
+        wrapped_gaussians: wrapped gaussian values, of dimensions [...], namely the batch dimensions.
+    """
+    device = relative_coordinates.device
+    assert (
+        sigmas.device == device
+    ), "relative_coordinates and sigmas should be on the same device."
+
+    assert (
+        relative_coordinates.shape == sigmas.shape
+    ), "The relative coordinates and sigmas array should have the same shape."
+
+    assert (
+        len(relative_coordinates.shape) >= 3
+    ), "relative_coordinates should have at least 3 dimensions."
+
+    input_shape = relative_coordinates.shape
+
+    # The dimension of list_k is [2 kmax + 1].
+    list_k = torch.arange(-kmax, kmax + 1).to(device)
+
+    # Broadcast to shape [Nu, 1]
+    column_u = einops.rearrange(relative_coordinates, "... -> (...) 1")
+    column_sigma = einops.rearrange(sigmas, "... -> (...) 1")
+
+    norm = torch.tensor(2 * torch.pi).sqrt() * column_sigma
+
+    # Broadcast to shape [Nu, Nk]
+    gaussians = torch.exp(-0.5 * (column_u + list_k) ** 2 / column_sigma**2) / norm
+
+    # sum on Nk
+    flat_exponential = gaussians.sum(dim=-1)
+
+    exponential = einops.rearrange(
+        flat_exponential.reshape(input_shape), "... natoms space -> ... (natoms space)"
+    )
+
+    wrapped_gaussians = torch.prod(exponential, dim=-1)
+    return wrapped_gaussians
 
 
 def get_sigma_normalized_score_brute_force(
@@ -58,7 +112,7 @@ def get_sigma_normalized_score_brute_force(
     sigma2_derivative_z = 0.0
 
     if kmax is None:
-        kmax = np.max([1, np.round(10 * sigma)])
+        kmax = np.max([1, np.round(20 * sigma)])
 
     for k in np.arange(-kmax, kmax + 1):
         upk = u + k
