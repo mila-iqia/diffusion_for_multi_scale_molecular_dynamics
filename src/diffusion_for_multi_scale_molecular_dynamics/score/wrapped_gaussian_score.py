@@ -38,10 +38,10 @@ SIGMA_THRESHOLD = torch.Tensor([1.0 / np.sqrt(2.0 * np.pi)])
 U_THRESHOLD = torch.Tensor([0.5])
 
 
-def get_wrapped_gaussians(
+def get_log_wrapped_gaussians(
     relative_coordinates: torch.tensor, sigmas: torch.tensor, kmax: int
 ):
-    """Get Wrapped Gaussians.
+    """Get Log Wrapped Gaussians.
 
     Args:
         relative_coordinates : input relative coordinates: should be between 0 and 1.
@@ -51,7 +51,7 @@ def get_wrapped_gaussians(
         kmax : largest positive integer in the sum. The sum is from -kmax to +kmax.
 
     Returns:
-        wrapped_gaussians: wrapped gaussian values, of dimensions [...], namely the batch dimensions.
+        log_wrapped_gaussians: th log of wrapped gaussian values, of dimensions [...], namely the batch dimensions.
     """
     device = relative_coordinates.device
     assert (
@@ -75,20 +75,21 @@ def get_wrapped_gaussians(
     column_u = einops.rearrange(relative_coordinates, "... -> (...) 1")
     column_sigma = einops.rearrange(sigmas, "... -> (...) 1")
 
-    norm = torch.tensor(2 * torch.pi).sqrt() * column_sigma
+    norm = torch.tensor(2 * torch.pi).sqrt() * column_sigma.squeeze(-1)
+
+    flat_log_norm = torch.log(norm)
 
     # Broadcast to shape [Nu, Nk]
-    gaussians = torch.exp(-0.5 * (column_u + list_k) ** 2 / column_sigma**2) / norm
+    exponentials = -0.5 * (column_u + list_k) ** 2 / column_sigma**2
 
-    # sum on Nk
-    flat_exponential = gaussians.sum(dim=-1)
+    flat_logsumexp = torch.logsumexp(exponentials, dim=-1)
 
-    exponential = einops.rearrange(
-        flat_exponential.reshape(input_shape), "... natoms space -> ... (natoms space)"
-    )
+    flat_log_gaussians = flat_logsumexp - flat_log_norm
 
-    wrapped_gaussians = torch.prod(exponential, dim=-1)
-    return wrapped_gaussians
+    log_gaussians = flat_log_gaussians.reshape(input_shape)
+
+    log_wrapped_gaussians = log_gaussians.sum(dim=[-2, -1])
+    return log_wrapped_gaussians
 
 
 def get_sigma_normalized_score_brute_force(
