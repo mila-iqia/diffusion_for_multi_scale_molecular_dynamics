@@ -143,7 +143,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         Returns:
             list_log_wrapped_gaussians: list of log wrapped gaussians, of
                 dimensions [number_of_equilibrium_positions, batch]
-            list_normalized_scores : list of normalized scores, of
+            list_sigma_normalized_scores : list of sigma normalized scores, of
                 dimensions [number_of_equilibrium_positions, batch, natoms, spatial_dimension]
         """
         assert (
@@ -153,7 +153,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
             len(relative_coordinates.shape) == 3
         ), "relative_coordinates should have 3 dimensions."
 
-        sigmas = torch.sqrt(self.sigma_d_square + sigmas_t**2)
+        effective_sigmas = torch.sqrt(self.sigma_d_square + sigmas_t**2)
 
         number_of_equilibrium_positions = self.all_x0.shape[0]
         batch_size = relative_coordinates.shape[0]
@@ -170,18 +170,31 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         u = map_relative_coordinates_to_unit_cell(x - x0)
 
-        repeated_sigmas = einops.repeat(
-            sigmas,
+        repeated_sigmas_t = einops.repeat(
+            sigmas_t,
+            "batch natoms  space -> (batch n) natoms space",
+            n=number_of_equilibrium_positions,
+        )
+
+        repeated_effective_sigmas = einops.repeat(
+            effective_sigmas,
             "batch natoms  space -> (batch n) natoms space",
             n=number_of_equilibrium_positions,
         )
 
         list_log_wrapped_gaussians = get_log_wrapped_gaussians(
-            u, repeated_sigmas, self.kmax
+            u, repeated_effective_sigmas, self.kmax
         )
-        list_sigma_normalized_scores = get_sigma_normalized_score(
-            u, repeated_sigmas, self.kmax
+
+        # We leverage the fact that the probability is a wrapped Gaussian to extract the
+        # score. However, the normalized score thus obtained is improperly normalized.
+        # the empirical scores are normalized with the time-dependent sigmas; the "data" sigma
+        # are unknown (or even ill-defined) in general!
+        list_effective_sigma_normalized_scores = get_sigma_normalized_score(
+            u, repeated_effective_sigmas, self.kmax
         )
+        list_scores = list_effective_sigma_normalized_scores / repeated_effective_sigmas
+        list_sigma_normalized_scores = repeated_sigmas_t * list_scores
 
         wrapped_gaussians = einops.rearrange(
             list_log_wrapped_gaussians,

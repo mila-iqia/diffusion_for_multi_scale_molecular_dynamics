@@ -264,15 +264,14 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
         )[0]
 
         # We actually want sigma x score.
-        effective_sigma = torch.sqrt(sigmas**2 + sigma_d**2)
-        broadcast_effective_sigmas = einops.repeat(
-            effective_sigma,
+        broadcast_sigmas = einops.repeat(
+            sigmas,
             "batch 1 -> batch natoms space",
             natoms=natoms,
             space=spatial_dimension,
         )
 
-        sigma_normalized_scores = broadcast_effective_sigmas * scores
+        sigma_normalized_scores = broadcast_sigmas * scores
         return sigma_normalized_scores
 
     @pytest.fixture()
