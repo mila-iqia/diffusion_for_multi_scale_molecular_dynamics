@@ -47,7 +47,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
 logger = logging.getLogger(__name__)
 
 
-def main(args: Optional[Any] = None):
+def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None) -> None:
     """Load a diffusion model and draw samples.
 
     This main.py file is meant to be called using the cli.
@@ -64,7 +64,7 @@ def main(args: Optional[Any] = None):
     )
 
     parser.add_argument(
-        "--checkpoint", required=True, help="path to checkpoint model to be loaded."
+        "--checkpoint", default=None, help="path to checkpoint model to be loaded."
     )
     parser.add_argument(
         "--output", required=True, help="path to outputs - will store files here"
@@ -113,7 +113,9 @@ def main(args: Optional[Any] = None):
         elements = hyper_params["elements"]
         oracle_parameters = create_energy_oracle_parameters(hyper_params["oracle"], elements)
 
-    axl_network = get_axl_network(args.checkpoint)
+    if axl_network is None:
+        assert args.checkpoint, "There is no axl_network in the input: a checkpoint path must be provided."
+        axl_network = get_axl_network(args.checkpoint)
 
     logger.info("Instantiate generator...")
     raw_generator = instantiate_generator(
