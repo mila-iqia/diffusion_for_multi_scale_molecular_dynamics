@@ -79,9 +79,11 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
         os.makedirs(args.output)
 
     setup_console_logger(experiment_dir=args.output)
-    assert os.path.exists(
-        args.checkpoint
-    ), f"The path {args.checkpoint} does not exist. Cannot go on."
+
+    if axl_network is None:
+        assert os.path.exists(
+            args.checkpoint
+        ), f"The path {args.checkpoint} does not exist. Cannot go on."
 
     script_location = os.path.realpath(__file__)
     git_hash = get_git_hash(script_location)
@@ -114,7 +116,6 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
         oracle_parameters = create_energy_oracle_parameters(hyper_params["oracle"], elements)
 
     if axl_network is None:
-        assert args.checkpoint, "There is no axl_network in the input: a checkpoint path must be provided."
         axl_network = get_axl_network(args.checkpoint)
 
     logger.info("Instantiate generator...")
