@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import AnyStr, Dict
+from typing import AnyStr, Dict, List
 
 import torch
 from torch import nn
@@ -47,29 +47,31 @@ class MLPScoreNetwork(ScoreNetwork):
             hyper_params : hyper parameters from the config file.
         """
         super(MLPScoreNetwork, self).__init__(hyper_params)
-        hidden_dimensions = [hyper_params.hidden_dimensions_size] * (
-            hyper_params.n_hidden_dimensions
-        )
-        self._natoms = hyper_params.number_of_atoms
+
+        self.natoms = hyper_params.number_of_atoms
         self.num_atom_types = hyper_params.num_atom_types
         self.num_classes = self.num_atom_types + 1  # add 1 for the MASK class
 
-        coordinate_output_dimension = self.spatial_dimension * self._natoms
-        atom_type_output_dimension = self._natoms * self.num_classes
+        self.coordinate_output_dimension = self.spatial_dimension * self.natoms
+        self.atom_type_output_dimension = self.natoms * self.num_classes
+        self.noise_embedding_dimensions_size = hyper_params.noise_embedding_dimensions_size
+        self.time_embedding_dimensions_size = hyper_params.time_embedding_dimensions_size
+        self.atom_type_embedding_dimensions_size = hyper_params.atom_type_embedding_dimensions_size
 
-        input_dimension = (
-            coordinate_output_dimension
-            + hyper_params.noise_embedding_dimensions_size
-            + hyper_params.time_embedding_dimensions_size
-            + self._natoms * hyper_params.atom_type_embedding_dimensions_size
+        self.flatten = nn.Flatten()
+
+        input_dimension = self._get_main_input_dimension()
+
+        hidden_dimensions = [hyper_params.hidden_dimensions_size] * (
+            hyper_params.n_hidden_dimensions
         )
 
         self.noise_embedding_layer = nn.Linear(
-            1, hyper_params.noise_embedding_dimensions_size
+            1, self.noise_embedding_dimensions_size
         )
 
         self.time_embedding_layer = nn.Linear(
-            1, hyper_params.time_embedding_dimensions_size
+            1, self.time_embedding_dimensions_size
         )
 
         self.atom_type_embedding_layer = nn.Linear(
@@ -77,27 +79,17 @@ class MLPScoreNetwork(ScoreNetwork):
         )
 
         self.condition_embedding_layer = nn.Linear(
-            coordinate_output_dimension, hyper_params.condition_embedding_size
+            self.coordinate_output_dimension, hyper_params.condition_embedding_size
         )
 
-        self.flatten = nn.Flatten()
-        self.mlp_layers = nn.ModuleList()
-        self.conditional_layers = nn.ModuleList()
-        input_dimensions = [input_dimension] + hidden_dimensions[:-1]
-        output_dimensions = hidden_dimensions
-
-        for input_dimension, output_dimension in zip(
-            input_dimensions, output_dimensions
-        ):
-            self.mlp_layers.append(nn.Linear(input_dimension, output_dimension))
-            self.conditional_layers.append(
-                nn.Linear(hyper_params.condition_embedding_size, output_dimension)
-            )
-        self.non_linearity = nn.ReLU()
+        main_layer_dimensions = [input_dimension] + hidden_dimensions
+        self.conditioning_mlp = ConditioningMLP(main_layer_dimensions=main_layer_dimensions,
+                                                condition_embedding_dimension=hyper_params.condition_embedding_size,
+                                                non_linearity=nn.ReLU())
 
         # Create a self nn object to be discoverable to be placed on the correct device
-        self.output_A_layer = nn.Linear(hyper_params.hidden_dimensions_size, atom_type_output_dimension)
-        self.output_X_layer = nn.Linear(hyper_params.hidden_dimensions_size, coordinate_output_dimension)
+        self.output_A_layer = nn.Linear(hyper_params.hidden_dimensions_size, self.atom_type_output_dimension)
+        self.output_X_layer = nn.Linear(hyper_params.hidden_dimensions_size, self.coordinate_output_dimension)
         self.output_L_layer = nn.Identity()
         self.output_layers = AXL(A=self.output_A_layer,
                                  X=self.output_X_layer,
@@ -107,7 +99,7 @@ class MLPScoreNetwork(ScoreNetwork):
         super(MLPScoreNetwork, self)._check_batch(batch)
         number_of_atoms = batch[NOISY_AXL_COMPOSITION].X.shape[1]
         assert (
-            number_of_atoms == self._natoms
+            number_of_atoms == self.natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
 
     def _forward_unchecked(
@@ -126,58 +118,153 @@ class MLPScoreNetwork(ScoreNetwork):
         Returns:
             computed_scores : the scores computed by the model in an AXL namedtuple.
         """
-        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        main_input = self._get_main_input(batch)
+        conditioning_input = self._get_conditioning_input(batch)
+
+        latent_representation = self.conditioning_mlp(main_input=main_input,
+                                                      conditioning_input=conditioning_input,
+                                                      conditional=conditional)
+
+        coordinates_output = self.output_layers.X(latent_representation).reshape(-1,
+                                                                                 self.natoms,
+                                                                                 self.spatial_dimension)
+
+        atom_types_output = self.output_layers.A(latent_representation).reshape(-1,
+                                                                                self.natoms,
+                                                                                self.num_classes)
+
+        lattice_output = torch.zeros_like(atom_types_output)  # TODO placeholder
+
+        axl_output = AXL(A=atom_types_output, X=coordinates_output, L=lattice_output)
+        return axl_output
+
+    def _get_main_input_dimension(self):
+        main_input_dimension = (
+            self.coordinate_output_dimension
+            + self.natoms * self.atom_type_embedding_dimensions_size
+            + self.noise_embedding_dimensions_size
+            + self.time_embedding_dimensions_size
+        )
+        return main_input_dimension
+
+    def _get_main_input(self, batch):
+        (flat_relative_coordinates, atom_type_embedding,
+         noise_embedding, time_embedding) = self._get_input_embeddings(batch)
+
+        main_input = torch.cat(
+            [flat_relative_coordinates, atom_type_embedding, noise_embedding, time_embedding], dim=1)
+        return main_input
+
+    def _get_conditioning_input(self, batch):
+        conditioning_input = self.condition_embedding_layer(
+            self.flatten(batch[CARTESIAN_FORCES])
+        )
+        return conditioning_input
+
+    def _get_input_embeddings(self, batch):
+        """Extract relevant information from the batch."""
         # shape [batch_size, number_of_atoms, spatial_dimension]
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
 
-        sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
-        noise_embedding = self.noise_embedding_layer(
-            sigmas
-        )  # shape [batch_size, noise_embedding_dimension]
+        device = relative_coordinates.device
 
-        times = batch[TIME].to(relative_coordinates.device)  # shape [batch_size, 1]
-        time_embedding = self.time_embedding_layer(
-            times
-        )  # shape [batch_size, time_embedding_dimension]
+        # shape [batch_size, number_of_atoms * spatial_dimension]
+        flat_relative_coordinates = self.flatten(relative_coordinates)
+
+        # shape [batch_size, 1]
+        sigmas = batch[NOISE].to(device)
+
+        # shape [batch_size, noise_embedding_dimension]
+        noise_embedding = self.noise_embedding_layer(sigmas)
+
+        # shape [batch_size, 1]
+        times = batch[TIME].to(device)
+
+        # shape [batch_size, time_embedding_dimension]
+        time_embedding = self.time_embedding_layer(times)
 
         atom_types = batch[NOISY_AXL_COMPOSITION].A
         atom_types_one_hot = class_index_to_onehot(
             atom_types, num_classes=self.num_classes
         )
-        atom_type_embedding = self.atom_type_embedding_layer(
-            atom_types_one_hot
-        )  # shape [batch_size, atom_type_embedding_dimension]
 
-        input = torch.cat(
-            [
-                self.flatten(relative_coordinates),
-                noise_embedding,
-                time_embedding,
-                self.flatten(atom_type_embedding),
-            ],
-            dim=1,
-        )
+        # shape [batch_size, atom_type_embedding_dimension]
+        atom_type_embedding = self.flatten(self.atom_type_embedding_layer(atom_types_one_hot))
 
-        forces_input = self.condition_embedding_layer(
-            self.flatten(batch[CARTESIAN_FORCES])
-        )
+        return flat_relative_coordinates, atom_type_embedding, noise_embedding, time_embedding
 
-        output = input
-        for i, (layer, condition_layer) in enumerate(
-            zip(self.mlp_layers, self.conditional_layers)
-        ):
-            if i != 0:
-                output = self.non_linearity(output)
-            output = layer(output)
+
+def create_linear_layers(input_dimensions: List[int], output_dimensions: List[int]) -> nn.Module:
+    """Create linear layers.
+
+    Creates a list of linear layers.
+
+    Args:
+        input_dimensions: list of input dimensions.
+        output_dimensions: list of output dimensions.
+
+    Returns:
+        layers: list of torch module linear layers
+    """
+    layers = nn.ModuleList()
+    assert len(input_dimensions) == len(output_dimensions), "inconsistent dimensions array"
+
+    for in_d, out_d in zip(input_dimensions, output_dimensions):
+        linear_layer = nn.Linear(in_d, out_d)
+        layers.append(linear_layer)
+
+    return layers
+
+
+class ConditioningMLP(torch.nn.Module):
+    """A mlp that combines main and conditioning information."""
+
+    def __init__(self, main_layer_dimensions: List[int],
+                 condition_embedding_dimension: int,
+                 non_linearity: nn.Module):
+        """Initialization method.
+
+        Args:
+            main_layer_dimensions: list of dimensions. It is assumed to be of the form
+                [main_input_dimension, hidden_dimensions1, hidden_dimension2,... , output_dimension].
+            condition_embedding_dimension: input dimension of the conditioning embedding.
+
+            non_linearity: non-linearity to apply between linear layers.
+        """
+        super(ConditioningMLP, self).__init__()
+
+        input_dimensions = main_layer_dimensions[:-1]
+        output_dimensions = main_layer_dimensions[1:]
+
+        conditioning_input_dimensions = len(input_dimensions) * [condition_embedding_dimension]
+
+        self.main_linear_layers = create_linear_layers(input_dimensions, output_dimensions)
+        self.conditioning_linear_layers = create_linear_layers(conditioning_input_dimensions, output_dimensions)
+
+        self.non_linearity = non_linearity
+
+    def forward(self, main_input: torch.Tensor, conditioning_input: torch.Tensor, conditional: bool) -> torch.Tensor:
+        """Forward method.
+
+        Args:
+            main_input: a torch tensor of shape [batch_size, main_input_dimension].
+            conditioning_input: a torch tensor of shape [batch_size, conditioning_input_dimension].
+            conditional: should the conditioning input be used.
+
+        Returns:
+            output: a torch tensor of shape [batch_size, output_dimension].
+        """
+        first_main_layer = self.main_linear_layers[0]
+        first_cond_layer = self.conditioning_linear_layers[0]
+
+        output = first_main_layer(main_input)
+        if conditional:
+            output += first_cond_layer(conditioning_input)
+
+        for main_layer, cond_layer in zip(self.main_linear_layers[1:], self.conditioning_linear_layers[1:]):
+            output = self.non_linearity(output)
+            output = main_layer(output)
             if conditional:
-                output += condition_layer(forces_input)
+                output += cond_layer(conditioning_input)
 
-        coordinates_output = self.output_layers.X(output).reshape(
-            relative_coordinates.shape
-        )
-        atom_types_output = self.output_layers.A(output).reshape(
-            atom_types_one_hot.shape
-        )
-        lattice_output = torch.zeros_like(atom_types_output)  # TODO placeholder
-
-        axl_output = AXL(A=atom_types_output, X=coordinates_output, L=lattice_output)
-        return axl_output
+        return output
