@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import AnyStr, Dict, List
 
+import einops
 import torch
 from torch import nn
 
@@ -59,6 +60,7 @@ class MLPScoreNetwork(ScoreNetwork):
         self.num_classes = self.num_atom_types + 1  # add 1 for the MASK class
 
         self.coordinate_output_dimension = self.spatial_dimension * self.natoms
+        self.coordinate_embedding_dimension = 2 * self.spatial_dimension * self.natoms
         self.atom_type_output_dimension = self.natoms * self.num_classes
         self.noise_embedding_dimensions_size = hyper_params.noise_embedding_dimensions_size
         self.time_embedding_dimensions_size = hyper_params.time_embedding_dimensions_size
@@ -157,7 +159,7 @@ class MLPScoreNetwork(ScoreNetwork):
 
     def _get_main_input_dimension(self):
         main_input_dimension = (
-            self.coordinate_output_dimension
+            self.coordinate_embedding_dimension
             + self.natoms * self.atom_type_embedding_dimensions_size
             + self.noise_embedding_dimensions_size
             + self.time_embedding_dimensions_size
@@ -165,11 +167,11 @@ class MLPScoreNetwork(ScoreNetwork):
         return main_input_dimension
 
     def _get_main_input(self, batch):
-        (flat_relative_coordinates, atom_type_embedding,
+        (relative_coordinates_embedding, atom_type_embedding,
          noise_embedding, time_embedding) = self._get_input_embeddings(batch)
 
         main_input = torch.cat(
-            [flat_relative_coordinates, atom_type_embedding, noise_embedding, time_embedding], dim=1)
+            [relative_coordinates_embedding, atom_type_embedding, noise_embedding, time_embedding], dim=1)
         return main_input
 
     def _get_prefactor_input_dimension(self):
@@ -189,6 +191,31 @@ class MLPScoreNetwork(ScoreNetwork):
         )
         return conditioning_input
 
+    @staticmethod
+    def _get_relative_coordinates_embedding(
+        relative_coordinates: torch.Tensor,
+    ) -> torch.Tensor:
+        """Get relative coordinates embedding.
+
+        Get the positions that take points on the torus into a higher dimensional
+        (ie, 2 x spatial_dimension) Euclidean space.
+
+        Args:
+            relative_coordinates: relative coordinates, of dimensions [batch , natoms, spatial_dimension]
+
+        Returns:
+            embeddings: uplifted relative coordinates to a higher dimensional Euclidean space.
+        """
+        # Uplift the relative coordinates to the embedding Euclidean space
+        angles = 2.0 * torch.pi * relative_coordinates
+        cosines = angles.cos()
+        sines = angles.sin()
+        embeddings = einops.rearrange(
+            torch.stack([cosines, sines]),
+            "two batch natoms space -> batch (natoms space two)",
+        )
+        return embeddings
+
     def _get_input_embeddings(self, batch):
         """Extract relevant information from the batch."""
         # shape [batch_size, number_of_atoms, spatial_dimension]
@@ -196,8 +223,8 @@ class MLPScoreNetwork(ScoreNetwork):
 
         device = relative_coordinates.device
 
-        # shape [batch_size, number_of_atoms * spatial_dimension]
-        flat_relative_coordinates = self.flatten(relative_coordinates)
+        # shape [batch_size, 2 * number_of_atoms * spatial_dimension]
+        relative_coordinates_embedding = self._get_relative_coordinates_embedding(relative_coordinates)
 
         # shape [batch_size, 1]
         sigmas = batch[NOISE].to(device)
@@ -219,7 +246,7 @@ class MLPScoreNetwork(ScoreNetwork):
         # shape [batch_size, atom_type_embedding_dimension]
         atom_type_embedding = self.flatten(self.atom_type_embedding_layer(atom_types_one_hot))
 
-        return flat_relative_coordinates, atom_type_embedding, noise_embedding, time_embedding
+        return relative_coordinates_embedding, atom_type_embedding, noise_embedding, time_embedding
 
 
 def create_linear_layers(input_dimensions: List[int], output_dimensions: List[int]) -> nn.Module:
