@@ -33,6 +33,10 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
         64  # dimension of the conditional variable embedding
     )
 
+    # Should the output normalized score be mutliplied by a learned prefactor that is
+    # independent of coordinates?
+    use_prefactor_in_score: bool = False
+
 
 class MLPScoreNetwork(ScoreNetwork):
     """Simple Model Class.
@@ -47,6 +51,8 @@ class MLPScoreNetwork(ScoreNetwork):
             hyper_params : hyper parameters from the config file.
         """
         super(MLPScoreNetwork, self).__init__(hyper_params)
+
+        self.use_prefactor_in_score = hyper_params.use_prefactor_in_score
 
         self.natoms = hyper_params.number_of_atoms
         self.num_atom_types = hyper_params.num_atom_types
@@ -86,6 +92,12 @@ class MLPScoreNetwork(ScoreNetwork):
         self.conditioning_mlp = ConditioningMLP(main_layer_dimensions=main_layer_dimensions,
                                                 condition_embedding_dimension=hyper_params.condition_embedding_size,
                                                 non_linearity=nn.ReLU())
+
+        if self.use_prefactor_in_score:
+            prefactor_input_dimension = self._get_prefactor_input_dimension()
+            prefactor_layer_dimensions = [prefactor_input_dimension] + hidden_dimensions + [1]
+            self.prefactor_mlp = SimplMLP(layer_dimensions=prefactor_layer_dimensions,
+                                          non_linearity=nn.ReLU())
 
         # Create a self nn object to be discoverable to be placed on the correct device
         self.output_A_layer = nn.Linear(hyper_params.hidden_dimensions_size, self.atom_type_output_dimension)
@@ -129,6 +141,11 @@ class MLPScoreNetwork(ScoreNetwork):
                                                                                  self.natoms,
                                                                                  self.spatial_dimension)
 
+        if self.use_prefactor_in_score:
+            prefactor_input = self._get_prefactor_input(batch)
+            prefactor_output = self.prefactor_mlp.forward(prefactor_input).reshape(-1, 1, 1)
+            coordinates_output *= prefactor_output
+
         atom_types_output = self.output_layers.A(latent_representation).reshape(-1,
                                                                                 self.natoms,
                                                                                 self.num_classes)
@@ -154,6 +171,17 @@ class MLPScoreNetwork(ScoreNetwork):
         main_input = torch.cat(
             [flat_relative_coordinates, atom_type_embedding, noise_embedding, time_embedding], dim=1)
         return main_input
+
+    def _get_prefactor_input_dimension(self):
+        prefactor_input_dimension = self.noise_embedding_dimensions_size + self.time_embedding_dimensions_size
+        return prefactor_input_dimension
+
+    def _get_prefactor_input(self, batch):
+        (flat_relative_coordinates, atom_type_embedding,
+         noise_embedding, time_embedding) = self._get_input_embeddings(batch)
+
+        prefactor_input = torch.cat([noise_embedding, time_embedding], dim=1)
+        return prefactor_input
 
     def _get_conditioning_input(self, batch):
         conditioning_input = self.condition_embedding_layer(
@@ -266,5 +294,43 @@ class ConditioningMLP(torch.nn.Module):
             output = main_layer(output)
             if conditional:
                 output += cond_layer(conditioning_input)
+
+        return output
+
+
+class SimplMLP(torch.nn.Module):
+    """A simple MLP block."""
+
+    def __init__(self, layer_dimensions: List[int], non_linearity: nn.Module):
+        """Initialization method.
+
+        Args:
+            layer_dimensions: list of dimensions. It is assumed to be of the form
+                [main_input_dimension, hidden_dimensions1, hidden_dimension2,... , output_dimension].
+
+            non_linearity: non-linearity to apply between linear layers.
+        """
+        super(SimplMLP, self).__init__()
+
+        input_dimensions = layer_dimensions[:-1]
+        output_dimensions = layer_dimensions[1:]
+
+        self.linear_layers = create_linear_layers(input_dimensions, output_dimensions)
+        self.non_linearity = non_linearity
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        """Forward method.
+
+        Args:
+            input: a torch tensor of shape [batch_size, input_dimension].
+
+        Returns:
+            output: a torch tensor of shape [batch_size, output_dimension].
+        """
+        first_layer = self.linear_layers[0]
+        output = first_layer(input)
+
+        for layer in self.linear_layers[1:]:
+            output = layer(self.non_linearity(output))
 
         return output

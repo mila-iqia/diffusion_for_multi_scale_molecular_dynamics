@@ -199,6 +199,7 @@ class BaseScoreNetworkGeneralTests(BaseTestScoreNetwork):
 @pytest.mark.parametrize("n_hidden_dimensions", [1, 2, 3])
 @pytest.mark.parametrize("hidden_dimensions_size", [8, 16])
 @pytest.mark.parametrize("embedding_dimensions_size", [4, 12])
+@pytest.mark.parametrize("use_prefactor_in_score", [True, False])
 class TestMLPScoreNetwork(BaseScoreNetworkGeneralTests):
 
     @pytest.fixture()
@@ -210,6 +211,7 @@ class TestMLPScoreNetwork(BaseScoreNetworkGeneralTests):
         embedding_dimensions_size,
         n_hidden_dimensions,
         hidden_dimensions_size,
+        use_prefactor_in_score
     ):
         return MLPScoreNetworkParameters(
             spatial_dimension=spatial_dimension,
@@ -220,6 +222,7 @@ class TestMLPScoreNetwork(BaseScoreNetworkGeneralTests):
             atom_type_embedding_dimensions_size=embedding_dimensions_size,
             n_hidden_dimensions=n_hidden_dimensions,
             hidden_dimensions_size=hidden_dimensions_size,
+            use_prefactor_in_score=use_prefactor_in_score
         )
 
     @pytest.fixture()
