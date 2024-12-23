@@ -3,9 +3,6 @@ from typing import Tuple
 
 import torch
 
-from experiments.analysis.analytic_score.repaint.plot_repaint_analytical_score_trajectories import \
-    spatial_dimension
-
 
 @dataclass(kw_only=True)
 class LatticeDataParameters:
