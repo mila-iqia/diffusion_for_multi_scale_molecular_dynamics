@@ -3,9 +3,6 @@ from typing import Tuple
 
 import torch
 
-from experiments.analysis.analytic_score.repaint.plot_repaint_analytical_score_trajectories import \
-    spatial_dimension
-
 
 @dataclass(kw_only=True)
 class LatticeDataParameters:
@@ -61,8 +58,9 @@ class LatticeNoiser:
                 (1 - \sqrt{\bar{\alpha}_t})\mu(n)I, (1-\sqrt{\bar{\alpha}_t})\sigma^2_t(n)I\right)
 
         Args:
-            real_lattice_parameters: lattice parameters from the sampled data. This is not the lattice vector, but an
-                array of dimension [spatial_dimension] containing the size of the orthogonal box. TODO add angles
+            real_lattice_parameters: lattice parameters from the sampled data. These parameters are not the lattice
+                vector, but an array of dimension [spatial_dimension] containing the size of the orthogonal box.
+                TODO add angles
             sigmas_n: variance of the perturbation kernel rescaled by the number of atoms. Tensor is assumed to be of
                 the same shape as real_lattice_parameters.
             alpha_bars: cumulative noise scale. Tensor is assumed to be of the same shape as real_lattice_parameters.
@@ -70,7 +68,7 @@ class LatticeNoiser:
                 real_lattice_parameters tensor.
 
         Returns:
-            noisy_lattice_parameters: a sample of noised lattice vectors as tensor of size [spatial_dimension].
+            noisy_lattice_parameters: a sample of noised lattice parameters as tensor of size [spatial_dimension].
         """
         # TODO add angles
         assert (
