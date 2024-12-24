@@ -4,7 +4,7 @@ import logging
 import tempfile
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
-    LammpsForDiffusionDataModule, LammpsLoaderParameters)
+    LammpsDataModuleParameters, LammpsForDiffusionDataModule)
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
@@ -31,7 +31,7 @@ def main():
     logger.info(f"   --processed_datadir : {args.processed_datadir}")
     logger.info(f"   --config: {args.config}")
 
-    data_params = LammpsLoaderParameters(**hyper_params)
+    data_params = LammpsDataModuleParameters(**hyper_params)
 
     with tempfile.TemporaryDirectory() as tmp_work_dir:
         data_module = LammpsForDiffusionDataModule(lammps_run_dir=lammps_run_dir,

@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
-    LammpsForDiffusionDataModule, LammpsLoaderParameters)
+    LammpsDataModuleParameters, LammpsForDiffusionDataModule)
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
     NULL_ELEMENT, ElementTypes)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
@@ -141,7 +141,7 @@ class TestLammpsForDiffusionDataModule(TestDiffusionDataBase):
 
     @pytest.fixture
     def data_module_hyperparameters(self, number_of_atoms, spatial_dimension, unique_elements):
-        return LammpsLoaderParameters(
+        return LammpsDataModuleParameters(
             batch_size=2,
             num_workers=0,
             max_atom=number_of_atoms,

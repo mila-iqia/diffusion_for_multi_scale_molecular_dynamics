@@ -8,7 +8,7 @@ from equilibrium_structure import create_equilibrium_sige_structure
 from torch_geometric.data import DataLoader
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import \
-    LammpsLoaderParameters
+    LammpsDataModuleParameters
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
@@ -24,7 +24,7 @@ class FixedPositionDataModule(pl.LightningDataModule):
         self,
         lammps_run_dir: str,  # dummy
         processed_dataset_dir: str,
-        hyper_params: LammpsLoaderParameters,
+        hyper_params: LammpsDataModuleParameters,
         working_cache_dir: Optional[str] = None,  # dummy
     ):
         """Init method."""
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     elements = ["Si", "Ge"]
     processed_dataset_dir = Path("/experiments/atom_types_only_experiments")
 
-    hyper_params = LammpsLoaderParameters(
+    hyper_params = LammpsDataModuleParameters(
         batch_size=64,
         train_batch_size=1024,
         valid_batch_size=1024,

@@ -12,6 +12,8 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_parameters import \
+    DataModuleParameters
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_processor_for_diffusion import \
     LammpsProcessorForDiffusion
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
@@ -23,17 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(kw_only=True)
-class LammpsLoaderParameters:
-    """Base Hyper-parameters for score networks."""
-
-    # Either batch_size XOR train_batch_size and valid_batch_size should be specified.
-    batch_size: Optional[int] = None
-    train_batch_size: Optional[int] = None
-    valid_batch_size: Optional[int] = None
-    num_workers: int = 0
-    max_atom: int = 64
-    spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
-    elements: list[str]  # the elements that can exist.
+class LammpsDataModuleParameters(DataModuleParameters):
+    """Hyper-Parameters for a Lammps-based data module."""
+    data_source: str = "LAMMPS"
 
 
 class LammpsForDiffusionDataModule(pl.LightningDataModule):
@@ -43,7 +37,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         self,
         lammps_run_dir: str,
         processed_dataset_dir: str,
-        hyper_params: LammpsLoaderParameters,
+        hyper_params: LammpsDataModuleParameters,
         working_cache_dir: Optional[str] = None,
     ):
         """Initialize a dataset of LAMMPS structures for training a diffusion model.
@@ -60,7 +54,11 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         # check_and_log_hp(["batch_size", "num_workers"], hyper_params)  # validate the hyperparameters
         # TODO add the padding parameters for number of atoms
         self.lammps_run_dir = lammps_run_dir
+        assert self.lammps_run_dir is not None, \
+            "The LAMMPS run directory must be specified to use the LAMMPS data source."
         self.processed_dataset_dir = processed_dataset_dir
+        assert self.processed_dataset_dir is not None, \
+            "The LAMMPS processed dataset directory must be specified to use the LAMMPS data source."
         self.working_cache_dir = working_cache_dir
         self.num_workers = hyper_params.num_workers
         self.max_atom = hyper_params.max_atom  # number of atoms to pad tensors

@@ -14,7 +14,7 @@ from tqdm import tqdm
 from diffusion_for_multi_scale_molecular_dynamics import (ANALYSIS_RESULTS_DIR,
                                                           DATA_DIR)
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
-    LammpsForDiffusionDataModule, LammpsLoaderParameters)
+    LammpsDataModuleParameters, LammpsForDiffusionDataModule)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
@@ -40,7 +40,7 @@ processed_dataset_dir = lammps_run_dir / "processed"
 
 cache_dir = lammps_run_dir / "cache"
 
-data_params = LammpsLoaderParameters(batch_size=2048, max_atom=max_atom)
+data_params = LammpsDataModuleParameters(batch_size=2048, max_atom=max_atom)
 
 if __name__ == "__main__":
     setup_analysis_logger()

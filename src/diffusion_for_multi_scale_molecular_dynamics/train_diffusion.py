@@ -12,8 +12,8 @@ import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.callback_loader import \
     create_all_callbacks
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
-    LammpsForDiffusionDataModule, LammpsLoaderParameters)
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.instantiate_data_module import \
+    load_data_module
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.loggers.logger_loader import \
@@ -45,15 +45,19 @@ def main(args: typing.Optional[typing.Any] = None):
         help="config file with generic hyper-parameters,  such as optimizer, "
         "batch_size, ... -  in yaml format",
     )
-    parser.add_argument("--data", help="path to a LAMMPS data set", required=True)
+    parser.add_argument("--data",
+                        help="path to a LAMMPS data set. REQUIRED if the data source is 'LAMMPS'.",
+                        default=None,
+                        required=False)
     parser.add_argument(
         "--processed_datadir",
-        help="path to the processed data directory",
-        required=True,
+        help="path to the processed data directory. REQUIRED if the data source is 'LAMMPS'.",
+        default=None,
+        required=False,
     )
     parser.add_argument(
         "--dataset_working_dir",
-        help="path to the Datasets working directory. Defaults to None",
+        help="path to the Datasets working directory. Only relevant if the data source is 'LAMMPS'. Defaults to None",
         default=None,
     )
     parser.add_argument(
@@ -108,7 +112,7 @@ def main(args: typing.Optional[typing.Any] = None):
     run(args, output_dir, hyper_params)
 
 
-def run(args, output_dir, hyper_params):
+def run(args: argparse.Namespace, output_dir, hyper_params):
     """Create and run the dataloaders, training loops, etc.
 
     Args:
@@ -123,14 +127,7 @@ def run(args, output_dir, hyper_params):
 
     ElementTypes.validate_elements(hyper_params["elements"])
 
-    data_params = LammpsLoaderParameters(**hyper_params["data"], elements=hyper_params["elements"])
-
-    datamodule = LammpsForDiffusionDataModule(
-        lammps_run_dir=args.data,
-        processed_dataset_dir=args.processed_datadir,
-        hyper_params=data_params,
-        working_cache_dir=args.dataset_working_dir,
-    )
+    datamodule = load_data_module(hyper_params, args)
 
     model = load_diffusion_model(hyper_params)
 
