@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import \
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_processor_for_diffusion import \
     LammpsProcessorForDiffusion
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
     NULL_ELEMENT, ElementTypes)
