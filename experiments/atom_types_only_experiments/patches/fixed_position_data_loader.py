@@ -7,7 +7,7 @@ import torch
 from equilibrium_structure import create_equilibrium_sige_structure
 from torch_geometric.data import DataLoader
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import \
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import \
     LammpsLoaderParameters
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes

@@ -3,7 +3,7 @@ import argparse
 import logging
 import tempfile
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger

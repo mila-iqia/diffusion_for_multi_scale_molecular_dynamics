@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics import (ANALYSIS_RESULTS_DIR,
                                                           DATA_DIR)
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell

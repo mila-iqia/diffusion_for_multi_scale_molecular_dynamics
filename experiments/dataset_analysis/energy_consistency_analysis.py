@@ -19,7 +19,7 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
     SamplingVisualizationCallback
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
     get_energy_and_forces_from_lammps

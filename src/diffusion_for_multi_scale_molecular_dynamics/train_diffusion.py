@@ -12,7 +12,7 @@ import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.callback_loader import \
     create_all_callbacks
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes

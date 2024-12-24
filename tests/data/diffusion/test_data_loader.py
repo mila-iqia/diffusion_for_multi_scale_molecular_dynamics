@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsForDiffusionDataModule, LammpsLoaderParameters)
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
     NULL_ELEMENT, ElementTypes)
