@@ -1,15 +1,8 @@
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.utils.symmetry_utils import \
-    get_all_permutation_indices
-
-
-def factorial(n):
-    if n == 1:
-        return 1
-    else:
-        return n * factorial(n - 1)
+from diffusion_for_multi_scale_molecular_dynamics.utils.symmetry_utils import (
+    factorial, get_all_permutation_indices)
 
 
 class TestPermutationIndices:

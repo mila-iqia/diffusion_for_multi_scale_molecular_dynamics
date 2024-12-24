@@ -4,6 +4,14 @@ from typing import Tuple
 import torch
 
 
+def factorial(n):
+    """Factorial function."""
+    if n == 1:
+        return 1
+    else:
+        return n * factorial(n - 1)
+
+
 def get_all_permutation_indices(number_of_atoms) -> Tuple[torch.Tensor, torch.Tensor]:
     """Get all permutation indices.
 
