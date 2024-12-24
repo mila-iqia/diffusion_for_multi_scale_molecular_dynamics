@@ -12,7 +12,7 @@ from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import generate_parquet_dataframe
 
 
-class TestDataProcess(TestDiffusionDataBase):
+class TestLammpsProcessorForDiffusion(TestDiffusionDataBase):
 
     @pytest.fixture
     def processor(self, paths):
