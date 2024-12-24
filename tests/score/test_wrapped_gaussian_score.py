@@ -1,3 +1,4 @@
+import einops
 import numpy as np
 import pytest
 import torch
@@ -7,7 +8,8 @@ from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score i
     _get_s1b_exponential, _get_sigma_normalized_s2,
     _get_sigma_square_times_score_1_from_exponential,
     _get_small_sigma_large_u_mask, _get_small_sigma_small_u_mask,
-    get_sigma_normalized_score, get_sigma_normalized_score_brute_force)
+    get_log_wrapped_gaussians, get_sigma_normalized_score,
+    get_sigma_normalized_score_brute_force)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -50,12 +52,17 @@ def list_k(kmax):
 
 
 @pytest.fixture
-def expected_sigma_normalized_scores(relative_coordinates, sigmas):
+def large_sigmas(shape):
+    return (10.0 * torch.rand(shape)).clip(0.1)
+
+
+@pytest.fixture
+def expected_sigma_normalized_scores(relative_coordinates, large_sigmas):
     shape = relative_coordinates.shape
 
     list_sigma_normalized_scores = []
     for u, sigma in zip(
-        relative_coordinates.numpy().flatten(), sigmas.numpy().flatten()
+        relative_coordinates.numpy().flatten(), large_sigmas.numpy().flatten()
     ):
         s = get_sigma_normalized_score_brute_force(u, sigma)
         list_sigma_normalized_scores.append(s)
@@ -157,6 +164,36 @@ class TestExponentials:
         torch.testing.assert_close(expected_results, computed_results)
 
 
+@pytest.mark.parametrize("shape", [(10, 10, 3, 2), (50, 8, 3)])
+@pytest.mark.parametrize("kmax", [1, 5, 10])
+def test_get_wrapped_gaussian(relative_coordinates, sigmas, shape, kmax):
+
+    log_wrapped_gaussians = get_log_wrapped_gaussians(relative_coordinates, sigmas, kmax)
+    assert log_wrapped_gaussians.shape == shape[:-2]
+
+    computed_wrapped_gaussians = einops.rearrange(torch.exp(log_wrapped_gaussians), " ... -> (...)")
+
+    list_x = einops.rearrange(
+        relative_coordinates, "... natoms space -> (...) (natoms space)"
+    )
+    list_sigma = einops.rearrange(sigmas, "... natoms space -> (...) (natoms space)")
+
+    list_expected_wrapped_gaussians = []
+    for row_x, row_sigma in zip(list_x, list_sigma):
+        wrapped_gaussian = torch.tensor(1.0)
+        for x, sigma in zip(row_x, row_sigma):
+            prob = torch.tensor(0.0)
+            for k in range(-kmax, kmax + 1):
+                log_prob = torch.distributions.Normal(loc=k, scale=sigma).log_prob(x)
+                prob += torch.exp(log_prob)
+            wrapped_gaussian *= prob
+        list_expected_wrapped_gaussians.append(wrapped_gaussian)
+
+    expected_wrapped_gaussians = torch.tensor(list_expected_wrapped_gaussians)
+
+    torch.testing.assert_close(computed_wrapped_gaussians, expected_wrapped_gaussians)
+
+
 @pytest.mark.parametrize("kmax", [1, 5, 10])
 @pytest.mark.parametrize("shape", test_shapes)
 @pytest.mark.parametrize("numerical_type", [torch.double])
@@ -194,16 +231,18 @@ def test_get_sigma_normalized_s2(list_u, list_sigma, list_k, numerical_type):
 @pytest.mark.parametrize("kmax", [4])
 @pytest.mark.parametrize("shape", test_shapes)
 def test_get_sigma_normalized_score(
-    relative_coordinates, sigmas, kmax, expected_sigma_normalized_scores
+    relative_coordinates, large_sigmas, kmax, expected_sigma_normalized_scores
 ):
     sigma_normalized_score_small_sigma = get_sigma_normalized_score(
-        relative_coordinates, sigmas, kmax
+        relative_coordinates, large_sigmas, kmax
     )
 
     # The brute force calculation is fragile to the creation of NaNs.
     # Let's give the test a free pass when this happens.
     nan_mask = torch.where(expected_sigma_normalized_scores.isnan())
-    expected_sigma_normalized_scores[nan_mask] = sigma_normalized_score_small_sigma[nan_mask]
+    expected_sigma_normalized_scores[nan_mask] = sigma_normalized_score_small_sigma[
+        nan_mask
+    ]
 
     torch.testing.assert_close(
         sigma_normalized_score_small_sigma,
