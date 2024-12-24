@@ -40,7 +40,7 @@ def convert_configurations_to_dataset(
     return configuration_dataset
 
 
-class TestDiffusionDataLoader(TestDiffusionDataBase):
+class TestLammpsForDiffusionDataModule(TestDiffusionDataBase):
 
     @pytest.fixture
     def element_types(self, unique_elements):
