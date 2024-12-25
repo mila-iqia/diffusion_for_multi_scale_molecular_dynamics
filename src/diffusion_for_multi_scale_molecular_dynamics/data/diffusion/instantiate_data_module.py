@@ -5,6 +5,8 @@ from typing import Any, AnyStr, Dict
 
 import pytorch_lightning as pl
 
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.gaussian_data_module import (
+    GaussianDataModule, GaussianDataModuleParameters)
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsDataModuleParameters, LammpsForDiffusionDataModule)
 
@@ -41,6 +43,10 @@ def load_data_module(hyper_params: Dict[AnyStr, Any], args: argparse.Namespace) 
                                                        lammps_run_dir=args.data,
                                                        processed_dataset_dir=args.processed_datadir,
                                                        working_cache_dir=args.dataset_working_dir)
+
+        case "gaussian":
+            data_params = GaussianDataModuleParameters(**data_config, elements=hyper_params["elements"])
+            data_module = GaussianDataModule(data_params)
         case _:
             raise NotImplementedError(
                 f"Data source '{data_source}' is not implemented"
