@@ -14,7 +14,7 @@ from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
 from diffusion_for_multi_scale_molecular_dynamics.metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
-    OptimizerParameters, load_optimizer)
+    OptimizerParameters, check_if_optimizer_is_none, load_optimizer)
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
     SchedulerParameters, load_scheduler_dictionary)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
@@ -92,6 +92,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.save_hyperparameters(
             logger=False
         )  # It is not the responsibility of this class to log its parameters.
+
+        if check_if_optimizer_is_none(self.hyper_params.optimizer_parameters):
+            # If the config indicates None as the optimizer, then no optimization should
+            # take place.
+            self.automatic_optimization = False
 
         # the score network is expected to produce an output as an AXL namedtuple:
         # atom: unnormalized estimate of p(a_0 | a_t)
