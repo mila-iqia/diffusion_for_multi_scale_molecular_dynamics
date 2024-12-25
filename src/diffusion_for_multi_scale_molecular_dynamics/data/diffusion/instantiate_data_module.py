@@ -29,12 +29,7 @@ def load_data_module(hyper_params: Dict[AnyStr, Any], args: argparse.Namespace) 
         "The configuration should contain a 'data' block describing the data source."
 
     data_config = hyper_params["data"]
-
-    data_source = "LAMMPS"
-    if "data_source" in data_config:
-        data_source = data_config["data_source"]
-    else:
-        data_config["data_source"] = data_source
+    data_source = data_config.pop("data_source", "LAMMPS")
 
     match data_source:
         case "LAMMPS":
