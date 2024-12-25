@@ -12,7 +12,7 @@ meant to generate 'production' results.
 """
 
 from dataclasses import dataclass
-from typing import Any, AnyStr, Dict, Tuple
+from typing import Any, AnyStr, Dict, List, Tuple
 
 import einops
 import torch
@@ -41,8 +41,7 @@ class AnalyticalScoreNetworkParameters(ScoreNetworkParameters):
     # the maximum lattice translation along any dimension. Translations will be [-kmax,..,kmax].
     kmax: int
 
-    # Should have shape [number_of_atoms, spatial_dimensions]
-    equilibrium_relative_coordinates: torch.Tensor
+    equilibrium_relative_coordinates: List[List[float]]
 
     # the data distribution variance.
     sigma_d: float
@@ -60,10 +59,12 @@ class AnalyticalScoreNetworkParameters(ScoreNetworkParameters):
 
         assert self.sigma_d > 0.0, "the sigma_d parameter should be positive."
 
-        assert self.equilibrium_relative_coordinates.shape == (
-            self.number_of_atoms,
-            self.spatial_dimension,
-        ), "equilibrium relative coordinates have the wrong shape"
+        assert len(self.equilibrium_relative_coordinates) == self.number_of_atoms, \
+            "There should be exactly one list of equilibrium coordinates per atom."
+
+        for x in self.equilibrium_relative_coordinates:
+            assert len(x) == self.spatial_dimension, \
+                "The equilibrium coordinates should be consistent with the spatial dimension."
 
 
 class AnalyticalScoreNetwork(ScoreNetwork):
@@ -72,11 +73,12 @@ class AnalyticalScoreNetwork(ScoreNetwork):
     This 'score network' is for exploring and debugging.
     """
 
-    def __init__(self, hyper_params: AnalyticalScoreNetworkParameters):
+    def __init__(self, hyper_params: AnalyticalScoreNetworkParameters, device=torch.device("cpu")):
         """__init__.
 
         Args:
             hyper_params : hyper parameters from the config file.
+            device: device to use.
         """
         super(AnalyticalScoreNetwork, self).__init__(hyper_params)
 
@@ -92,15 +94,14 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         self.use_permutation_invariance = hyper_params.use_permutation_invariance
 
-        self.device = hyper_params.equilibrium_relative_coordinates.device
+        self.device = device
 
         # shape: [number_of_translations]
         self.translations_k = self._get_all_translations(self.kmax).to(self.device)
         self.number_of_translations = len(self.translations_k)
 
-        self.equilibrium_relative_coordinates = (
-            hyper_params.equilibrium_relative_coordinates
-        )
+        self.equilibrium_relative_coordinates = torch.tensor(hyper_params.equilibrium_relative_coordinates,
+                                                             dtype=torch.float)
 
         if self.use_permutation_invariance:
             # Shape : [natom!, natoms, spatial dimension]
@@ -110,7 +111,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         else:
             # Shape : [1, natoms, spatial dimension]
             self.all_x0 = einops.rearrange(
-                hyper_params.equilibrium_relative_coordinates, "natom d -> 1 natom d"
+                self.equilibrium_relative_coordinates, "natom d -> 1 natom d"
             )
 
     @staticmethod

@@ -43,7 +43,8 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture
     def equilibrium_relative_coordinates(self, number_of_atoms, spatial_dimension):
-        return torch.rand(number_of_atoms, spatial_dimension)
+        list_x = torch.rand(number_of_atoms, spatial_dimension)
+        return [list(x.numpy()) for x in list_x]
 
     @pytest.fixture(params=[True, False])
     def use_permutation_invariance(self, request):
@@ -104,19 +105,20 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
     def test_get_all_equilibrium_permutations(
         self, number_of_atoms, spatial_dimension, equilibrium_relative_coordinates
     ):
+
+        eq_rel_coords = torch.tensor(equilibrium_relative_coordinates)
         expected_permutations = []
 
         for permutation_indices in itertools.permutations(range(number_of_atoms)):
             expected_permutations.append(
-                equilibrium_relative_coordinates[list(permutation_indices)]
+                eq_rel_coords[list(permutation_indices)]
             )
 
         expected_permutations = torch.stack(expected_permutations)
 
         computed_permutations = (
             AnalyticalScoreNetwork._get_all_equilibrium_permutations(
-                equilibrium_relative_coordinates
-            )
+                eq_rel_coords)
         )
 
         assert computed_permutations.shape == (
