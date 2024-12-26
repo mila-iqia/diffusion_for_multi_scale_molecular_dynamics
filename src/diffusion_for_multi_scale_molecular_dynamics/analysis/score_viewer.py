@@ -153,7 +153,7 @@ class ScoreViewer:
         for time, sigma in zip(self.times, self.sigmas):
             batch = self._get_batch(time, sigma)
 
-            sigma_normalized_scores = score_network(batch).X.detach()
+            sigma_normalized_scores = score_network(batch).X.detach().cpu()
             vectors = einops.rearrange(
                 sigma_normalized_scores, "batch natoms space -> batch (natoms space)"
             )
