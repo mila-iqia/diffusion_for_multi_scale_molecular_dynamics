@@ -8,6 +8,7 @@ efficiently on the GPU without CPU-GPU communications.
 import itertools
 from collections import namedtuple
 
+import einops
 import numpy as np
 import torch
 from pykeops.torch import LazyTensor
@@ -32,7 +33,7 @@ AdjacencyInfo = namedtuple(
 
 
 def get_periodic_adjacency_information(
-    cartesian_positions: torch.Tensor, basis_vectors: torch.Tensor, radial_cutoff: float
+    cartesian_positions: torch.Tensor, basis_vectors: torch.Tensor, radial_cutoff: float, spatial_dimension: int = 3
 ) -> AdjacencyInfo:
     """Get periodic adjacency information.
 
@@ -61,7 +62,7 @@ def get_periodic_adjacency_information(
 
     Args:
         cartesian_positions : atomic positions, assumed to be within the unit cell, in Euclidean space, in Angstrom.
-                               Dimension [batch_size, max_number_of_atoms, 3]
+                               Dimension [batch_size, max_number_of_atoms, spatial_dimension]
         basis_vectors : vectors that define the unit cell, (a1, a2, a3). The basis vectors are assumed
                         to be vertically stacked, namely
                                             [-- a1 --]
@@ -69,6 +70,7 @@ def get_periodic_adjacency_information(
                                             [-- a3 --]
                         Dimension [batch_size, 3, 3].
         radial_cutoff : largest distance between neighbors, in Angstrom.
+        spatial_dimension: the dimension of space.
 
     Returns:
         adjacency_info: an AdjacencyInfo object that contains
@@ -83,7 +85,6 @@ def get_periodic_adjacency_information(
     ), "Wrong number of dimensions for relative_coordinates"
     assert len(basis_vectors.shape) == 3, "Wrong number of dimensions for basis_vectors"
 
-    spatial_dimension = 3  # We define this to avoid "magic numbers" in the code below.
     batch_size, max_natom, spatial_dimension_ = cartesian_positions.shape
     assert (
         spatial_dimension_ == spatial_dimension
@@ -103,7 +104,7 @@ def get_periodic_adjacency_information(
 
     # Check that the radial cutoff does not lead to possible neighbors beyond the first shell.
     shortest_cell_crossing_distances = _get_shortest_distance_that_crosses_unit_cell(
-        basis_vectors
+        basis_vectors, spatial_dimension=spatial_dimension
     )
     assert torch.all(shortest_cell_crossing_distances > radial_cutoff), (
         "The radial cutoff is so large that neighbors could be located "
@@ -112,7 +113,7 @@ def get_periodic_adjacency_information(
 
     # The relative coordinates lattice vectors have dimensions [number of lattice vectors, spatial_dimension]
     relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(
-        number_of_shells=1
+        number_of_shells=1, spatial_dimension=spatial_dimension
     ).to(device)
     number_of_relative_lattice_vectors = len(relative_lattice_vectors)
 
@@ -266,7 +267,7 @@ def _get_shifted_positions(
 
 
 def _get_shortest_distance_that_crosses_unit_cell(
-    basis_vectors: torch.Tensor,
+    basis_vectors: torch.Tensor, spatial_dimension: int = 3
 ) -> torch.Tensor:
     """Get the shortest distance that crosses unit cell.
 
@@ -280,21 +281,15 @@ def _get_shortest_distance_that_crosses_unit_cell(
                 /        v                /
                ---------------------------
 
-
     Args:
         basis_vectors : basis vectors that define the unit cell.
-                        Dimension [batch_size, spatial_dimension = 3]
+                        Dimension [batch_size, spatial_dimension]
 
     Returns:
         shortest_distances: shortest distance that can cross the unit cell, from one side to its other parallel side.
                             Dimension [batch_size].
     """
-    # It is straightforward to show that the distance between two parallel planes,
-    # (say the plane spanned by (a1, a2) crossing the origin and the plane spanned by (a1, a2) crossing the point a3)
-    # is given by unit_normal DOT a3. The unit normal to the plane is proportional to the cross product of a1 and a2.
-    #
-    # This idea must be repeated for the three pairs of planes bounding the unit cell.
-    spatial_dimension = 3
+    assert spatial_dimension in {1, 2, 3}, "The spatial dimension must be 1, 2 or 3."
     assert len(basis_vectors.shape) == 3, "basis_vectors has wrong shape."
     assert (
         basis_vectors.shape[1] == spatial_dimension
@@ -302,6 +297,60 @@ def _get_shortest_distance_that_crosses_unit_cell(
     assert (
         basis_vectors.shape[2] == spatial_dimension
     ), "Basis vectors in wrong spatial dimension."
+
+    match spatial_dimension:
+        case 1:
+            return _get_shortest_distance_that_crosses_unit_cell_1d(basis_vectors)
+        case 2:
+            return _get_shortest_distance_that_crosses_unit_cell_2d(basis_vectors)
+        case 3:
+            return _get_shortest_distance_that_crosses_unit_cell_3d(basis_vectors)
+        case _:
+            raise RuntimeError("Spatial dimension must be 1, 2 or 3.")
+
+
+def _get_shortest_distance_that_crosses_unit_cell_1d(
+    basis_vectors: torch.Tensor,
+) -> torch.Tensor:
+    """Get the shortest distance that crosses unit cell in 1D."""
+    distances = basis_vectors.norm(dim=[-1, -2])
+    return distances
+
+
+def _get_shortest_distance_that_crosses_unit_cell_2d(
+    basis_vectors: torch.Tensor,
+) -> torch.Tensor:
+    """Get the shortest distance that crosses unit cell in 2D."""
+    a1 = basis_vectors[:, 0, :]
+    a2 = basis_vectors[:, 1, :]
+
+    dot_product = einops.einsum(a1, a2, "b i, b i -> b")
+
+    norm_a1 = torch.norm(a1, dim=-1)
+    norm_a2 = torch.norm(a2, dim=-1)
+
+    orthogonal_a2 = a2 - (dot_product / norm_a1**2).unsqueeze(1) * a1
+    distances_1 = orthogonal_a2.norm(dim=-1)
+
+    orthogonal_a1 = a1 - (dot_product / norm_a2**2).unsqueeze(1) * a2
+    distances_2 = orthogonal_a1.norm(dim=-1)
+
+    distances = (
+        torch.stack([distances_1, distances_2], dim=1).min(dim=1).values
+    )
+
+    return distances
+
+
+def _get_shortest_distance_that_crosses_unit_cell_3d(
+    basis_vectors: torch.Tensor,
+) -> torch.Tensor:
+    """Get the shortest distance that crosses unit cell in 3D."""
+    # It is straightforward to show that the distance between two parallel planes,
+    # (say the plane spanned by (a1, a2) crossing the origin and the plane spanned by (a1, a2) crossing the point a3)
+    # is given by unit_normal DOT a3. The unit normal to the plane is proportional to the cross product of a1 and a2.
+    #
+    # This idea must be repeated for the three pairs of planes bounding the unit cell.
     a1 = basis_vectors[:, 0, :]
     a2 = basis_vectors[:, 1, :]
     a3 = basis_vectors[:, 2, :]

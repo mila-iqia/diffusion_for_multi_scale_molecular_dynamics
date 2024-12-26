@@ -109,6 +109,7 @@ def get_edges_with_radial_cutoff(
     unit_cell: torch.Tensor,
     radial_cutoff: float = 4.0,
     drop_duplicate_edges: bool = True,
+    spatial_dimension: int = 3
 ) -> torch.Tensor:
     """Get edges for a batch with a cutoff based on distance.
 
@@ -127,7 +128,7 @@ def get_edges_with_radial_cutoff(
         relative_coordinates, unit_cell
     )
     adj_matrix, _, _, _ = get_adj_matrix(
-        cartesian_coordinates, unit_cell, radial_cutoff
+        cartesian_coordinates, unit_cell, radial_cutoff, spatial_dimension
     )
     # adj_matrix is a n_edges x 2 tensor with duplicates with different shifts.
     # the uplifting in 2 x spatial_dimension manages the shifts in a natural way. This means we can ignore the shifts
