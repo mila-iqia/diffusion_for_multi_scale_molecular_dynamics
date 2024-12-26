@@ -7,6 +7,8 @@ from diffusion_for_multi_scale_molecular_dynamics.callbacks.loss_monitoring_call
     instantiate_loss_monitoring_callback
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
     instantiate_sampling_visualization_callback
+from diffusion_for_multi_scale_molecular_dynamics.callbacks.score_viewer_callback import \
+    instantiate_score_viewer_callback
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.standard_callbacks import (
     CustomProgressBar, instantiate_early_stopping_callback,
     instantiate_model_checkpoint_callbacks)
@@ -16,6 +18,7 @@ OPTIONAL_CALLBACK_DICTIONARY = dict(
     model_checkpoint=instantiate_model_checkpoint_callbacks,
     sampling_visualization=instantiate_sampling_visualization_callback,
     loss_monitoring=instantiate_loss_monitoring_callback,
+    score_viewer=instantiate_score_viewer_callback
 )
 
 
