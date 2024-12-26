@@ -92,7 +92,8 @@ class ScoreNetwork(torch.nn.Module):
         assert (
             len(relative_coordinates_shape) == 3
             and relative_coordinates_shape[2] == self.spatial_dimension
-        ), "The relative coordinates are expected to be in a tensor of shape [batch_size, number_of_atoms, 3]"
+        ), ("The relative coordinates are expected to be in a tensor of "
+            "shape [batch_size, number_of_atoms, spatial_dimension]")
 
         assert torch.logical_and(
             relative_coordinates >= 0.0, relative_coordinates < 1.0
