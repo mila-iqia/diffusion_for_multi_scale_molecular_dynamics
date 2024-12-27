@@ -14,7 +14,7 @@ import torch
 
 
 def get_lattice_sigma_normalized_score(
-    delta_l: torch.Tensor, sigma_n: torch.Tensor, alpha_bar: torch.Tensor
+    noisy_l: torch.Tensor, real_l: torch.Tensor, sigma_n: torch.Tensor, alpha_bar: torch.Tensor
 ) -> torch.Tensor:
     r"""Get the sigma normalized score for lattice parameters.
 
@@ -28,7 +28,8 @@ def get_lattice_sigma_normalized_score(
     with :math:`\sigma(n) = \frac{\sigma}{\sqrt[1/d]{n}}` with :math:`d` the number of spatial dimensions.
 
     Args:
-        delta_l : the lattice parameters at which the wrapped Gaussian is evaluated.
+        noisy_l : the noised lattice parameters used to evaluate the Gaussian score.
+        real_l: the real (non-noised) lattice parameters to evaluate the Gaussian score.
         sigma_n : the variance in the definition of the variance-exploding diffusion - scaled by the number of atoms.
         alpha_bar : the cumulative variance in the definition of the variance-preserving diffusion.
 
@@ -41,7 +42,7 @@ def get_lattice_sigma_normalized_score(
     # we can get the sigma normalized score using a method similar to the brute force calculation in the wrapped
     # gaussian kernel implementation. We do not need a sum over k as the kernel is not periodic. This simplifies to the
     # -x / sigma
-
-    sigma_score = -delta_l / sigma_effective
+    # note that the lattice score rescales L_0 (the real lattice parameters) by a factor :math:`\sqrt{\bar{\alpha}}`.
+    sigma_score = -(noisy_l - torch.sqrt(alpha_bar) * real_l) / sigma_effective
 
     return sigma_score
