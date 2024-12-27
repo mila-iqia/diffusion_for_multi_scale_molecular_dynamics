@@ -34,6 +34,10 @@ class SigmaCalculator(nn.Module):
         """Get sigma time derivative."""
         return self.log_ratio * self.get_sigma(times)
 
+    def forward(self, times: torch.Tensor) -> torch.Tensor:
+        """Forward method."""
+        return self.get_sigma(times)
+
 
 class VarianceScheduler(torch.nn.Module):
     """Exploding Variance.
