@@ -121,7 +121,7 @@ class TestLatticeNoiser:
         ):
             density = natom ** (1 / spatial_dimension) / inverse_average_density
             sample_bias = np.sqrt(alpha_bar) * l0 + (1 - np.sqrt(alpha_bar)) * density
-            sample_noisy_part = epsilon * (1 - alpha_bar) * sigma**2
+            sample_noisy_part = epsilon * torch.sqrt((1 - alpha_bar) * sigma**2)
             expected_sample = sample_noisy_part + sample_bias
 
             torch.testing.assert_close(computed_sample, expected_sample)

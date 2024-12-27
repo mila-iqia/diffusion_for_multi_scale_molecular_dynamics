@@ -26,8 +26,13 @@ def num_lattice_parameters(spatial_dimension):
 
 
 @pytest.fixture
-def lattice_parameters(batch_size, num_lattice_parameters):
-    # input to score is lt - l0 so values can be negative
+def real_lattice_parameters(batch_size, num_lattice_parameters):
+    # input l0 to score
+    return torch.randn(batch_size, num_lattice_parameters)
+
+
+@pytest.fixture
+def noisy_lattice_parameters(batch_size, num_lattice_parameters):
     return torch.randn(batch_size, num_lattice_parameters)
 
 
@@ -42,16 +47,17 @@ def alpha_bars(batch_size, num_lattice_parameters):
 
 
 @pytest.fixture
-def expected_sigma_normalized_scores(lattice_parameters, sigmas, alpha_bars):
-    shape = lattice_parameters.shape
+def expected_sigma_normalized_scores(real_lattice_parameters, noisy_lattice_parameters, sigmas, alpha_bars):
+    shape = real_lattice_parameters.shape
 
     list_sigma_normalized_scores = []
-    for dl, sigma, alpha_bar in zip(
-        lattice_parameters.numpy().flatten(),
+    for real_l, noisy_l, sigma, alpha_bar in zip(
+        real_lattice_parameters.numpy().flatten(),
+        noisy_lattice_parameters.numpy().flatten(),
         sigmas.numpy().flatten(),
         alpha_bars.flatten(),
     ):
-        s = -dl / (np.sqrt(1 - alpha_bar) * sigma)
+        s = -(noisy_l - np.sqrt(alpha_bar) * real_l) / (np.sqrt(1 - alpha_bar) * sigma)
         list_sigma_normalized_scores.append(s)
 
     return torch.tensor(list_sigma_normalized_scores).reshape(shape)
@@ -60,10 +66,11 @@ def expected_sigma_normalized_scores(lattice_parameters, sigmas, alpha_bars):
 @pytest.mark.parametrize("batch_size", [1, 3, 7, 16])
 @pytest.mark.parametrize("spatial_dimension", [1, 2, 3])
 def test_get_sigma_normalized_score(
-    lattice_parameters, sigmas, alpha_bars, expected_sigma_normalized_scores
+    real_lattice_parameters, noisy_lattice_parameters, sigmas, alpha_bars, expected_sigma_normalized_scores
 ):
     sigma_normalized_score = get_lattice_sigma_normalized_score(
-        lattice_parameters,
+        noisy_lattice_parameters,
+        real_lattice_parameters,
         sigmas,
         alpha_bars,
     )
