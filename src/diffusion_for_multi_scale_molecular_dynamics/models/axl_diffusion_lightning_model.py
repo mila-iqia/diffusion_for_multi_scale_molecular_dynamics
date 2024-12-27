@@ -248,7 +248,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         posterior :math:`q(a_{t-1} | a_t, a_0)` and :math:`p_\theta(a_{t-1} | a_t)` in the atom type loss.
 
         For the lattice parameters, the loss is defined similarly to the coordinate diffusion. The score to approximate
-        is slightly difference due to the change in the variance schedule (variance preserving instead of variance
+        is slightly different due to the change in the variance schedule (variance preserving instead of variance
         exploding), a bias in the gaussian kernel and the use of a single gaussian instead of a sum over multiple
         instances due to the periodicity.
 
@@ -282,7 +282,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         # for the atom types, the loss is constructed from the Q and Qbar matrices
 
-        # Lattice: he target is :math:`sigma(t) \nabla  log p_{t|0} (lt | l0)`
+        # Lattice: the target is :math:`sigma(t) \nabla  log p_{t|0} (lt | l0)`
         # it is NOT the "score", but rather a "conditional" (on l0) score.
         sigmas_for_lattice = einops.repeat(batch[NOISE],
                                            "batch 1 -> batch space",
