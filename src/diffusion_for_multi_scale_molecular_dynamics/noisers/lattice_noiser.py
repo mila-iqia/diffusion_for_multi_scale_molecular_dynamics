@@ -11,7 +11,8 @@ class LatticeDataParameters:
     TODO: this might belong elsewhere
     """
 
-    inverse_average_density: float  # inverse of the average volume of unit cell scales by the number of atoms
+    inverse_average_density: float  # inverse of the average density of unit cells
+    # inverse of average of number of atoms / volume
     spatial_dimension: int = 3
 
 
@@ -59,18 +60,18 @@ class LatticeNoiser:
 
         Args:
             real_lattice_parameters: lattice parameters from the sampled data. These parameters are not the lattice
-                vector, but an array of dimension [spatial_dimension] containing the size of the orthogonal box.
-                TODO add angles
+                vector, but an array of dimension [spatial_dimension * (spatial_dimension + 1) / 2] containing the size
+                of the orthogonal box and the angles.  # TODO review statement about angles
             sigmas_n: variance of the perturbation kernel rescaled by the number of atoms. Tensor is assumed to be of
                 the same shape as real_lattice_parameters.
             alpha_bars: cumulative noise scale. Tensor is assumed to be of the same shape as real_lattice_parameters.
-            num_atoms: number of atoms in each sample. Tensor should be a 1D tensor matching the first dimension of the
+            num_atoms: number of atoms in each sample. Tensor should be a 2D tensor matching the dimensions of the
                 real_lattice_parameters tensor.
 
         Returns:
-            noisy_lattice_parameters: a sample of noised lattice parameters as tensor of size [spatial_dimension].
+            noisy_lattice_parameters: a sample of noised lattice parameters as tensor of size
+            [spatial_dimension * (spatial_dimension + 1) / 2].
         """
-        # TODO add angles
         assert (
             real_lattice_parameters.shape == sigmas_n.shape
         ), "sigmas array is expected to be of the same shape as the real_lattice_parameters array"
@@ -83,13 +84,14 @@ class LatticeNoiser:
             sigmas_n
         )
 
-        noise_width = (1 - alpha_bars) * sigmas_n**2
+        noise_width = torch.sqrt((1 - alpha_bars) * sigmas_n**2)
         sqrt_alpha_bars = torch.sqrt(alpha_bars)
         average_density = torch.zeros_like(num_atoms)
+        # compute :math:`\mu(n)`
         average_density[:, :self.spatial_dimension] = torch.pow(
             num_atoms[:, :self.spatial_dimension],
             1 / self.spatial_dimension,
-        )  / self.inverse_density
+        )  / self.inverse_density  # TODO add angles
 
         noisy_lattice_parameters_avg = (
             sqrt_alpha_bars * real_lattice_parameters

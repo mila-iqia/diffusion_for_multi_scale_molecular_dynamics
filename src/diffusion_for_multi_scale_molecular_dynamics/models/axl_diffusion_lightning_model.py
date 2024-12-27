@@ -231,7 +231,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         posterior :math:`q(a_{t-1} | a_t, a_0)` and :math:`p_\theta(a_{t-1} | a_t)` in the atom type loss.
 
         For the lattice parameters, the loss is defined similarly to the coordinate diffusion. The score to approximate
-        is slightly difference due to the change in the variance schedule (variance preserving instead of variance
+        is slightly different due to the change in the variance schedule (variance preserving instead of variance
         exploding), a bias in the gaussian kernel and the use of a single gaussian instead of a sum over multiple
         instances due to the periodicity.
 
@@ -243,7 +243,6 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         Returns:
             output_dictionary : contains the loss, the predictions and various other useful tensors.
         """
-        # The RELATIVE_COORDINATES have dimensions [batch_size, number_of_atoms, spatial_dimension].
         assert (
             RELATIVE_COORDINATES in batch
         ), f"The field '{RELATIVE_COORDINATES}' is missing from the input."
@@ -274,9 +273,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         l0 = batch[LATTICE_PARAMETERS]
         lattice_shape = l0.shape
         assert len(lattice_shape) == 2, (
-            f"the shape of the LATTICE_PARAMETERS array should be [batch_size, spatial_dimensions]. "
-            f"Got shape = {lattice_shape}"
-        )  # TODO add angles
+            f"the shape of the LATTICE_PARAMETERS array should be [batch_size, spatial_dimensions *"
+            f"(spatial_dimensions + 1) / 2]. Got shape = {lattice_shape}"
+        )
 
         noise_sample = self.noise_scheduler.get_random_noise_sample(batch_size)
 
@@ -338,7 +337,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         )
         # for the atom types, the loss is constructed from the Q and Qbar matrices
 
-        # Lattice: he target is :math:`sigma(t) \nabla  log p_{t|0} (lt | l0)`
+        # Lattice: the target is :math:`sigma(t) \nabla  log p_{t|0} (lt | l0)`
         # it is NOT the "score", but rather a "conditional" (on l0) score.
         target_lattice_normalized_conditional_scores = (
             self._get_lattice_target_normalized_score(lt, l0, sigmas_n, alpha_bars)
@@ -469,28 +468,27 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         """Get target normalized score for the lattice parameters.
 
         It is assumed that the inputs are consistent, ie, the noisy lattice parameters correspond
-        to the real lattice parameters noised with sigmas and alpha bars. It is also assumed that sigmas has
-        been broadcast so that the same value sigma(t) is applied to all atoms + dimensions within a configuration.
-
-        # TODO add angles
+        to the real lattice parameters noised with sigmas and betas (related to alpha bars). It is also assumed that
+        sigmas have been broadcast so that the same value sigma(t) is applied to all lattice parameters within a
+        configuration.
 
         Args:
             noisy_lattice_parameters : noised lattice parameters.
-                Tensor of dimensions [batch_size, spatial_dimension]
+                Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
             real_lattice_parameters : original lattice coordinates, before the addition of noise.
-                Tensor of dimensions [batch_size, spatial_dimension]
+                Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
             sigmas_n : variance scaled by the number of atoms
-                Tensor of dimensions [batch_size, spatial_dimension]
+                Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
             alpha_bars :
-                Tensor of dimensions [batch_size, spatial_dimension]
+                Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
 
         Returns:
             target normalized score: sigma times target score, ie, sigma times nabla_lt log P_{t|0}(lt| l0).
-                Tensor of dimensions [batch_size, spatial_dimension]
+                Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
         """
         delta_relative_coordinates = noisy_lattice_parameters - real_lattice_parameters
         target_normalized_scores = get_lattice_sigma_normalized_score(
-            delta_relative_coordinates, sigmas_n, alpha_bars
+            noisy_lattice_parameters, real_lattice_parameters, sigmas_n, alpha_bars
         )
         return target_normalized_scores
 
