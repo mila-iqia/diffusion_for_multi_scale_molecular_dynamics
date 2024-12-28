@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Callable, Dict
 
 import einops
@@ -11,6 +12,25 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_var
     SigmaCalculator
 
 
+@dataclass(kw_only=True)
+class RegularizerParameters:
+    """Base Hyper-parameters for score networks."""
+
+    # weighting prefactor for the regularizer loss.
+    regularizer_lambda_weight: float = 1.0
+
+    # how many terms should contribute to the regularization batch.
+    # Should be no larger than the main batch size.
+    batch_size: int
+
+    # how many terms should be used in the score Laplacian approximation
+    number_of_hte_terms: int
+
+    # Define the noise schedule. Should be consistent with the score parameters.
+    sigma_min: float
+    sigma_max: float
+
+
 class FokkerPlanckRegularizer:
     """Fokker-Planck Regularizer.
 
@@ -21,12 +41,15 @@ class FokkerPlanckRegularizer:
     Hutchinson trace estimator is used for the second order space derivative.
     """
 
-    def __init__(self, sigma_min: float, sigma_max: float, number_of_hte_terms: int):
+    def __init__(self, regularizer_parameters: RegularizerParameters):
         """Init method."""
         self.sigma_calculator = SigmaCalculator(
-            sigma_min=sigma_min, sigma_max=sigma_max
+            sigma_min=regularizer_parameters.sigma_min,
+            sigma_max=regularizer_parameters.sigma_max,
         )
-        self.number_of_hte_terms = number_of_hte_terms
+        self.number_of_hte_terms = regularizer_parameters.number_of_hte_terms
+        self.lbda_weight = regularizer_parameters.regularizer_lambda_weight
+        self.regularizer_batch_size = regularizer_parameters.batch_size
 
     def _create_batch(
         self,
@@ -67,6 +90,7 @@ class FokkerPlanckRegularizer:
             score_function: a callable with input (relative_coordinates, time) which computes the scores, for
                 atom_types and unit_cells held fixed.
         """
+
         def score_function(relative_coordinates, times):
             batch_size, natoms, spatial_dimension = relative_coordinates.shape
             batch = self._create_batch(
@@ -243,3 +267,50 @@ class FokkerPlanckRegularizer:
         )
 
         return residuals
+
+    def compute_weighted_regularizer_loss(
+        self,
+        score_network: ScoreNetwork,
+        external_times: torch.Tensor,
+        external_atom_types: torch.Tensor,
+        external_unit_cells: torch.Tensor,
+    ):
+        """Compute weighted regularizer loss.
+
+        The loss calculation will rely on externally generated tensors for times, unit cells and atom types,
+        presumably coming from Noiser classes. If there is a mismatch between the batch size of these tensors
+        and the internal batch size, the smallest of the two will be used.
+
+        Random relative coordinates will be generated internally, forcing the regularizer to see the whole space
+        at all times.
+
+        Args:
+            score_network: the score network.
+            external_times: times, of dimensions [external_batch_size, 1]
+            external_atom_types:  atom types, of dimensions [external_batch_size, natoms]
+            external_unit_cells:  unit cells, of dimensions [external_batch_size, spatial_dimension, spatial_dimension]
+
+        Returns:
+            weighted_loss: the weighted regularizer loss.
+        """
+        external_batch_size, natoms = external_atom_types.shape
+        _, spatial_dimension, _ = external_unit_cells.shape
+
+        if self.regularizer_batch_size <= external_batch_size:
+            batch_size = self.regularizer_batch_size
+        else:
+            batch_size = external_batch_size
+
+        times = external_times[:batch_size]
+        atom_types = external_atom_types[:batch_size]
+        unit_cells = external_unit_cells[:batch_size]
+
+        # sample random relative_coordinates
+        relative_coordinates = torch.rand(batch_size, natoms, spatial_dimension)
+
+        batch = self._create_batch(relative_coordinates, times, atom_types, unit_cells)
+
+        residuals = self.compute_score_fokker_planck_residuals(score_network, batch)
+
+        weighted_loss = self.lbda_weight * torch.mean(residuals**2)
+        return weighted_loss

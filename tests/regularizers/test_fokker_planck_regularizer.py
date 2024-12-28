@@ -2,8 +2,8 @@ import einops
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.regularizers.fokker_planck_regularizer import \
-    FokkerPlanckRegularizer
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.fokker_planck_regularizer import (
+    FokkerPlanckRegularizer, RegularizerParameters)
 from tests.regularizers.differentiable_score_network import (
     DifferentiableScoreNetwork, DifferentiableScoreNetworkParameters)
 
@@ -89,12 +89,20 @@ class TestFokkerPlanckRegularizer:
         return DifferentiableScoreNetwork(score_parameters)
 
     @pytest.fixture()
-    def regularizer(self, sigma_min, sigma_max, number_of_hte_terms):
-        return FokkerPlanckRegularizer(
+    def regularizer_parameters(
+        self, batch_size, number_of_hte_terms, sigma_min, sigma_max
+    ):
+        return RegularizerParameters(
+            regularizer_lambda_weight=1.0,
+            batch_size=batch_size,
+            number_of_hte_terms=number_of_hte_terms,
             sigma_min=sigma_min,
             sigma_max=sigma_max,
-            number_of_hte_terms=number_of_hte_terms,
         )
+
+    @pytest.fixture()
+    def regularizer(self, regularizer_parameters):
+        return FokkerPlanckRegularizer(regularizer_parameters)
 
     @pytest.fixture()
     def score_function(self, regularizer, score_network, atom_types, unit_cells):
@@ -242,3 +250,17 @@ class TestFokkerPlanckRegularizer:
         )
 
         assert residuals.shape == relative_coordinates.shape
+
+    def test_compute_weighted_regularizer_loss(
+        self,
+        regularizer,
+        score_network,
+        relative_coordinates,
+        times,
+        atom_types,
+        unit_cells,
+    ):
+        # Smoke test that the method runs.
+        _ = regularizer.compute_weighted_regularizer_loss(
+            score_network, times, atom_types, unit_cells
+        )
