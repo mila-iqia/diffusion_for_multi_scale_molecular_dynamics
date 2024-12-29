@@ -20,18 +20,21 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
     number_of_atoms: int  # the number of atoms in a configuration.
     n_hidden_dimensions: int  # the number of hidden layers.
     hidden_dimensions_size: int  # the dimensions of the hidden layers.
-    noise_embedding_dimensions_size: (
-        int  # the dimension of the embedding of the noise parameter.
-    )
-    time_embedding_dimensions_size: (
-        int  # the dimension of the embedding of the time parameter.
-    )
-    atom_type_embedding_dimensions_size: (
-        int  # the dimension of the embedding of the atom types
-    )
-    condition_embedding_size: int = (
-        64  # dimension of the conditional variable embedding
-    )
+
+    # the dimension of the embedding of the noise parameter.
+    noise_embedding_dimensions_size: int
+
+    # the dimension of the embedding of the relative coordinates
+    relative_coordinates_embedding_dimensions_size: int
+
+    # the dimension of the embedding of the time parameter.
+    time_embedding_dimensions_size: int
+
+    # the dimension of the embedding of the atom types
+    atom_type_embedding_dimensions_size: int
+
+    # dimension of the conditional variable embedding
+    condition_embedding_size: int = 64
 
 
 class MLPScoreNetwork(ScoreNetwork):
@@ -54,15 +57,23 @@ class MLPScoreNetwork(ScoreNetwork):
         self.num_atom_types = hyper_params.num_atom_types
         self.num_classes = self.num_atom_types + 1  # add 1 for the MASK class
 
+        # Each relative coordinate will be embedded on the unit circle with (cos, sin), leading to
+        # a doubling of the number of dimensions.
+        flat_relative_coordinates_input_dimension = 2 * self.spatial_dimension * self._natoms
+
         coordinate_output_dimension = self.spatial_dimension * self._natoms
         atom_type_output_dimension = self._natoms * self.num_classes
 
         input_dimension = (
-            coordinate_output_dimension
+            hyper_params.relative_coordinates_embedding_dimensions_size
             + hyper_params.noise_embedding_dimensions_size
             + hyper_params.time_embedding_dimensions_size
             + self._natoms * hyper_params.atom_type_embedding_dimensions_size
         )
+
+        self.relative_coordinates_embedding_layer = nn.Linear(
+            flat_relative_coordinates_input_dimension,
+            hyper_params.relative_coordinates_embedding_dimensions_size)
 
         self.noise_embedding_layer = nn.Linear(
             1, hyper_params.noise_embedding_dimensions_size
@@ -93,7 +104,7 @@ class MLPScoreNetwork(ScoreNetwork):
             self.conditional_layers.append(
                 nn.Linear(hyper_params.condition_embedding_size, output_dimension)
             )
-        self.non_linearity = nn.ReLU()
+        self.non_linearity = nn.SiLU()
 
         # Create a self nn object to be discoverable to be placed on the correct device
         self.output_A_layer = nn.Linear(hyper_params.hidden_dimensions_size, atom_type_output_dimension)
@@ -126,8 +137,17 @@ class MLPScoreNetwork(ScoreNetwork):
         Returns:
             computed_scores : the scores computed by the model in an AXL namedtuple.
         """
-        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         # shape [batch_size, number_of_atoms, spatial_dimension]
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+
+        # Embed each coordinate on the unit circle to ensure periodicity
+        angles = 2.0 * torch.pi * relative_coordinates
+
+        # flatten the dimensions associated with sin/cos, natoms and spatial dimension.
+        relative_coordinates_input = self.flatten(
+            torch.stack([angles.cos(), angles.sin()], dim=1))
+
+        relative_coordinates_embedding = self.relative_coordinates_embedding_layer(relative_coordinates_input)
 
         sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
         noise_embedding = self.noise_embedding_layer(
@@ -149,7 +169,7 @@ class MLPScoreNetwork(ScoreNetwork):
 
         input = torch.cat(
             [
-                self.flatten(relative_coordinates),
+                relative_coordinates_embedding,
                 noise_embedding,
                 time_embedding,
                 self.flatten(atom_type_embedding),
