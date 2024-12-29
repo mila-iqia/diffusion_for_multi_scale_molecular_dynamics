@@ -394,11 +394,15 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             target_coordinates_normalized_conditional_scores=target_coordinates_normalized_conditional_scores,
         )
 
-        if self.regularizer:
+        if self.regularizer and torch.is_grad_enabled():
+            # The regularizer depends on torch.func.{jvp, jacrev}. These do not always work well in
+            # a torch.no_grad environment.
+
             # Use the same times and atom types as in the noised composition. Random
             # relative coordinates will be drawn internally.
             weighted_regularizer_loss = (
                 self.regularizer.compute_weighted_regularizer_loss(
+                    current_epoch=self.current_epoch,
                     score_network=self.axl_network,
                     external_times=augmented_batch[TIME],
                     external_atom_types=augmented_batch[NOISY_AXL_COMPOSITION].A,

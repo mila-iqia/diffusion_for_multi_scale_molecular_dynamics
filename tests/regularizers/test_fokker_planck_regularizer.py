@@ -92,13 +92,16 @@ class TestFokkerPlanckRegularizer:
     def regularizer_parameters(
         self, batch_size, number_of_hte_terms, sigma_min, sigma_max
     ):
-        return RegularizerParameters(
+        parameters = RegularizerParameters(
+            number_of_hte_terms=number_of_hte_terms,
+            use_hte_approximation=True,
             regularizer_lambda_weight=1.0,
             batch_size=batch_size,
-            number_of_hte_terms=number_of_hte_terms,
             sigma_min=sigma_min,
             sigma_max=sigma_max,
         )
+
+        return parameters
 
     @pytest.fixture()
     def regularizer(self, regularizer_parameters):
@@ -136,6 +139,21 @@ class TestFokkerPlanckRegularizer:
             spatial_dimension,
         )
         torch.testing.assert_close(z.unique(), torch.tensor([-1.0, 1.0]))
+
+    def test_get_exact_laplacian_term(
+        self, score_network, regularizer, score_function, relative_coordinates, times
+    ):
+        def score_function_x(relative_coordinates):
+            return score_function(relative_coordinates, times)
+
+        computed_laplacian = regularizer.get_exact_laplacian(score_function_x, relative_coordinates)
+
+        exact_hessian = score_network._space_hessian_function(
+            relative_coordinates, times
+        )
+        expected_laplacian = einops.einsum(exact_hessian, "batch ni si nj sj nj sj -> batch ni si")
+
+        torch.testing.assert_allclose(computed_laplacian, expected_laplacian)
 
     def test_get_hte_laplacian_term(
         self, score_network, regularizer, score_function, relative_coordinates, times
@@ -181,16 +199,13 @@ class TestFokkerPlanckRegularizer:
         batch = regularizer._create_batch(
             relative_coordinates, times, atom_types, unit_cells
         )
-        rademacher_z = regularizer._create_rademacher_random_variables(
-            *relative_coordinates.shape
-        )
 
         (
             scores,
             scores_time_derivative,
             scores_divergence_scores,
-            approximate_scores_laplacian,
-        ) = regularizer.compute_residual_components(score_network, batch, rademacher_z)
+            scores_laplacian,
+        ) = regularizer.compute_residual_components(score_network, batch)
 
         expected_scores = score_network._score_function(relative_coordinates, times)
         expected_scores_time_derivatives = score_network._time_derivative_function(
@@ -206,31 +221,12 @@ class TestFokkerPlanckRegularizer:
             "batch ni si nj sj, batch nj sj -> batch ni si",
         )
 
-        expected_approximate_scores_laplacian = torch.zeros_like(expected_scores)
-
-        exact_hessian = score_network._space_hessian_function(
-            relative_coordinates, times
-        )
-
-        n_hte = len(rademacher_z)
-        for z in rademacher_z:
-            hz = einops.einsum(
-                exact_hessian,
-                z,
-                "batch ni si nj sj nk sk, batch nk sk -> batch ni si nj sj",
-            )
-            zhz = einops.einsum(z, hz, "batch nj sj, batch ni si nj sj -> batch ni si")
-            expected_approximate_scores_laplacian += zhz / n_hte
-
         torch.testing.assert_allclose(scores, expected_scores)
         torch.testing.assert_allclose(
             scores_time_derivative, expected_scores_time_derivatives
         )
         torch.testing.assert_allclose(
             scores_divergence_scores, expected_scores_divergence_scores
-        )
-        torch.testing.assert_allclose(
-            approximate_scores_laplacian, expected_approximate_scores_laplacian
         )
 
     def test_compute_score_fokker_planck_residuals(
@@ -262,5 +258,5 @@ class TestFokkerPlanckRegularizer:
     ):
         # Smoke test that the method runs.
         _ = regularizer.compute_weighted_regularizer_loss(
-            score_network, times, atom_types, unit_cells
+            0, score_network, times, atom_types, unit_cells
         )

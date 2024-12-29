@@ -19,16 +19,29 @@ class RegularizerParameters:
     # weighting prefactor for the regularizer loss.
     regularizer_lambda_weight: float = 1.0
 
+    # How many epochs without regularization at the begining of training
+    number_of_burn_in_epochs: int = 0
+
     # how many terms should contribute to the regularization batch.
     # Should be no larger than the main batch size.
     batch_size: int
 
     # how many terms should be used in the score Laplacian approximation
-    number_of_hte_terms: int
+    use_hte_approximation: bool = False
+    number_of_hte_terms: int = 0
 
     # Define the noise schedule. Should be consistent with the score parameters.
     sigma_min: float
     sigma_max: float
+
+    def __post_init__(self):
+        """Verify conditions in post init."""
+        if self.use_hte_approximation:
+            assert self.number_of_hte_terms > 0, \
+                "the number of HTE approximation terms must be greater than 0."
+        else:
+            assert self.number_of_hte_terms == 0, \
+                "The exact laplacian will be computed; the number of HTE terms must be 0."
 
 
 class FokkerPlanckRegularizer:
@@ -47,9 +60,14 @@ class FokkerPlanckRegularizer:
             sigma_min=regularizer_parameters.sigma_min,
             sigma_max=regularizer_parameters.sigma_max,
         )
+
+        self.use_hte_approximation = regularizer_parameters.use_hte_approximation
         self.number_of_hte_terms = regularizer_parameters.number_of_hte_terms
+
         self.lbda_weight = regularizer_parameters.regularizer_lambda_weight
         self.regularizer_batch_size = regularizer_parameters.batch_size
+
+        self.number_of_burn_in_epochs = regularizer_parameters.number_of_burn_in_epochs
 
     def _create_batch(
         self,
@@ -124,6 +142,41 @@ class FokkerPlanckRegularizer:
         return rademacher
 
     @staticmethod
+    def get_exact_laplacian(
+        score_function_x: Callable,
+        relative_coordinates: torch.Tensor,
+    ):
+        """Get exact score Laplacian."""
+        def batch_sum_score_x(x: torch.Tensor) -> torch.Tensor:
+            # input : [batch_size, natoms, space_dimension]
+            # output :  [natoms, space_dimension]
+            return score_function_x(x).sum(dim=0)
+
+        def batch_sum_jacobian_function(x: torch.Tensor) -> torch.Tensor:
+            jac = torch.func.jacrev(batch_sum_score_x, argnums=0)(x)
+            # jac has dimension [argument output, argument input]
+            #   = [natoms, space_dimension, batch_size, natoms, space_dimension]
+            # sum on the batch dimension
+            return jac.sum(dim=2)
+
+        # full_hessian has dimension [argument output, argument input]
+        #   = [natoms, space_dimension, natoms, space_dimension, batch_size, natoms, space_dimension]
+        full_hessian = torch.func.jacrev(batch_sum_jacobian_function)(relative_coordinates)
+
+        laplacian = einops.einsum(full_hessian, " ni si nj sj batch nj sj -> batch ni si")
+        return laplacian
+
+    def get_hte_laplacian(self, score_function_x: Callable, relative_coordinates: torch.Tensor):
+        """Get HTE approximation to the score Laplacian."""
+        list_z = self._create_rademacher_random_variables(*relative_coordinates.shape).to(relative_coordinates.device)
+        list_laplacian_terms = [
+            self.get_hte_laplacian_term(score_function_x, relative_coordinates, z)
+            for z in list_z
+        ]
+        approximate_scores_laplacian = torch.stack(list_laplacian_terms).mean(dim=0)
+        return approximate_scores_laplacian
+
+    @staticmethod
     def get_hte_laplacian_term(
         score_function_x: Callable,
         relative_coordinates: torch.Tensor,
@@ -154,7 +207,6 @@ class FokkerPlanckRegularizer:
         self,
         score_network: ScoreNetwork,
         batch: Dict[str, torch.Tensor],
-        rademacher_z: torch.Tensor,
     ):
         """Compute residual components.
 
@@ -163,14 +215,12 @@ class FokkerPlanckRegularizer:
         Args:
             score_network: the score network.
             batch: the batch for which we compute the residual components.
-            rademacher_z: rademacher random variables, of
-                dimension [number_of_hte_terms, (relative_coordinates_dimension)].
 
         Returns:
             scores: the scores.
             scores_time_derivative: the scores time derivative.
             scores_divergence_scores: the term score cdot nabla score.
-            approximate_scores_laplacian: an HTE appraximation to nabla^2 score.
+            scores_laplacian: nabla^2 score.
         """
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         times = batch[TIME]
@@ -210,20 +260,16 @@ class FokkerPlanckRegularizer:
             score_function_x, (relative_coordinates,), (scores,)
         )[1]
 
-        list_z = rademacher_z.to(relative_coordinates.device)
-
-        list_laplacian_terms = [
-            self.get_hte_laplacian_term(score_function_x, relative_coordinates, z)
-            for z in list_z
-        ]
-
-        approximate_scores_laplacian = torch.stack(list_laplacian_terms).mean(dim=0)
+        if self.use_hte_approximation:
+            scores_laplacian = self.get_hte_laplacian(score_function_x, relative_coordinates)
+        else:
+            scores_laplacian = self.get_exact_laplacian(score_function_x, relative_coordinates)
 
         return (
             scores,
             scores_time_derivative,
             scores_divergence_scores,
-            approximate_scores_laplacian,
+            scores_laplacian,
         )
 
     def compute_score_fokker_planck_residuals(
@@ -252,24 +298,22 @@ class FokkerPlanckRegularizer:
             space=spatial_dimension,
         )
 
-        rademacher_z = self._create_rademacher_random_variables(
-            batch_size, natoms, spatial_dimension
-        )
         (
             scores,
             scores_time_derivative,
             scores_divergence_scores,
-            approximate_scores_laplacian,
-        ) = self.compute_residual_components(score_network, batch, rademacher_z)
+            scores_laplacian,
+        ) = self.compute_residual_components(score_network, batch)
 
         residuals = scores_time_derivative - sigma_term * (
-            2.0 * scores_divergence_scores + approximate_scores_laplacian
+            2.0 * scores_divergence_scores + scores_laplacian
         )
 
         return residuals
 
     def compute_weighted_regularizer_loss(
         self,
+        current_epoch: int,
         score_network: ScoreNetwork,
         external_times: torch.Tensor,
         external_atom_types: torch.Tensor,
@@ -293,6 +337,9 @@ class FokkerPlanckRegularizer:
         Returns:
             weighted_loss: the weighted regularizer loss.
         """
+        if current_epoch < self.number_of_burn_in_epochs:
+            return 0.0
+
         external_batch_size, natoms = external_atom_types.shape
         _, spatial_dimension, _ = external_unit_cells.shape
 
