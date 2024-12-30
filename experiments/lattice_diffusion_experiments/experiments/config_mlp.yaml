@@ -105,8 +105,9 @@ diffusion_sampling:
     record_samples: True
     cell_dimensions: [5.542, 5.542, 5.542]
   metrics:
-    compute_energies: True
+    compute_energies: False
     compute_structure_factor: False
+    compute_lattice_parameters: True
 
 sampling_visualization:
   record_every_n_epochs:  1

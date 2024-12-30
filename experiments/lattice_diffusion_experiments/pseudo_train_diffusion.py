@@ -76,7 +76,7 @@ if __name__ == "__main__":
         "--accelerator",
         "cpu",
         "--config",
-        CONFIG_PATH,
+        str(CONFIG_PATH),
         "--data",
         "./",
         "--processed_datadir",
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         "--dataset_working_dir",
         "./",
         "--output",
-        OUTPUT_PATH,
+        str(OUTPUT_PATH),
     ]
 
     with (
