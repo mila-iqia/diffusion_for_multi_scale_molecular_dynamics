@@ -17,8 +17,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle_parameters
-from diffusion_for_multi_scale_molecular_dynamics.regularizers.fokker_planck_regularizer import \
-    RegularizerParameters
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \
+    create_regularizer_parameters
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
     load_diffusion_sampling_parameters
 
@@ -65,7 +65,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
 
     regularizer_parameters = None
     if "regularizer" in hyper_params:
-        regularizer_parameters = RegularizerParameters(**hyper_params["regularizer"])
+        regularizer_parameters = create_regularizer_parameters(hyper_params["regularizer"])
 
     diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,

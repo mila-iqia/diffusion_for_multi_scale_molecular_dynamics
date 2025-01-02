@@ -3,7 +3,7 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.fokker_planck_regularizer import (
-    FokkerPlanckRegularizer, RegularizerParameters)
+    FokkerPlanckRegularizer, FokkerPlanckRegularizerParameters)
 from tests.regularizers.differentiable_score_network import (
     DifferentiableScoreNetwork, DifferentiableScoreNetworkParameters)
 
@@ -92,10 +92,10 @@ class TestFokkerPlanckRegularizer:
     def regularizer_parameters(
         self, batch_size, number_of_hte_terms, sigma_min, sigma_max
     ):
-        parameters = RegularizerParameters(
+        parameters = FokkerPlanckRegularizerParameters(
+            regularizer_lambda_weight=1.0,
             number_of_hte_terms=number_of_hte_terms,
             use_hte_approximation=True,
-            regularizer_lambda_weight=1.0,
             batch_size=batch_size,
             sigma_min=sigma_min,
             sigma_max=sigma_max,
@@ -256,7 +256,11 @@ class TestFokkerPlanckRegularizer:
         atom_types,
         unit_cells,
     ):
-        # Smoke test that the method runs.
-        _ = regularizer.compute_weighted_regularizer_loss(
-            0, score_network, times, atom_types, unit_cells
+        augmented_batch = regularizer._create_batch(
+            relative_coordinates, times, atom_types, unit_cells
         )
+
+        # Smoke test that the method runs.
+        _ = regularizer.compute_weighted_regularizer_loss(score_network=score_network,
+                                                          augmented_batch=augmented_batch,
+                                                          current_epoch=0)

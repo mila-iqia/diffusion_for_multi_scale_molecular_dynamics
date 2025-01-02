@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Dict
+from typing import Any, AnyStr, Callable, Dict
 
 import einops
 import torch
@@ -10,17 +10,14 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     SigmaCalculator
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import (
+    Regularizer, RegularizerParameters)
 
 
 @dataclass(kw_only=True)
-class RegularizerParameters:
-    """Base Hyper-parameters for score networks."""
-
-    # weighting prefactor for the regularizer loss.
-    regularizer_lambda_weight: float = 1.0
-
-    # How many epochs without regularization at the begining of training
-    number_of_burn_in_epochs: int = 0
+class FokkerPlanckRegularizerParameters(RegularizerParameters):
+    """Parameters for Fokker-Planck regularization."""
+    type: str = "fokker_planck"
 
     # how many terms should contribute to the regularization batch.
     # Should be no larger than the main batch size.
@@ -44,7 +41,7 @@ class RegularizerParameters:
                 "The exact laplacian will be computed; the number of HTE terms must be 0."
 
 
-class FokkerPlanckRegularizer:
+class FokkerPlanckRegularizer(Regularizer):
     """Fokker-Planck Regularizer.
 
     This class implements a modified version of the 'score Fokker-Planck' residual for the purpose
@@ -54,8 +51,9 @@ class FokkerPlanckRegularizer:
     Hutchinson trace estimator is used for the second order space derivative.
     """
 
-    def __init__(self, regularizer_parameters: RegularizerParameters):
+    def __init__(self, regularizer_parameters: FokkerPlanckRegularizerParameters):
         """Init method."""
+        super().__init__(regularizer_parameters)
         self.sigma_calculator = SigmaCalculator(
             sigma_min=regularizer_parameters.sigma_min,
             sigma_max=regularizer_parameters.sigma_max,
@@ -64,7 +62,6 @@ class FokkerPlanckRegularizer:
         self.use_hte_approximation = regularizer_parameters.use_hte_approximation
         self.number_of_hte_terms = regularizer_parameters.number_of_hte_terms
 
-        self.lbda_weight = regularizer_parameters.regularizer_lambda_weight
         self.regularizer_batch_size = regularizer_parameters.batch_size
 
         self.number_of_burn_in_epochs = regularizer_parameters.number_of_burn_in_epochs
@@ -311,15 +308,19 @@ class FokkerPlanckRegularizer:
 
         return residuals
 
-    def compute_weighted_regularizer_loss(
-        self,
-        current_epoch: int,
-        score_network: ScoreNetwork,
-        external_times: torch.Tensor,
-        external_atom_types: torch.Tensor,
-        external_unit_cells: torch.Tensor,
-    ):
-        """Compute weighted regularizer loss.
+    def can_regularizer_run(self):
+        """Can regularizer run.
+
+        A convenient method to check if the regularizer can be executed from the global context.
+        """
+        # The regularizer depends on torch.func.{jvp, jacrev}. These do not always work well in
+        # a torch.no_grad environment.
+        return torch.is_grad_enabled()
+
+    def compute_regularizer_loss(self, score_network: ScoreNetwork,
+                                 augmented_batch: Dict[AnyStr, Any],
+                                 current_epoch: int) -> torch.Tensor:
+        """Compute regularizer loss.
 
         The loss calculation will rely on externally generated tensors for times, unit cells and atom types,
         presumably coming from Noiser classes. If there is a mismatch between the batch size of these tensors
@@ -329,16 +330,19 @@ class FokkerPlanckRegularizer:
         at all times.
 
         Args:
-            score_network: the score network.
-            external_times: times, of dimensions [external_batch_size, 1]
-            external_atom_types:  atom types, of dimensions [external_batch_size, natoms]
-            external_unit_cells:  unit cells, of dimensions [external_batch_size, spatial_dimension, spatial_dimension]
+            score_network: the score network to be regularized.
+            augmented_batch: the augmented batch, which should contain all that is needed to call the score network.
+            current_epoch: the current epoch.
 
         Returns:
-            weighted_loss: the weighted regularizer loss.
+            loss: the regularizer loss.
         """
         if current_epoch < self.number_of_burn_in_epochs:
             return 0.0
+
+        external_times = augmented_batch[TIME]
+        external_atom_types = augmented_batch[NOISY_AXL_COMPOSITION].A
+        external_unit_cells = augmented_batch[UNIT_CELL]
 
         external_batch_size, natoms = external_atom_types.shape
         _, spatial_dimension, _ = external_unit_cells.shape
@@ -359,5 +363,5 @@ class FokkerPlanckRegularizer:
 
         residuals = self.compute_score_fokker_planck_residuals(score_network, batch)
 
-        weighted_loss = self.lbda_weight * torch.mean(residuals**2)
-        return weighted_loss
+        loss = torch.mean(residuals**2)
+        return loss

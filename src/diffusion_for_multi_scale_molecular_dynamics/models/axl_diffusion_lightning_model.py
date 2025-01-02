@@ -39,8 +39,10 @@ from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle
-from diffusion_for_multi_scale_molecular_dynamics.regularizers.fokker_planck_regularizer import (
-    FokkerPlanckRegularizer, RegularizerParameters)
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import \
+    RegularizerParameters
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \
+    create_regularizer
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
@@ -133,7 +135,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.regularizer = None
 
         if hyper_params.regularizer_parameters is not None:
-            self.regularizer = FokkerPlanckRegularizer(hyper_params.regularizer_parameters)
+            self.regularizer = create_regularizer(hyper_params.regularizer_parameters)
 
         self.draw_samples = hyper_params.diffusion_sampling_parameters is not None
         if self.draw_samples:
@@ -394,19 +396,15 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             target_coordinates_normalized_conditional_scores=target_coordinates_normalized_conditional_scores,
         )
 
-        if self.regularizer and torch.is_grad_enabled():
-            # The regularizer depends on torch.func.{jvp, jacrev}. These do not always work well in
-            # a torch.no_grad environment.
-
+        if self.regularizer and self.regularizer.can_regularizer_run():
             # Use the same times and atom types as in the noised composition. Random
             # relative coordinates will be drawn internally.
             weighted_regularizer_loss = (
                 self.regularizer.compute_weighted_regularizer_loss(
-                    current_epoch=self.current_epoch,
                     score_network=self.axl_network,
-                    external_times=augmented_batch[TIME],
-                    external_atom_types=augmented_batch[NOISY_AXL_COMPOSITION].A,
-                    external_unit_cells=augmented_batch[UNIT_CELL]))
+                    augmented_batch=augmented_batch,
+                    current_epoch=self.current_epoch))
+
             output["loss"] += weighted_regularizer_loss
             output["regularizer_loss"] = weighted_regularizer_loss
 
