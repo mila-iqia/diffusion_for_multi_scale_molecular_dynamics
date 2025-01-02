@@ -38,6 +38,7 @@ class Regularizer:
         """Init method."""
         self.regularizer_parameters = regularizer_parameters
         self.weight = self.regularizer_parameters.regularizer_lambda_weight
+        self.number_of_burn_in_epochs = regularizer_parameters.number_of_burn_in_epochs
 
     def can_regularizer_run(self):
         """Can regularizer run.
@@ -63,15 +64,17 @@ class Regularizer:
         Returns:
             weighted_regularizer_loss: the weighted regularizer loss.
         """
+        if current_epoch < self.number_of_burn_in_epochs:
+            return torch.tensor(0.0)
+
         # Validate that the augmented batch is complete.
         score_network._check_batch(augmented_batch)
-        loss = self.compute_regularizer_loss(score_network, augmented_batch, current_epoch)
+        loss = self.compute_regularizer_loss(score_network, augmented_batch)
 
         return self.weight * loss
 
     def compute_regularizer_loss(self, score_network: ScoreNetwork,
-                                 augmented_batch: Dict[AnyStr, Any],
-                                 current_epoch: int) -> torch.Tensor:
+                                 augmented_batch: Dict[AnyStr, Any]) -> torch.Tensor:
         """Compute Regularizer Loss.
 
         Args:

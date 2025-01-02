@@ -64,8 +64,6 @@ class FokkerPlanckRegularizer(Regularizer):
 
         self.regularizer_batch_size = regularizer_parameters.batch_size
 
-        self.number_of_burn_in_epochs = regularizer_parameters.number_of_burn_in_epochs
-
     def _create_batch(
         self,
         relative_coordinates: torch.Tensor,
@@ -318,8 +316,7 @@ class FokkerPlanckRegularizer(Regularizer):
         return torch.is_grad_enabled()
 
     def compute_regularizer_loss(self, score_network: ScoreNetwork,
-                                 augmented_batch: Dict[AnyStr, Any],
-                                 current_epoch: int) -> torch.Tensor:
+                                 augmented_batch: Dict[AnyStr, Any]) -> torch.Tensor:
         """Compute regularizer loss.
 
         The loss calculation will rely on externally generated tensors for times, unit cells and atom types,
@@ -332,14 +329,10 @@ class FokkerPlanckRegularizer(Regularizer):
         Args:
             score_network: the score network to be regularized.
             augmented_batch: the augmented batch, which should contain all that is needed to call the score network.
-            current_epoch: the current epoch.
 
         Returns:
             loss: the regularizer loss.
         """
-        if current_epoch < self.number_of_burn_in_epochs:
-            return 0.0
-
         external_times = augmented_batch[TIME]
         external_atom_types = augmented_batch[NOISY_AXL_COMPOSITION].A
         external_unit_cells = augmented_batch[UNIT_CELL]
