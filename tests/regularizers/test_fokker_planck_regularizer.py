@@ -4,11 +4,12 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.fokker_planck_regularizer import (
     FokkerPlanckRegularizer, FokkerPlanckRegularizerParameters)
-from tests.regularizers.differentiable_score_network import (
-    DifferentiableScoreNetwork, DifferentiableScoreNetworkParameters)
+from tests.regularizers.conftest import BaseTestRegularizer
+from tests.regularizers.differentiable_score_network import \
+    DifferentiableScoreNetworkParameters
 
 
-class TestFokkerPlanckRegularizer:
+class TestFokkerPlanckRegularizer(BaseTestRegularizer):
 
     @pytest.fixture(scope="class", autouse=True)
     def set_default_type_to_float64(self):
@@ -18,58 +19,9 @@ class TestFokkerPlanckRegularizer:
         # to not affect other tests.
         torch.set_default_dtype(torch.float32)
 
-    @pytest.fixture(scope="class", autouse=True)
-    def set_seed(self):
-        """Set the random seed."""
-        torch.manual_seed(34534234)
-
-    @pytest.fixture()
-    def sigma_min(self):
-        return 0.001
-
-    @pytest.fixture()
-    def sigma_max(self):
-        return 0.2
-
     @pytest.fixture()
     def number_of_hte_terms(self):
         return 4
-
-    @pytest.fixture()
-    def number_of_atoms(self):
-        return 4
-
-    @pytest.fixture()
-    def num_atom_types(self):
-        return 1
-
-    @pytest.fixture()
-    def spatial_dimension(self):
-        return 3
-
-    @pytest.fixture()
-    def batch_size(self):
-        return 16
-
-    @pytest.fixture()
-    def relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension):
-        return torch.rand(batch_size, number_of_atoms, spatial_dimension)
-
-    @pytest.fixture()
-    def times(self, batch_size):
-        return torch.rand(batch_size, 1)
-
-    @pytest.fixture()
-    def atom_types(self, batch_size, number_of_atoms):
-        return torch.zeros(batch_size, number_of_atoms, dtype=torch.int64)
-
-    @pytest.fixture()
-    def unit_cells(self, batch_size, spatial_dimension):
-        acell = 5.0
-        unit_cells = torch.diag(acell * torch.ones(spatial_dimension)).repeat(
-            batch_size, 1, 1
-        )
-        return unit_cells
 
     @pytest.fixture()
     def score_parameters(
@@ -83,10 +35,6 @@ class TestFokkerPlanckRegularizer:
             sigma_max=sigma_max,
         )
         return score_parameters
-
-    @pytest.fixture()
-    def score_network(self, score_parameters):
-        return DifferentiableScoreNetwork(score_parameters)
 
     @pytest.fixture()
     def regularizer_parameters(
@@ -146,12 +94,16 @@ class TestFokkerPlanckRegularizer:
         def score_function_x(relative_coordinates):
             return score_function(relative_coordinates, times)
 
-        computed_laplacian = regularizer.get_exact_laplacian(score_function_x, relative_coordinates)
+        computed_laplacian = regularizer.get_exact_laplacian(
+            score_function_x, relative_coordinates
+        )
 
         exact_hessian = score_network._space_hessian_function(
             relative_coordinates, times
         )
-        expected_laplacian = einops.einsum(exact_hessian, "batch ni si nj sj nj sj -> batch ni si")
+        expected_laplacian = einops.einsum(
+            exact_hessian, "batch ni si nj sj nj sj -> batch ni si"
+        )
 
         torch.testing.assert_allclose(computed_laplacian, expected_laplacian)
 
@@ -246,21 +198,3 @@ class TestFokkerPlanckRegularizer:
         )
 
         assert residuals.shape == relative_coordinates.shape
-
-    def test_compute_weighted_regularizer_loss(
-        self,
-        regularizer,
-        score_network,
-        relative_coordinates,
-        times,
-        atom_types,
-        unit_cells,
-    ):
-        augmented_batch = regularizer._create_batch(
-            relative_coordinates, times, atom_types, unit_cells
-        )
-
-        # Smoke test that the method runs.
-        _ = regularizer.compute_weighted_regularizer_loss(score_network=score_network,
-                                                          augmented_batch=augmented_batch,
-                                                          current_epoch=0)
