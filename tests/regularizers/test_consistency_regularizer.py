@@ -149,8 +149,8 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
             assert computed_end_time_index == expected_end_time_index
 
             if expected_end_time_index == 0:
-                assert end_sigma == noise.sigma[0]
-                assert end_time == noise.time[0]
+                assert end_sigma == 0.0
+                assert end_time == 0.0
             else:
                 assert end_sigma == noise.sigma[expected_end_time_index - 1]
                 assert end_time == noise.time[expected_end_time_index - 1]

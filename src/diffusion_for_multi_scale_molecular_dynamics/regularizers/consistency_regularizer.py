@@ -135,12 +135,11 @@ class ConsistencyRegularizer(Regularizer):
         end_index = max(start_index - self.maximum_number_of_steps, 0)
 
         if end_index == 0:
-            idx = 0
+            end_time = 0.0
+            end_sigma = 0.0
         else:
-            idx = end_index - 1
-
-        end_time = noise.time[idx]
-        end_sigma = noise.sigma[idx]
+            end_time = noise.time[end_index - 1]
+            end_sigma = noise.sigma[end_index - 1]
 
         return start_index, end_index, end_time, end_sigma
 
