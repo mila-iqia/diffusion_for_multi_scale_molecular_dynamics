@@ -101,7 +101,7 @@ class ConsistencyRegularizer(Regularizer):
 
         Args:
             start_time: the start time of the trajectory
-            noise_scheduler: the noise scheduler instance that relates times and time steps.
+            noise: the noise instance that relates times and time steps.
 
         Returns:
             start_time_step_index: the index of the starting time.
@@ -235,18 +235,30 @@ class ConsistencyRegularizer(Regularizer):
             sampling_parameters=self.sampling_parameters,
             axl_network=score_network,
         )
+        noise: Noise = generator.noise
 
         original_noisy_composition = augmented_batch[NOISY_AXL_COMPOSITION]
 
         # Select a random element from the batch, and create a new composition from that element.
-        batch_size = original_noisy_composition.X.shape[0]
-        random_batch_index = torch.randint(batch_size, ()).item()
+        batch_times = augmented_batch[TIME][:, 0]
+        batch_size = len(batch_times)
+
+        # Identify times that are large enough so that the we can make the required number of
+        # steps without reaching the data manifold.
+        valid_time_mask = batch_times > noise.time[self.maximum_number_of_steps]
+        if not torch.any(valid_time_mask):
+            # There are no valid times in this batch. No regularization.
+            return torch.tensor(0.0)
+
+        # Pick a random batch index that leads to a start time that is large enough.
+        idx = torch.randint(valid_time_mask.sum(), ())
+        random_batch_index = torch.arange(batch_size)[valid_time_mask][idx]
 
         start_time = augmented_batch[TIME][random_batch_index, 0]
         start_sigma = augmented_batch[NOISE][random_batch_index, 0]
 
         start_step_index, end_step_index, end_time, end_sigma = (
-            self.get_partial_trajectory_start_and_end(start_time, generator.noise)
+            self.get_partial_trajectory_start_and_end(start_time, noise)
         )
 
         unit_cells = einops.repeat(
