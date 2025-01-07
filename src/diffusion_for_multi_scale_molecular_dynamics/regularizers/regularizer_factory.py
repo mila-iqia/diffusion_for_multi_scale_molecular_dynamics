@@ -60,9 +60,17 @@ def create_regularizer_parameters(regularizer_dictionary: Dict[AnyStr, Any]) -> 
         case "consistency":
             noise_parameters = NoiseParameters(**regularizer_dictionary.pop('noise'))
             sampling_parameters = PredictorCorrectorSamplingParameters(**regularizer_dictionary.pop('sampling'))
+
+            if 'analytical_score_network' in regularizer_dictionary:
+                analytical_score_network_parameters = (
+                    AnalyticalScoreNetworkParameters(**regularizer_dictionary.pop('analytical_score_network')))
+            else:
+                analytical_score_network_parameters = None
+
             regularizer_parameters = data_class(**regularizer_dictionary,
                                                 noise_parameters=noise_parameters,
-                                                sampling_parameters=sampling_parameters)
+                                                sampling_parameters=sampling_parameters,
+                                                analytical_score_network_parameters=analytical_score_network_parameters)
         case _:
             regularizer_parameters = data_class(**regularizer_dictionary)
 

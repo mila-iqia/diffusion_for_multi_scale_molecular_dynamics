@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, AnyStr, Dict, Tuple
+from typing import Any, AnyStr, Dict, Tuple, Union
 
 import einops
 import torch
@@ -10,6 +10,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
@@ -36,6 +38,10 @@ class ConsistencyRegularizerParameters(RegularizerParameters):
     noise_parameters: NoiseParameters
     sampling_parameters: PredictorCorrectorSamplingParameters
 
+    # As a sanity checking tool, an analytical score network can be provided for
+    # the generation of samples from a trajectory
+    analytical_score_network_parameters: Union[AnalyticalScoreNetworkParameters, None] = None
+
 
 class ConsistencyRegularizer(Regularizer):
     """Consistency Regularizer.
@@ -59,6 +65,11 @@ class ConsistencyRegularizer(Regularizer):
 
         self.maximum_number_of_steps = regularizer_parameters.maximum_number_of_steps
         self.kmax_target_score = regularizer_parameters.kmax_target_score
+
+        self.analytical_score_network = None
+        if regularizer_parameters.analytical_score_network_parameters:
+            self.analytical_score_network = (
+                AnalyticalScoreNetwork(regularizer_parameters.analytical_score_network_parameters))
 
     def get_augmented_batch_for_fixed_time(
         self, composition: AXL, unit_cells: torch.Tensor, time: float, sigma: float
@@ -230,10 +241,15 @@ class ConsistencyRegularizer(Regularizer):
         Returns:
             regularizer_loss: the regularizer loss.
         """
+        if self.analytical_score_network:
+            trajectory_network = self.analytical_score_network
+        else:
+            trajectory_network = score_network
+
         generator = LangevinGenerator(
             noise_parameters=self.noise_parameters,
             sampling_parameters=self.sampling_parameters,
-            axl_network=score_network,
+            axl_network=trajectory_network,
         )
         noise: Noise = generator.noise
 
