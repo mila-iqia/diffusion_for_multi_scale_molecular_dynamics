@@ -8,8 +8,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from diffusion_for_multi_scale_molecular_dynamics.analysis import \
-    PLOT_STYLE_PATH
+from diffusion_for_multi_scale_molecular_dynamics.analysis import (
+    PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import \
@@ -152,3 +152,21 @@ def generate_vector_field_video(
 
         # This subprocess should create the video.
         subprocess.run(commands, capture_output=True, text=True)
+
+
+def plot_2d_samples(relative_coordinates: torch.Tensor):
+    """Plot samples in 2D."""
+    figsize = (PLEASANT_FIG_SIZE[0], PLEASANT_FIG_SIZE[0])
+    fig = plt.figure(figsize=figsize)
+
+    ax = fig.add_subplot(111, aspect="equal")
+
+    ax.spines["top"].set_visible(True)
+    ax.spines["right"].set_visible(True)
+    ax.scatter(relative_coordinates[:, 0], relative_coordinates[:, 1])
+
+    ax.set_xlabel("Atom 1 Relative Coordinate")
+    ax.set_ylabel("Atom 2 Relative Coordinate")
+    ax.set_xlim(-0.01, 1.01)
+    ax.set_ylim(-0.01, 1.01)
+    return fig
