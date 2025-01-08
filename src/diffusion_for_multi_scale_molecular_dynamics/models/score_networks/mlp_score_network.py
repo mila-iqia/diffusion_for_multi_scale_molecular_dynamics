@@ -35,6 +35,9 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
     # the dimension of the embedding of the atom types
     atom_type_embedding_dimensions_size: int
 
+    # the dimension of the embedding of the lattice parameters
+    lattice_parameters_embedding_dimensions_size: int
+
     # dimension of the conditional variable embedding
     condition_embedding_size: int = 64
 
@@ -84,6 +87,7 @@ class MLPScoreNetwork(ScoreNetwork):
             + hyper_params.noise_embedding_dimensions_size
             + hyper_params.time_embedding_dimensions_size
             + self._natoms * hyper_params.atom_type_embedding_dimensions_size
+            + hyper_params.lattice_parameters_embedding_dimensions_size
         )
 
         self.relative_coordinates_embedding_layer = nn.Linear(
@@ -100,6 +104,10 @@ class MLPScoreNetwork(ScoreNetwork):
 
         self.atom_type_embedding_layer = nn.Linear(
             self.num_classes, hyper_params.atom_type_embedding_dimensions_size
+        )
+
+        self.lattice_parameters_embedding_layer = nn.Linear(
+            lattice_parameters_output_dimension, hyper_params.lattice_parameters_embedding_dimensions_size
         )
 
         self.condition_embedding_layer = nn.Linear(
@@ -128,8 +136,11 @@ class MLPScoreNetwork(ScoreNetwork):
         self.output_X_layer = nn.Linear(
             hyper_params.hidden_dimensions_size, coordinate_output_dimension
         )
-        self.output_L_layer = nn.Linear(
-            hyper_params.hidden_dimensions_size, lattice_parameters_output_dimension
+        self.output_L_layer = nn.Sequential(
+            nn.Linear(
+                hyper_params.hidden_dimensions_size, lattice_parameters_output_dimension
+            ),
+            nn.Tanh()
         )
         self.output_layers = AXL(
             A=self.output_A_layer, X=self.output_X_layer, L=self.output_L_layer
@@ -247,7 +258,10 @@ class MLPScoreNetwork(ScoreNetwork):
             atom_types_one_hot
         )  # shape [batch_size, atom_type_embedding_dimension]
 
-        # TODO lattice parameters should be used here
+        lattice_parameters = batch[NOISY_AXL_COMPOSITION].L
+        lattice_parameters_embedding = self.lattice_parameters_embedding_layer(
+            lattice_parameters
+        )  # shape [batch_size, lattice_parameters_embedding_dimension
 
         input = torch.cat(
             [
@@ -255,6 +269,7 @@ class MLPScoreNetwork(ScoreNetwork):
                 noise_embedding,
                 time_embedding,
                 self.flatten(atom_type_embedding),
+                lattice_parameters_embedding,
             ],
             dim=1,
         )
@@ -282,4 +297,5 @@ class MLPScoreNetwork(ScoreNetwork):
         lattice_output = self.output_L_layer(output)
 
         axl_output = AXL(A=atom_types_output, X=coordinates_output, L=lattice_output)
+
         return axl_output

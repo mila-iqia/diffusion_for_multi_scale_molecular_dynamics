@@ -48,6 +48,7 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         self.number_of_corrector_steps = number_of_corrector_steps
         self.spatial_dimension = spatial_dimension
         self.num_classes = num_atom_types + 1  # account for the MASK class
+        self.num_lattice_parameters = int(spatial_dimension * (spatial_dimension + 1) / 2)
 
     def sample(
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor

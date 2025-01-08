@@ -215,4 +215,18 @@ def create_samples_and_write_to_disk(
 
 
 if __name__ == "__main__":
-    main()
+    EXP_PATH = Path("/Users/simonblackburn/projects/courtois2024/experiments/lattice_diffusion_experiments/experiments_with_tanh")
+    CONFIG_PATH = EXP_PATH / "sampling_config.yaml"
+    CKPT_PATH = EXP_PATH / "output/last_model/last_model-epoch=145-step=014600.ckpt"
+    OUTPUT_PATH = EXP_PATH / "trajectories"
+    args = [
+        "--config",
+        str(CONFIG_PATH),
+        "--checkpoint",
+        str(CKPT_PATH),
+        "--output",
+        str(OUTPUT_PATH),
+        "--device",
+        "cpu",
+    ]
+    main(args)

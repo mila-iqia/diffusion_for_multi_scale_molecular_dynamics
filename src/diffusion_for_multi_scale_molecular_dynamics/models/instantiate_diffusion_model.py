@@ -76,8 +76,8 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
     # TODO these should come from the dataset, not the config file
     lattice_parameters = dict(
         spatial_dimension=globals_dict["spatial_dimension"],
-        inverse_average_density=globals_dict["max_atom"]
-        / torch.prod(torch.tensor(hyper_params["cell_dimensions"])),
+        inverse_average_density=torch.prod(torch.tensor(hyper_params["cell_dimensions"])) /
+                                globals_dict["max_atom"],
     )  # TODO inverse density should come from the dataset, not fixed like this
     lattice_parameters = LatticeDataParameters(**lattice_parameters)
 

@@ -10,9 +10,6 @@ class LatticeDataParameters:
 
     TODO: this might belong elsewhere
     """
-
-    inverse_average_density: float  # inverse of the average density of unit cells
-    # inverse of average of number of atoms / volume
     spatial_dimension: int = 3
 
 
@@ -24,7 +21,6 @@ class LatticeNoiser:
     """
 
     def __init__(self, lattice_parameters: LatticeDataParameters):
-        self.inverse_density = lattice_parameters.inverse_average_density
         self.spatial_dimension = lattice_parameters.spatial_dimension
 
     @staticmethod
@@ -45,18 +41,11 @@ class LatticeNoiser:
         self,
         real_lattice_parameters: torch.Tensor,
         sigmas_n: torch.Tensor,
-        alpha_bars: torch.Tensor,
-        num_atoms: torch.Tensor,
     ) -> torch.Tensor:
         r"""Get noisy lattice vectors.
 
-        We consider the lattice parameters as a tensor of spatial_dimension degrees of freedom i.e. we assume the unit
-        cell is orthogonal.
+        We consider the lattice parameters as a tensor with 6, 3, or 1 parameters for 3D, 2D, 1D.
 
-        .. math::
-
-            q(L_t | L_0) = \mathcal{N}\left(\sqrt{\bar{\alpha}_t}L_0 +
-                (1 - \sqrt{\bar{\alpha}_t})\mu(n)I, (1-\sqrt{\bar{\alpha}_t})\sigma^2_t(n)I\right)
 
         Args:
             real_lattice_parameters: lattice parameters from the sampled data. These parameters are not the lattice
@@ -64,9 +53,6 @@ class LatticeNoiser:
                 of the orthogonal box and the angles.  # TODO review statement about angles
             sigmas_n: variance of the perturbation kernel rescaled by the number of atoms. Tensor is assumed to be of
                 the same shape as real_lattice_parameters.
-            alpha_bars: cumulative noise scale. Tensor is assumed to be of the same shape as real_lattice_parameters.
-            num_atoms: number of atoms in each sample. Tensor should be a 2D tensor matching the dimensions of the
-                real_lattice_parameters tensor.
 
         Returns:
             noisy_lattice_parameters: a sample of noised lattice parameters as tensor of size
@@ -76,28 +62,10 @@ class LatticeNoiser:
             real_lattice_parameters.shape == sigmas_n.shape
         ), "sigmas array is expected to be of the same shape as the real_lattice_parameters array"
 
-        assert (
-            alpha_bars.shape == sigmas_n.shape
-        ), "sigmas array is expected to be of the same shape as the alpha_bars array"
+        z_scores = self._get_gaussian_noise(real_lattice_parameters.shape).to(sigmas_n)
 
-        z_scores = self._get_gaussian_noise(real_lattice_parameters.shape).to(
-            sigmas_n
-        )
-
-        noise_width = torch.sqrt((1 - alpha_bars) * sigmas_n**2)
-        sqrt_alpha_bars = torch.sqrt(alpha_bars)
-        average_density = torch.zeros_like(num_atoms)
-        # compute :math:`\mu(n)`
-        average_density[:, :self.spatial_dimension] = torch.pow(
-            num_atoms[:, :self.spatial_dimension],
-            1 / self.spatial_dimension,
-        )  / self.inverse_density  # TODO add angles
-
-        noisy_lattice_parameters_avg = (
-            sqrt_alpha_bars * real_lattice_parameters
-            + (1 - sqrt_alpha_bars) * average_density
-        )
-        # we are not limiting the range of value to anything
-        noisy_lattice_parameters = noise_width * z_scores + noisy_lattice_parameters_avg
+        # we are not limiting the range of value to anything i.e. negative lattice parameters are allowed in the noisy
+        # space
+        noisy_lattice_parameters = sigmas_n * z_scores + real_lattice_parameters
 
         return noisy_lattice_parameters
