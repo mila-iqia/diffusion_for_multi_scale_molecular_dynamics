@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Any, AnyStr, Dict
+from typing import Any, AnyStr, Dict, List
 
+import einops
 import torch
 from torch import nn
 
@@ -38,6 +39,9 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
     # dimension of the conditional variable embedding
     condition_embedding_size: int = 64
 
+    # Should the relative coordinates score network have a prefactor that only depends on time (ie, not space)?
+    use_time_dependent_prefactor: bool = False
+
     # should the score model consider every coordinate permutations.
     # Careful! The number of permutations will scale as number_of_atoms!. This will not
     # scale to large number of atoms.
@@ -64,14 +68,20 @@ class MLPScoreNetwork(ScoreNetwork):
         self.num_atom_types = hyper_params.num_atom_types
         self.num_classes = self.num_atom_types + 1  # add 1 for the MASK class
 
+        self.use_time_dependent_prefactor = hyper_params.use_time_dependent_prefactor
+
         self.use_permutation_invariance = hyper_params.use_permutation_invariance
         if self.use_permutation_invariance:
             # Shape : [number of permutations, number of atoms]
-            self.perm_indices, self.inverse_perm_indices = get_all_permutation_indices(self._natoms)
+            self.perm_indices, self.inverse_perm_indices = get_all_permutation_indices(
+                self._natoms
+            )
 
         # Each relative coordinate will be embedded on the unit circle with (cos, sin), leading to
         # a doubling of the number of dimensions.
-        flat_relative_coordinates_input_dimension = 2 * self.spatial_dimension * self._natoms
+        flat_relative_coordinates_input_dimension = (
+            2 * self.spatial_dimension * self._natoms
+        )
 
         coordinate_output_dimension = self.spatial_dimension * self._natoms
         atom_type_output_dimension = self._natoms * self.num_classes
@@ -85,7 +95,8 @@ class MLPScoreNetwork(ScoreNetwork):
 
         self.relative_coordinates_embedding_layer = nn.Linear(
             flat_relative_coordinates_input_dimension,
-            hyper_params.relative_coordinates_embedding_dimensions_size)
+            hyper_params.relative_coordinates_embedding_dimensions_size,
+        )
 
         self.noise_embedding_layer = nn.Linear(
             1, hyper_params.noise_embedding_dimensions_size
@@ -118,13 +129,52 @@ class MLPScoreNetwork(ScoreNetwork):
             )
         self.non_linearity = nn.SiLU()
 
+        if self.use_time_dependent_prefactor:
+            time_only_input_dimension = (
+                hyper_params.noise_embedding_dimensions_size
+                + hyper_params.time_embedding_dimensions_size
+            )
+            time_only_input_dimensions = [time_only_input_dimension] + hidden_dimensions
+            time_only_output_dimensions = hidden_dimensions + [1]
+
+            self.prefactor_mlp = self._create_mlp(
+                time_only_input_dimensions,
+                time_only_output_dimensions,
+                non_linearity=self.non_linearity,
+            )
+
         # Create a self nn object to be discoverable to be placed on the correct device
-        self.output_A_layer = nn.Linear(hyper_params.hidden_dimensions_size, atom_type_output_dimension)
-        self.output_X_layer = nn.Linear(hyper_params.hidden_dimensions_size, coordinate_output_dimension)
+        self.output_A_layer = nn.Linear(
+            hyper_params.hidden_dimensions_size, atom_type_output_dimension
+        )
+        self.output_X_layer = nn.Linear(
+            hyper_params.hidden_dimensions_size, coordinate_output_dimension
+        )
         self.output_L_layer = nn.Identity()
-        self.output_layers = AXL(A=self.output_A_layer,
-                                 X=self.output_X_layer,
-                                 L=self.output_L_layer)  # TODO placeholder
+        self.output_layers = AXL(
+            A=self.output_A_layer, X=self.output_X_layer, L=self.output_L_layer
+        )  # TODO placeholder
+
+    def _create_mlp(
+        self,
+        input_dimensions: List[int],
+        output_dimensions: List[int],
+        non_linearity: torch.nn.Module,
+    ) -> torch.nn.Module:
+        """Create a simple MLP."""
+        mlp = nn.Sequential()
+
+        first_layer = True
+        for input_dimension, output_dimension in zip(
+            input_dimensions, output_dimensions
+        ):
+            if first_layer:
+                first_layer = False
+            else:
+                mlp.append(non_linearity)
+            mlp.append(nn.Linear(input_dimension, output_dimension))
+
+        return mlp
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         super(MLPScoreNetwork, self)._check_batch(batch)
@@ -157,19 +207,26 @@ class MLPScoreNetwork(ScoreNetwork):
             # The atom type predictions need only be invariant since they are scalars.
             #
             list_model_outputs = []
-            for permutation, inverse_permutation in zip(self.perm_indices, self.inverse_perm_indices):
+            for permutation, inverse_permutation in zip(
+                self.perm_indices, self.inverse_perm_indices
+            ):
                 permuted_batch = self.get_permuted_batch(batch, permutation)
-                model_output = self._forward_unchecked_single_permutation(permuted_batch, conditional)
-                permuted_model_output = AXL(A=model_output.A,
-                                            X=model_output.X[:, inverse_permutation],
-                                            L=model_output.L)
+                model_output = self._forward_unchecked_single_permutation(
+                    permuted_batch, conditional
+                )
+                permuted_model_output = AXL(
+                    A=model_output.A,
+                    X=model_output.X[:, inverse_permutation],
+                    L=model_output.L,
+                )
 
                 list_model_outputs.append(permuted_model_output)
 
-            output = AXL(A=torch.stack([output.A for output in list_model_outputs]).mean(dim=0),
-                         X=torch.stack([output.X for output in list_model_outputs]).mean(dim=0),
-                         L=torch.stack([output.L for output in list_model_outputs]).mean(dim=0)
-                         )
+            output = AXL(
+                A=torch.stack([output.A for output in list_model_outputs]).mean(dim=0),
+                X=torch.stack([output.X for output in list_model_outputs]).mean(dim=0),
+                L=torch.stack([output.L for output in list_model_outputs]).mean(dim=0),
+            )
 
         else:
             output = self._forward_unchecked_single_permutation(batch, conditional)
@@ -179,9 +236,11 @@ class MLPScoreNetwork(ScoreNetwork):
     def get_permuted_batch(self, batch, permutation) -> Dict[AnyStr, Any]:
         """Get permuted batch."""
         composition = batch[NOISY_AXL_COMPOSITION]
-        new_composition = AXL(A=composition.A[:, permutation],
-                              X=composition.X[:, permutation],
-                              L=composition.L)
+        new_composition = AXL(
+            A=composition.A[:, permutation],
+            X=composition.X[:, permutation],
+            L=composition.L,
+        )
 
         permuted_batch = dict()
 
@@ -216,9 +275,12 @@ class MLPScoreNetwork(ScoreNetwork):
 
         # flatten the dimensions associated with sin/cos, natoms and spatial dimension.
         relative_coordinates_input = self.flatten(
-            torch.stack([angles.cos(), angles.sin()], dim=1))
+            torch.stack([angles.cos(), angles.sin()], dim=1)
+        )
 
-        relative_coordinates_embedding = self.relative_coordinates_embedding_layer(relative_coordinates_input)
+        relative_coordinates_embedding = self.relative_coordinates_embedding_layer(
+            relative_coordinates_input
+        )
 
         sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
         noise_embedding = self.noise_embedding_layer(
@@ -265,6 +327,19 @@ class MLPScoreNetwork(ScoreNetwork):
         coordinates_output = self.output_layers.X(output).reshape(
             relative_coordinates.shape
         )
+        if self.use_time_dependent_prefactor:
+            time_only_input = torch.cat([noise_embedding, time_embedding], dim=1)
+
+            # Shape [batch_size, 1]
+            prefactor = self.prefactor_mlp(time_only_input)
+            broadcast_prefactor = einops.repeat(
+                prefactor,
+                "batch_size 1 -> batch_size natoms spatial_dimension",
+                natoms=coordinates_output.shape[1],
+                spatial_dimension=coordinates_output.shape[2],
+            )
+            coordinates_output = broadcast_prefactor * coordinates_output
+
         atom_types_output = self.output_layers.A(output).reshape(
             atom_types_one_hot.shape
         )
