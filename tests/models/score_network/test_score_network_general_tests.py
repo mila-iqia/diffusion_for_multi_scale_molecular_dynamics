@@ -319,10 +319,15 @@ class TestDiffusionMACEScoreNetwork(BaseScoreNetworkGeneralTests):
 
 class TestEGNNScoreNetwork(BaseScoreNetworkGeneralTests):
 
+    @pytest.fixture(params=[1, 2, 3])
+    def spatial_dimension(self, request):
+        return request.param
+
     @pytest.fixture(params=[("fully_connected", None), ("radial_cutoff", 3.0)])
-    def score_network_parameters(self, request, num_atom_types):
+    def score_network_parameters(self, request, spatial_dimension, num_atom_types):
         edges, radial_cutoff = request.param
         return EGNNScoreNetworkParameters(
+            spatial_dimension=spatial_dimension,
             edges=edges, radial_cutoff=radial_cutoff, num_atom_types=num_atom_types
         )
 

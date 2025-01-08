@@ -8,7 +8,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
 
 
 def get_adj_matrix(
-    positions: torch.Tensor, basis_vectors: torch.Tensor, radial_cutoff: float = 4.0
+    positions: torch.Tensor, basis_vectors: torch.Tensor, radial_cutoff: float = 4.0, spatial_dimension: int = 3
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Create the adjacency and shift matrices.
 
@@ -32,7 +32,7 @@ def get_adj_matrix(
     batch_size, number_of_atoms, spatial_dimensions = positions.shape
 
     adjacency_info = get_periodic_adjacency_information(
-        positions, basis_vectors, radial_cutoff
+        positions, basis_vectors, radial_cutoff, spatial_dimension
     )
 
     # The indices in the adjacency matrix must be shifted to account for the batching

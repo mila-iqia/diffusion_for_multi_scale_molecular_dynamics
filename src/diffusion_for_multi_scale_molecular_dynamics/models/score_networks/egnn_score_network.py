@@ -214,6 +214,7 @@ class EGNNScoreNetwork(ScoreNetwork):
                 batch[UNIT_CELL],
                 self.radial_cutoff,
                 drop_duplicate_edges=self.drop_duplicate_edges,
+                spatial_dimension=self.spatial_dimension
             )
 
         edges = edges.to(relative_coordinates.device)

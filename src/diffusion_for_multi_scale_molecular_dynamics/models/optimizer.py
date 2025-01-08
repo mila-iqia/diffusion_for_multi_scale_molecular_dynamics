@@ -1,6 +1,6 @@
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import torch
 from torch import optim
@@ -20,8 +20,22 @@ class OptimizerParameters:
     weight_decay: float = 0.0
 
 
-OPTIMIZERS_BY_NAME = dict(adam=optim.Adam, adamw=optim.AdamW)
-OPTIMIZER_PARAMETERS_BY_NAME = dict(adam=OptimizerParameters, adamw=OptimizerParameters)
+OPTIMIZERS_BY_NAME = {'adam': optim.Adam, 'adamw': optim.AdamW, 'None': optim.Adam}
+OPTIMIZER_PARAMETERS_BY_NAME = {'adam': OptimizerParameters, 'adamw': OptimizerParameters, 'None': OptimizerParameters}
+
+
+def check_if_optimizer_is_none(optimizer_parameters: Union[OptimizerParameters, None]) -> bool:
+    """Check if the optimizer is None.
+
+    This is a useful check to see if pytorch-lightning optimization should be turned off.
+
+    Args:
+        optimizer_parameters: optimizer parameters
+
+    Returns:
+        Bool: whether or not the optimizer_parameters is None.
+    """
+    return optimizer_parameters.name == 'None'
 
 
 def create_optimizer_parameters(

@@ -1,23 +1,17 @@
 import itertools
 
+import einops
 import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters,
-    TargetScoreBasedAnalyticalScoreNetwork)
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.utils.symmetry_utils import \
+    factorial
 from tests.models.score_network.base_test_score_network import \
     BaseTestScoreNetwork
-
-
-def factorial(n):
-
-    if n == 1:
-        return 1
-    else:
-        return n * factorial(n - 1)
 
 
 class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
@@ -49,29 +43,16 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
 
     @pytest.fixture
     def equilibrium_relative_coordinates(self, number_of_atoms, spatial_dimension):
-        return torch.rand(number_of_atoms, spatial_dimension)
+        list_x = torch.rand(number_of_atoms, spatial_dimension)
+        return [list(x.numpy()) for x in list_x]
 
-    """
-    @pytest.fixture
-    def atom_types(self, batch_size, number_of_atoms, num_atom_types):
-        return torch.randint(
-            0,
-            num_atom_types,
-            (
-                batch_size,
-                number_of_atoms,
-            ),
-        )
-    """
+    @pytest.fixture(params=[True, False])
+    def use_permutation_invariance(self, request):
+        return request.param
 
-    @pytest.fixture(params=["finite", "zero"])
-    def variance_parameter(self, request):
-        if request.param == "zero":
-            return 0.0
-        elif request.param == "finite":
-            # Make the spring constants pretty large so that the displacements will be small
-            inverse_variance = float(1000 * torch.rand(1))
-            return 1.0 / inverse_variance
+    @pytest.fixture(params=[0.01, 0.1, 0.5])
+    def sigma_d(self, request):
+        return request.param
 
     @pytest.fixture()
     def batch(self, batch_size, number_of_atoms, spatial_dimension, atom_types):
@@ -97,28 +78,24 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
         spatial_dimension,
         kmax,
         equilibrium_relative_coordinates,
-        variance_parameter,
+        sigma_d,
         use_permutation_invariance,
-        num_atom_types
+        num_atom_types,
     ):
         hyper_params = AnalyticalScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
             kmax=kmax,
             equilibrium_relative_coordinates=equilibrium_relative_coordinates,
-            variance_parameter=variance_parameter,
+            sigma_d=sigma_d,
             use_permutation_invariance=use_permutation_invariance,
-            num_atom_types=num_atom_types
+            num_atom_types=num_atom_types,
         )
         return hyper_params
 
     @pytest.fixture()
     def score_network(self, score_network_parameters):
         return AnalyticalScoreNetwork(score_network_parameters)
-
-    @pytest.fixture()
-    def target_score_based_score_network(self, score_network_parameters):
-        return TargetScoreBasedAnalyticalScoreNetwork(score_network_parameters)
 
     def test_all_translations(self, kmax):
         computed_translations = AnalyticalScoreNetwork._get_all_translations(kmax)
@@ -128,19 +105,20 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
     def test_get_all_equilibrium_permutations(
         self, number_of_atoms, spatial_dimension, equilibrium_relative_coordinates
     ):
+
+        eq_rel_coords = torch.tensor(equilibrium_relative_coordinates)
         expected_permutations = []
 
         for permutation_indices in itertools.permutations(range(number_of_atoms)):
             expected_permutations.append(
-                equilibrium_relative_coordinates[list(permutation_indices)]
+                eq_rel_coords[list(permutation_indices)]
             )
 
         expected_permutations = torch.stack(expected_permutations)
 
         computed_permutations = (
             AnalyticalScoreNetwork._get_all_equilibrium_permutations(
-                equilibrium_relative_coordinates
-            )
+                eq_rel_coords)
         )
 
         assert computed_permutations.shape == (
@@ -151,73 +129,255 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
 
         torch.testing.assert_close(expected_permutations, computed_permutations)
 
-    @pytest.mark.parametrize("use_permutation_invariance", [False])
-    def test_compute_unnormalized_log_probability(
+    def compute_log_wrapped_gaussian_for_testing(
         self,
+        relative_coordinates,
         equilibrium_relative_coordinates,
-        variance_parameter,
+        sigmas,
+        sigma_d,
         kmax,
-        batch,
-        score_network,
     ):
-        sigmas = batch[NOISE]  # dimension: [batch_size, 1]
-        xt = batch[NOISY_AXL_COMPOSITION].X
-        computed_log_prob = score_network._compute_unnormalized_log_probability(
-            sigmas, xt, equilibrium_relative_coordinates
+        """Compute the log of a Wrapped Gaussian, for testing purposes."""
+        batch_size, natoms, spatial_dimension = relative_coordinates.shape
+
+        assert sigmas.shape == (
+            batch_size,
+            1,
+        ), "Unexpected shape for the sigmas tensor."
+
+        assert equilibrium_relative_coordinates.shape == (
+            natoms,
+            spatial_dimension,
+        ), "A single equilibrium configuration should be used."
+
+        nd = natoms * spatial_dimension
+
+        list_translations = torch.arange(-kmax, kmax + 1)
+        nt = len(list_translations)
+
+        # Recast various spatial arrays to the correct dimensions to combine them,
+        # in dimensions [batch, nd, number_of_translations]
+        effective_variance = einops.repeat(
+            sigmas**2 + sigma_d**2, "batch 1 -> batch nd t", t=nt, nd=nd
         )
 
-        batch_size = sigmas.shape[0]
+        x = einops.repeat(
+            relative_coordinates, "batch natoms space -> batch (natoms space) t", t=nt
+        )
 
-        expected_log_prob = torch.zeros(batch_size)
-        for batch_idx in range(batch_size):
-            sigma = sigmas[batch_idx, 0]
+        x0 = einops.repeat(
+            equilibrium_relative_coordinates,
+            "natoms space -> batch (natoms space) t",
+            batch=batch_size,
+            t=nt,
+        )
 
-            for i in range(score_network.natoms):
-                for alpha in range(score_network.spatial_dimension):
+        translations = einops.repeat(
+            list_translations, "t -> batch nd t", batch=batch_size, nd=nd
+        )
 
-                    eq_coordinate = equilibrium_relative_coordinates[i, alpha]
-                    coordinate = xt[batch_idx, i, alpha]
+        exponent = -0.5 * (x - x0 - translations) ** 2 / effective_variance
+        # logsumexp on lattice translation vectors, then sum on spatial indices
+        unnormalized_log_prob = torch.logsumexp(exponent, dim=-1, keepdim=False).sum(
+            dim=1
+        )
 
-                    sum_on_k = torch.tensor(0.0)
-                    for k in range(-kmax, kmax + 1):
-                        exponent = (
-                            -0.5
-                            * (coordinate - eq_coordinate - k) ** 2
-                            / (sigma**2 + variance_parameter)
-                        )
-                        sum_on_k += torch.exp(exponent)
+        sigma2 = effective_variance[
+            :, :, 0
+        ]  # We shouldn't sum the normalization term on k.
+        normalization_term = torch.sum(
+            0.5 * torch.log(2.0 * torch.pi * sigma2), dim=[-1]
+        )
 
-                    expected_log_prob[batch_idx] += torch.log(sum_on_k)
+        log_wrapped_gaussian = unnormalized_log_prob - normalization_term
 
-        # Let's give a free pass to any problematic expected values, which are calculated with a fragile
-        # brute force approach
-        problem_mask = torch.logical_or(torch.isnan(expected_log_prob), torch.isinf(expected_log_prob))
-        expected_log_prob[problem_mask] = computed_log_prob[problem_mask]
+        return log_wrapped_gaussian
 
-        torch.testing.assert_close(expected_log_prob, computed_log_prob)
+    @pytest.fixture()
+    def all_equilibrium_permutations(self, score_network):
+        return score_network.all_x0
+
+    @pytest.fixture()
+    def expected_wrapped_gaussians(
+        self, batch, all_equilibrium_permutations, sigma_d, kmax
+    ):
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        sigmas = batch[NOISE]
+
+        list_log_w = []
+        for x0 in all_equilibrium_permutations:
+            log_w = self.compute_log_wrapped_gaussian_for_testing(
+                relative_coordinates, x0, sigmas, sigma_d=sigma_d, kmax=kmax
+            )
+            list_log_w.append(log_w)
+
+        expected_wrapped_gaussians = torch.stack(list_log_w)
+        return expected_wrapped_gaussians
+
+    def test_log_wrapped_gaussians_computation(
+        self, expected_wrapped_gaussians, score_network, batch
+    ):
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        sigmas = batch[NOISE]
+        batch_size, natoms, space_dimensions = relative_coordinates.shape
+
+        sigmas_t = einops.repeat(
+            sigmas,
+            "batch 1 -> batch natoms space",
+            natoms=natoms,
+            space=space_dimensions,
+        )
+        computed_wrapped_gaussians, _ = (
+            score_network.get_log_wrapped_gaussians_and_normalized_scores_centered_on_equilibrium_positions(
+                relative_coordinates, sigmas_t
+            )
+        )
+
+        torch.testing.assert_close(
+            expected_wrapped_gaussians, computed_wrapped_gaussians
+        )
+
+    def compute_sigma_normalized_scores_by_autograd_for_testing(
+        self,
+        relative_coordinates,
+        equilibrium_relative_coordinates,
+        sigmas,
+        sigma_d,
+        kmax,
+    ):
+        """Compute scores by autograd, for testing."""
+        batch_size, natoms, spatial_dimension = relative_coordinates.shape
+        xt = relative_coordinates.clone()
+        xt.requires_grad_(True)
+
+        log_w = self.compute_log_wrapped_gaussian_for_testing(
+            xt, equilibrium_relative_coordinates, sigmas, sigma_d=sigma_d, kmax=kmax
+        )
+        grad_outputs = [torch.ones_like(log_w)]
+
+        scores = torch.autograd.grad(
+            outputs=[log_w], inputs=[xt], grad_outputs=grad_outputs
+        )[0]
+
+        # We actually want sigma x score.
+        broadcast_sigmas = einops.repeat(
+            sigmas,
+            "batch 1 -> batch natoms space",
+            natoms=natoms,
+            space=spatial_dimension,
+        )
+
+        sigma_normalized_scores = broadcast_sigmas * scores
+        return sigma_normalized_scores
+
+    @pytest.fixture()
+    def expected_sigma_normalized_scores(
+        self, batch, all_equilibrium_permutations, sigma_d, kmax
+    ):
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        sigmas = batch[NOISE]
+
+        list_sigma_normalized_scores = []
+        for x0 in all_equilibrium_permutations:
+            sigma_scores = self.compute_sigma_normalized_scores_by_autograd_for_testing(
+                relative_coordinates, x0, sigmas, sigma_d=sigma_d, kmax=kmax
+            )
+            list_sigma_normalized_scores.append(sigma_scores)
+        sigma_normalized_scores = torch.stack(list_sigma_normalized_scores)
+        return sigma_normalized_scores
+
+    def test_normalized_score_computation(
+        self, expected_sigma_normalized_scores, score_network, batch
+    ):
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        sigmas = batch[NOISE]
+        batch_size, natoms, space_dimensions = relative_coordinates.shape
+
+        sigmas_t = einops.repeat(
+            sigmas,
+            "batch 1 -> batch natoms space",
+            natoms=natoms,
+            space=space_dimensions,
+        )
+        _, computed_normalized_scores = (
+            score_network.get_log_wrapped_gaussians_and_normalized_scores_centered_on_equilibrium_positions(
+                relative_coordinates, sigmas_t
+            )
+        )
+
+        torch.testing.assert_close(
+            expected_sigma_normalized_scores, computed_normalized_scores
+        )
+
+    @pytest.mark.parametrize(
+        "number_of_atoms, use_permutation_invariance",
+        [(1, False), (1, True), (2, False), (2, True), (8, False)],
+    )
+    def test_analytical_score_network_shapes(
+        self,
+        score_network,
+        batch,
+        batch_size,
+        number_of_atoms,
+        num_atom_types,
+        spatial_dimension,
+    ):
+        model_axl = score_network.forward(batch)
+
+        normalized_scores = model_axl.X
+        atom_type_preds = model_axl.A
+
+        assert normalized_scores.shape == (
+            batch_size,
+            number_of_atoms,
+            spatial_dimension,
+        )
+        assert atom_type_preds.shape == (
+            batch_size,
+            number_of_atoms,
+            num_atom_types + 1,
+        )
 
     @pytest.mark.parametrize(
         "number_of_atoms, use_permutation_invariance",
         [(1, False), (1, True), (2, False), (2, True), (8, False)],
     )
     def test_analytical_score_network(
-        self, score_network, batch, batch_size, number_of_atoms, spatial_dimension
+        self, score_network, batch, sigma_d, kmax, equilibrium_relative_coordinates
     ):
-        normalized_scores = score_network.forward(batch)
+        model_axl = score_network.forward(batch)
 
-        assert normalized_scores.X.shape == (
-            batch_size,
-            number_of_atoms,
-            spatial_dimension,
+        computed_normalized_scores = model_axl.X
+
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        batch_size, natoms, spatial_dimension = relative_coordinates.shape
+        sigmas = batch[NOISE]
+
+        list_log_w = []
+        list_s = []
+        for x0 in score_network.all_x0:
+            log_w = self.compute_log_wrapped_gaussian_for_testing(
+                relative_coordinates, x0, sigmas, sigma_d, kmax
+            )
+            list_log_w.append(log_w)
+
+            s = self.compute_sigma_normalized_scores_by_autograd_for_testing(
+                relative_coordinates, x0, sigmas, sigma_d, kmax
+            )
+            list_s.append(s)
+
+        list_log_w = torch.stack(list_log_w)
+        list_s = torch.stack(list_s)
+
+        list_weights = einops.repeat(
+            torch.softmax(list_log_w, dim=0),
+            "n batch -> n batch natoms space",
+            natoms=natoms,
+            space=spatial_dimension,
         )
 
-    @pytest.mark.parametrize("use_permutation_invariance", [False])
-    @pytest.mark.parametrize("number_of_atoms", [1, 2, 8])
-    def test_compare_score_networks(
-        self, score_network, target_score_based_score_network, batch
-    ):
+        expected_normalized_scores = torch.sum(list_weights * list_s, dim=0)
 
-        normalized_scores1 = score_network.forward(batch)
-        normalized_scores2 = target_score_based_score_network.forward(batch)
-
-        torch.testing.assert_close(normalized_scores1, normalized_scores2)
+        torch.testing.assert_close(
+            expected_normalized_scores, computed_normalized_scores
+        )

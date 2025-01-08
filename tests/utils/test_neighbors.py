@@ -35,9 +35,25 @@ def number_of_atoms():
     return 32
 
 
+@pytest.fixture()
+def spatial_dimension(request):
+    return 3
+
+
 @pytest.fixture
-def relative_coordinates(batch_size, number_of_atoms):
-    return torch.rand(batch_size, number_of_atoms, 3)
+def basis_vectors(batch_size, spatial_dimension):
+    # orthogonal boxes with dimensions between 5 and 10.
+    orthogonal_boxes = torch.stack(
+        [torch.diag(5.0 + 5.0 * torch.rand(spatial_dimension)) for _ in range(batch_size)]
+    )
+    # add a bit of noise to make the vectors not quite orthogonal
+    basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, spatial_dimension, spatial_dimension)
+    return basis_vectors
+
+
+@pytest.fixture
+def relative_coordinates(batch_size, number_of_atoms, spatial_dimension):
+    return torch.rand(batch_size, number_of_atoms, spatial_dimension)
 
 
 @pytest.fixture
@@ -47,9 +63,9 @@ def positions(relative_coordinates, basis_vectors):
 
 
 @pytest.fixture
-def lattice_vectors(batch_size, basis_vectors, number_of_shells):
+def lattice_vectors(batch_size, basis_vectors, number_of_shells, spatial_dimension):
     relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(
-        number_of_shells
+        number_of_shells, spatial_dimension
     )
     batched_relative_lattice_vectors = relative_lattice_vectors.repeat(batch_size, 1, 1)
     lattice_vectors = get_positions_from_coordinates(
@@ -218,31 +234,71 @@ def test_get_periodic_adjacency_information(
         )
 
 
+@pytest.mark.parametrize("spatial_dimension", [1, 2, 3])
 def test_get_periodic_neighbour_indices_and_displacements_large_cutoff(
-    basis_vectors, relative_coordinates
+    basis_vectors, relative_coordinates, spatial_dimension
 ):
     # Check that the code crashes if the radial cutoff is too big!
     shortest_cell_crossing_distances = _get_shortest_distance_that_crosses_unit_cell(
-        basis_vectors
+        basis_vectors, spatial_dimension=spatial_dimension
     ).min()
 
-    large_radial_cutoff = shortest_cell_crossing_distances + 0.1
-    small_radial_cutoff = shortest_cell_crossing_distances - 0.1
+    large_radial_cutoff = (shortest_cell_crossing_distances + 0.1).item()
+    small_radial_cutoff = (shortest_cell_crossing_distances - 0.1).item()
 
     # Should run
     get_periodic_adjacency_information(
-        relative_coordinates, basis_vectors, small_radial_cutoff
+        relative_coordinates, basis_vectors, small_radial_cutoff, spatial_dimension=spatial_dimension
     )
 
     with pytest.raises(AssertionError):
         # Should crash
         get_periodic_adjacency_information(
-            relative_coordinates, basis_vectors, large_radial_cutoff
+            relative_coordinates, basis_vectors, large_radial_cutoff, spatial_dimension=spatial_dimension
         )
 
 
 @pytest.mark.parametrize("number_of_shells", [1, 2, 3])
-def test_get_relative_coordinates_lattice_vectors(number_of_shells):
+def test_get_relative_coordinates_lattice_vectors_1d(number_of_shells):
+
+    expected_lattice_vectors = []
+
+    for nx in torch.arange(-number_of_shells, number_of_shells + 1):
+        lattice_vector = torch.tensor([nx])
+        expected_lattice_vectors.append(lattice_vector)
+
+    expected_lattice_vectors = torch.stack(expected_lattice_vectors).to(
+        dtype=torch.float32
+    )
+    computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(
+        number_of_shells, spatial_dimension=1
+    )
+
+    torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
+
+
+@pytest.mark.parametrize("number_of_shells", [1, 2, 3])
+def test_get_relative_coordinates_lattice_vectors_2d(number_of_shells):
+
+    expected_lattice_vectors = []
+
+    for nx in torch.arange(-number_of_shells, number_of_shells + 1):
+        for ny in torch.arange(-number_of_shells, number_of_shells + 1):
+            lattice_vector = torch.tensor([nx, ny])
+            expected_lattice_vectors.append(lattice_vector)
+
+    expected_lattice_vectors = torch.stack(expected_lattice_vectors).to(
+        dtype=torch.float32
+    )
+    computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(
+        number_of_shells, spatial_dimension=2
+    )
+
+    torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
+
+
+@pytest.mark.parametrize("number_of_shells", [1, 2, 3])
+def test_get_relative_coordinates_lattice_vectors_3d(number_of_shells):
 
     expected_lattice_vectors = []
 
@@ -256,7 +312,7 @@ def test_get_relative_coordinates_lattice_vectors(number_of_shells):
         dtype=torch.float32
     )
     computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(
-        number_of_shells
+        number_of_shells, spatial_dimension=3
     )
 
     torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
@@ -289,7 +345,7 @@ def test_get_shifted_positions(positions, lattice_vectors):
                 )
 
 
-def test_get_shortest_distance_that_crosses_unit_cell(basis_vectors):
+def test_get_shortest_distance_that_crosses_unit_cell_3d(basis_vectors):
     expected_shortest_distances = []
     for matrix in basis_vectors.numpy():
         a1, a2, a3 = matrix
