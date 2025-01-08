@@ -48,7 +48,7 @@ class FokkerPlanckRegularizer(Regularizer):
     of regularizing a score network.
 
     Autodiff is used for the time derivative and the first order space derivative. The
-    Hutchinson trace estimator is used for the second order space derivative.
+    Hutchinson trace estimator can optionally be used for the second order space derivative.
     """
 
     def __init__(self, regularizer_parameters: FokkerPlanckRegularizerParameters):
