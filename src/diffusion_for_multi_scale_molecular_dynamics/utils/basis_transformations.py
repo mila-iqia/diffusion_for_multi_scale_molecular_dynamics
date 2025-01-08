@@ -162,3 +162,8 @@ def map_lattice_parameters_to_unit_cell_vectors(
 
     vector_lengths = lattice_parameters[..., :spatial_dimension]
     return torch.diag_embed(vector_lengths)
+
+
+def get_number_of_lattice_parameters(spatial_dimension: int) -> int:
+    """Compute the number of independent lattice parameters from the spatial dimension."""
+    return int(spatial_dimension * (spatial_dimension + 1) / 2)
