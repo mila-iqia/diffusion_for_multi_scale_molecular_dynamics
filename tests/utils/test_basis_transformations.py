@@ -3,7 +3,8 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates, get_reciprocal_basis_vectors,
+    get_number_of_lattice_parameters, get_positions_from_coordinates,
+    get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,
     map_axl_composition_to_unit_cell,
     map_lattice_parameters_to_unit_cell_vectors,
@@ -161,4 +162,17 @@ def test_map_lattice_parameters_to_unit_cell_vectors(
     )
     torch.testing.assert_allclose(
         calculated_lattice_parameters, expected_unit_cell_vectors
+    )
+
+
+@pytest.mark.parametrize("spatial_dimension", [1, 2, 3])
+def test_get_number_of_lattice_parameters(spatial_dimension):
+    expected_number_of_lattice_parameters = spatial_dimension
+    for i in range(spatial_dimension - 1, 0, -1):
+        expected_number_of_lattice_parameters += i
+    calculated_number_of_lattice_parameters = get_number_of_lattice_parameters(
+        spatial_dimension
+    )
+    assert (
+        expected_number_of_lattice_parameters == calculated_number_of_lattice_parameters
     )
