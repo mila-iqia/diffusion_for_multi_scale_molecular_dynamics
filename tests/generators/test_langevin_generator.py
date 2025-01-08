@@ -156,7 +156,7 @@ class TestLangevinGenerator(BaseTestGenerator):
         list_time = noise.time
         forces = torch.zeros_like(axl_i.X)
 
-        z = pc_generator._draw_gaussian_sample(number_of_samples).to(axl_i.X)
+        z = pc_generator._draw_coordinates_gaussian_sample(number_of_samples).to(axl_i.X)
         mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
 
         for index_i in range(1, total_time_steps + 1):
@@ -501,7 +501,7 @@ class TestLangevinGenerator(BaseTestGenerator):
         sigma_1 = list_sigma[0]
         forces = torch.zeros_like(axl_i.X)
 
-        z = pc_generator._draw_gaussian_sample(number_of_samples).to(axl_i.X)
+        z = pc_generator._draw_coordinates_gaussian_sample(number_of_samples).to(axl_i.X)
         mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
 
         for index_i in range(0, total_time_steps):

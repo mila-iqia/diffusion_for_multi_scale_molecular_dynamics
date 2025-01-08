@@ -16,13 +16,13 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
-    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
+    ExplodingVarianceODEAXLGenerator, ODESamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
     load_diffusion_model
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    ExplodingVariance
+    VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \

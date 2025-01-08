@@ -35,14 +35,27 @@ class LatticeDemoDataset(Dataset):
         self.lattice_average = torch.tensor(lattice_averages)
         self.lattice_stddev = torch.tensor(lattice_stddev)
         self.lattice_minimum = lattice_vectors_minimum
+        self.lattice_scales = self.get_parameters_scale().clip(min=1e-4)
 
-    def generate_lattice_parameters(self):
+    def get_parameters_scale(self):
+        num_params = int(self.spatial_dimension * (self.spatial_dimension + 1) / 2)
+        max_params = -torch.ones(num_params) * torch.inf
+        for idx in range(self.num_samples):
+            lattice_params = self.generate_lattice_parameters(idx)
+            max_params = torch.maximum(max_params, lattice_params)
+        return max_params
+
+    def generate_lattice_parameters(self, seed: int):
+        torch.manual_seed(seed)
         z = torch.randn(self.spatial_dimension)
-        lattice_parameters = self.lattice_average + z * self.lattice_average
+        lattice_parameters = self.lattice_average + z * self.lattice_stddev
         lattice_parameters = lattice_parameters.clip(min=self.lattice_minimum)
         num_angle_params = int(self.spatial_dimension * (self.spatial_dimension - 1) / 2)
         lattice_parameters = torch.cat([lattice_parameters, torch.zeros(num_angle_params)])
         return lattice_parameters
+
+    def scale_lattice_parameters(self, lattice_parameters: torch.Tensor):
+        return lattice_parameters / self.lattice_scales
 
     def __len__(self):
         return self.num_samples
@@ -56,7 +69,9 @@ class LatticeDemoDataset(Dataset):
             x[CARTESIAN_POSITIONS] = x[RELATIVE_COORDINATES] * 10
         atom_types = torch.arange(idx, idx + self.num_atoms) % self.num_atom_types
         x[ATOM_TYPES] = atom_types
-        x[LATTICE_PARAMETERS] = self.generate_lattice_parameters()
+        lattice_parameters = self.generate_lattice_parameters(idx)
+        lattice_parameters = self.scale_lattice_parameters(lattice_parameters)
+        x[LATTICE_PARAMETERS] = lattice_parameters
         x["potential_energy"] = torch.zeros(1)
         return x
 

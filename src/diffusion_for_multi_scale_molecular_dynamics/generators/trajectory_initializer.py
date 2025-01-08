@@ -9,6 +9,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator impor
     SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISY_AXL_COMPOSITION)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    get_number_of_lattice_parameters
 
 
 @dataclass(kw_only=True)
@@ -39,6 +41,9 @@ class TrajectoryInitializer(ABC):
         self.spatial_dimension = trajectory_initializer_parameters.spatial_dimension
         self.number_of_atoms = trajectory_initializer_parameters.number_of_atoms
         self.masked_atom_type_index = trajectory_initializer_parameters.num_atom_types
+        self.num_lattice_parameters = get_number_of_lattice_parameters(
+            trajectory_initializer_parameters.spatial_dimension
+        )
 
     @abstractmethod
     def initialize(self, number_of_samples: int, device: torch.device) -> AXL:
@@ -74,10 +79,10 @@ class FullRandomTrajectoryInitializer(TrajectoryInitializer):
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
         ).to(device)
-        lattice_vectors = torch.zeros_like(relative_coordinates).to(
-            device
-        )  # TODO placeholder
-        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
+        lattice_parameters = torch.randn(
+            number_of_samples, self.num_lattice_parameters
+        ).to(device)
+        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
         return init_composition
 
     def create_start_time_step_index(self, number_of_discretization_steps: int) -> int:
