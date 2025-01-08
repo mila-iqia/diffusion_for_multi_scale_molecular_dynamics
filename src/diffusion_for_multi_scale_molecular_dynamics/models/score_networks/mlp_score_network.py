@@ -38,7 +38,7 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
     # dimension of the conditional variable embedding
     condition_embedding_size: int = 64
 
-    # should the analytical score consider every coordinate permutations.
+    # should the score model consider every coordinate permutations.
     # Careful! The number of permutations will scale as number_of_atoms!. This will not
     # scale to large number of atoms.
     use_permutation_invariance: bool = False
