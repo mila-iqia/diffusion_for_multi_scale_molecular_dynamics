@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Tuple
+from typing import Optional, Tuple
 
 import einops
 import torch
@@ -9,7 +9,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -48,7 +48,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.cell_dimension = sampling_parameters.cell_dimensions
-        self.inverse_average_density = torch.prod(torch.tensor(self.cell_dimension)) / self.number_of_atoms
         self.masked_atom_type_index = self.num_classes - 1
         self.axl_network = axl_network
         self.small_epsilon = sampling_parameters.small_epsilon
@@ -93,18 +92,16 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
         ).to(device)
-        lattice_vectors_noise = torch.randn(
+        # lattice parameters
+        lattice_parameters = torch.randn(
             number_of_samples, self.num_lattice_parameters
-        ).to(
-            device
+        ).to(device)
+
+        lattice_parameters *= self.noise_parameters.sigma_max
+
+        init_composition = AXL(
+            A=atom_types, X=relative_coordinates, L=lattice_parameters
         )
-
-        lattice_vectors_average = self.inverse_average_density * torch.ones_like(lattice_vectors_noise)
-        lattice_vectors_average[:, self.spatial_dimension:] = 0  # TODO set angles to zero for now
-
-        lattice_vectors = lattice_vectors_average + lattice_vectors_noise
-
-        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
         return init_composition
 
     def _draw_coordinates_gaussian_sample(self, number_of_samples):
@@ -113,9 +110,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
     def _draw_lattice_gaussian_sample(self, number_of_samples):
-        return torch.randn(
-            number_of_samples, self.num_lattice_parameters
-        )
+        return torch.randn(number_of_samples, self.num_lattice_parameters)
 
     def _draw_gumbel_sample(self, number_of_samples):
         return -torch.log(
@@ -135,7 +130,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         composition: AXL,
         time: float,
         sigma_noise: float,
-        unit_cell: torch.Tensor,  # TODO replace with AXL-L
         cartesian_forces: torch.Tensor,
     ) -> AXL:
         """Get the outputs of an axl-network.
@@ -147,8 +141,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 lattice vectors, of shape [number_of_samples, spatial_dimension * (spatial_dimension - 1)]  # TODO check
             time : time at which to evaluate the score
             sigma_noise: the diffusion sigma parameter corresponding to the time at which to evaluate the score
-            unit_cell: unit cell definition in Angstrom of shape [number_of_samples, spatial_dimension,
-                spatial_dimension]
             cartesian_forces: forces to condition the sampling from. Shape [number_of_samples, number_of_atoms,
                 spatial_dimension]
 
@@ -168,7 +160,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             NOISY_AXL_COMPOSITION: composition,
             TIME: time_tensor,
             NOISE: sigma_noise_tensor,
-            UNIT_CELL: unit_cell,  # TODO replace with AXL-L
             CARTESIAN_FORCES: cartesian_forces,
         }
 
@@ -211,7 +202,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         """
         number_of_samples = relative_coordinates.shape[0]
         if z is None:
-            z = self._draw_coordinates_gaussian_sample(number_of_samples).to(relative_coordinates)
+            z = self._draw_coordinates_gaussian_sample(number_of_samples).to(
+                relative_coordinates
+            )
 
         updated_coordinates = (
             relative_coordinates
@@ -467,7 +460,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         sigma_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
-        z: Optional[torch.Tensor] = None
+        z: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         r"""Generic update for the lattice parameters.
 
@@ -495,7 +488,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         """
         number_of_samples = lattice_parameters.shape[0]
         if z is None:
-            z = self._draw_lattice_gaussian_sample(number_of_samples).to(lattice_parameters)
+            z = self._draw_lattice_gaussian_sample(number_of_samples).to(
+                lattice_parameters
+            )
 
         updated_lattice_parameters = (
             lattice_parameters
@@ -511,12 +506,12 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         sigma_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
-        z: Optional[torch.Tensor] = None
+        z: Optional[torch.Tensor] = None,
     ):
         """Lattice parameters update for the predictor step.
 
         This returns the generic _lattice_parameters_update.
-            """
+        """
         return self._lattice_parameters_update(
             lattice_parameters,
             sigma_normalized_scores,
@@ -552,7 +547,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         composition_i: AXL,
         index_i: int,
-        unit_cell: torch.Tensor,  # TODO replace with AXL-L
         cartesian_forces: torch.Tensor,
     ) -> AXL:
         """Predictor step.
@@ -560,7 +554,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         Args:
             composition_i : sampled composition (atom types, relative coordinates, lattice vectors), at time step i.
             index_i : index of the time step.
-            unit_cell: sampled unit cell at time step i.
             cartesian_forces: forces conditioning the sampling process
 
         Returns:
@@ -578,8 +571,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         g_i = self.noise.g[idx].to(composition_i.X)
         g2_i = self.noise.g_squared[idx].to(composition_i.X)
         sigma_i = self.noise.sigma[idx].to(composition_i.X)
-        alpha_bar_i = self.noise.alpha_bar[idx].to(composition_i.X)
-        alpha_g2_i = self.noise.alpha_g_squared[idx].to(composition_i.X)
 
         # Broadcast the q matrices to the expected dimensions.
         q_matrices_i = einops.repeat(
@@ -604,7 +595,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         model_predictions_i = self._get_model_predictions(
-            composition_i, t_i, sigma_i, unit_cell, cartesian_forces
+            composition_i, t_i, sigma_i, cartesian_forces
         )
 
         # Even if the global flag 'one_atom_type_transition_per_step' is set to True, a single atomic transition
@@ -627,27 +618,30 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         if this_is_last_time_step:
-            assert (a_im1 != self.masked_atom_type_index).all(), \
-                "There remains MASKED atoms at the last time step: review code, there must be a bug or invalid input."
+            assert (
+                a_im1 != self.masked_atom_type_index
+            ).all(), "There remains MASKED atoms at the last time step: review code, there must be a bug or invalid input."
 
         # draw a gaussian noise sample and update the positions accordingly
-        z_coordinates = self._draw_coordinates_gaussian_sample(number_of_samples).to(composition_i.X)
+        z_coordinates = self._draw_coordinates_gaussian_sample(number_of_samples).to(
+            composition_i.X
+        )
 
         x_im1 = self._relative_coordinates_update_predictor_step(
             composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i, z_coordinates
         )
 
-        sigma_effective_i = torch.sqrt(1 - alpha_bar_i) * sigma_i  # TODO number of atoms
-
+        # TODO the score weight for the lattice update should be different from relative coordinates
+        # TODO sigma_i should depend on the number of atoms - actually, this should be tested empirically
         # update lattice parameters
-        z_lattice = self._draw_lattice_gaussian_sample(number_of_samples).to(composition_i.L)
+        z_lattice = self._draw_lattice_gaussian_sample(number_of_samples).to(
+            composition_i.L
+        )
         lp_im1 = self._lattice_parameters_update_predictor_step(
-            composition_i.L, model_predictions_i.L, sigma_effective_i, alpha_g2_i, torch.sqrt(alpha_g2_i), z_lattice
+            composition_i.L, model_predictions_i.L, sigma_i, g2_i, g_i, z_lattice
         )
 
-        composition_im1 = AXL(
-            A=a_im1, X=x_im1, L=lp_im1
-        )
+        composition_im1 = AXL(A=a_im1, X=x_im1, L=lp_im1)
 
         if self.record:
             composition_i_for_recording = AXL(
@@ -673,23 +667,34 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         return composition_im1
 
-    def _get_corrector_step_size(
+    def _get_coordinates_corrector_step_size(
         self,
         index_i: int,
         sigma_i: torch.Tensor,
-        model_predictions_i: AXL,
+        model_predictions_i: torch.Tensor,
         z: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute the size of the corrector step for the relative coordinates or lattice parameters update."""
+        """Compute the size of the corrector step for the relative coordinates update."""
         # Get the epsilon from the tabulated Langevin dynamics array indexed with [0,..., N-1].
-        eps_i = self.langevin_dynamics.epsilon[index_i].to(model_predictions_i.X)
+        eps_i = self.langevin_dynamics.epsilon[index_i].to(model_predictions_i)
+        return eps_i
+
+    def _get_lattice_parameters_corrector_step_size(
+        self,
+        index_i: int,
+        sigma_i: torch.Tensor,
+        model_predictions_i: torch.Tensor,
+        z: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute the size of the corrector step for the lattice parameters update."""
+        # Get the epsilon from the tabulated Langevin dynamics array indexed with [0,..., N-1].
+        eps_i = self.langevin_dynamics.epsilon[index_i].to(model_predictions_i)
         return eps_i
 
     def corrector_step(
         self,
         composition_i: AXL,
         index_i: int,
-        unit_cell: torch.Tensor,  # TODO replace with AXL-L
         cartesian_forces: torch.Tensor,
     ) -> AXL:
         """Corrector Step.
@@ -700,7 +705,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         Args:
             composition_i : sampled composition (atom types, relative coordinates, lattice vectors), at time step i.
             index_i : index of the time step.
-            unit_cell: sampled unit cell at time step i.  # TODO replace with AXL-L
             cartesian_forces: forces conditioning the sampling
 
         Returns:
@@ -719,42 +723,54 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 self.noise_parameters.sigma_min
             )  # no need to change device, this is a float
             t_i = 0.0  # same for device - this is a float
-            alpha_bar_i = 1.0
-            beta_i = 1.0
             idx = index_i
         else:
             idx = index_i - 1  # python starts indices at zero
             sigma_i = self.noise.sigma[idx].to(composition_i.X)
-            alpha_bar_i = self.noise.alpha_bar[idx].to(composition_i.X)
-            beta_i = self.noise.beta[idx].to(composition_i.X)
             t_i = self.noise.time[idx].to(composition_i.X)
 
         model_predictions_i = self._get_model_predictions(
-            composition_i, t_i, sigma_i, unit_cell, cartesian_forces
+            composition_i, t_i, sigma_i, cartesian_forces
         )
 
         # draw a gaussian noise sample and update the positions accordingly
-        z_coordinates = self._draw_coordinates_gaussian_sample(number_of_samples).to(composition_i.X)
+        z_coordinates = self._draw_coordinates_gaussian_sample(number_of_samples).to(
+            composition_i.X
+        )
 
         # get the step size eps_i
-        eps_i_coordinates = self._get_corrector_step_size(index_i, sigma_i, model_predictions_i, z_coordinates)
+        eps_i_coordinates = self._get_coordinates_corrector_step_size(
+            index_i, sigma_i, model_predictions_i.X, z_coordinates
+        )
         # the size for the noise part is sqrt(2 * eps_i)
         sqrt_2eps_i_coordinates = torch.sqrt(2 * eps_i_coordinates)
 
         corrected_x_i = self._relative_coordinates_update_corrector_step(
-            composition_i.X, model_predictions_i.X, sigma_i, eps_i_coordinates, sqrt_2eps_i_coordinates, z_coordinates
+            composition_i.X,
+            model_predictions_i.X,
+            sigma_i,
+            eps_i_coordinates,
+            sqrt_2eps_i_coordinates,
+            z_coordinates,
         )
 
         # update lattice parameters
-        sigma_effective_i = torch.sqrt(1 - alpha_bar_i) * sigma_i
-        z_lattice = self._draw_lattice_gaussian_sample(number_of_samples).to(composition_i.L)
+        z_lattice = self._draw_lattice_gaussian_sample(number_of_samples).to(
+            composition_i.L
+        )
 
         # get the step size eps_i
-        eps_i_lattice = self._get_corrector_step_size(index_i, sigma_effective_i, model_predictions_i, z_lattice)
+        eps_i_lattice = self._get_lattice_parameters_corrector_step_size(
+            index_i, sigma_i, model_predictions_i.L, z_lattice
+        )
         sqrt_2eps_i_lattice = torch.sqrt(2 * eps_i_lattice)
 
         corrected_lp_i = self._lattice_parameters_update(
-            composition_i.L, model_predictions_i.L, sigma_effective_i, eps_i_lattice, sqrt_2eps_i_lattice,
+            composition_i.L,
+            model_predictions_i.L,
+            sigma_i,
+            eps_i_lattice,
+            sqrt_2eps_i_lattice,
         )
 
         if self.atom_type_transition_in_corrector:
