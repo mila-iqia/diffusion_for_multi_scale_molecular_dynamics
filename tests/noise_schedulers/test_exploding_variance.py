@@ -5,6 +5,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_var
     VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.sigma_calculator import (
+    ExponentialSigmaCalculator, LinearSigmaCalculator)
 
 
 class TestExplodingVariance:
@@ -21,11 +23,14 @@ class TestExplodingVariance:
     def sigma_max(self):
         return 0.5
 
+    @pytest.fixture(params=["exponential", "linear"])
+    def schedule_type(self, request):
+        return request.param
+
     @pytest.fixture()
-    def noise_parameters(self, sigma_min, sigma_max):
+    def noise_parameters(self, sigma_min, sigma_max, schedule_type):
         return NoiseParameters(
-            total_time_steps=10, sigma_min=sigma_min, sigma_max=sigma_max
-        )
+            total_time_steps=10, sigma_min=sigma_min, sigma_max=sigma_max, schedule_type=schedule_type)
 
     @pytest.fixture()
     def times(self):
@@ -36,15 +41,13 @@ class TestExplodingVariance:
         return VarianceScheduler(noise_parameters)
 
     @pytest.fixture()
-    def expected_sigmas(self, noise_parameters, times):
-        expected_sigmas = []
-        for t in times:
-            sigma = (
-                noise_parameters.sigma_min ** (1.0 - t) * noise_parameters.sigma_max**t
-            )
-            expected_sigmas.append(sigma)
-
-        return torch.tensor(expected_sigmas)
+    def expected_sigmas(self, schedule_type, sigma_min, sigma_max, times):
+        if schedule_type == "exponential":
+            return ExponentialSigmaCalculator(sigma_min, sigma_max).get_sigma(times)
+        elif schedule_type == "linear":
+            return LinearSigmaCalculator(sigma_min, sigma_max).get_sigma(times)
+        else:
+            raise NotImplementedError("Unknown schedule_type")
 
     def test_get_sigma(self, exploding_variance, times, expected_sigmas):
         computed_sigmas = exploding_variance.get_sigma(times)
