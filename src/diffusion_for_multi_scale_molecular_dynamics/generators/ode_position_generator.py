@@ -13,7 +13,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator impor
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
@@ -84,10 +84,12 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
 
         if self.record:
             self.sample_trajectory_recorder = SampleTrajectory()
-            self.sample_trajectory_recorder.record(key="noise_parameters",
-                                                   entry=dataclasses.asdict(noise_parameters))
-            self.sample_trajectory_recorder.record(key="sampling_parameters",
-                                                   entry=dataclasses.asdict(sampling_parameters))
+            self.sample_trajectory_recorder.record(
+                key="noise_parameters", entry=dataclasses.asdict(noise_parameters)
+            )
+            self.sample_trajectory_recorder.record(
+                key="sampling_parameters", entry=dataclasses.asdict(sampling_parameters)
+            )
 
     def _get_ode_prefactor(self, times):
         """Get ODE prefactor.
@@ -116,7 +118,7 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         return self.exploding_variance.get_sigma_time_derivative(times)
 
     def generate_ode_term(
-        self, unit_cell: torch.Tensor, atom_types: torch.LongTensor
+        self, atom_types: torch.LongTensor, lattice_parameters: torch.Tensor
     ) -> Callable:
         """Generate the ode_term needed to compute the ODE solution."""
 
@@ -152,11 +154,10 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
                 NOISY_AXL_COMPOSITION: AXL(
                     A=atom_types,
                     X=map_relative_coordinates_to_unit_cell(relative_coordinates),
-                    L=unit_cell,  # TODO
+                    L=lattice_parameters,  # TODO
                 ),
                 NOISE: sigmas.unsqueeze(-1),
                 TIME: times.unsqueeze(-1),
-                UNIT_CELL: unit_cell,  # TODO replace with AXL-L
                 CARTESIAN_FORCES: torch.zeros_like(
                     relative_coordinates
                 ),  # TODO: handle forces correctly.
@@ -173,7 +174,9 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         return ode_term
 
     def sample(
-        self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
+        self,
+        number_of_samples: int,
+        device: torch.device,
     ) -> AXL:
         """Sample.
 
@@ -182,8 +185,6 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         Args:
             number_of_samples : number of samples to draw.
             device: device to use (cpu, cuda, etc.). Should match the PL model location.
-            unit_cell: unit cell definition in Angstrom.  # TODO replace with AXL-L
-                Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
             samples: samples as AXL composition
@@ -192,7 +193,9 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
             self.initialize(number_of_samples, device), device
         )
 
-        ode_term = self.generate_ode_term(unit_cell, atom_types=initial_composition.A)
+        ode_term = self.generate_ode_term(
+            atom_types=initial_composition.A, lattice_parameters=initial_composition.L
+        )
 
         y0 = einops.rearrange(
             initial_composition.X, "batch natom space -> batch (natom space)"
@@ -223,7 +226,7 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         logger.info("ODE solver Finished.")
 
         if self.record:
-            self.record_sample(ode_term, sol, evaluation_times, unit_cell)
+            self.record_sample(ode_term, sol, evaluation_times)
 
         # sol.ys has dimensions [number of samples, number of times, number of features]
         # only the final time (ie, t0) is the real sample.
@@ -247,7 +250,6 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         ode_term: Callable,
         sol: Solution,
         evaluation_times: torch.Tensor,
-        unit_cell: torch.Tensor,
     ):
         """Record sample.
 
@@ -257,7 +259,6 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
             ode_term : the Callable that is used to compute the rhs of the solved ODE.
             sol : the solution object obtained when solving the ODE.
             evaluation_times : times along the trajectory.
-            unit_cell : unit cell definition in Angstrom.
 
         Returns:
             None
@@ -288,14 +289,15 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
             space=self.spatial_dimension,
         )
 
-        entry = dict(times=evaluation_times,
-                     sigmas=sigmas,
-                     relative_coordinates=record_relative_coordinates,
-                     normalized_scores=record_normalized_scores,
-                     unit_cell=unit_cell,
-                     stats=sol.stats,
-                     status=sol.status)
-        self.sample_trajectory_recorder.record(key='ode', entry=entry)
+        entry = dict(
+            times=evaluation_times,
+            sigmas=sigmas,
+            relative_coordinates=record_relative_coordinates,
+            normalized_scores=record_normalized_scores,
+            stats=sol.stats,
+            status=sol.status,
+        )
+        self.sample_trajectory_recorder.record(key="ode", entry=entry)
 
     def initialize(
         self, number_of_samples: int, device: torch.device = torch.device("cpu")
@@ -307,10 +309,9 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         atom_types = (
             torch.zeros(number_of_samples, self.number_of_atoms).long().to(device)
         )
-        lattice_vectors = torch.zeros(
-            number_of_samples, self.spatial_dimension * (self.spatial_dimension - 1)
-        ).to(
-            device
-        )  # TODO placeholder
+        lattice_vectors = torch.randn(
+            number_of_samples,
+            int(self.spatial_dimension * (self.spatial_dimension + 1) / 2),
+        ).to(device)
         init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
         return init_composition
