@@ -27,7 +27,6 @@ class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
         self,
         number_of_atoms,
         spatial_dimension,
-        cell_dimensions,
         number_of_samples,
         record_samples,
         num_atom_types,
@@ -36,7 +35,6 @@ class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
             number_of_samples=number_of_samples,
-            cell_dimensions=cell_dimensions,
             record_samples=record_samples,
             num_atom_types=num_atom_types,
         )
