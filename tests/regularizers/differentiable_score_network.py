@@ -9,8 +9,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    SigmaCalculator
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.sigma_calculator import \
+    ExponentialSigmaCalculator
 
 
 @dataclass(kw_only=True)
@@ -32,7 +32,7 @@ class DifferentiableScoreNetwork(ScoreNetwork):
     def __init__(self, hyper_params: DifferentiableScoreNetworkParameters):
         super().__init__(hyper_params)
 
-        self.sigma_calculator = SigmaCalculator(
+        self.sigma_calculator = ExponentialSigmaCalculator(
             sigma_min=hyper_params.sigma_min, sigma_max=hyper_params.sigma_max
         )
 
@@ -225,7 +225,7 @@ class TestDifferentiableScoreNetwork:
             batch_size, 1, 1
         )
 
-        sigmas_t = SigmaCalculator(sigma_min=sigma_min, sigma_max=sigma_max).get_sigma(
+        sigmas_t = ExponentialSigmaCalculator(sigma_min=sigma_min, sigma_max=sigma_max).get_sigma(
             times
         )
 
