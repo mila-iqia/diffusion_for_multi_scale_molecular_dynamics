@@ -21,9 +21,6 @@ class SamplingParameters:
     # iterate up to number_of_samples with batches of this size
     # if None, use number_of_samples as batchsize
     sample_batchsize: Optional[int] = None
-    cell_dimensions: List[
-        float
-    ]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.  TODO replace with AXL-L
     record_samples: bool = (
         False  # should the predictor and corrector steps be recorded to a file
     )

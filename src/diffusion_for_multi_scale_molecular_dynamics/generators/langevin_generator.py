@@ -53,7 +53,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         sampler = NoiseScheduler(noise_parameters, num_classes=self.num_classes)
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
         self.number_of_atoms = sampling_parameters.number_of_atoms
-        self.cell_dimension = sampling_parameters.cell_dimensions
         self.masked_atom_type_index = self.num_classes - 1
         self.axl_network = axl_network
         self.small_epsilon = sampling_parameters.small_epsilon
