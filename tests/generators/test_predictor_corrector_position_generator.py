@@ -37,7 +37,6 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
         self,
         axl_ip1: AXL,
         ip1: int,
-        unit_cell: torch.Tensor,
         forces: torch.Tensor,
     ) -> torch.Tensor:
         updated_axl = AXL(
@@ -50,7 +49,7 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
         return updated_axl
 
     def corrector_step(
-        self, axl_i: torch.Tensor, i: int, unit_cell: torch.Tensor, forces: torch.Tensor
+        self, axl_i: torch.Tensor, i: int, forces: torch.Tensor
     ) -> torch.Tensor:
         updated_axl = AXL(
             A=axl_i.A,
@@ -106,7 +105,6 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         initial_sample,
         number_of_discretization_steps,
         number_of_corrector_steps,
-        unit_cell_sample,
     ):
         list_i = list(range(number_of_discretization_steps))
         list_i.reverse()
@@ -123,7 +121,6 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
                 generator.predictor_step(
                     composition_ip1,
                     i + 1,
-                    unit_cell_sample,
                     torch.zeros_like(composition_ip1.X),
                 ),
                 torch.device("cpu"),
@@ -133,7 +130,6 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
                     generator.corrector_step(
                         composition_i,
                         i,
-                        unit_cell_sample,
                         torch.zeros_like(composition_i.X),
                     ),
                     torch.device("cpu"),
@@ -144,12 +140,13 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         return list_compositions
 
     def test_sample(
-        self, generator, number_of_samples, all_generated_compositions, unit_cell_sample
+        self, generator, number_of_samples, all_generated_compositions,
     ):
 
         expected_samples = all_generated_compositions[-1]
         computed_samples = generator.sample(
-            number_of_samples, torch.device("cpu"), unit_cell_sample
+            number_of_samples,
+            torch.device("cpu"),
         )
 
         torch.testing.assert_close(expected_samples, computed_samples)

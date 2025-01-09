@@ -43,7 +43,6 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
         axl_i,
         total_time_steps,
         number_of_samples,
-        unit_cell_sample,
         num_atomic_classes,
         device,
     ):
@@ -52,7 +51,7 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
 
         for index_i in range(1, total_time_steps + 1):
             computed_sample = pc_generator.predictor_step(
-                axl_i, index_i, unit_cell_sample, forces
+                axl_i, index_i, forces
             )
 
             expected_coordinates = axl_i.X
@@ -72,7 +71,6 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
         axl_i,
         total_time_steps,
         number_of_samples,
-        unit_cell_sample,
         num_atomic_classes,
     ):
         pc_generator.corrector_r = corrector_r
@@ -83,15 +81,15 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
         list_time = noise.time
         forces = torch.zeros_like(axl_i.X)
 
-        z = pc_generator._draw_gaussian_sample(number_of_samples).to(axl_i.X)
-        mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
+        z = pc_generator._draw_coordinates_gaussian_sample(number_of_samples).to(axl_i.X)
+        mocker.patch.object(pc_generator, "_draw_coordinates_gaussian_sample", return_value=z)
         z_norm = torch.sqrt((z**2).sum(dim=-1).sum(dim=-1)).mean(
             dim=-1
         )  # norm of z averaged over atoms
 
         for index_i in range(0, total_time_steps):
             computed_sample = pc_generator.corrector_step(
-                axl_i, index_i, unit_cell_sample, forces
+                axl_i, index_i, forces
             )
 
             if index_i == 0:
@@ -103,7 +101,7 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
 
             s_i = (
                 pc_generator._get_model_predictions(
-                    axl_i, t_i, sigma_i, unit_cell_sample, forces
+                    axl_i, t_i, sigma_i, forces
                 ).X
                 / sigma_i
             )

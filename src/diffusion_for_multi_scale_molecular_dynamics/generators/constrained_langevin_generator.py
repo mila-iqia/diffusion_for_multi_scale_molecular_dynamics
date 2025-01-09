@@ -81,7 +81,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         return updated_axl
 
     def sample(
-        self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
+        self, number_of_samples: int, device: torch.device,
     ) -> AXL:
         """Sample.
 
@@ -90,21 +90,10 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         Args:
             number_of_samples : number of samples to draw.
             device: device to use (cpu, cuda, etc.). Should match the PL model location.
-            unit_cell: unit cell definition in Angstrom.
-                Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
             samples: composition samples as AXL namedtuple (atom types, reduced coordinates, lattice vectors)
         """
-        assert unit_cell.size() == (
-            number_of_samples,
-            self.spatial_dimension,
-            self.spatial_dimension,
-        ), (
-            "Unit cell passed to sample should be of size (number of sample, spatial dimension, spatial dimension"
-            + f"Got {unit_cell.size()}"
-        )
-
         # Initialize a configuration that satisfy the constraint, but is otherwise random.
         # Since the noising process is 'atom-per-atom', the non-constrained position should have no impact.
         composition0_known = self.initialize(number_of_samples, device)
@@ -130,7 +119,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
             )
             # Denoise from t_{i+1} to t_i
             composition_i = self.predictor_step(
-                composition_ip1, i + 1, unit_cell, forces
+                composition_ip1, i + 1, forces
             )
 
             # Combine the known and unknown
@@ -139,7 +128,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
             composition_i = AXL(A=composition_i.A, X=x_i, L=composition_i.L)
 
             for _ in range(self.number_of_corrector_steps):
-                composition_i = self.corrector_step(composition_i, i, unit_cell, forces)
+                composition_i = self.corrector_step(composition_i, i, forces)
 
             composition_ip1 = composition_i
 

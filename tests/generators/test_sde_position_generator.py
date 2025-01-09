@@ -53,13 +53,19 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
         return torch.zeros(number_of_samples, number_of_atoms).long()
 
     @pytest.fixture()
+    def lattice_parameters(self, number_of_samples, spatial_dimension):
+        return torch.randn(
+            number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
+        )
+
+    @pytest.fixture()
     def sde(
         self,
         noise_parameters,
         sampling_parameters,
         axl_network,
+        lattice_parameters,
         atom_types,
-        unit_cell_sample,
         initial_diffusion_time,
         final_diffusion_time,
     ):
@@ -68,7 +74,7 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
             sampling_parameters=sampling_parameters,
             axl_network=axl_network,
             atom_types=atom_types,
-            unit_cells=unit_cell_sample,
+            lattice_parameters=lattice_parameters,
             initial_diffusion_time=initial_diffusion_time,
             final_diffusion_time=final_diffusion_time,
         )
@@ -129,12 +135,9 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
         number_of_samples,
         number_of_atoms,
         spatial_dimension,
-        unit_cell_sample,
     ):
         # Just a smoke test that we can sample without crashing.
-        relative_coordinates = sde_generator.sample(
-            number_of_samples, device, unit_cell_sample
-        )
+        relative_coordinates = sde_generator.sample(number_of_samples, device)
 
         assert relative_coordinates.shape == (
             number_of_samples,
