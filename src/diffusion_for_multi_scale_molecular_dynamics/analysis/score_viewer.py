@@ -30,6 +30,7 @@ class ScoreViewerParameters:
 
     sigma_min: float
     sigma_max: float
+    schedule_type: str
 
     number_of_space_steps: int = 100
 
@@ -60,6 +61,7 @@ class ScoreViewer:
             total_time_steps=total_time_steps,
             sigma_min=score_viewer_parameters.sigma_min,
             sigma_max=score_viewer_parameters.sigma_max,
+            schedule_type=score_viewer_parameters.schedule_type
         )
 
         self.times = torch.tensor([0.0, 0.1, 0.2, 0.3, 0.4, 0.8, 0.9, 1.0])
