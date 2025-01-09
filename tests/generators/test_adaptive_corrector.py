@@ -35,7 +35,7 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
 
         return generator
 
-    def test_predictor_step_relative_coordinates(
+    def test_predictor_step_relative_coordinates_and_lattice(
         self,
         mocker,
         pc_generator,
@@ -50,9 +50,7 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
         forces = torch.zeros_like(axl_i.X)
 
         for index_i in range(1, total_time_steps + 1):
-            computed_sample = pc_generator.predictor_step(
-                axl_i, index_i, forces
-            )
+            computed_sample = pc_generator.predictor_step(axl_i, index_i, forces)
 
             expected_coordinates = axl_i.X
             expected_coordinates = map_relative_coordinates_to_unit_cell(
@@ -60,6 +58,9 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
             )
             # this is almost trivial - the coordinates should not change in a predictor step
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
+
+            expected_lattice = axl_i.L
+            torch.testing.assert_close(computed_sample.L, expected_lattice)
 
     @pytest.mark.parametrize("corrector_r", [0.1, 0.5, 1.2])
     def test_corrector_step(
@@ -81,16 +82,33 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
         list_time = noise.time
         forces = torch.zeros_like(axl_i.X)
 
-        z = pc_generator._draw_coordinates_gaussian_sample(number_of_samples).to(axl_i.X)
-        mocker.patch.object(pc_generator, "_draw_coordinates_gaussian_sample", return_value=z)
-        z_norm = torch.sqrt((z**2).sum(dim=-1).sum(dim=-1)).mean(
+        z_coordinates = pc_generator._draw_coordinates_gaussian_sample(
+            number_of_samples
+        ).to(axl_i.X)
+        mocker.patch.object(
+            pc_generator,
+            "_draw_coordinates_gaussian_sample",
+            return_value=z_coordinates,
+        )
+
+        z_lattice = pc_generator._draw_lattice_gaussian_sample(number_of_samples).to(
+            axl_i.L
+        )
+        mocker.patch.object(
+            pc_generator, "_draw_lattice_gaussian_sample", return_value=z_lattice
+        )
+
+        z_coordinates_norm = torch.sqrt(
+            (z_coordinates**2).sum(dim=-1).sum(dim=-1)
+        ).mean(
             dim=-1
         )  # norm of z averaged over atoms
+        z_lattice_norm = torch.sqrt(
+            (z_lattice**2).sum(dim=-1)
+        )  # norm of z averaged over lattice parameters
 
         for index_i in range(0, total_time_steps):
-            computed_sample = pc_generator.corrector_step(
-                axl_i, index_i, forces
-            )
+            computed_sample = pc_generator.corrector_step(axl_i, index_i, forces)
 
             if index_i == 0:
                 sigma_i = sigma_min
@@ -99,24 +117,59 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
                 sigma_i = list_sigma[index_i - 1]
                 t_i = list_time[index_i - 1]
 
-            s_i = (
-                pc_generator._get_model_predictions(
-                    axl_i, t_i, sigma_i, forces
-                ).X
-                / sigma_i
+            model_predictions = pc_generator._get_model_predictions(
+                axl_i, t_i, sigma_i, forces
             )
-            s_i_norm = torch.sqrt((s_i**2).sum(dim=-1).sum(dim=-1)).mean(dim=-1)
+
+            # test coordinates update
+            s_i_coordinates = model_predictions.X / sigma_i
+
+            s_i_coordinates_norm = torch.sqrt(
+                (s_i_coordinates**2).sum(dim=-1).sum(dim=-1)
+            ).mean(dim=-1)
             # \epsilon_i = 2 \left(r \frac{||z||_2}{||s(x_i, t_i)||_2}\right)^2
-            eps_i = (
+            eps_i_coordinates = (
                 2
-                * (corrector_r * z_norm / s_i_norm.clip(min=pc_generator.small_epsilon))
+                * (
+                    corrector_r
+                    * z_coordinates_norm
+                    / s_i_coordinates_norm.clip(min=pc_generator.small_epsilon)
+                )
                 ** 2
             )
-            eps_i = eps_i.view(-1, 1, 1)
+            eps_i_coordinates = eps_i_coordinates.view(-1, 1, 1)
 
-            expected_coordinates = axl_i.X + eps_i * s_i + torch.sqrt(2.0 * eps_i) * z
+            expected_coordinates = (
+                axl_i.X
+                + eps_i_coordinates * s_i_coordinates
+                + torch.sqrt(2.0 * eps_i_coordinates) * z_coordinates
+            )
             expected_coordinates = map_relative_coordinates_to_unit_cell(
                 expected_coordinates
             )
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
+
+            # test lattice parameters update
+            s_i_lattice = model_predictions.L / sigma_i
+
+            s_i_lattice_norm = torch.sqrt((s_i_lattice**2).sum(dim=-1))
+            # \epsilon_i = 2 \left(r \frac{||z||_2}{||s(x_i, t_i)||_2}\right)^2
+            eps_i_lattice = (
+                2
+                * (
+                    corrector_r
+                    * z_lattice_norm
+                    / s_i_lattice_norm.clip(min=pc_generator.small_epsilon)
+                )
+                ** 2
+            )
+            eps_i_lattice = eps_i_lattice.view(-1, 1)
+
+            expected_lattice = (
+                axl_i.L
+                + eps_i_lattice * s_i_lattice
+                + torch.sqrt(2.0 * eps_i_lattice) * z_lattice
+            )
+
+            torch.testing.assert_close(computed_sample.L, expected_lattice)
