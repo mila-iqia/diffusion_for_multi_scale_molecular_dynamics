@@ -100,7 +100,7 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         return generator
 
     @pytest.fixture
-    def expected_samples(
+    def all_generated_compositions(
         self,
         generator,
         initial_sample,
@@ -116,6 +116,8 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
             initial_sample, torch.device("cpu")
         )
         composition_ip1 = noisy_sample
+
+        list_compositions = []
         for i in list_i:
             composition_i = map_axl_composition_to_unit_cell(
                 generator.predictor_step(
@@ -137,13 +139,36 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
                     torch.device("cpu"),
                 )
             composition_ip1 = composition_i
-        return composition_i
+            list_compositions.append(composition_i)
+
+        return list_compositions
 
     def test_sample(
-        self, generator, number_of_samples, expected_samples, unit_cell_sample
+        self, generator, number_of_samples, all_generated_compositions, unit_cell_sample
     ):
+
+        expected_samples = all_generated_compositions[-1]
         computed_samples = generator.sample(
             number_of_samples, torch.device("cpu"), unit_cell_sample
         )
 
         torch.testing.assert_close(expected_samples, computed_samples)
+
+    def test_sample_from_noisy_composition(self, generator,
+                                           initial_sample,
+                                           number_of_discretization_steps,
+                                           all_generated_compositions,
+                                           unit_cell_sample):
+
+        starting_noisy_composition = initial_sample
+
+        for idx, starting_step_index in enumerate(range(number_of_discretization_steps, 1, -1)):
+            ending_step_index = starting_step_index - 1
+            generated_sample = generator.sample_from_noisy_composition(starting_noisy_composition,
+                                                                       starting_step_index,
+                                                                       ending_step_index,
+                                                                       unit_cell_sample)
+
+            expected_sample = all_generated_compositions[idx]
+            torch.testing.assert_close(expected_sample, generated_sample)
+            starting_noisy_composition = generated_sample

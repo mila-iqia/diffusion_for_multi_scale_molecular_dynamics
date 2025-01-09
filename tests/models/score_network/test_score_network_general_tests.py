@@ -215,6 +215,7 @@ class TestMLPScoreNetwork(BaseScoreNetworkGeneralTests):
             spatial_dimension=spatial_dimension,
             number_of_atoms=number_of_atoms,
             num_atom_types=num_atom_types,
+            relative_coordinates_embedding_dimensions_size=embedding_dimensions_size,
             noise_embedding_dimensions_size=embedding_dimensions_size,
             time_embedding_dimensions_size=embedding_dimensions_size,
             atom_type_embedding_dimensions_size=embedding_dimensions_size,

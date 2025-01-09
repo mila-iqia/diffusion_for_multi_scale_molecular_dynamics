@@ -7,7 +7,7 @@ this makes the lattice sums manageable.
 
 Optionally, the score network is made permutation invariant by summing on all atomic permutations.
 
-This goal of this module is to investigate and understand the properties of diffusion. It is not
+The goal of this module is to investigate and understand the properties of diffusion. It is not
 meant to generate 'production' results.
 """
 

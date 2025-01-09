@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import AnyStr, Dict
+from typing import Any, AnyStr, Dict
 
 import torch
 from torch import nn
@@ -10,6 +10,8 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
+from diffusion_for_multi_scale_molecular_dynamics.utils.symmetry_utils import \
+    get_all_permutation_indices
 
 
 @dataclass(kw_only=True)
@@ -20,18 +22,26 @@ class MLPScoreNetworkParameters(ScoreNetworkParameters):
     number_of_atoms: int  # the number of atoms in a configuration.
     n_hidden_dimensions: int  # the number of hidden layers.
     hidden_dimensions_size: int  # the dimensions of the hidden layers.
-    noise_embedding_dimensions_size: (
-        int  # the dimension of the embedding of the noise parameter.
-    )
-    time_embedding_dimensions_size: (
-        int  # the dimension of the embedding of the time parameter.
-    )
-    atom_type_embedding_dimensions_size: (
-        int  # the dimension of the embedding of the atom types
-    )
-    condition_embedding_size: int = (
-        64  # dimension of the conditional variable embedding
-    )
+
+    # the dimension of the embedding of the noise parameter.
+    noise_embedding_dimensions_size: int
+
+    # the dimension of the embedding of the relative coordinates
+    relative_coordinates_embedding_dimensions_size: int
+
+    # the dimension of the embedding of the time parameter.
+    time_embedding_dimensions_size: int
+
+    # the dimension of the embedding of the atom types
+    atom_type_embedding_dimensions_size: int
+
+    # dimension of the conditional variable embedding
+    condition_embedding_size: int = 64
+
+    # should the score model consider every coordinate permutations.
+    # Careful! The number of permutations will scale as number_of_atoms!. This will not
+    # scale to large number of atoms.
+    use_permutation_invariance: bool = False
 
 
 class MLPScoreNetwork(ScoreNetwork):
@@ -54,15 +64,28 @@ class MLPScoreNetwork(ScoreNetwork):
         self.num_atom_types = hyper_params.num_atom_types
         self.num_classes = self.num_atom_types + 1  # add 1 for the MASK class
 
+        self.use_permutation_invariance = hyper_params.use_permutation_invariance
+        if self.use_permutation_invariance:
+            # Shape : [number of permutations, number of atoms]
+            self.perm_indices, self.inverse_perm_indices = get_all_permutation_indices(self._natoms)
+
+        # Each relative coordinate will be embedded on the unit circle with (cos, sin), leading to
+        # a doubling of the number of dimensions.
+        flat_relative_coordinates_input_dimension = 2 * self.spatial_dimension * self._natoms
+
         coordinate_output_dimension = self.spatial_dimension * self._natoms
         atom_type_output_dimension = self._natoms * self.num_classes
 
         input_dimension = (
-            coordinate_output_dimension
+            hyper_params.relative_coordinates_embedding_dimensions_size
             + hyper_params.noise_embedding_dimensions_size
             + hyper_params.time_embedding_dimensions_size
             + self._natoms * hyper_params.atom_type_embedding_dimensions_size
         )
+
+        self.relative_coordinates_embedding_layer = nn.Linear(
+            flat_relative_coordinates_input_dimension,
+            hyper_params.relative_coordinates_embedding_dimensions_size)
 
         self.noise_embedding_layer = nn.Linear(
             1, hyper_params.noise_embedding_dimensions_size
@@ -93,7 +116,7 @@ class MLPScoreNetwork(ScoreNetwork):
             self.conditional_layers.append(
                 nn.Linear(hyper_params.condition_embedding_size, output_dimension)
             )
-        self.non_linearity = nn.ReLU()
+        self.non_linearity = nn.SiLU()
 
         # Create a self nn object to be discoverable to be placed on the correct device
         self.output_A_layer = nn.Linear(hyper_params.hidden_dimensions_size, atom_type_output_dimension)
@@ -126,8 +149,76 @@ class MLPScoreNetwork(ScoreNetwork):
         Returns:
             computed_scores : the scores computed by the model in an AXL namedtuple.
         """
-        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        if self.use_permutation_invariance:
+            # An equivariant vectorial score network takes the form
+            #
+            #       s_{sym}(x) = 1/|G| \sum_{g \in G} g^{-1}.s(g.x)
+            #
+            # The atom type predictions need only be invariant since they are scalars.
+            #
+            list_model_outputs = []
+            for permutation, inverse_permutation in zip(self.perm_indices, self.inverse_perm_indices):
+                permuted_batch = self.get_permuted_batch(batch, permutation)
+                model_output = self._forward_unchecked_single_permutation(permuted_batch, conditional)
+                permuted_model_output = AXL(A=model_output.A,
+                                            X=model_output.X[:, inverse_permutation],
+                                            L=model_output.L)
+
+                list_model_outputs.append(permuted_model_output)
+
+            output = AXL(A=torch.stack([output.A for output in list_model_outputs]).mean(dim=0),
+                         X=torch.stack([output.X for output in list_model_outputs]).mean(dim=0),
+                         L=torch.stack([output.L for output in list_model_outputs]).mean(dim=0)
+                         )
+
+        else:
+            output = self._forward_unchecked_single_permutation(batch, conditional)
+
+        return output
+
+    def get_permuted_batch(self, batch, permutation) -> Dict[AnyStr, Any]:
+        """Get permuted batch."""
+        composition = batch[NOISY_AXL_COMPOSITION]
+        new_composition = AXL(A=composition.A[:, permutation],
+                              X=composition.X[:, permutation],
+                              L=composition.L)
+
+        permuted_batch = dict()
+
+        for key in batch.keys():
+            if key == NOISY_AXL_COMPOSITION:
+                permuted_batch[key] = new_composition
+            else:
+                permuted_batch[key] = batch[key]
+
+        return permuted_batch
+
+    def _forward_unchecked_single_permutation(
+        self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False
+    ) -> AXL:
+        """Forward unchecked single permutation.
+
+        compute the model for a given configuration.
+
+        Args:
+            batch : dictionary containing the data to be processed by the model.
+            conditional (optional): if True, do a forward as though the model was conditional on the forces.
+                Defaults to False.
+
+        Returns:
+            computed_scores : the scores computed by the model in an AXL namedtuple.
+        """
         # shape [batch_size, number_of_atoms, spatial_dimension]
+        relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+
+        # Embed each coordinate on the unit circle to ensure periodicity
+        angles = 2.0 * torch.pi * relative_coordinates
+
+        # flatten the dimensions associated with sin/cos, natoms and spatial dimension.
+        relative_coordinates_input = self.flatten(
+            torch.stack([angles.cos(), angles.sin()], dim=1))
+
+        relative_coordinates_embedding = self.relative_coordinates_embedding_layer(relative_coordinates_input)
 
         sigmas = batch[NOISE].to(relative_coordinates.device)  # shape [batch_size, 1]
         noise_embedding = self.noise_embedding_layer(
@@ -149,7 +240,7 @@ class MLPScoreNetwork(ScoreNetwork):
 
         input = torch.cat(
             [
-                self.flatten(relative_coordinates),
+                relative_coordinates_embedding,
                 noise_embedding,
                 time_embedding,
                 self.flatten(atom_type_embedding),

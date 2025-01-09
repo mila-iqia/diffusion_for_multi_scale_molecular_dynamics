@@ -65,6 +65,47 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         Returns:
             samples: AXL samples (atom types, relative coordinates, lattice vectors)
         """
+        starting_noisy_composition = self.initialize(number_of_samples, device)
+
+        composition = self.sample_from_noisy_composition(
+            starting_noisy_composition=starting_noisy_composition,
+            starting_step_index=self.number_of_discretization_steps,
+            ending_step_index=0,
+            unit_cell=unit_cell
+        )
+
+        return composition
+
+    def sample_from_noisy_composition(
+        self, starting_noisy_composition: AXL, starting_step_index: int, ending_step_index: int, unit_cell: torch.Tensor
+    ) -> AXL:
+        """Sample from noisy composition.
+
+        This method draws a sample using the PC sampler algorithm, starting from a given noisy composition.
+        The sampling will start at time index "starting_step_index" and will stop at "ending_step_index" or "0",
+        whichever is largest.
+
+        This method is useful to draw intermediate trajectories
+
+        Args:
+            starting_noisy_composition: an AXL composition, assumed to correspond to the time step described by
+                "starting_step_index".
+            starting_step_index: the time index of the starting time for denoising.
+            ending_step_index: the time index of the final time for denoising.
+            unit_cell: unit cell definition in Angstrom.  # TODO replace with AXL-L
+                Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
+
+        Returns:
+            samples: AXL samples (atom types, relative coordinates, lattice vectors) at the time corresponding to
+                "ending_step_index".
+        """
+        assert starting_step_index > ending_step_index, \
+            "It is nonsensical for starting_step_index to be smaller or equal to ending_step_index."
+
+        assert starting_step_index > 0, "Starting step should be larger than zero."
+        assert ending_step_index >= 0, "ending step should be larger or equal to zero."
+
+        number_of_samples = starting_noisy_composition.X.shape[0]
         assert unit_cell.size() == (
             number_of_samples,
             self.spatial_dimension,
@@ -74,11 +115,15 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
             + f"Got {unit_cell.size()}"
         )  # TODO replace with AXL-L
 
-        composition_ip1 = self.initialize(number_of_samples, device)
+        composition_ip1 = starting_noisy_composition
 
         forces = torch.zeros_like(composition_ip1.X)
 
-        for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
+        for i in tqdm(range(starting_step_index - 1, max(ending_step_index, 0) - 1, -1)):
+            # We begin the loop at i = starting_index - 1 because the first predictor step has index "i + 1",
+            # such that the first predictor step occurs at = starting_step_index, which is the most natural
+            # interpretation of "starting_step_index". The code is more legible with "predictor_step(i+1)" followed
+            # by "corrector_step(i)", which is why we do it this way.
             composition_i = self.predictor_step(
                 composition_ip1, i + 1, unit_cell, forces
             )

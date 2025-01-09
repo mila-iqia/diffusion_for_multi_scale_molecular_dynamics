@@ -39,6 +39,10 @@ from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import \
+    RegularizerParameters
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \
+    create_regularizer
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
@@ -69,6 +73,7 @@ class AXLDiffusionParameters:
     noise_parameters: NoiseParameters
     # convergence parameter for the Ewald-like sum of the perturbation kernel for coordinates.
     kmax_target_score: int = 4
+    regularizer_parameters: Optional[RegularizerParameters] = None
     diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
     oracle_parameters: Optional[OracleParameters] = None
 
@@ -127,6 +132,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.structure_ks_metric = None
         self.energy_ks_metric = None
         self.oracle = None
+        self.regularizer = None
+
+        if hyper_params.regularizer_parameters is not None:
+            self.regularizer = create_regularizer(hyper_params.regularizer_parameters)
 
         self.draw_samples = hyper_params.diffusion_sampling_parameters is not None
         if self.draw_samples:
@@ -386,6 +395,19 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             model_predictions=model_predictions_detached,
             target_coordinates_normalized_conditional_scores=target_coordinates_normalized_conditional_scores,
         )
+
+        if self.regularizer and self.regularizer.can_regularizer_run():
+            # Use the same times and atom types as in the noised composition. Random
+            # relative coordinates will be drawn internally.
+            weighted_regularizer_loss = (
+                self.regularizer.compute_weighted_regularizer_loss(
+                    score_network=self.axl_network,
+                    augmented_batch=augmented_batch,
+                    current_epoch=self.current_epoch))
+
+            output["loss"] += weighted_regularizer_loss
+            output["regularizer_loss"] = weighted_regularizer_loss
+
         output[AXL_COMPOSITION] = original_composition
         output[NOISY_AXL_COMPOSITION] = noisy_composition
         output[TIME] = augmented_batch[TIME]
@@ -430,21 +452,27 @@ class AXLDiffusionLightningModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         """Runs a prediction step for training, returning the loss."""
         output = self._generic_step(batch, batch_idx)
-        loss = output["loss"]
-
         batch_size = self._get_batch_size(batch)
 
-        # The 'train_step_loss' is only logged on_step, meaning it is a value for each batch
-        self.log("train_step_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+        list_losses_to_log = [output["loss"]]
+        list_labels = ["loss"]
 
-        # The 'train_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
-        self.log(
-            "train_epoch_loss",
-            loss,
-            batch_size=batch_size,
-            on_step=False,
-            on_epoch=True,
-        )
+        if "regularizer_loss" in output:
+            list_losses_to_log.append(output["regularizer_loss"])
+            list_labels.append("regularizer_loss")
+
+        for loss, label in zip(list_losses_to_log, list_labels):
+            # The 'train_step_loss' is only logged on_step, meaning it is a value for each batch
+            self.log(f"train_step_{label}", loss, on_step=True, on_epoch=False, prog_bar=True)
+
+            # The 'train_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
+            self.log(
+                f"train_epoch_{label}",
+                loss,
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
 
         for axl_field, axl_name in AXL_NAME_DICT.items():
             self.log(
