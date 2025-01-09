@@ -78,10 +78,9 @@ class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
         number_of_samples,
         number_of_atoms,
         spatial_dimension,
-        unit_cell_sample,
     ):
         # Just a smoke test that we can sample without crashing.
-        sampled_axl = ode_generator.sample(number_of_samples, device, unit_cell_sample)
+        sampled_axl = ode_generator.sample(number_of_samples, device)
 
         assert sampled_axl.X.shape == (
             number_of_samples,
