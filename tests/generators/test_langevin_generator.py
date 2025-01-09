@@ -69,10 +69,8 @@ class TestLangevinGenerator(BaseTestGenerator):
         self,
         number_of_atoms,
         spatial_dimension,
-        cell_dimensions,
         number_of_samples,
         number_of_corrector_steps,
-        unit_cell_size,
         num_atom_types,
         one_atom_type_transition_per_step,
         atom_type_greedy_sampling,
@@ -83,7 +81,6 @@ class TestLangevinGenerator(BaseTestGenerator):
             number_of_corrector_steps=number_of_corrector_steps,
             number_of_atoms=number_of_atoms,
             number_of_samples=number_of_samples,
-            cell_dimensions=cell_dimensions,
             spatial_dimension=spatial_dimension,
             num_atom_types=num_atom_types,
             one_atom_type_transition_per_step=one_atom_type_transition_per_step,
@@ -113,10 +110,10 @@ class TestLangevinGenerator(BaseTestGenerator):
         return generator
 
     def test_smoke_sample(
-        self, pc_generator, device, number_of_samples, unit_cell_sample
+        self, pc_generator, device, number_of_samples,
     ):
         # Just a smoke test that we can sample without crashing.
-        pc_generator.sample(number_of_samples, device, unit_cell_sample)
+        pc_generator.sample(number_of_samples, device)
 
     @pytest.fixture()
     def axl_i(
@@ -134,11 +131,11 @@ class TestLangevinGenerator(BaseTestGenerator):
             X=map_relative_coordinates_to_unit_cell(
                 torch.rand(number_of_samples, number_of_atoms, spatial_dimension)
             ).to(device),
-            L=torch.zeros(
-                number_of_samples, spatial_dimension * (spatial_dimension - 1)
+            L=torch.randn(
+                number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
             ).to(
                 device
-            ),  # TODO placeholder
+            ),
         )
 
     def test_predictor_step_relative_coordinates(
@@ -150,18 +147,17 @@ class TestLangevinGenerator(BaseTestGenerator):
         axl_i,
         total_time_steps,
         number_of_samples,
-        unit_cell_sample,
     ):
         list_sigma = noise.sigma
         list_time = noise.time
         forces = torch.zeros_like(axl_i.X)
 
         z = pc_generator._draw_coordinates_gaussian_sample(number_of_samples).to(axl_i.X)
-        mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
+        mocker.patch.object(pc_generator, "_draw_coordinates_gaussian_sample", return_value=z)
 
         for index_i in range(1, total_time_steps + 1):
             computed_sample = pc_generator.predictor_step(
-                axl_i, index_i, unit_cell_sample, forces
+                axl_i, index_i, forces
             )
 
             sigma_i = list_sigma[index_i - 1]
@@ -175,7 +171,7 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             s_i = (
                 pc_generator._get_model_predictions(
-                    axl_i, t_i, sigma_i, unit_cell_sample, forces
+                    axl_i, t_i, sigma_i, forces
                 ).X
                 / sigma_i
             )
@@ -415,20 +411,16 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_atoms,
         num_atomic_classes,
         spatial_dimension,
-        unit_cell_sample,
         device,
     ):
-        zeros = torch.zeros(number_of_samples, number_of_atoms, spatial_dimension).to(
-            device
-        )
-        forces = zeros
-
         random_x = map_relative_coordinates_to_unit_cell(
             torch.rand(number_of_samples, number_of_atoms, spatial_dimension)
         ).to(device)
 
+        forces = torch.zeros_like(random_x)
+
         random_l = torch.zeros(
-            number_of_samples, spatial_dimension, spatial_dimension
+            number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
         ).to(device)
 
         # Initialize to fully masked
@@ -444,7 +436,7 @@ class TestLangevinGenerator(BaseTestGenerator):
                 number_of_samples, number_of_atoms, num_atomic_classes
             ).to(device)
             logits[:, :, -1] = -torch.inf
-            fake_model_predictions = AXL(A=logits, X=zeros, L=zeros)
+            fake_model_predictions = AXL(A=logits, X=torch.zeros_like(random_x), L=torch.zeros_like(random_l))
             mocker.patch.object(
                 pc_generator,
                 "_get_model_predictions",
@@ -452,7 +444,7 @@ class TestLangevinGenerator(BaseTestGenerator):
             )
 
             axl_i = pc_generator.predictor_step(
-                axl_ip1, idx + 1, unit_cell_sample, forces
+                axl_ip1, idx + 1, forces
             )
 
             this_is_last_time_step = idx == 0
@@ -488,7 +480,6 @@ class TestLangevinGenerator(BaseTestGenerator):
         axl_i,
         total_time_steps,
         number_of_samples,
-        unit_cell_sample,
         num_atomic_classes,
     ):
 
@@ -502,11 +493,11 @@ class TestLangevinGenerator(BaseTestGenerator):
         forces = torch.zeros_like(axl_i.X)
 
         z = pc_generator._draw_coordinates_gaussian_sample(number_of_samples).to(axl_i.X)
-        mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
+        mocker.patch.object(pc_generator, "_draw_coordinates_gaussian_sample", return_value=z)
 
         for index_i in range(0, total_time_steps):
             computed_sample = pc_generator.corrector_step(
-                axl_i, index_i, unit_cell_sample, forces
+                axl_i, index_i, forces
             )
 
             if index_i == 0:
@@ -520,7 +511,7 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             s_i = (
                 pc_generator._get_model_predictions(
-                    axl_i, t_i, sigma_i, unit_cell_sample, forces
+                    axl_i, t_i, sigma_i, forces
                 ).X
                 / sigma_i
             )
