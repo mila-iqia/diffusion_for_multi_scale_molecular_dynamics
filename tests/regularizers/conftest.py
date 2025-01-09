@@ -3,8 +3,8 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    SigmaCalculator
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.sigma_calculator import \
+    ExponentialSigmaCalculator
 from tests.regularizers.differentiable_score_network import (
     DifferentiableScoreNetwork, DifferentiableScoreNetworkParameters)
 
@@ -50,7 +50,7 @@ class BaseTestRegularizer:
 
     @pytest.fixture()
     def sigmas(self, sigma_min, sigma_max, times):
-        return SigmaCalculator(sigma_min=sigma_min, sigma_max=sigma_max).get_sigma(
+        return ExponentialSigmaCalculator(sigma_min=sigma_min, sigma_max=sigma_max).get_sigma(
             times
         )
 

@@ -8,8 +8,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    SigmaCalculator
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.sigma_calculator import \
+    instantiate_sigma_calculator
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import (
     Regularizer, RegularizerParameters)
 
@@ -30,6 +30,7 @@ class FokkerPlanckRegularizerParameters(RegularizerParameters):
     # Define the noise schedule. Should be consistent with the score parameters.
     sigma_min: float
     sigma_max: float
+    schedule_type: str = "exponential"
 
     def __post_init__(self):
         """Verify conditions in post init."""
@@ -54,10 +55,9 @@ class FokkerPlanckRegularizer(Regularizer):
     def __init__(self, regularizer_parameters: FokkerPlanckRegularizerParameters):
         """Init method."""
         super().__init__(regularizer_parameters)
-        self.sigma_calculator = SigmaCalculator(
-            sigma_min=regularizer_parameters.sigma_min,
-            sigma_max=regularizer_parameters.sigma_max,
-        )
+        self.sigma_calculator = instantiate_sigma_calculator(regularizer_parameters.sigma_min,
+                                                             regularizer_parameters.sigma_max,
+                                                             regularizer_parameters.schedule_type)
 
         self.use_hte_approximation = regularizer_parameters.use_hte_approximation
         self.number_of_hte_terms = regularizer_parameters.number_of_hte_terms
