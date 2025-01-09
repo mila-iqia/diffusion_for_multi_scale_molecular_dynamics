@@ -2,6 +2,17 @@ import torch
 from torch import nn
 
 
+def instantiate_sigma_calculator(sigma_min: float, sigma_max: float, schedule_type: str):
+    """Instantiate a sigma calculator bvased on the schedule type."""
+    match schedule_type:
+        case "exponential":
+            return ExponentialSigmaCalculator(sigma_min, sigma_max)
+        case "linear":
+            return LinearSigmaCalculator(sigma_min, sigma_max)
+        case _:
+            raise NotImplementedError(f"The schedule type {schedule_type} is not implemented")
+
+
 class SigmaCalculator(nn.Module):
     """Sigma Calculator Base Class."""
 
