@@ -233,11 +233,35 @@ class E_GCL(nn.Module):
 
         if self.normalize:  # normalize distance vector to be unit vector
             # norm is detached from gradient in the original implementation - not clear why
-            # norm = torch.sqrt(radial).detach() + self.epsilon
-            norm = torch.sqrt(radial) + self.epsilon
-            coord_diff = coord_diff / norm
+            coord_diff = self.normalize_radial_norm(radial) * coord_diff
 
         return radial, coord_diff
+
+    def normalize_radial_norm(self, radial_norm_squared: torch.Tensor) -> torch.Tensor:
+        """Normalize radial distance.
+
+        This method normalizes the distance between two nodes, insuring that the normalized
+        distance vector smoothly goes to zero when the nodes overlap and goes to a unit length when the
+        nodes are far apart. This insures that the model as a whole is smooth.
+
+        Args:
+            radial_norm_squared: the square distance between two nodes.
+
+        Returns:
+            normalized_radial_norm: normalized distance between two nodes.
+        """
+        # This function computes a normalization for a radial distance.
+        # For r the vector radial distance, define
+        #
+        #   norm_r = f(|r|^2) * r
+        #
+        # where f(.) is this function. We have that
+        # - |norm_r| goes to zero like |r|^2 as |r|-> 0
+        # - |norm_r| goes to one  as |r|-> infty
+        #
+        # In effect, this function creates a "hole" around |r| = 0 to insure that there are no
+        # discontinuous jumps in norm_r.
+        return torch.tanh(radial_norm_squared) / torch.sqrt(radial_norm_squared + self.epsilon**2)
 
     def forward(
         self, h: torch.Tensor, edge_index: torch.Tensor, coord: torch.Tensor

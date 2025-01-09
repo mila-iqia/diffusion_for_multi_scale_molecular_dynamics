@@ -57,3 +57,15 @@ class TestEGCL:
         torch.testing.assert_close(
             computed_displacement, simple_pair_coord[1, :].unsqueeze(0)
         )
+
+    def test_normalize_distance(self, egcl):
+
+        zero = torch.tensor(0.)
+        one = torch.tensor(1.)
+        large = torch.tensor(1.0e3)
+
+        torch.testing.assert_close(egcl.normalize_radial_norm(zero), zero)
+
+        large_distance_norm = large * egcl.normalize_radial_norm(large**2)
+
+        torch.testing.assert_close(large_distance_norm, one)
