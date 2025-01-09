@@ -19,6 +19,7 @@ plt.style.use(PLOT_STYLE_PATH)
 
 
 output_file_path = RESULTS_DIR / "mlp_score_no_regularizer.mp4"
+checkpoint_path = glob.glob(str(EXPERIMENTS_DIR / "no_regularizer/**/last_model*.ckpt"), recursive=True)[0]
 
 sigma_min = 0.001
 sigma_max = 0.2
@@ -29,11 +30,6 @@ x0_1 = 0.25
 x0_2 = 0.75
 
 if __name__ == "__main__":
-
-    checkpoint_path = glob.glob(
-        str(EXPERIMENTS_DIR / "no_regularizer/**/last_model*.ckpt"), recursive=True
-    )[0]
-
     checkpoint_name = Path(checkpoint_path).name
     axl_network = get_axl_network(checkpoint_path)
 
