@@ -23,7 +23,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
+    get_coordinates_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
@@ -276,7 +276,7 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
         broadcast_effective_sigmas = (broadcast_sigmas**2 + self.sigma_d_square).sqrt()
 
         delta_relative_coordinates = map_relative_coordinates_to_unit_cell(xt - self.x0)
-        misnormalized_scores = get_sigma_normalized_score(
+        misnormalized_scores = get_coordinates_sigma_normalized_score(
             delta_relative_coordinates, broadcast_effective_sigmas, kmax=self.kmax
         )
 

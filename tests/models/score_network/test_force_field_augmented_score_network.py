@@ -65,6 +65,12 @@ class TestForceFieldAugmentedScoreNetwork(BaseTestScoreNetwork):
         return basis_vectors
 
     @pytest.fixture
+    def lattice_parameters(self, batch_size, spatial_dimension, basis_vectors):
+        lattice_params = torch.zeros(batch_size, int(spatial_dimension * (spatial_dimension + 1) / 2))
+        lattice_params[:, :spatial_dimension] = torch.diagonal(basis_vectors, dim1=-2, dim2=-1)
+        return lattice_params
+
+    @pytest.fixture
     def relative_coordinates(
         self, batch_size, number_of_atoms, spatial_dimension, basis_vectors
     ):
@@ -93,15 +99,16 @@ class TestForceFieldAugmentedScoreNetwork(BaseTestScoreNetwork):
         times,
         noises,
         basis_vectors,
+        lattice_parameters,
     ):
         return {
             NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types,
                 X=relative_coordinates,
-                L=torch.zeros_like(atom_types),  # TODO
+                L=lattice_parameters,
             ),
             TIME: times,
-            UNIT_CELL: basis_vectors,
+            UNIT_CELL: basis_vectors,  # TODO remove this
             NOISE: noises,
             CARTESIAN_FORCES: cartesian_forces,
         }

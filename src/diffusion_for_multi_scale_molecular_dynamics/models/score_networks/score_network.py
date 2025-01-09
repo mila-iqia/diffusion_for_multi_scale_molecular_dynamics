@@ -1,7 +1,7 @@
 r"""Score Network.
 
-This module implements score networks for positions in relative coordinates.
-Relative coordinates are with respect to lattice vectors which define the
+This module implements score networks for positions in relative coordinates, atom types diffusion and lattice parameters
+diffusion. Relative coordinates are with respect to lattice vectors which define the
 periodic unit cell.
 
 The coordinates part of the output aims to calculate
@@ -18,7 +18,7 @@ from typing import AnyStr, Dict, Optional
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 
 
 @dataclass(kw_only=True)
@@ -28,7 +28,9 @@ class ScoreNetworkParameters:
     architecture: str
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
     num_atom_types: int  # number of possible atomic species - not counting the MASK class used in the diffusion
-    conditional_prob: float = 0.0  # probability of making a conditional forward - else, do an unconditional forward
+    conditional_prob: float = (
+        0.0  # probability of making a conditional forward - else, do an unconditional forward
+    )
     conditional_gamma: float = (
         2.0  # conditional score weighting - see eq. B45 in MatterGen
     )
@@ -124,21 +126,17 @@ class ScoreNetwork(torch.nn.Module):
             batch[NOISE].shape == times.shape
         ), "the 'noise' parameter should have the same shape as the 'time'."
 
-        # TODO replace UNIT_CELL with AXL unit cell
+        lattice_parameters = batch[NOISY_AXL_COMPOSITION].L
+        lattice_parameters_shape = lattice_parameters.shape
         assert (
-            UNIT_CELL in batch
-        ), f"The unit cell should be present in the batch dictionary with key '{UNIT_CELL}'"
-
-        unit_cell = batch[UNIT_CELL]
-        unit_cell_shape = unit_cell.shape
-        assert (
-            unit_cell_shape[0] == batch_size
+            lattice_parameters_shape[0] == batch_size
         ), "the batch size dimension is inconsistent between positions and unit cell."
-        assert (
-            len(unit_cell_shape) == 3
-            and unit_cell_shape[1] == self.spatial_dimension
-            and unit_cell_shape[2] == self.spatial_dimension
-        ), "The unit cell is expected to be in a tensor of shape [batch_size, spatial_dimension, spatial_dimension].}"
+        assert len(lattice_parameters_shape) == 2 and lattice_parameters_shape[
+            1
+        ] == int(self.spatial_dimension * (self.spatial_dimension + 1) / 2), (
+            "The lattice parameters are expected to be in a tensor of shape [batch_size, spatial_dimension * "
+            "(spatial_dimension + 1) / 2].}"
+        )
 
         atom_types = batch[NOISY_AXL_COMPOSITION].A
         atom_types_shape = atom_types.shape

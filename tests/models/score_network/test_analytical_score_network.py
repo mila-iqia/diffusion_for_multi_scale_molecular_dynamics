@@ -81,9 +81,11 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
         times = torch.rand(batch_size, 1)
         noises = torch.rand(batch_size, 1)
         unit_cell = torch.rand(batch_size, spatial_dimension, spatial_dimension)
+        lattice_params = torch.zeros(batch_size, int(spatial_dimension * (spatial_dimension + 1) / 2))
+        lattice_params[:, :spatial_dimension] = torch.diagonal(unit_cell, dim1=-2, dim2=-1)
         return {
             NOISY_AXL_COMPOSITION: AXL(
-                A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
+                A=atom_types, X=relative_coordinates, L=lattice_params
             ),
             TIME: times,
             NOISE: noises,
