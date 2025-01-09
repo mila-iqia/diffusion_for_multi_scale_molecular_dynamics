@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from experiments.analysis.analytic_score.score_convergence_analysis import spatial_dimension
 
 
 def get_reciprocal_basis_vectors(basis_vectors: torch.Tensor) -> torch.Tensor:
