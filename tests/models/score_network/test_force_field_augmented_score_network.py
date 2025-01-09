@@ -27,6 +27,7 @@ class TestForceFieldAugmentedScoreNetwork(BaseTestScoreNetwork):
             noise_embedding_dimensions_size=6,
             time_embedding_dimensions_size=6,
             atom_type_embedding_dimensions_size=12,
+            lattice_parameters_embedding_dimensions_size=6,
             n_hidden_dimensions=2,
             hidden_dimensions_size=16,
         )

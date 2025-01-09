@@ -229,6 +229,7 @@ class TestMLPScoreNetwork(BaseScoreNetworkGeneralTests):
             noise_embedding_dimensions_size=embedding_dimensions_size,
             time_embedding_dimensions_size=embedding_dimensions_size,
             atom_type_embedding_dimensions_size=embedding_dimensions_size,
+            lattice_parameters_embedding_dimensions_size=embedding_dimensions_size,
             n_hidden_dimensions=n_hidden_dimensions,
             hidden_dimensions_size=hidden_dimensions_size,
             use_time_dependent_prefactor=use_time_dependent_prefactor

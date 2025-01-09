@@ -118,7 +118,8 @@ class MLPScoreNetwork(ScoreNetwork):
         )
 
         self.lattice_parameters_embedding_layer = nn.Linear(
-            lattice_parameters_output_dimension, hyper_params.lattice_parameters_embedding_dimensions_size
+            lattice_parameters_output_dimension,
+            hyper_params.lattice_parameters_embedding_dimensions_size,
         )
 
         self.condition_embedding_layer = nn.Linear(
@@ -161,11 +162,8 @@ class MLPScoreNetwork(ScoreNetwork):
         self.output_X_layer = nn.Linear(
             hyper_params.hidden_dimensions_size, coordinate_output_dimension
         )
-        self.output_L_layer = nn.Sequential(
-            nn.Linear(
-                hyper_params.hidden_dimensions_size, lattice_parameters_output_dimension
-            ),
-            nn.Tanh()
+        self.output_L_layer = nn.Linear(
+            hyper_params.hidden_dimensions_size, lattice_parameters_output_dimension
         )
         self.output_layers = AXL(
             A=self.output_A_layer, X=self.output_X_layer, L=self.output_L_layer
