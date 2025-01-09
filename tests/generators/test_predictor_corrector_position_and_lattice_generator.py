@@ -44,7 +44,7 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
             X=map_relative_coordinates_to_unit_cell(
                 1.2 * axl_ip1.X + 3.4 + ip1 / 111.0
             ),
-            L=axl_ip1.L,
+            L=1.2 * axl_ip1.L + 3.4 + ip1 / 111.0,
         )
         return updated_axl
 
@@ -54,7 +54,7 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
         updated_axl = AXL(
             A=axl_i.A,
             X=map_relative_coordinates_to_unit_cell(0.56 * axl_i.X + 7.89 + i / 117.0),
-            L=axl_i.L,
+            L=0.56 * axl_i.L + 7.89 + i / 117.0,
         )
         return updated_axl
 
@@ -75,9 +75,9 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
                 0, num_atom_types + 1, (number_of_samples, number_of_atoms)
             ),
             X=torch.rand(number_of_samples, number_of_atoms, spatial_dimension),
-            L=torch.rand(
-                number_of_samples, spatial_dimension * (spatial_dimension - 1)
-            ),  # TODO placeholder
+            L=torch.randn(
+                number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
+            ),
         )
 
     @pytest.fixture
