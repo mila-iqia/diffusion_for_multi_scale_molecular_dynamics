@@ -336,6 +336,7 @@ if __name__ == "__main__":
     score_viewer_parameters = ScoreViewerParameters(
         sigma_min=0.001,
         sigma_max=0.2,
+        schedule_type='linear',
         starting_relative_coordinates=[[0.0], [1.0]],
         ending_relative_coordinates=[[1.0], [0.0]],
     )
