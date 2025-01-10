@@ -13,7 +13,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -21,7 +21,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_schedul
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import (
     Regularizer, RegularizerParameters)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
+    get_coordinates_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
@@ -72,13 +72,12 @@ class ConsistencyRegularizer(Regularizer):
                 AnalyticalScoreNetwork(regularizer_parameters.analytical_score_network_parameters))
 
     def get_augmented_batch_for_fixed_time(
-        self, composition: AXL, unit_cells: torch.Tensor, time: float, sigma: float
+        self, composition: AXL, time: float, sigma: float
     ):
         """Get augmented batch for fixed time.
 
         Args:
             composition: a batch composition
-            unit_cells: a batch of unit cells of correc dimensions.
             time: the time for all elements in the composition
             sigma:  the corresponding value of sigma
 
@@ -97,7 +96,6 @@ class ConsistencyRegularizer(Regularizer):
             NOISY_AXL_COMPOSITION: composition,
             NOISE: sigmas,
             TIME: times,
-            UNIT_CELL: unit_cells,
             CARTESIAN_FORCES: forces,
         }
         return batch
@@ -219,7 +217,7 @@ class ConsistencyRegularizer(Regularizer):
         )
 
         # The output will be sigma_{eff} nabla log K
-        wrongly_normalized_target_scores = get_sigma_normalized_score(
+        wrongly_normalized_target_scores = get_coordinates_sigma_normalized_score(
             delta_relative_coordinates, effective_sigmas, kmax=self.kmax_target_score
         )
 
@@ -277,12 +275,6 @@ class ConsistencyRegularizer(Regularizer):
             self.get_partial_trajectory_start_and_end(start_time, noise)
         )
 
-        unit_cells = einops.repeat(
-            augmented_batch[UNIT_CELL][random_batch_index],
-            "... -> batch ...",
-            batch=batch_size,
-        )
-
         start_composition = self.generate_starting_composition(
             original_noisy_composition, random_batch_index
         )
@@ -293,11 +285,10 @@ class ConsistencyRegularizer(Regularizer):
                 starting_noisy_composition=start_composition,
                 starting_step_index=start_step_index,
                 ending_step_index=end_step_index,
-                unit_cell=unit_cells,
             )
 
         start_batch = self.get_augmented_batch_for_fixed_time(
-            start_composition, unit_cells, start_time, start_sigma
+            start_composition, start_time, start_sigma
         )
         start_normalized_score = score_network(start_batch).X
 

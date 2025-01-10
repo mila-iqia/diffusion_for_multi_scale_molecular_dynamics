@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_schedul
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.consistency_regularizer import (
     ConsistencyRegularizer, ConsistencyRegularizerParameters)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
+    get_coordinates_sigma_normalized_score
 from tests.regularizers.conftest import BaseTestRegularizer
 
 
@@ -36,12 +36,11 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
 
     @pytest.fixture()
     def sampling_parameters(
-        self, num_atom_types, number_of_atoms, batch_size, cell_dimensions
+        self, num_atom_types, number_of_atoms, batch_size
     ):
         return PredictorCorrectorSamplingParameters(
             number_of_corrector_steps=0,
             num_atom_types=num_atom_types,
-            cell_dimensions=list(cell_dimensions.numpy()),
             number_of_atoms=number_of_atoms,
             number_of_samples=batch_size,
         )
@@ -71,13 +70,12 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
     ):
 
         composition = augmented_batch[NOISY_AXL_COMPOSITION]
-        unit_cells = augmented_batch[UNIT_CELL]
         times = augmented_batch[TIME].squeeze(-1)
         sigmas = augmented_batch[NOISE].squeeze(-1)
 
         for time, sigma in zip(times, sigmas):
             new_batch = regularizer.get_augmented_batch_for_fixed_time(
-                composition, unit_cells, time, sigma
+                composition, time, sigma
             )
             torch.testing.assert_close(
                 new_batch[TIME], time * torch.ones(batch_size, 1)
@@ -86,7 +84,7 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
                 new_batch[NOISE], sigma * torch.ones(batch_size, 1)
             )
 
-            for key in [NOISY_AXL_COMPOSITION, UNIT_CELL, CARTESIAN_FORCES]:
+            for key in [NOISY_AXL_COMPOSITION, CARTESIAN_FORCES]:
                 torch.testing.assert_close(new_batch[key], augmented_batch[key])
 
     def test_generate_starting_composition(
@@ -116,7 +114,7 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
         expected_target = (
             start_sigma
             / (sigma_eff)
-            * get_sigma_normalized_score(
+            * get_coordinates_sigma_normalized_score(
                 relative_coordinates,
                 sigma_eff * torch.ones_like(relative_coordinates),
                 kmax=regularizer.kmax_target_score,

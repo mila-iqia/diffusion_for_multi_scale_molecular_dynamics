@@ -64,22 +64,22 @@ class BaseTestRegularizer:
         return acell * torch.ones(spatial_dimension)
 
     @pytest.fixture()
-    def unit_cells(self, batch_size, spatial_dimension, cell_dimensions):
-        unit_cells = torch.diag(cell_dimensions).repeat(batch_size, 1, 1)
-        return unit_cells
+    def lattice_parameters(self, batch_size, spatial_dimension, cell_dimensions):
+        lattice_params = torch.zeros(batch_size, int(spatial_dimension * (spatial_dimension + 1) / 2))
+        lattice_params[:, :spatial_dimension] = cell_dimensions
+        return lattice_params
 
     @pytest.fixture()
     def augmented_batch(
-        self, relative_coordinates, times, sigmas, atom_types, unit_cells
+        self, relative_coordinates, times, sigmas, atom_types, lattice_parameters
     ):
         forces = torch.zeros_like(relative_coordinates)
-        composition = AXL(A=atom_types, X=relative_coordinates, L=unit_cells)
+        composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
 
         batch = {
             NOISY_AXL_COMPOSITION: composition,
             NOISE: sigmas,
             TIME: times,
-            UNIT_CELL: unit_cells,
             CARTESIAN_FORCES: forces,
         }
         return batch
