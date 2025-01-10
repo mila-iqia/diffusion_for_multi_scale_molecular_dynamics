@@ -22,7 +22,6 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
     get_orthogonal_basis_vectors
-from experiments.analysis.analytic_score.utils import get_silicon_supercell
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -336,9 +335,17 @@ if __name__ == "__main__":
 
     cell_dimensions = [5.43, 5.43, 5.43]
 
-    equilibrium = get_silicon_supercell(supercell_factor=1)
-    start = equilibrium.copy()
-    end = equilibrium.copy()
+    equilibrium = torch.tensor([[0.5, 0., 0.],
+                                [0.25, 0.25, 0.75],
+                                [0.5, 0.5, 0.5],
+                                [0.25, 0.75, 0.25],
+                                [0., 0., 0.5],
+                                [0.75, 0.25, 0.25],
+                                [0., 0.5, 0.],
+                                [0.75, 0.75, 0.75]])
+
+    start = equilibrium.clone()
+    end = equilibrium.clone()
     end[1] = equilibrium[0]
     end[0] = equilibrium[1]
 
