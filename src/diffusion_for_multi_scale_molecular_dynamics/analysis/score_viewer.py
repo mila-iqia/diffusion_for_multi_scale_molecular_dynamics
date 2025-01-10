@@ -94,7 +94,7 @@ class ScoreViewer:
 
         # Compute the various references and baselines once and for all, keeping them in memory.
         self.projected_analytical_scores = self._compute_projected_scores(
-            self.analytical_score_network
+            self.analytical_score_network, self.analytical_score_network.device
         )
 
         self.projected_gaussian_scores_dict = (
@@ -156,11 +156,11 @@ class ScoreViewer:
         }
         return batch
 
-    def _compute_projected_scores(self, score_network: ScoreNetwork):
+    def _compute_projected_scores(self, score_network: ScoreNetwork, device: torch.device):
         """Compute projected scores."""
         list_projected_scores = []
         for time, sigma in zip(self.times, self.sigmas):
-            batch = self._get_batch(time, sigma, score_network.device)
+            batch = self._get_batch(time, sigma, device)
 
             sigma_normalized_scores = score_network(batch).X.detach().cpu()
             vectors = einops.rearrange(
@@ -168,7 +168,7 @@ class ScoreViewer:
             )
             projected_sigma_normalized_scores = torch.matmul(
                 vectors, self.direction_vector
-            )
+            ).cpu()
             list_projected_scores.append(projected_sigma_normalized_scores)
 
         return list_projected_scores
@@ -262,13 +262,19 @@ class ScoreViewer:
 
         return list_params
 
-    def create_figure(self, score_network: ScoreNetwork):
+    def create_figure(self, score_network: ScoreNetwork, device=torch.device("cpu")):
         """Create Figure.
 
         Create a matplotlib figure showing the projected normalized scores for the model
         along with various baselines.
         """
-        model_projected_scores = self._compute_projected_scores(score_network)
+        if hasattr(score_network, "device"):
+            consistent_device = score_network.device
+        else:
+            consistent_device = device
+
+        score_network = score_network.to(consistent_device)
+        model_projected_scores = self._compute_projected_scores(score_network, consistent_device)
 
         figsize = (2 * PLEASANT_FIG_SIZE[0], PLEASANT_FIG_SIZE[0])
         fig = plt.figure(figsize=figsize)
@@ -379,7 +385,7 @@ if __name__ == "__main__":
 
     score_network = AnalyticalScoreNetwork(analytical_score_network_parameters)
 
-    fig = score_viewer.create_figure(score_network)
+    fig = score_viewer.create_figure(score_network, device=torch.device("mps"))
     fig.suptitle("Demonstration")
     fig.tight_layout()
 
