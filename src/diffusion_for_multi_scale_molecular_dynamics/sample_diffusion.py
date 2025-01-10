@@ -10,6 +10,7 @@ import socket
 from pathlib import Path
 from typing import Any, AnyStr, Dict, Optional, Union
 
+import orion.client
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
@@ -198,6 +199,7 @@ def create_samples_and_write_to_disk(
     with open(output_directory / "samples.pt", "wb") as fd:
         torch.save(samples_batch, fd)
 
+    sample_energies = None
     if oracle_parameters:
         logger.info("Compute energy from Oracle...")
         oracle = create_energy_oracle(oracle_parameters)
@@ -212,6 +214,19 @@ def create_samples_and_write_to_disk(
         generator.sample_trajectory_recorder.write_to_pickle(
             output_directory / "trajectories.pt"
         )
+
+    # If Orion is on, report something to tell Orion the calculation is done.
+    if orion.client.cli.IS_ORION_ON:
+        if oracle_parameters:
+            logger.info("Reporting largest sample energy to ORION.")
+            results = dict(name='maximum_oracle_energy', type="objective", value=sample_energies.max().item())
+            orion.client.report_results([results])
+        else:
+            logger.info("Reporting dummy results to ORION.")
+            results = dict(name='dummy', type="objective", value=0.0)
+            orion.client.report_results([results])
+
+    logger.info("Done!")
 
 
 if __name__ == "__main__":
