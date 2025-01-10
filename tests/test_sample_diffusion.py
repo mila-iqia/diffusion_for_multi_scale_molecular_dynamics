@@ -8,7 +8,7 @@ from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
-    MSELossParameters
+    create_loss_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
     AXLDiffusionLightningModel, AXLDiffusionParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
@@ -21,6 +21,8 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import \
     AXL_COMPOSITION
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
+    LatticeDataParameters
 
 
 @pytest.fixture()
@@ -41,11 +43,6 @@ def num_atom_types():
 @pytest.fixture()
 def number_of_samples():
     return 12
-
-
-@pytest.fixture()
-def cell_dimensions():
-    return [5.1, 6.2, 7.3]
 
 
 @pytest.fixture(params=[True, False])
@@ -76,7 +73,6 @@ def sampling_parameters(
     number_of_atoms,
     spatial_dimension,
     number_of_samples,
-    cell_dimensions,
     record_samples,
     num_atom_types,
 ):
@@ -85,14 +81,23 @@ def sampling_parameters(
         spatial_dimension=spatial_dimension,
         number_of_atoms=number_of_atoms,
         number_of_samples=number_of_samples,
-        cell_dimensions=cell_dimensions,
         record_samples=record_samples,
         num_atom_types=num_atom_types,
     )
 
 
 @pytest.fixture()
-def axl_network(number_of_atoms, noise_parameters, num_atom_types):
+def lattice_parameters(spatial_dimension):
+    return LatticeDataParameters(spatial_dimension=spatial_dimension)
+
+
+@pytest.fixture()
+def loss_parameters():
+    return create_loss_parameters({})
+
+
+@pytest.fixture()
+def axl_network(number_of_atoms, noise_parameters, num_atom_types, lattice_parameters, loss_parameters):
     score_network_parameters = MLPScoreNetworkParameters(
         number_of_atoms=number_of_atoms,
         num_atom_types=num_atom_types,
@@ -100,16 +105,18 @@ def axl_network(number_of_atoms, noise_parameters, num_atom_types):
         noise_embedding_dimensions_size=8,
         time_embedding_dimensions_size=8,
         atom_type_embedding_dimensions_size=8,
+        lattice_parameters_embedding_dimensions_size=8,
         n_hidden_dimensions=2,
         hidden_dimensions_size=16,
     )
 
     diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,
-        loss_parameters=MSELossParameters(),
+        loss_parameters=loss_parameters,
         optimizer_parameters=OptimizerParameters(name="adam", learning_rate=1e-3),
         scheduler_parameters=None,
         diffusion_sampling_parameters=None,
+        lattice_parameters=lattice_parameters
     )
 
     model = AXLDiffusionLightningModel(diffusion_params)
