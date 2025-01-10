@@ -21,8 +21,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
 
 logger = logging.getLogger(__name__)
-dataset_name = "si_diffusion_2x2x2"
-# dataset_name = 'si_diffusion_1x1x1'
+# dataset_name = "si_diffusion_2x2x2"
+dataset_name = 'si_diffusion_1x1x1'
 
 output_dir = ANALYSIS_RESULTS_DIR / "covariances"
 output_dir.mkdir(exist_ok=True)
@@ -40,7 +40,7 @@ processed_dataset_dir = lammps_run_dir / "processed"
 
 cache_dir = lammps_run_dir / "cache"
 
-data_params = LammpsDataModuleParameters(batch_size=2048, max_atom=max_atom)
+data_params = LammpsDataModuleParameters(batch_size=2048, max_atom=max_atom, elements=['Si'])
 
 if __name__ == "__main__":
     setup_analysis_logger()
