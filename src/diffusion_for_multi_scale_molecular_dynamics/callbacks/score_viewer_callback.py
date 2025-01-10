@@ -62,7 +62,7 @@ class ScoreViewerCallback(Callback):
         if not self._compute_results_at_this_epoch(trainer.current_epoch):
             return
 
-        figure = self.score_viewer.create_figure(score_network=pl_model.axl_network)
+        figure = self.score_viewer.create_figure(score_network=pl_model.axl_network, device=pl_model.device)
         figure.suptitle(f"Epoch {trainer.current_epoch}, Step {trainer.global_step}")
         # Set the DPI so we can actually see something in the logger window.
         figure.set_dpi(100)
