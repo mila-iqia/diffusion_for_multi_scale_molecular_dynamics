@@ -19,7 +19,8 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_processo
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
     NULL_ELEMENT, ElementTypes)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
+    RELATIVE_COORDINATES)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass(kw_only=True)
 class LammpsDataModuleParameters(DataModuleParameters):
     """Hyper-Parameters for a Lammps-based data module."""
+
     data_source: str = "LAMMPS"
 
 
@@ -54,11 +56,13 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         # check_and_log_hp(["batch_size", "num_workers"], hyper_params)  # validate the hyperparameters
         # TODO add the padding parameters for number of atoms
         self.lammps_run_dir = lammps_run_dir
-        assert self.lammps_run_dir is not None, \
-            "The LAMMPS run directory must be specified to use the LAMMPS data source."
+        assert (
+            self.lammps_run_dir is not None
+        ), "The LAMMPS run directory must be specified to use the LAMMPS data source."
         self.processed_dataset_dir = processed_dataset_dir
-        assert self.processed_dataset_dir is not None, \
-            "The LAMMPS processed dataset directory must be specified to use the LAMMPS data source."
+        assert (
+            self.processed_dataset_dir is not None
+        ), "The LAMMPS processed dataset directory must be specified to use the LAMMPS data source."
         self.working_cache_dir = working_cache_dir
         self.num_workers = hyper_params.num_workers
         self.max_atom = hyper_params.max_atom  # number of atoms to pad tensors
@@ -117,6 +121,9 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         )  # size: (batchsize, spatial dimension)
         for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
+
+        transformed_x[LATTICE_PARAMETERS] = torch.as_tensor(x[LATTICE_PARAMETERS])
+        # size: (batchsize, spatial dimension * (spatial dimension + 1) / 2)
 
         element_ids = []
         for row in x["element"]:
