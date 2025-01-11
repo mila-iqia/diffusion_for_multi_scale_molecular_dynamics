@@ -21,7 +21,8 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transfo
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
     NULL_ELEMENT, ElementTypes)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
+    RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 
@@ -136,6 +137,9 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         )  # size: (batchsize, spatial dimension)
         for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
+
+        transformed_x[LATTICE_PARAMETERS] = torch.as_tensor(x[LATTICE_PARAMETERS])
+        # size: (batchsize, spatial dimension * (spatial dimension + 1) / 2)
 
         element_ids = []
         for row in x["element"]:
