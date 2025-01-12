@@ -3,10 +3,9 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import patch  # noqa
 
-from patches.identity_noiser import (AtomTypesIdentityNoiser,
-                                     RelativeCoordinatesIdentityNoiser)
+from patches.identity_noiser import RelativeCoordinatesIdentityNoiser  # noqa
 from patches.lattice_demo_dataloader import LatticeDemoDataModule  # noqa
-from patches.lattice_demo_dataloader import LatticeDemoParameters
+from patches.lattice_demo_dataloader import LatticeDemoParameters  # noqa
 
 from diffusion_for_multi_scale_molecular_dynamics import ROOT_DIR  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import \
@@ -21,7 +20,8 @@ LATTICE_STD = [0.2, 0.3, 0.4]
 NUM_TRAIN_SAMPLES = 102400
 NUM_VALID_SAMPLES = 51200
 
-EXP_PATH = Path("/Users/simonblackburn/projects/courtois2024/experiments/lattice_diffusion_experiments/experiments_with_tanh")
+EXP_PATH = Path("/Users/simonblackburn/projects/courtois2024/experiments/"
+                + "lattice_diffusion_experiments/experiments_with_tanh")
 CONFIG_PATH = str(EXP_PATH / "config_mlp.yaml")
 OUTPUT_PATH = str(EXP_PATH / "output")
 
@@ -61,16 +61,6 @@ if __name__ == "__main__":
         "diffusion_for_multi_scale_molecular_dynamics.models."
         "axl_diffusion_lightning_model.RelativeCoordinatesNoiser"
     )
-
-    # Patch the noiser to never change the atom types.
-    #  target_a_noiser = (
-    #    "diffusion_for_multi_scale_molecular_dynamics.models."
-    #    "axl_diffusion_lightning_model.AtomTypesNoiser"
-    #)
-
-    # Patch the generator to never change the relative coordinates"
-    # TODO
-    # target3 = "diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator.LangevinGenerator"
 
     args = [
         "--accelerator",
