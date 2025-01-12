@@ -281,12 +281,9 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         )
 
         # Mimic perfect predictions of single possible atomic type.
-<<<<<<< HEAD
         atomic_logits = torch.zeros(
             batch_size, self.natoms, self.number_of_atomic_classes
         )
-=======
-        atomic_logits = torch.zeros(batch_size, self.natoms, self.number_of_atomic_classes)
         atomic_logits[..., -1] = -torch.inf
 
         axl_scores = AXL(
@@ -402,7 +399,6 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
 
         # Mimic perfect predictions of single possible atomic type.
         atomic_logits = torch.zeros(batch_size, self.natoms, self.number_of_atomic_classes)
->>>>>>> 9e3e741 (Corrected a minor import issue.)
         atomic_logits[..., -1] = -torch.inf
 
         axl_scores = AXL(

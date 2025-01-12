@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.sigma_calculator import \
     ExponentialSigmaCalculator
 from tests.regularizers.differentiable_score_network import (

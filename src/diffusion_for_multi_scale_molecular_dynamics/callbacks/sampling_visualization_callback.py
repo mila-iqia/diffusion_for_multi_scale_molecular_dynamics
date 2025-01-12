@@ -348,7 +348,6 @@ class SamplingVisualizationCallback(Callback):
         fig.tight_layout()
         return fig
 
-
     @staticmethod
     def _plot_lattice_parameters_histogram(
         sample_parameters: np.ndarray, validation_parameters: np.array, parameter_index: int, epoch: int

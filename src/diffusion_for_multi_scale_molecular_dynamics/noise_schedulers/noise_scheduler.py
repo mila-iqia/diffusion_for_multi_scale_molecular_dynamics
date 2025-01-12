@@ -18,7 +18,6 @@ Noise = namedtuple(
         "g_squared",
         "beta",
         "alpha_bar",
-        "alpha_g_squared",
         "q_matrix",
         "q_bar_matrix",
         "q_bar_tm1_matrix",
@@ -148,12 +147,6 @@ class NoiseScheduler(torch.nn.Module):
             self._create_alpha_bar_array(self._beta_array), requires_grad=False
         )
 
-        self._alpha_g_squared_array = torch.nn.Parameter(
-            self._create_discretized_alpha_g_squared_array(self._sigma_squared_array,
-                                                           noise_parameters.sigma_min,
-                                                           self._alpha_bar_array)
-        )
-
         self._q_matrix_array = torch.nn.Parameter(
             self._create_q_matrix_array(self._beta_array, num_classes),
             requires_grad=False,
@@ -252,18 +245,6 @@ class NoiseScheduler(torch.nn.Module):
         )
         return q_bar_tm1_matrices
 
-    @staticmethod
-    def _create_discretized_alpha_g_squared_array(
-        sigma_squared_array: torch.Tensor, sigma_min: float, alpha_bar_array: torch.Tensor,
-    ) -> torch.Tensor:
-        # alphasigma^2_{i} = (1 - alpha_bar_{i})sigma^2_{i} - (1-alpha_bar_{i})sigma^2_{i-1}.
-        # For the first element (i=1), we set sigma_{0} = sigma_min.
-        zeroth_value_tensor = torch.tensor([(1 - alpha_bar_array[0]) * sigma_squared_array[0]])
-        return torch.cat(
-            [zeroth_value_tensor, (1 - alpha_bar_array[1:]) * sigma_squared_array[1:] -
-             (1 - alpha_bar_array[:-1]) * sigma_squared_array[:-1]]
-        )
-
     def _get_random_time_step_indices(self, shape: Tuple[int]) -> torch.Tensor:
         """Random time step indices.
 
@@ -310,7 +291,6 @@ class NoiseScheduler(torch.nn.Module):
         gs_squared = self._g_squared_array.take(indices)
         betas = self._beta_array.take(indices)
         alpha_bars = self._alpha_bar_array.take(indices)
-        alpha_gs_squared = self._alpha_g_squared_array.take(indices)
         q_matrices = self._q_matrix_array.index_select(dim=0, index=indices)
         q_bar_matrices = self._q_bar_matrix_array.index_select(dim=0, index=indices)
         q_bar_tm1_matrices = self._q_bar_tm1_matrix_array.index_select(
@@ -325,7 +305,6 @@ class NoiseScheduler(torch.nn.Module):
             g_squared=gs_squared,
             beta=betas,
             alpha_bar=alpha_bars,
-            alpha_g_squared=alpha_gs_squared,
             q_matrix=q_matrices,
             q_bar_matrix=q_bar_matrices,
             q_bar_tm1_matrix=q_bar_tm1_matrices,
@@ -351,7 +330,6 @@ class NoiseScheduler(torch.nn.Module):
             g_squared=self._g_squared_array,
             beta=self._beta_array,
             alpha_bar=self._alpha_bar_array,
-            alpha_g_squared=self._alpha_g_squared_array,
             q_matrix=self._q_matrix_array,
             q_bar_matrix=self._q_bar_matrix_array,
             q_bar_tm1_matrix=self._q_bar_tm1_matrix_array,
