@@ -7,6 +7,8 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
+from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
+    instantiate_trajectory_initializer
 from diffusion_for_multi_scale_molecular_dynamics.loss import \
     create_loss_calculator
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
@@ -562,12 +564,17 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         assert (
             self.hyper_params.diffusion_sampling_parameters is not None
         ), "sampling parameters must be provided to create a generator."
-        with torch.no_grad():
+        with ((torch.no_grad())):
             logger.info("Creating Generator for sampling")
+
+            trajectory_initializer = instantiate_trajectory_initializer(
+                self.hyper_params.diffusion_sampling_parameters.sampling_parameters)
+
             self.generator = instantiate_generator(
                 sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
                 noise_parameters=self.hyper_params.diffusion_sampling_parameters.noise_parameters,
                 axl_network=self.axl_network,  # TODO use A and L too
+                trajectory_initializer=trajectory_initializer
             )
             logger.info(f"Generator type : {type(self.generator)}")
 

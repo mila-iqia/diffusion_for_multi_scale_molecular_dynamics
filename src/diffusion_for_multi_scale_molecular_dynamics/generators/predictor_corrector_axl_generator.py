@@ -1,12 +1,16 @@
 import logging
 from abc import abstractmethod
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import (
     AXLGenerator, SamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import (
+    FullRandomTrajectoryInitializer, TrajectoryInitializer,
+    TrajectoryInitializerParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 logger = logging.getLogger(__name__)
@@ -33,6 +37,8 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         number_of_corrector_steps: int,
         spatial_dimension: int,
         num_atom_types: int,
+        number_of_atoms: int,
+        trajectory_initializer: Optional[TrajectoryInitializer] = None,
         **kwargs,
     ):
         """Init method."""
@@ -48,6 +54,20 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         self.number_of_corrector_steps = number_of_corrector_steps
         self.spatial_dimension = spatial_dimension
         self.num_classes = num_atom_types + 1  # account for the MASK class
+
+        if trajectory_initializer is not None:
+            self.trajectory_initializer = trajectory_initializer
+        else:
+            params = TrajectoryInitializerParameters(
+                spatial_dimension=spatial_dimension,
+                num_atom_types=num_atom_types,
+                number_of_atoms=number_of_atoms,
+            )
+            self.trajectory_initializer = FullRandomTrajectoryInitializer(params)
+
+    def initialize(self, number_of_samples: int, device: torch.device) -> AXL:
+        """This method must initialize the samples for sampling trajectory."""
+        return self.trajectory_initializer.initialize(number_of_samples, device)
 
     def sample(
         self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
@@ -67,17 +87,26 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         """
         starting_noisy_composition = self.initialize(number_of_samples, device)
 
+        starting_step_index = self.trajectory_initializer.create_start_time_step_index(
+            self.number_of_discretization_steps
+        )
+        ending_step_index = self.trajectory_initializer.create_end_time_step_index()
+
         composition = self.sample_from_noisy_composition(
             starting_noisy_composition=starting_noisy_composition,
-            starting_step_index=self.number_of_discretization_steps,
-            ending_step_index=0,
-            unit_cell=unit_cell
+            starting_step_index=starting_step_index,
+            ending_step_index=ending_step_index,
+            unit_cell=unit_cell,
         )
 
         return composition
 
     def sample_from_noisy_composition(
-        self, starting_noisy_composition: AXL, starting_step_index: int, ending_step_index: int, unit_cell: torch.Tensor
+        self,
+        starting_noisy_composition: AXL,
+        starting_step_index: int,
+        ending_step_index: int,
+        unit_cell: torch.Tensor,
     ) -> AXL:
         """Sample from noisy composition.
 
@@ -99,8 +128,9 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
             samples: AXL samples (atom types, relative coordinates, lattice vectors) at the time corresponding to
                 "ending_step_index".
         """
-        assert starting_step_index > ending_step_index, \
-            "It is nonsensical for starting_step_index to be smaller or equal to ending_step_index."
+        assert (
+            starting_step_index > ending_step_index
+        ), "It is nonsensical for starting_step_index to be smaller or equal to ending_step_index."
 
         assert starting_step_index > 0, "Starting step should be larger than zero."
         assert ending_step_index >= 0, "ending step should be larger or equal to zero."
@@ -119,7 +149,9 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
 
         forces = torch.zeros_like(composition_ip1.X)
 
-        for i in tqdm(range(starting_step_index - 1, max(ending_step_index, 0) - 1, -1)):
+        for i in tqdm(
+            range(starting_step_index - 1, max(ending_step_index, 0) - 1, -1)
+        ):
             # We begin the loop at i = starting_index - 1 because the first predictor step has index "i + 1",
             # such that the first predictor step occurs at = starting_step_index, which is the most natural
             # interpretation of "starting_step_index". The code is more legible with "predictor_step(i+1)" followed
