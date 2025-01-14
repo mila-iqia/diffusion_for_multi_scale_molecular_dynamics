@@ -18,7 +18,7 @@ from typing import AnyStr, Dict, Optional
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL, CONDITIONAL_TEMPERATURE)
 
 
 @dataclass(kw_only=True)
@@ -157,19 +157,18 @@ class ScoreNetwork(torch.nn.Module):
         ).all(), f"All atom types are expected to be in [0, {self.num_atom_types}]."
 
         if self.conditional_prob > 0:
-            assert CARTESIAN_FORCES in batch, (
-                f"The cartesian forces should be present in "
-                f"the batch dictionary with key '{CARTESIAN_FORCES}'"
+            assert CONDITIONAL_TEMPERATURE in batch, (
+                f"The conditional temperature should be present in "
+                f"the batch dictionary with key '{CONDITIONAL_TEMPERATURE}'"
             )
 
-            cartesian_forces = batch[CARTESIAN_FORCES]
-            cartesian_forces_shape = cartesian_forces.shape
+            conditional_temperature = batch[CONDITIONAL_TEMPERATURE]
+            conditional_temperature_shape = conditional_temperature.shape
             assert (
-                len(cartesian_forces_shape) == 3
-                and cartesian_forces_shape[2] == self.spatial_dimension
+                len(conditional_temperature_shape) == 1
+                and conditional_temperature_shape[0] == batch_size
             ), (
-                "The cartesian forces are expected to be in a tensor of shape [batch_size, number_of_atoms,"
-                f"{self.spatial_dimension}]"
+                "The conditional temperatures are expected to be in a tensor of shape [batch_size],"
             )
 
     def _impose_non_mask_atomic_type_prediction(self, output: AXL):
@@ -201,12 +200,10 @@ class ScoreNetwork(torch.nn.Module):
         if not conditional:
             output = self._forward_unchecked(batch, conditional=False)
         else:
-            # TODO this is not going to work
-            output = self._forward_unchecked(
-                batch, conditional=True
-            ) * self.conditional_gamma + self._forward_unchecked(
-                batch, conditional=False
-            ) * (
+            output = add_axl(
+                self._forward_unchecked(batch, conditional=True),
+                self._forward_unchecked(batch, conditional=False),
+                self.conditional_gamma,
                 1 - self.conditional_gamma
             )
 
@@ -232,3 +229,12 @@ class ScoreNetwork(torch.nn.Module):
             computed_scores : the scores computed by the model.
         """
         raise NotImplementedError
+
+
+def add_axl(axl1: AXL, axl2: AXL, w1: float = 1.0, w2: float = 1.0) -> AXL:
+    # TODO place in utils
+    return AXL(
+        A=w1 * axl1.A + w2 * axl2.A,
+        X=w1 * axl1.X + w2 * axl2.X,
+        L=w1 * axl1.L + w2 * axl2.L
+    )

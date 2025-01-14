@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISE, NOISY_AXL_COMPOSITION, UNIT_CELL)
+    AXL, NOISE, NOISY_AXL_COMPOSITION, UNIT_CELL, CONDITIONAL_TEMPERATURE)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 
@@ -28,6 +28,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     node_hidden_dimensions_size: int = 32
     coordinate_n_hidden_dimensions: int = 1
     coordinate_hidden_dimensions_size: int = 32
+    condition_embedding_size: int = 32
     residual: bool = True
     attention: bool = False
     normalize: bool = False
@@ -96,6 +97,7 @@ class EGNNScoreNetwork(ScoreNetwork):
             node_hidden_dimensions_size=hyper_params.node_hidden_dimensions_size,
             coordinate_n_hidden_dimensions=hyper_params.coordinate_n_hidden_dimensions,
             coordinate_hidden_dimensions_size=hyper_params.coordinate_hidden_dimensions_size,
+            condition_embedding_size=hyper_params.condition_embedding_size,
             residual=hyper_params.residual,
             attention=hyper_params.attention,
             normalize=hyper_params.normalize,
@@ -231,10 +233,13 @@ class EGNNScoreNetwork(ScoreNetwork):
         node_attributes_h = self._get_node_attributes(
             batch, num_atom_types=self.num_atom_types
         )
+        condition_input = batch[CONDITIONAL_TEMPERATURE].to(relative_coordinates).view(-1, 1).repeat(1, number_of_atoms)
+
         # The raw normalized score has dimensions [number_of_nodes, 2 x spatial_dimension]
         # CAREFUL! It is important to pass a clone of the euclidian positions because EGNN will modify its input!
         raw_normalized_score = self.egnn(
-            h=node_attributes_h, edges=edges, x=euclidean_positions.clone()
+            h=node_attributes_h, edges=edges, x=euclidean_positions.clone(), condition_input=condition_input,
+            conditional=conditional
         )
 
         # The projected score is defined a

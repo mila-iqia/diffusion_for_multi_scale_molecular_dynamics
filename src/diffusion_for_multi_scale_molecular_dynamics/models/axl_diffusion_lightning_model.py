@@ -24,7 +24,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, AXL_COMPOSITION, AXL_NAME_DICT, CARTESIAN_FORCES,
     CARTESIAN_POSITIONS, NOISE, NOISY_AXL_COMPOSITION, RELATIVE_COORDINATES,
-    TIME, UNIT_CELL)
+    TIME, UNIT_CELL, CONDITIONAL_TEMPERATURE)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -324,14 +324,14 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             batch["box"]
         )  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
 
-        forces = batch[CARTESIAN_FORCES]
+        conditional_temperature = batch[CONDITIONAL_TEMPERATURE]
 
         augmented_batch = {
             NOISY_AXL_COMPOSITION: noisy_composition,
             TIME: noise_sample.time.reshape(-1, 1),
             NOISE: noise_sample.sigma.reshape(-1, 1),
             UNIT_CELL: unit_cell,  # TODO remove and take from AXL instead
-            CARTESIAN_FORCES: forces,
+            CONDITIONAL_TEMPERATURE: conditional_temperature,
         }
 
         use_conditional = None if no_conditional is False else False

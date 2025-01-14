@@ -45,8 +45,14 @@ def main(args: typing.Optional[typing.Any] = None):
         help="config file with generic hyper-parameters,  such as optimizer, "
         "batch_size, ... -  in yaml format",
     )
-    parser.add_argument("--data",
-                        help="path to a LAMMPS data set. REQUIRED if the data source is 'LAMMPS'.",
+    parser.add_argument("--train_data",
+                        nargs="*",
+                        help="path to a LAMMPS training data set. REQUIRED if the data source is 'LAMMPS'.",
+                        default=None,
+                        required=False)
+    parser.add_argument("--valid_data",
+                        nargs="*",
+                        help="path to a LAMMPS validation data set. Training data dir is used if not specified.",
                         default=None,
                         required=False)
     parser.add_argument(
@@ -224,4 +230,25 @@ if __name__ == "__main__":
     #   https://www.reddit.com/r/pycharm/comments/1gs1lgk/python_debug_server_issues/
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=56636, stdoutToServer=True, stderrToServer=True)
+    """
+    ROOT_DIR = "/Users/simonblackburn/projects/courtois2024/"
+    EXP_DIR = ROOT_DIR + "/experiments/cfg_temperature/conditioned_egnn/"
+    CONFIG = EXP_DIR + "/config.yaml"
+    DATA_DIR1 = ROOT_DIR + "/data/si_diffusion_1x1x1/"
+    DATA_DIR2 = ROOT_DIR  + "/data/Si_diffusion_1000K_1x1x1/"
+    PROCESSED_DATA = EXP_DIR + "/../data_si111/processed/"
+    DATA_WORK_DIR = EXP_DIR + "/../data_si111/tmp_work_dir/"
+    OUTPUT_DIR = EXP_DIR + "/output"
+    args = [
+        "--accelerator", "cpu",
+        "--config", CONFIG,
+        "--train_data", DATA_DIR1, DATA_DIR2,
+        "--valid_data", DATA_DIR2,
+        "--processed_datadir", PROCESSED_DATA,
+        "--dataset_working_dir", DATA_WORK_DIR,
+        "--output", OUTPUT_DIR
+    ]
+
+    main(args)
+    """
     main()

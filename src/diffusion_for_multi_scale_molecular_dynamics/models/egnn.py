@@ -8,7 +8,7 @@ It implements EGNN as described in the paper "E(n) Equivariant Graph Neural Netw
 The file is modified from the original download to fit our own linting style and add additional controls.
 """
 
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import torch
 from torch import nn
@@ -31,6 +31,7 @@ class E_GCL(nn.Module):
         node_hidden_dimensions_size: int,
         coordinate_n_hidden_dimensions: int,
         coordinate_hidden_dimensions_size: int,
+        condition_embedding_size: int,
         act_fn: Callable = nn.SiLU(),
         residual: bool = True,
         attention: bool = False,
@@ -50,6 +51,7 @@ class E_GCL(nn.Module):
             node_hidden_dimensions_size: size of the hidden layers of the node update MLP
             coordinate_n_hidden_dimensions: number of hidden layers of the coordinate update MLP
             coordinate_hidden_dimensions_size: size of the hidden layers of the coordinate update MLP
+            condition_embedding_size: size of the condition embedding
             act_fn: activation function used in the MLPs. Defaults to nn.SiLU()
             residual: if True, add a skip connection in the nodes update. Defaults to True.
             attention: if True, multiply the message output by a gated value of the output. Defaults to False.
@@ -94,16 +96,26 @@ class E_GCL(nn.Module):
         # size (message_hidden_dimension)
         # \phi_h in eq. (6) in https://arxiv.org/pdf/2102.09844
         node_input_size = input_size + message_hidden_dimensions_size
-        self.node_mlp = nn.Sequential(
-            nn.Linear(node_input_size, node_hidden_dimensions_size), act_fn
+        self.node_mlp = nn.ModuleList()
+        self.condition_mlp = nn.ModuleList()
+
+        self.node_mlp.append(
+            nn.Linear(node_input_size, node_hidden_dimensions_size)
         )
+        self.condition_mlp.append(
+            nn.Linear(condition_embedding_size, node_hidden_dimensions_size)
+        )
+
+        self.non_linearity = act_fn
         for _ in range(node_n_hidden_dimensions):
             self.node_mlp.append(
                 nn.Linear(node_hidden_dimensions_size, node_hidden_dimensions_size)
             )
-            self.node_mlp.append(act_fn)
+            self.condition_mlp.append(
+                nn.Linear(condition_embedding_size, node_hidden_dimensions_size)
+            )
         self.node_mlp.append(nn.Linear(node_hidden_dimensions_size, output_size))
-
+        self.condition_mlp.append(nn.Linear(condition_embedding_size, output_size))
         # coordinate (x) update MLP. Input is the message m_{ij}
         # \phi_x in eq.(4) in https://arxiv.org/pdf/2102.09844
 
@@ -111,7 +123,6 @@ class E_GCL(nn.Module):
         self.coord_mlp = nn.Sequential(
             nn.Linear(coordinate_input_size, coordinate_hidden_dimensions_size)
         )
-        self.coord_mlp.append(act_fn)
         for _ in range(coordinate_n_hidden_dimensions):
             self.coord_mlp.append(
                 nn.Linear(
@@ -160,7 +171,8 @@ class E_GCL(nn.Module):
         return out
 
     def node_model(
-        self, x: torch.Tensor, edge_index: torch.Tensor, messages: torch.Tensor
+        self, x: torch.Tensor, edge_index: torch.Tensor, messages: torch.Tensor,
+        condition_input: Optional[torch.tensor], conditional: bool = False,
     ) -> torch.Tensor:
         r"""Update the node features.
 
@@ -172,6 +184,8 @@ class E_GCL(nn.Module):
             x: node features. Size number of nodes, input_size
             edge_index: source and target indices defining the edges. size: number of edges, 2
             messages: messages between nodes. size: number of edges, message_hidden_dimension_size
+            condition_input: conditioning variable. Size: condition_embedding_size
+            conditional: if True, use the conditional variable to modulate the output. Defaults to False.
 
         Returns:
             updated node features. size: number of nodes, output_size
@@ -180,8 +194,15 @@ class E_GCL(nn.Module):
         agg = self.msg_agg_fn(
             messages, row, num_segments=x.size(0)
         )  # sum messages m_i = \sum_j m_{ij}
-        agg = torch.cat([x, agg], dim=1)  # concat h_i and m_i
-        out = self.node_mlp(agg)
+        out = torch.cat([x, agg], dim=1)  # concat h_i and m_i
+        for i, (layer, condition_layer) in enumerate(
+            zip(self.node_mlp, self.condition_mlp)
+        ):
+            if i != 0:
+                out = self.non_linearity(out)
+            out = layer(out)
+            if conditional:
+                out += condition_layer(condition_input).view(-1, out.shape[-1])
         if self.residual:  # optional skip connection
             out = x + out
         return out
@@ -240,7 +261,8 @@ class E_GCL(nn.Module):
         return radial, coord_diff
 
     def forward(
-        self, h: torch.Tensor, edge_index: torch.Tensor, coord: torch.Tensor
+        self, h: torch.Tensor, edge_index: torch.Tensor, coord: torch.Tensor, condition_input: torch.Tensor,
+        conditional: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute node embeddings and coordinates.
 
@@ -248,6 +270,8 @@ class E_GCL(nn.Module):
             h: node features. size: number of nodes, input_size
             edge_index: indices defining the edges. size: number of edges, 2
             coord: node positions. size: number of nodes, spatial dimension
+            condition_input: conditioning input. size: number of node, condition embedding size
+            conditional: if True, use the condition_input to modulate the output at each layer
 
         Returns:
             updated node features. size: number of nodes, output_size
@@ -259,7 +283,7 @@ class E_GCL(nn.Module):
 
         messages = self.message_model(h[row], h[col], radial)  # compute m_{ij}
         coord = self.coord_model(coord, edge_index, coord_diff, messages)  # update x_i
-        h = self.node_model(h, edge_index, messages)  # update h_i
+        h = self.node_model(h, edge_index, messages, condition_input, conditional)  # update h_i
 
         return h, coord
 
@@ -277,6 +301,7 @@ class EGNN(nn.Module):
         node_hidden_dimensions_size: int,
         coordinate_n_hidden_dimensions: int,
         coordinate_hidden_dimensions_size: int,
+        condition_embedding_size: int,
         act_fn: Callable = nn.SiLU(),
         residual: bool = True,
         attention: bool = False,
@@ -297,6 +322,7 @@ class EGNN(nn.Module):
             node_hidden_dimensions_size: size of the hidden layers of the node update MLP
             coordinate_n_hidden_dimensions: number of hidden layers of the coordinate update MLP
             coordinate_hidden_dimensions_size: size of the hidden layers of the coordinate update MLP
+            condition_embedding_size: size of the embedding of the conditioning variable
             act_fn: activation function used in the MLPs. Defaults to nn.SiLU()
             residual: if True, add a skip connection in the nodes update. Defaults to True.
             attention: if True, multiply the message output by a gated value of the output. Defaults to False.
@@ -310,6 +336,7 @@ class EGNN(nn.Module):
         super(EGNN, self).__init__()
         self.n_layers = n_layers
         self.embedding_in = nn.Linear(input_size, node_hidden_dimensions_size)
+        self.condition_embedding_in = nn.Linear(1, condition_embedding_size)
         self.graph_layers = nn.ModuleList([])
         self.node_classification_layer = nn.Linear(
             node_hidden_dimensions_size, num_classes
@@ -325,6 +352,7 @@ class EGNN(nn.Module):
                     node_hidden_dimensions_size=node_hidden_dimensions_size,
                     coordinate_n_hidden_dimensions=coordinate_n_hidden_dimensions,
                     coordinate_hidden_dimensions_size=coordinate_hidden_dimensions_size,
+                    condition_embedding_size=condition_embedding_size,
                     act_fn=act_fn,
                     residual=residual,
                     attention=attention,
@@ -335,13 +363,16 @@ class EGNN(nn.Module):
                 )
             )
 
-    def forward(self, h: torch.Tensor, edges: torch.Tensor, x: torch.Tensor) -> AXL:
+    def forward(self, h: torch.Tensor, edges: torch.Tensor, x: torch.Tensor,
+                condition_input: Optional[torch.Tensor] = None, conditional: bool = False) -> AXL:
         """Forward instructions for the model.
 
         Args:
             h: node features. size is number of nodes (atoms), input size
             edges: source and destination node indices defining the graph edges. size is number of edges, 2
             x: node coordinates. size is number of nodes, spatial dimension
+            condition_input:
+            conditional:
 
         Returns:
             estimated score in an AXL namedtuple.
@@ -350,8 +381,9 @@ class EGNN(nn.Module):
                 lattice: number of nodes, spatial dimension * (spatial dimension - 1) TODO
         """
         h = self.embedding_in(h)
+        condition_input = self.condition_embedding_in(condition_input.unsqueeze(-1))
         for graph_layer in self.graph_layers:
-            h, x = graph_layer(h, edges, x)
+            h, x = graph_layer(h, edges, x, condition_input, conditional)
         node_classification_logits = self.node_classification_layer(h)
         model_outputs = AXL(
             A=node_classification_logits,

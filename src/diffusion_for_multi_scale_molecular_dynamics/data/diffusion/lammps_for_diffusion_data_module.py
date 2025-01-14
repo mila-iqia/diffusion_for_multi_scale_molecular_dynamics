@@ -4,7 +4,7 @@ import logging
 import typing
 from dataclasses import dataclass
 from functools import partial
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Union
 
 import datasets
 import pytorch_lightning as pl
@@ -19,7 +19,7 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_processo
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
     NULL_ELEMENT, ElementTypes)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CONDITIONAL_TEMPERATURE)
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,10 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        lammps_run_dir: str,
+        lammps_run_train_dir: Union[str, List[str]],
         processed_dataset_dir: str,
         hyper_params: LammpsDataModuleParameters,
+        lammps_run_valid_dir: Optional[Union[str, List[str]]] = None,
         working_cache_dir: Optional[str] = None,
     ):
         """Initialize a dataset of LAMMPS structures for training a diffusion model.
@@ -53,9 +54,10 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         super().__init__()
         # check_and_log_hp(["batch_size", "num_workers"], hyper_params)  # validate the hyperparameters
         # TODO add the padding parameters for number of atoms
-        self.lammps_run_dir = lammps_run_dir
-        assert self.lammps_run_dir is not None, \
+        self.lammps_run_train_dir = lammps_run_train_dir
+        assert self.lammps_run_train_dir is not None, \
             "The LAMMPS run directory must be specified to use the LAMMPS data source."
+        self.lammps_run_valid_dir = lammps_run_valid_dir
         self.processed_dataset_dir = processed_dataset_dir
         assert self.processed_dataset_dir is not None, \
             "The LAMMPS processed dataset directory must be specified to use the LAMMPS data source."
@@ -118,6 +120,8 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
 
+        transformed_x[CONDITIONAL_TEMPERATURE] = torch.as_tensor(x[CONDITIONAL_TEMPERATURE])
+
         element_ids = []
         for row in x["element"]:
             element_ids.append(list(map(element_types.get_element_id, row)))
@@ -169,7 +173,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         """Parse and split all samples across the train/valid/test parsers."""
         # here, we will actually assign train/val datasets for use in dataloaders
         processed_data = LammpsProcessorForDiffusion(
-            self.lammps_run_dir, self.processed_dataset_dir
+            self.processed_dataset_dir, self.lammps_run_train_dir, self.lammps_run_valid_dir,
         )
 
         if stage == "fit" or stage is None:

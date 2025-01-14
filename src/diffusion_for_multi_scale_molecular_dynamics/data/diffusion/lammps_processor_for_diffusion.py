@@ -12,7 +12,7 @@ import pandas as pd
 from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import \
     parse_lammps_output
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CONDITIONAL_TEMPERATURE)
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,11 @@ logger = logging.getLogger(__name__)
 class LammpsProcessorForDiffusion:
     """Prepare data from LAMMPS for a diffusion model."""
 
-    def __init__(self, raw_data_dir: str, processed_data_dir: str):
+    def __init__(self,
+                 processed_data_dir: str,
+                 train_raw_data_dir: Union[str, List[str]],
+                 valid_raw_data_dir: Optional[Union[str, List[str]]] = None,
+                 ):
         """Read LAMMPS experiment directory and write a processed version to disk.
 
         Args:
@@ -31,10 +35,12 @@ class LammpsProcessorForDiffusion:
             os.makedirs(processed_data_dir)  # create the dir if it doesn't exist
         self.data_dir = processed_data_dir
         # TODO revisit data splits
-        self.train_files = self.prepare_data(raw_data_dir, mode="train")
-        self.valid_files = self.prepare_data(raw_data_dir, mode="valid")
+        if valid_raw_data_dir is None:  # default behavior - only a single data directory is specified
+            valid_raw_data_dir = train_raw_data_dir
+        self.train_files = self.prepare_data(train_raw_data_dir, mode="train")
+        self.valid_files = self.prepare_data(valid_raw_data_dir, mode="valid")
 
-    def prepare_data(self, raw_data_dir: str, mode: str = "train") -> List[str]:
+    def prepare_data(self, raw_data_dir: Union[str, List[str]], mode: str = "train") -> List[str]:
         """Read data in raw_data_dir and write to a parquet file for Datasets.
 
         Args:
@@ -52,29 +58,32 @@ class LammpsProcessorForDiffusion:
             "valid",
             "test",
         ], f"Mode should be train, valid or test. Got {mode}."
+        if isinstance(raw_data_dir, str):
+            raw_data_dir = [raw_data_dir]
         list_runs = [
-            d
-            for d in os.listdir(raw_data_dir)
-            if os.path.isdir(os.path.join(raw_data_dir, d))
+            (os.path.join(data_dir, d), path_index, d)
+            for path_index, data_dir in enumerate(raw_data_dir)
+            for d in os.listdir(data_dir)
+            if os.path.isdir(os.path.join(data_dir, d))
             and d.startswith(f"{mode}_run")
         ]
         list_files = []
-        for count, d in enumerate(list_runs, 1):
+        for count, (d_path, d_index, d) in enumerate(list_runs, 1):
             logging.info(
                 f"Processing run directory {d} ({count} of {len(list_runs)})..."
             )
-            if f"{d}.parquet" not in os.listdir(self.data_dir):
+            if f"{d}_{d_index}.parquet" not in os.listdir(self.data_dir):
                 logging.info("     * parquet file is absent. Generating...")
-                df = self.parse_lammps_run(os.path.join(raw_data_dir, d))
+                df = self.parse_lammps_run(d_path)
                 if df is not None:
                     logging.info("     * writing parquet file to disk...")
                     df.to_parquet(
-                        os.path.join(self.data_dir, f"{d}.parquet"),
+                        os.path.join(self.data_dir, f"{d}_{d_index}.parquet"),
                         engine="pyarrow",
                         index=False,
                     )
-            if f"{d}.parquet" in os.listdir(self.data_dir):
-                list_files.append(os.path.join(self.data_dir, f"{d}.parquet"))
+            if f"{d}_{d_index}.parquet" in os.listdir(self.data_dir):
+                list_files.append(os.path.join(self.data_dir, f"{d}_{d_index}.parquet"))
         return list_files
 
     @staticmethod
@@ -205,6 +214,10 @@ class LammpsProcessorForDiffusion:
             partial(self._flatten_positions_in_row, keys=["fx", "fy", "fz"]), axis=1
         )
 
+        # TODO handle this in a smarter manner
+        temperature = 1 if "1000K" in run_dir else 0
+        df[CONDITIONAL_TEMPERATURE] = temperature
+
         return df[
             [
                 "natom",
@@ -214,6 +227,7 @@ class LammpsProcessorForDiffusion:
                 CARTESIAN_POSITIONS,
                 RELATIVE_COORDINATES,
                 CARTESIAN_FORCES,
+                CONDITIONAL_TEMPERATURE
             ]
         ]
 

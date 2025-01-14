@@ -9,7 +9,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL, CONDITIONAL_TEMPERATURE)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -149,16 +149,20 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         sigma_noise_tensor = sigma_noise * torch.ones(number_of_samples, 1).to(
             composition.X
         )
+        # TODO
+        conditional_temperature = torch.zeros(number_of_samples).to(composition.X)
+
         augmented_batch = {
             NOISY_AXL_COMPOSITION: composition,
             TIME: time_tensor,
             NOISE: sigma_noise_tensor,
             UNIT_CELL: unit_cell,  # TODO replace with AXL-L
             CARTESIAN_FORCES: cartesian_forces,
+            CONDITIONAL_TEMPERATURE: conditional_temperature,
         }
 
         # TODO do not hard-code conditional to False - need to be able to condition sampling
-        model_predictions = self.axl_network(augmented_batch, conditional=False)
+        model_predictions = self.axl_network(augmented_batch, conditional=True)
         return model_predictions
 
     def _relative_coordinates_update(

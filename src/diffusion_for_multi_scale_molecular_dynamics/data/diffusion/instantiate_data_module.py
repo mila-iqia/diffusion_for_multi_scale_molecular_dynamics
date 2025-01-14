@@ -35,7 +35,8 @@ def load_data_module(hyper_params: Dict[AnyStr, Any], args: argparse.Namespace) 
         case "LAMMPS":
             data_params = LammpsDataModuleParameters(**data_config, elements=hyper_params["elements"])
             data_module = LammpsForDiffusionDataModule(hyper_params=data_params,
-                                                       lammps_run_dir=args.data,
+                                                       lammps_run_train_dir=args.train_data,
+                                                       lammps_run_valid_dir=args.valid_data,
                                                        processed_dataset_dir=args.processed_datadir,
                                                        working_cache_dir=args.dataset_working_dir)
 

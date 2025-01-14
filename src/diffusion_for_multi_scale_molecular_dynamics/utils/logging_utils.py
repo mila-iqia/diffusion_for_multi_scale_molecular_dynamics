@@ -123,8 +123,12 @@ def log_exp_details(script_location, args):
     hostname = socket.gethostname()
     dependencies = freeze.freeze()
     details = f"\nhostname: {hostname}\ngit code hash: {git_hash}"
-    if args.data is not None:
-        details += f"\ndata folder: {args.data}\ndata folder (abs): {os.path.abspath(args.data)}\n\n"
+    if args.train_data is not None:
+        train_data = args.train_data
+        if isinstance(train_data, str):
+            train_data = [train_data]
+        for td in train_data:
+            details += f"\ndata folder: {td}\ndata folder (abs): {os.path.abspath(td)}\n\n"
     else:
         details += "\nNO DATA FOLDER PROVIDED\n\n"
 

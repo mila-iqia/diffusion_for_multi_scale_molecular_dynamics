@@ -7,7 +7,7 @@ from torch import nn
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, CONDITIONAL_TEMPERATURE)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 from diffusion_for_multi_scale_molecular_dynamics.utils.symmetry_utils import \
@@ -100,7 +100,7 @@ class MLPScoreNetwork(ScoreNetwork):
         )
 
         self.condition_embedding_layer = nn.Linear(
-            coordinate_output_dimension, hyper_params.condition_embedding_size
+            1, hyper_params.condition_embedding_size
         )
 
         self.flatten = nn.Flatten()
@@ -248,8 +248,8 @@ class MLPScoreNetwork(ScoreNetwork):
             dim=1,
         )
 
-        forces_input = self.condition_embedding_layer(
-            self.flatten(batch[CARTESIAN_FORCES])
+        condition_input = self.condition_embedding_layer(
+            self.flatten(batch[CONDITIONAL_TEMPERATURE].unsqueeze(-1).float())  # batch, 1
         )
 
         output = input
@@ -260,7 +260,7 @@ class MLPScoreNetwork(ScoreNetwork):
                 output = self.non_linearity(output)
             output = layer(output)
             if conditional:
-                output += condition_layer(forces_input)
+                output += condition_layer(condition_input)
 
         coordinates_output = self.output_layers.X(output).reshape(
             relative_coordinates.shape
