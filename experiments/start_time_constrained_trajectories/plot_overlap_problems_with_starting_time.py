@@ -2,7 +2,6 @@ import glob
 from collections import defaultdict
 from pathlib import Path
 
-import einops
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -10,39 +9,14 @@ from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from diffusion_for_multi_scale_molecular_dynamics.namespace import \
-    AXL_COMPOSITION
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import \
-    get_periodic_adjacency_information
+from experiments.start_time_constrained_trajectories.utils import \
+    get_number_of_samples_with_overlaps
 
 plt.style.use(PLOT_STYLE_PATH)
-
-
-def get_number_of_samples_with_overlaps(samples_pickle, radial_cutoff=1.0):
-    """Get number of samples with overlaps."""
-    data = torch.load(samples_pickle, map_location="cpu")
-    compositions = data[AXL_COMPOSITION]
-    relative_coordinates = compositions.X
-    basis_vectors = compositions.L
-    cartesian_positions = einops.einsum(
-        relative_coordinates,
-        basis_vectors,
-        "batch natoms space1, batch space1 space -> batch natoms space",
-    )
-    adjacency_info = get_periodic_adjacency_information(
-        cartesian_positions, basis_vectors, radial_cutoff=radial_cutoff
-    )
-
-    edge_batch_indices = adjacency_info.edge_batch_indices
-
-    number_of_short_edges = len(edge_batch_indices) // 2
-    number_of_samples_with_overlaps = len(edge_batch_indices.unique())
-    return number_of_samples_with_overlaps, number_of_short_edges
-
 
 schedule_type = "exponential"
 # schedule_type = 'linear'
