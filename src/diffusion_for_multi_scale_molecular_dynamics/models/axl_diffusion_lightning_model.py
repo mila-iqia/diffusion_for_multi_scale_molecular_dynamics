@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -337,9 +338,12 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         }
 
         use_conditional = None if no_conditional is False else False
+        t1 = time.time()
         model_predictions = self.axl_network(
             augmented_batch, conditional=use_conditional
         )
+        t2 = time.time()
+        model_prediction_time = t2 - t1
         # this output is expected to be an AXL object
         # X score network output: an estimate of the sigma normalized score for the coordinates,
         # A score network output: an unnormalized estimate of p(a_0 | a_t) for the atom types
@@ -401,11 +405,17 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.regularizer and self.regularizer.can_regularizer_run():
             # Use the same times and atom types as in the noised composition. Random
             # relative coordinates will be drawn internally.
+            t1 = time.time()
             weighted_regularizer_loss = (
                 self.regularizer.compute_weighted_regularizer_loss(
                     score_network=self.axl_network,
                     augmented_batch=augmented_batch,
                     current_epoch=self.current_epoch))
+
+            t2 = time.time()
+            model_regularization_time = t2 - t1
+            logging.log(f"  - batch {batch_idx} :: Prediction time = {model_prediction_time:2.1e} s, "
+                        f"Regularization time = {model_regularization_time:2.1e} s.")
 
             output["loss"] += weighted_regularizer_loss
             output["regularizer_loss"] = weighted_regularizer_loss
