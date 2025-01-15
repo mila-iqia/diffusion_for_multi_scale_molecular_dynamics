@@ -53,10 +53,6 @@ class AnalyticalScoreNetworkParameters(ScoreNetworkParameters):
 
     def __post_init__(self):
         """Post init."""
-        assert (
-            self.num_atom_types == 1
-        ), "The analytical score network is only appropriate for a single atom type."
-
         assert self.sigma_d > 0.0, "the sigma_d parameter should be positive."
 
         assert len(self.equilibrium_relative_coordinates) == self.number_of_atoms, \
