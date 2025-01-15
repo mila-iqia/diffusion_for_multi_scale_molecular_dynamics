@@ -414,7 +414,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
             t2 = time.time()
             model_regularization_time = t2 - t1
-            logging.log(f"  - batch {batch_idx} :: Prediction time = {model_prediction_time:2.1e} s, "
+            logger.info(f"  - batch {batch_idx} :: Prediction time = {model_prediction_time:2.1e} s, "
                         f"Regularization time = {model_regularization_time:2.1e} s.")
 
             output["loss"] += weighted_regularizer_loss
