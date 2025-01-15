@@ -22,7 +22,7 @@ from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import \
     get_axl_network
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from experiments.two_atoms_in_one_dimension.utils import \
+from experiments.regularization_toy_problem.visualization_utils import \
     get_2d_vector_field_figure
 
 plt.style.use(PLOT_STYLE_PATH)
