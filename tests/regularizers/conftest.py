@@ -41,12 +41,12 @@ class BaseTestRegularizer:
         return 16
 
     @pytest.fixture()
-    def relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension):
-        return torch.rand(batch_size, number_of_atoms, spatial_dimension)
+    def relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension, device):
+        return torch.rand(batch_size, number_of_atoms, spatial_dimension).to(device)
 
     @pytest.fixture()
-    def times(self, batch_size):
-        return torch.rand(batch_size, 1)
+    def times(self, batch_size, device):
+        return torch.rand(batch_size, 1).to(device)
 
     @pytest.fixture()
     def sigmas(self, sigma_min, sigma_max, times):
@@ -55,8 +55,8 @@ class BaseTestRegularizer:
         )
 
     @pytest.fixture()
-    def atom_types(self, batch_size, number_of_atoms):
-        return torch.zeros(batch_size, number_of_atoms, dtype=torch.int64)
+    def atom_types(self, batch_size, number_of_atoms, device):
+        return torch.zeros(batch_size, number_of_atoms, dtype=torch.int64).to(device)
 
     @pytest.fixture()
     def cell_dimensions(self, spatial_dimension):
@@ -64,8 +64,8 @@ class BaseTestRegularizer:
         return acell * torch.ones(spatial_dimension)
 
     @pytest.fixture()
-    def unit_cells(self, batch_size, spatial_dimension, cell_dimensions):
-        unit_cells = torch.diag(cell_dimensions).repeat(batch_size, 1, 1)
+    def unit_cells(self, batch_size, spatial_dimension, cell_dimensions, device):
+        unit_cells = torch.diag(cell_dimensions).repeat(batch_size, 1, 1).to(device)
         return unit_cells
 
     @pytest.fixture()
@@ -98,8 +98,8 @@ class BaseTestRegularizer:
         return score_parameters
 
     @pytest.fixture()
-    def score_network(self, score_parameters):
-        return DifferentiableScoreNetwork(score_parameters)
+    def score_network(self, score_parameters, device):
+        return DifferentiableScoreNetwork(score_parameters, device)
 
     def test_compute_weighted_regularizer_loss(
         self, regularizer, score_network, augmented_batch
