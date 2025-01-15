@@ -103,12 +103,12 @@ class AnalyticalScoreNetwork(ScoreNetwork):
             # Shape : [natom!, natoms, spatial dimension]
             self.all_x0 = self._get_all_equilibrium_permutations(
                 self.equilibrium_relative_coordinates
-            )
+            ).to(self.device)
         else:
             # Shape : [1, natoms, spatial dimension]
             self.all_x0 = einops.rearrange(
                 self.equilibrium_relative_coordinates, "natom d -> 1 natom d"
-            )
+            ).to(self.device)
 
     @staticmethod
     def _get_all_translations(kmax: int) -> torch.Tensor:

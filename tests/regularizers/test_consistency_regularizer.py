@@ -19,6 +19,11 @@ from tests.regularizers.conftest import BaseTestRegularizer
 class TestConsistencyRegularizer(BaseTestRegularizer):
 
     @pytest.fixture()
+    def device(self):
+        # Regularizer currently does not work with device other than CPU. fix if needed.
+        return torch.device('cpu')
+
+    @pytest.fixture()
     def maximum_number_of_steps(self):
         return 5
 
