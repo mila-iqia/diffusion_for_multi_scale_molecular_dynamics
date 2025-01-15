@@ -513,11 +513,15 @@ class TestEquivarianceMaceWithEquivariantScorePredictionHead(BaseTestScoreEquiva
 
 class TestEquivarianceEGNN(BaseTestScoreEquivariance):
 
+    @pytest.fixture(params=[True, False])
+    def normalize(self, request):
+        return request.param
+
     @pytest.fixture(params=[("fully_connected", None), ("radial_cutoff", 3.0)])
-    def score_network_parameters(self, request, num_atom_types):
+    def score_network_parameters(self, request, num_atom_types, normalize):
         edges, radial_cutoff = request.param
         return EGNNScoreNetworkParameters(
-            edges=edges, radial_cutoff=radial_cutoff, num_atom_types=num_atom_types
+            edges=edges, radial_cutoff=radial_cutoff, num_atom_types=num_atom_types, normalize=normalize
         )
 
     @pytest.fixture()

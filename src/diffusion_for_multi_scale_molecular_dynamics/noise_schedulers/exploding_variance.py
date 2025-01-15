@@ -1,42 +1,9 @@
 import torch
-from torch import nn
 
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-
-
-class SigmaCalculator(nn.Module):
-    """Sigma Calculator."""
-
-    def __init__(self, sigma_min: float, sigma_max: float):
-        """Init method."""
-        super().__init__()
-
-        self.sigma_min = torch.nn.Parameter(
-            torch.tensor(sigma_min), requires_grad=False
-        )
-        self.sigma_max = torch.nn.Parameter(
-            torch.tensor(sigma_max), requires_grad=False
-        )
-
-        self.ratio = torch.nn.Parameter(
-            self.sigma_max / self.sigma_min, requires_grad=False
-        )
-        self.log_ratio = torch.nn.Parameter(
-            torch.log(self.sigma_max / self.sigma_min), requires_grad=False
-        )
-
-    def get_sigma(self, times: torch.Tensor) -> torch.Tensor:
-        """Get sigma."""
-        return self.sigma_min * self.ratio**times
-
-    def get_sigma_time_derivative(self, times: torch.Tensor) -> torch.Tensor:
-        """Get sigma time derivative."""
-        return self.log_ratio * self.get_sigma(times)
-
-    def forward(self, times: torch.Tensor) -> torch.Tensor:
-        """Forward method."""
-        return self.get_sigma(times)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.sigma_calculator import \
+    instantiate_sigma_calculator
 
 
 class VarianceScheduler(torch.nn.Module):
@@ -53,9 +20,9 @@ class VarianceScheduler(torch.nn.Module):
             noise_parameters: parameters that define the noise schedule.
         """
         super().__init__()
-
-        self.sigma_calculator = SigmaCalculator(sigma_min=noise_parameters.sigma_min,
-                                                sigma_max=noise_parameters.sigma_max)
+        self.sigma_calculator = instantiate_sigma_calculator(noise_parameters.sigma_min,
+                                                             noise_parameters.sigma_max,
+                                                             noise_parameters.schedule_type)
 
     def get_sigma(self, times: torch.Tensor) -> torch.Tensor:
         """Get sigma.

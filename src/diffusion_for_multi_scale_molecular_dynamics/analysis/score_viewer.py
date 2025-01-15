@@ -1,5 +1,5 @@
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 import einops
@@ -20,6 +20,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
+    get_orthogonal_basis_vectors
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -30,8 +32,10 @@ class ScoreViewerParameters:
 
     sigma_min: float
     sigma_max: float
+    schedule_type: str
 
     number_of_space_steps: int = 100
+    cell_dimensions: List[float] = field(default_factory=lambda: [1.])
 
     # Starting and ending relative coordinates should be of shape [number of atoms, spatial dimension]
     starting_relative_coordinates: List[List[float]]
@@ -56,10 +60,13 @@ class ScoreViewer:
         """Init method."""
         total_time_steps = 8
 
+        self.cell_dimensions = score_viewer_parameters.cell_dimensions
+
         noise_parameters = NoiseParameters(
             total_time_steps=total_time_steps,
             sigma_min=score_viewer_parameters.sigma_min,
             sigma_max=score_viewer_parameters.sigma_max,
+            schedule_type=score_viewer_parameters.schedule_type
         )
 
         self.times = torch.tensor([0.0, 0.1, 0.2, 0.3, 0.4, 0.8, 0.9, 1.0])
@@ -87,7 +94,7 @@ class ScoreViewer:
 
         # Compute the various references and baselines once and for all, keeping them in memory.
         self.projected_analytical_scores = self._compute_projected_scores(
-            self.analytical_score_network
+            self.analytical_score_network, self.analytical_score_network.device
         )
 
         self.projected_gaussian_scores_dict = (
@@ -122,36 +129,38 @@ class ScoreViewer:
         )
         return direction_vector / direction_vector.norm()
 
-    def _get_batch(self, time: float, sigma: float):
+    def _get_batch(self, time: float, sigma: float, device: torch.device):
         """Get batch."""
         batch_size = self.relative_coordinates.shape[0]
 
-        sigmas_t = sigma * torch.ones(batch_size, 1)
-        times = time * torch.ones(batch_size, 1)
-        unit_cell = torch.ones(batch_size, 1, 1)
-        forces = torch.zeros_like(self.relative_coordinates)
-        atom_types = torch.zeros(batch_size, self.natoms, dtype=torch.int64)
+        sigmas_t = (sigma * torch.ones(batch_size, 1)).to(device)
+        times = (time * torch.ones(batch_size, 1)).to(device)
+
+        unit_cells = get_orthogonal_basis_vectors(batch_size, self.cell_dimensions).to(device)
+
+        forces = torch.zeros_like(self.relative_coordinates).to(device)
+        atom_types = torch.zeros(batch_size, self.natoms, dtype=torch.int64).to(device)
 
         composition = AXL(
             A=atom_types,
-            X=self.relative_coordinates,
-            L=torch.zeros_like(self.relative_coordinates),
+            X=self.relative_coordinates.to(device),
+            L=torch.zeros_like(self.relative_coordinates).to(device),
         )
 
         batch = {
             NOISY_AXL_COMPOSITION: composition,
             NOISE: sigmas_t,
             TIME: times,
-            UNIT_CELL: unit_cell,
+            UNIT_CELL: unit_cells,
             CARTESIAN_FORCES: forces,
         }
         return batch
 
-    def _compute_projected_scores(self, score_network: ScoreNetwork):
+    def _compute_projected_scores(self, score_network: ScoreNetwork, device: torch.device):
         """Compute projected scores."""
         list_projected_scores = []
         for time, sigma in zip(self.times, self.sigmas):
-            batch = self._get_batch(time, sigma)
+            batch = self._get_batch(time, sigma, device)
 
             sigma_normalized_scores = score_network(batch).X.detach().cpu()
             vectors = einops.rearrange(
@@ -159,7 +168,7 @@ class ScoreViewer:
             )
             projected_sigma_normalized_scores = torch.matmul(
                 vectors, self.direction_vector
-            )
+            ).cpu()
             list_projected_scores.append(projected_sigma_normalized_scores)
 
         return list_projected_scores
@@ -253,13 +262,19 @@ class ScoreViewer:
 
         return list_params
 
-    def create_figure(self, score_network: ScoreNetwork):
+    def create_figure(self, score_network: ScoreNetwork, device=torch.device("cpu")):
         """Create Figure.
 
         Create a matplotlib figure showing the projected normalized scores for the model
         along with various baselines.
         """
-        model_projected_scores = self._compute_projected_scores(score_network)
+        if hasattr(score_network, "device"):
+            consistent_device = score_network.device
+        else:
+            consistent_device = device
+
+        score_network = score_network.to(consistent_device)
+        model_projected_scores = self._compute_projected_scores(score_network, consistent_device)
 
         figsize = (2 * PLEASANT_FIG_SIZE[0], PLEASANT_FIG_SIZE[0])
         fig = plt.figure(figsize=figsize)
@@ -321,21 +336,47 @@ class ScoreViewer:
 if __name__ == "__main__":
     # A simple demonstration of how the Score Viewer works. We naively use an analytical score network
     # as the external score network, such that the 'model' results will overlap with the analytical score baseline.
+
+    effective_optical_sigma_d = 0.015  # from the highest covariance eigenvalue for Si 1x1x1 dataset.
+
+    cell_dimensions = [5.43, 5.43, 5.43]
+
+    equilibrium = torch.tensor([[0.5, 0., 0.],
+                                [0.25, 0.25, 0.75],
+                                [0.5, 0.5, 0.5],
+                                [0.25, 0.75, 0.25],
+                                [0., 0., 0.5],
+                                [0.75, 0.25, 0.25],
+                                [0., 0.5, 0.],
+                                [0.75, 0.75, 0.75]])
+
+    start = equilibrium.clone()
+    end = equilibrium.clone()
+    end[1] = equilibrium[0]
+    end[0] = equilibrium[1]
+
+    equilibrium_relative_coordinates = list(list(x) for x in equilibrium)
+    starting_relative_coordinates = list(list(x) for x in start)
+    ending_relative_coordinates = list(list(x) for x in end)
+
     analytical_score_network_parameters = AnalyticalScoreNetworkParameters(
-        number_of_atoms=2,
-        spatial_dimension=1,
+        number_of_atoms=8,
+        spatial_dimension=3,
         num_atom_types=1,
         kmax=5,
-        sigma_d=0.01,
-        equilibrium_relative_coordinates=[[0.25], [0.75]],
-        use_permutation_invariance=True,
+        sigma_d=effective_optical_sigma_d,
+        equilibrium_relative_coordinates=equilibrium_relative_coordinates,
+        use_permutation_invariance=False,
     )
 
     score_viewer_parameters = ScoreViewerParameters(
         sigma_min=0.001,
         sigma_max=0.2,
-        starting_relative_coordinates=[[0.0], [1.0]],
-        ending_relative_coordinates=[[1.0], [0.0]],
+        number_of_space_steps=1000,
+        cell_dimensions=cell_dimensions,
+        schedule_type='linear',
+        starting_relative_coordinates=starting_relative_coordinates,
+        ending_relative_coordinates=ending_relative_coordinates,
     )
 
     score_viewer = ScoreViewer(
@@ -344,7 +385,7 @@ if __name__ == "__main__":
 
     score_network = AnalyticalScoreNetwork(analytical_score_network_parameters)
 
-    fig = score_viewer.create_figure(score_network)
+    fig = score_viewer.create_figure(score_network, device=torch.device("mps"))
     fig.suptitle("Demonstration")
     fig.tight_layout()
 
