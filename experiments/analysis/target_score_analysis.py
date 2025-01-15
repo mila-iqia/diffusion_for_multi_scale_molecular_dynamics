@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
-    SIGMA_THRESHOLD, get_sigma_normalized_score,
+    SIGMA_THRESHOLD, get_coordinates_sigma_normalized_score,
     get_sigma_normalized_score_brute_force)
 
 plt.style.use(PLOT_STYLE_PATH)
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         list_scores_brute = np.array(
             [get_sigma_normalized_score_brute_force(u, sigma) for u in list_u]
         )
-        list_scores = get_sigma_normalized_score(
+        list_scores = get_coordinates_sigma_normalized_score(
             relative_positions, sigmas, kmax=kmax
         ).numpy()
         error = list_scores - list_scores_brute
@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
     ms = 8
     for kmax, color in zip([1, 2, 3, 4, 5], ["y", "r", "g", "b", "k"]):
-        list_scores = get_sigma_normalized_score(
+        list_scores = get_coordinates_sigma_normalized_score(
             relative_positions, sigmas, kmax=kmax
         ).numpy()
         ax3.semilogy(

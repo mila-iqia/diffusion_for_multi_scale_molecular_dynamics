@@ -19,8 +19,8 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
     SamplingVisualizationCallback
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_loader import (
-    LammpsForDiffusionDataModule, LammpsLoaderParameters)
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
+    LammpsDataModuleParameters, LammpsForDiffusionDataModule)
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
     get_energy_and_forces_from_lammps
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
@@ -38,7 +38,7 @@ processed_dataset_dir = str(DATA_DIR / dataset_name / "processed")
 
 cache_dir = str(EXPERIMENT_ANALYSIS_DIR / "cache" / dataset_name)
 
-data_params = LammpsLoaderParameters(batch_size=64, max_atom=8)
+data_params = LammpsDataModuleParameters(batch_size=64, max_atom=8)
 
 sample_size = 1000
 

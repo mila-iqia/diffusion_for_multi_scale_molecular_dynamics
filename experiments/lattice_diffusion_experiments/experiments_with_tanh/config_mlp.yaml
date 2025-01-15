@@ -1,0 +1,127 @@
+#================================================================================
+# Configuration file for a diffusion experiment where only atom-types change.
+# ===========================================================================
+# The data is inspired by SiGe 1x1x1.
+# 
+# It is assumed that this config file will be used in a pseudo-experiment
+# where the main code is patched so that only atom types will change.
+#
+#================================================================================
+exp_name: lattice_only_PSEUDO
+run_name: debug
+max_epoch: 1000
+log_every_n_steps: 1
+gradient_clipping: 0.0
+accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
+
+elements: [Fire]
+cell_dimensions: [1.0, 1.0, 1.0]
+
+# set to null to avoid setting a seed (can speed up GPU computation, but
+# results will not be reproducible)
+seed: 1234
+
+# Data: a fake dataloader will recreate the same example over and over.
+data:
+  batch_size: 1024 # batch size for everyone
+  train_batch_size: 1024 # overloaded to mean 'size of training dataset'
+  valid_batch_size: 1024 # overloaded to mean 'size of validation dataset'
+  num_workers: 0
+  max_atom: 1
+
+# architecture
+spatial_dimension: 3
+
+model:
+  loss:
+    coordinates:
+      algorithm: mse
+      lambda_weight: 0.0
+    atom_types:
+      algorithm: d3pm
+      ce_weight: 1.0
+      lambda_weight: 0.0
+    lattice_parameters:
+      algorithm: mse
+      lambda_weight: 1.0
+  score_network:
+    architecture: mlp
+    num_atom_types: 1
+    number_of_atoms: 1
+    n_hidden_dimensions: 3
+    noise_embedding_dimensions_size: 32
+    time_embedding_dimensions_size: 32
+    atom_type_embedding_dimensions_size: 8
+    lattice_parameters_embedding_dimensions_size: 32
+    hidden_dimensions_size: 64
+    conditional_prob: 0.0
+    conditional_gamma: 2
+    condition_embedding_size: 4
+  noise:
+    total_time_steps: 100
+    sigma_min: 0.0001 
+    sigma_max: 0.5
+
+# optimizer and scheduler
+optimizer:
+  name: adamw
+  learning_rate: 0.0001
+  weight_decay: 5.0e-8
+
+
+scheduler:
+  name: CosineAnnealingLR
+  T_max: 1000
+  eta_min: 0.0
+
+# early stopping
+early_stopping:
+  metric: validation_epoch_loss
+  mode: min
+  patience: 1000
+
+model_checkpoint:
+  monitor: validation_epoch_loss
+  mode: min
+
+
+# Sampling from the generative model
+diffusion_sampling:
+  noise:
+    total_time_steps: 100
+    sigma_min: 0.0001
+    sigma_max: 0.5
+    corrector_step_epsilon: 2.0e-7
+  sampling:
+    algorithm: predictor_corrector
+    num_atom_types: 1
+    number_of_atoms: 1
+    sample_batchsize: 128
+    spatial_dimension: 3
+    number_of_corrector_steps: 0
+    one_atom_type_transition_per_step: False
+    atom_type_greedy_sampling: False
+    atom_type_transition_in_corrector: False
+    number_of_samples: 128
+    record_samples: True
+    cell_dimensions:  [1.0, 1.0, 1.0]
+  metrics:
+    compute_energies: False
+    compute_structure_factor: False
+    compute_lattice_parameters: True
+
+sampling_visualization:
+  record_every_n_epochs: 10
+  first_record_epoch: 10
+  record_trajectories: False
+  record_energies: False
+  record_structure: False
+  record_lattice_parameters: True
+
+oracle:
+  name: lammps
+  sw_coeff_filename: SiGe.sw
+
+logging:
+  - tensorboard
+  - comet

@@ -1,7 +1,42 @@
 import torch
+from torch import nn
 
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+
+
+class SigmaCalculator(nn.Module):
+    """Sigma Calculator."""
+
+    def __init__(self, sigma_min: float, sigma_max: float):
+        """Init method."""
+        super().__init__()
+
+        self.sigma_min = torch.nn.Parameter(
+            torch.tensor(sigma_min), requires_grad=False
+        )
+        self.sigma_max = torch.nn.Parameter(
+            torch.tensor(sigma_max), requires_grad=False
+        )
+
+        self.ratio = torch.nn.Parameter(
+            self.sigma_max / self.sigma_min, requires_grad=False
+        )
+        self.log_ratio = torch.nn.Parameter(
+            torch.log(self.sigma_max / self.sigma_min), requires_grad=False
+        )
+
+    def get_sigma(self, times: torch.Tensor) -> torch.Tensor:
+        """Get sigma."""
+        return self.sigma_min * self.ratio**times
+
+    def get_sigma_time_derivative(self, times: torch.Tensor) -> torch.Tensor:
+        """Get sigma time derivative."""
+        return self.log_ratio * self.get_sigma(times)
+
+    def forward(self, times: torch.Tensor) -> torch.Tensor:
+        """Forward method."""
+        return self.get_sigma(times)
 
 
 class VarianceScheduler(torch.nn.Module):
@@ -19,19 +54,8 @@ class VarianceScheduler(torch.nn.Module):
         """
         super().__init__()
 
-        self.sigma_min = torch.nn.Parameter(
-            torch.tensor(noise_parameters.sigma_min), requires_grad=False
-        )
-        self.sigma_max = torch.nn.Parameter(
-            torch.tensor(noise_parameters.sigma_max), requires_grad=False
-        )
-
-        self.ratio = torch.nn.Parameter(
-            self.sigma_max / self.sigma_min, requires_grad=False
-        )
-        self.log_ratio = torch.nn.Parameter(
-            torch.log(self.sigma_max / self.sigma_min), requires_grad=False
-        )
+        self.sigma_calculator = SigmaCalculator(sigma_min=noise_parameters.sigma_min,
+                                                sigma_max=noise_parameters.sigma_max)
 
     def get_sigma(self, times: torch.Tensor) -> torch.Tensor:
         """Get sigma.
@@ -44,7 +68,7 @@ class VarianceScheduler(torch.nn.Module):
         Returns:
             sigmas: the standard deviation in the exploding variance scheme.
         """
-        return self.sigma_min * self.ratio**times
+        return self.sigma_calculator.get_sigma(times)
 
     def get_sigma_time_derivative(self, times: torch.Tensor) -> torch.Tensor:
         """Get sigma time derivative.
@@ -57,7 +81,7 @@ class VarianceScheduler(torch.nn.Module):
         Returns:
             sigma_dot : time derivative of sigma(t).
         """
-        return self.log_ratio * self.get_sigma(times)
+        return self.sigma_calculator.get_sigma_time_derivative(times)
 
     def get_g_squared(self, times: torch.Tensor) -> torch.Tensor:
         """Get g squared.
