@@ -94,7 +94,7 @@ class ScoreViewer:
 
         # Compute the various references and baselines once and for all, keeping them in memory.
         self.projected_analytical_scores = self._compute_projected_scores(
-            self.analytical_score_network, self.analytical_score_network.device
+            self.analytical_score_network, device=torch.device('cpu')
         )
 
         self.projected_gaussian_scores_dict = (
@@ -268,13 +268,7 @@ class ScoreViewer:
         Create a matplotlib figure showing the projected normalized scores for the model
         along with various baselines.
         """
-        if hasattr(score_network, "device"):
-            consistent_device = score_network.device
-        else:
-            consistent_device = device
-
-        score_network = score_network.to(consistent_device)
-        model_projected_scores = self._compute_projected_scores(score_network, consistent_device)
+        model_projected_scores = self._compute_projected_scores(score_network, device)
 
         figsize = (2 * PLEASANT_FIG_SIZE[0], PLEASANT_FIG_SIZE[0])
         fig = plt.figure(figsize=figsize)
