@@ -63,8 +63,8 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
         return noise
 
     @pytest.fixture()
-    def regularizer(self, regularizer_parameters):
-        return ConsistencyRegularizer(regularizer_parameters)
+    def regularizer(self, regularizer_parameters, device):
+        return ConsistencyRegularizer(regularizer_parameters, device=device)
 
     def test_get_augmented_batch_for_fixed_time(
         self, regularizer, augmented_batch, batch_size
