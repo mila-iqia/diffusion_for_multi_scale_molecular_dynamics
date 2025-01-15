@@ -3,9 +3,9 @@ import tempfile
 from pathlib import Path
 
 import einops
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
@@ -22,8 +22,6 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from experiments.two_atoms_in_one_dimension.utils import \
-    get_2d_vector_field_figure
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -169,4 +167,54 @@ def plot_2d_samples(relative_coordinates: torch.Tensor):
     ax.set_ylabel("Atom 2 Relative Coordinate")
     ax.set_xlim(-0.01, 1.01)
     ax.set_ylim(-0.01, 1.01)
+    return fig
+
+
+def get_2d_vector_field_figure(
+    X1: torch.tensor,
+    X2: torch.tensor,
+    probabilities: torch.tensor,
+    sigma_normalized_scores: torch.tensor,
+    time: float,
+    sigma_t: float,
+    sigma_d: float,
+    supsampling_scale: int,
+):
+    """Get 2D vector field figure."""
+    effective_sigma = np.sqrt(sigma_t**2 + sigma_d**2)
+
+    pmin = probabilities.min()
+    pmax = probabilities.max()
+    levels = pmin + (pmax - pmin) * np.array([0.01, 0.1, 0.5, 0.9])
+
+    max_normalized_score_norm = torch.norm(sigma_normalized_scores, dim=-1).max()
+
+    sub_X1 = X1[::supsampling_scale, ::supsampling_scale]
+    sub_X2 = X2[::supsampling_scale, ::supsampling_scale]
+    U = sigma_normalized_scores[::supsampling_scale, ::supsampling_scale, 0]
+    V = sigma_normalized_scores[::supsampling_scale, ::supsampling_scale, 1]
+
+    figsize = (PLEASANT_FIG_SIZE[0], PLEASANT_FIG_SIZE[0])
+    fig = plt.figure(figsize=figsize)
+    fig.suptitle(
+        f"Normalized Score Vector Field at t = {time:3.2f}"
+        r"\n$\sqrt{\sigma_d^2 + \sigma_t^2}$ =" + f"{effective_sigma:5.3f}, "
+        r"$\sigma_t$ = " + f"{sigma_t:5.3f}, "
+        r"MAX[|$\sigma_t {\bf s}_\theta({\bf x}, t)$|] ="
+        + f"{max_normalized_score_norm:5.3f}"
+    )
+
+    ax1 = fig.add_subplot(111)
+    # Basic contour plot
+    CS = ax1.contour(X1, X2, probabilities, levels=levels)
+    ax1.clabel(CS, CS.levels, fontsize=10)
+
+    ax1.spines["top"].set_visible(True)
+    ax1.spines["right"].set_visible(True)
+    _ = ax1.quiver(sub_X1, sub_X2, U, V, units="width", color="r")
+
+    ax1.set_xlabel("Atom 1 Relative Coordinate")
+    ax1.set_ylabel("Atom 2 Relative Coordinate")
+    ax1.set_xlim(-0.01, 1.01)
+    ax1.set_ylim(-0.01, 1.01)
     return fig
