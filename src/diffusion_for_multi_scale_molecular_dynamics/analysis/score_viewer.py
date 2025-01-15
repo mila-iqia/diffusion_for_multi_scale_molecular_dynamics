@@ -379,7 +379,7 @@ if __name__ == "__main__":
 
     score_network = AnalyticalScoreNetwork(analytical_score_network_parameters)
 
-    fig = score_viewer.create_figure(score_network, device=torch.device("mps"))
+    fig = score_viewer.create_figure(score_network, device=torch.device("cpu"))
     fig.suptitle("Demonstration")
     fig.tight_layout()
 
