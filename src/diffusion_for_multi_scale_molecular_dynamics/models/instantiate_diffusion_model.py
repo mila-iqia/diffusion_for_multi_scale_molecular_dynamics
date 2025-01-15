@@ -3,6 +3,8 @@
 import logging
 from typing import Any, AnyStr, Dict
 
+import torch
+
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     create_loss_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (

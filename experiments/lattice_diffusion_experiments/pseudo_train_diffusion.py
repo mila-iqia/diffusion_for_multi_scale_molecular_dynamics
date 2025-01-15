@@ -26,6 +26,7 @@ CONFIG_PATH = str(EXP_PATH / "config_mlp.yaml")
 OUTPUT_PATH = str(EXP_PATH / "output")
 
 
+
 def lattice_dm_wrapper(
     lammps_run_dir: str,
     processed_dataset_dir: str,
@@ -80,6 +81,5 @@ if __name__ == "__main__":
     with (
         patch(target=target_dm, new=lattice_dm_wrapper),
         patch(target=target_x_noiser, new=RelativeCoordinatesIdentityNoiser),
-        # patch(target=target_a_noiser, new=AtomTypesIdentityNoiser),
     ):
         train_diffusion_main(args)

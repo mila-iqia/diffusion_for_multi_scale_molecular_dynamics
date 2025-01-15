@@ -72,6 +72,7 @@ class LatticeDemoDataset(Dataset):
         lattice_parameters = self.generate_lattice_parameters(idx)
         lattice_parameters = self.scale_lattice_parameters(lattice_parameters)
         x[LATTICE_PARAMETERS] = lattice_parameters
+        x[LATTICE_PARAMETERS] = self.generate_lattice_parameters()
         x["potential_energy"] = torch.zeros(1)
         return x
 

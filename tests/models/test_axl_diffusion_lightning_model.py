@@ -172,6 +172,14 @@ class TestPositionDiffusionLightningModel:
         return lattice_params
 
     @pytest.fixture()
+    def lattice_parameters(self, unit_cell_size, spatial_dimension):
+        lattice_params = LatticeDataParameters(
+            inverse_average_density=unit_cell_size**spatial_dimension,
+            spatial_dimension=spatial_dimension,
+        )
+        return lattice_params
+
+    @pytest.fixture()
     def sampling_parameters(
         self,
         number_of_atoms,

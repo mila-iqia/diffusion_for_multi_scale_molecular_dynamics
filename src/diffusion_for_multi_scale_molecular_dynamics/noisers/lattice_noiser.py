@@ -46,7 +46,6 @@ class LatticeNoiser:
 
         We consider the lattice parameters as a tensor with 6, 3, or 1 parameters for 3D, 2D, 1D.
 
-
         Args:
             real_lattice_parameters: lattice parameters from the sampled data. These parameters are not the lattice
                 vector, but an array of dimension [spatial_dimension * (spatial_dimension + 1) / 2] containing the size

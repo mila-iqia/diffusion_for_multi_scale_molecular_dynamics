@@ -333,6 +333,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         sigmas_for_lattice = broadcast_batch_tensor_to_all_dimensions(
             batch_values=noise_sample.sigma, final_shape=lattice_shape
         )  # same values as for X diffusion, but different shape
+
         num_atoms = (
             torch.ones_like(l0) * atom_shape[1]
         )  # TODO should depend on data - not a constant
@@ -418,6 +419,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             )  # averaged over number of atoms and number of classes
         )  # results in a tensor of dimension [batch_size]
 
+
         weighted_loss = torch.mean(aggregated_weighted_loss)
 
         unreduced_loss = AXL(
@@ -496,6 +498,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         noisy_lattice_parameters: torch.Tensor,
         real_lattice_parameters: torch.Tensor,
         sigmas_n: torch.Tensor,
+        alpha_bars: torch.Tensor,
     ) -> torch.Tensor:
         """Get target normalized score for the lattice parameters.
 
@@ -511,15 +514,15 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
             sigmas_n : variance scaled by the number of atoms
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
+            alpha_bars :
+                Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
 
         Returns:
             target normalized score: sigma times target score, ie, sigma times nabla_lt log P_{t|0}(lt| l0).
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
         """
         target_normalized_scores = get_lattice_sigma_normalized_score(
-            noisy_lattice_parameters,
-            real_lattice_parameters,
-            sigmas_n,
+            noisy_lattice_parameters, real_lattice_parameters, sigmas_n, alpha_bars
         )
         return target_normalized_scores
 

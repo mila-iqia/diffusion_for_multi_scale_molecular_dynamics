@@ -15,7 +15,7 @@ gradient_clipping: 0.0
 accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
 
 elements: [Fire]
-cell_dimensions: [1.0, 1.0, 1.0]
+cell_dimensions: [2.0, 3.0, 4.0]
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)

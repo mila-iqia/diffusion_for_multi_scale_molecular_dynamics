@@ -34,4 +34,5 @@ def get_lattice_sigma_normalized_score(
     # gaussian kernel implementation. We do not need a sum over k as the kernel is not periodic. This simplifies to the
     # -x / sigma
     sigma_score = -(noisy_l - real_l) / sigma_n
+
     return sigma_score
