@@ -58,7 +58,7 @@ class TestFokkerPlanckRegularizer(BaseTestRegularizer):
 
     @pytest.fixture()
     def regularizer(self, regularizer_parameters, device):
-        return FokkerPlanckRegularizer(regularizer_parameters, device)
+        return FokkerPlanckRegularizer(regularizer_parameters).to(device)
 
     @pytest.fixture()
     def score_function(self, regularizer, score_network, atom_types, unit_cells):

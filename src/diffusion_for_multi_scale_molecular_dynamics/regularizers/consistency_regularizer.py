@@ -57,7 +57,7 @@ class ConsistencyRegularizer(Regularizer):
     a target normalized score instead of the score itself to provide a more reliable signal.
     """
 
-    def __init__(self, regularizer_parameters: ConsistencyRegularizerParameters, device):
+    def __init__(self, regularizer_parameters: ConsistencyRegularizerParameters):
         """Init method."""
         super().__init__(regularizer_parameters)
         self.noise_parameters = regularizer_parameters.noise_parameters
@@ -69,7 +69,7 @@ class ConsistencyRegularizer(Regularizer):
         self.analytical_score_network = None
         if regularizer_parameters.analytical_score_network_parameters:
             self.analytical_score_network = (
-                AnalyticalScoreNetwork(regularizer_parameters.analytical_score_network_parameters, device=device))
+                AnalyticalScoreNetwork(regularizer_parameters.analytical_score_network_parameters))
 
     def get_augmented_batch_for_fixed_time(
         self, composition: AXL, unit_cells: torch.Tensor, time: float, sigma: float

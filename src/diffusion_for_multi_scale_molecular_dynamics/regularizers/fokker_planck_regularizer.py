@@ -52,7 +52,7 @@ class FokkerPlanckRegularizer(Regularizer):
     Hutchinson trace estimator can optionally be used for the second order space derivative.
     """
 
-    def __init__(self, regularizer_parameters: FokkerPlanckRegularizerParameters, device: torch.device):
+    def __init__(self, regularizer_parameters: FokkerPlanckRegularizerParameters):
         """Init method."""
         super().__init__(regularizer_parameters)
         self.sigma_calculator = instantiate_sigma_calculator(regularizer_parameters.sigma_min,
