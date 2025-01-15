@@ -222,6 +222,6 @@ if __name__ == "__main__":
     # This requires a professional edition of Pycharm and installing the pydevd_pycharm package with pip.
     # The debug server stopped workin in 2024.3. There is a workaround. See:
     #   https://www.reddit.com/r/pycharm/comments/1gs1lgk/python_debug_server_issues/
-    import pydevd_pycharm
-    pydevd_pycharm.settrace('localhost', port=56636, stdoutToServer=True, stderrToServer=True)
+    # import pydevd_pycharm
+    # pydevd_pycharm.settrace('localhost', port=56636, stdoutToServer=True, stderrToServer=True)
     main()
