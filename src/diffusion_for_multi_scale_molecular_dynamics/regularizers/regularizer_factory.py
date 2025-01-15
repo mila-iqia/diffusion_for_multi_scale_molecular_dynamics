@@ -1,7 +1,5 @@
 from typing import Any, AnyStr, Dict
 
-import torch
-
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import \
@@ -30,14 +28,14 @@ REGULARIZER_PARAMETERS_BY_TYPE = dict(
 )
 
 
-def create_regularizer(regularizer_parameters: RegularizerParameters, device: torch.device) -> Regularizer:
+def create_regularizer(regularizer_parameters: RegularizerParameters) -> Regularizer:
     """Create regularizer."""
     type = regularizer_parameters.type
     assert (
         type in REGULARIZERS_BY_TYPE.keys()
     ), f"Regularizer type {type} is not implemented. Possible choices are {REGULARIZERS_BY_TYPE.keys()}"
 
-    regularizer: Regularizer = REGULARIZERS_BY_TYPE[type](regularizer_parameters, device)
+    regularizer: Regularizer = REGULARIZERS_BY_TYPE[type](regularizer_parameters)
 
     return regularizer
 

@@ -137,7 +137,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.regularizer = None
 
         if hyper_params.regularizer_parameters is not None:
-            self.regularizer = create_regularizer(hyper_params.regularizer_parameters, self.device)
+            self.regularizer = create_regularizer(hyper_params.regularizer_parameters)
 
         self.draw_samples = hyper_params.diffusion_sampling_parameters is not None
         if self.draw_samples:
