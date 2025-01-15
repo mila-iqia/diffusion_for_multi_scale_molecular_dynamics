@@ -29,11 +29,11 @@ class AnalyticalRegressionRegularizer(Regularizer):
     by an analytical score network.
     """
 
-    def __init__(self, regularizer_parameters: AnalyticalRegressionRegularizerParameters, device: torch.device):
+    def __init__(self, regularizer_parameters: AnalyticalRegressionRegularizerParameters):
         """Init method."""
         super().__init__(regularizer_parameters)
         self.analytical_score_network = AnalyticalScoreNetwork(
-            regularizer_parameters.analytical_score_network_parameters, device=device
+            regularizer_parameters.analytical_score_network_parameters
         )
 
     def compute_regularizer_loss(self, score_network: ScoreNetwork,

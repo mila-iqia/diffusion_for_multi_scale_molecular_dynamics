@@ -61,4 +61,4 @@ class TestAnalyticalRegressionRegularizer(BaseTestRegularizer):
 
     @pytest.fixture()
     def regularizer(self, regularizer_parameters, device):
-        return AnalyticalRegressionRegularizer(regularizer_parameters, device=device)
+        return AnalyticalRegressionRegularizer(regularizer_parameters).to(device)

@@ -69,7 +69,7 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
 
     @pytest.fixture()
     def regularizer(self, regularizer_parameters, device):
-        return ConsistencyRegularizer(regularizer_parameters, device=device)
+        return ConsistencyRegularizer(regularizer_parameters).to(device)
 
     def test_get_augmented_batch_for_fixed_time(
         self, regularizer, augmented_batch, batch_size

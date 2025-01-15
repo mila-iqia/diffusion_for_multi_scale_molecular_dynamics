@@ -69,7 +69,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
     This 'score network' is for exploring and debugging.
     """
 
-    def __init__(self, hyper_params: AnalyticalScoreNetworkParameters, device=torch.device("cpu")):
+    def __init__(self, hyper_params: AnalyticalScoreNetworkParameters):
         """__init__.
 
         Args:
@@ -90,10 +90,10 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         self.use_permutation_invariance = hyper_params.use_permutation_invariance
 
-        self.device = device
-
         # shape: [number_of_translations]
-        self.translations_k = self._get_all_translations(self.kmax).to(self.device)
+        translations_k = self._get_all_translations(self.kmax)
+        self.translations_k = torch.nn.Parameter(translations_k, requires_grad=False)
+
         self.number_of_translations = len(self.translations_k)
 
         self.equilibrium_relative_coordinates = torch.tensor(hyper_params.equilibrium_relative_coordinates,
@@ -101,14 +101,16 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         if self.use_permutation_invariance:
             # Shape : [natom!, natoms, spatial dimension]
-            self.all_x0 = self._get_all_equilibrium_permutations(
+            all_x0 = self._get_all_equilibrium_permutations(
                 self.equilibrium_relative_coordinates
-            ).to(self.device)
+            )
         else:
             # Shape : [1, natoms, spatial dimension]
-            self.all_x0 = einops.rearrange(
+            all_x0 = einops.rearrange(
                 self.equilibrium_relative_coordinates, "natom d -> 1 natom d"
-            ).to(self.device)
+            )
+
+        self.all_x0 = torch.nn.Parameter(all_x0, requires_grad=False)
 
     @staticmethod
     def _get_all_translations(kmax: int) -> torch.Tensor:
