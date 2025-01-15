@@ -673,3 +673,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
+
+    def on_train_epoch_start(self) -> None:
+        """On train epoch start."""
+        logger.info(f"Starting Training Epoch {self.current_epoch}.")
+
+    def on_train_epoch_end(self) -> None:
+        """On train epoch end."""
+        logger.info(f"Ending Training Epoch {self.current_epoch}.")
