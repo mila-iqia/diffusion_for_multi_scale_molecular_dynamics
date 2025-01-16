@@ -3,7 +3,11 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorAXLGenerator
-from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import (
+    StartFromConstraintTrajectoryInitializer, TrajectoryInitializer,
+    TrajectoryInitializerParameters)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    AXL, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
 from tests.generators.conftest import BaseTestGenerator
@@ -18,20 +22,17 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
         number_of_corrector_steps: int,
         spatial_dimension: int,
         num_atom_types: int,
-        initial_sample: torch.Tensor,
+        number_of_atoms: int,
+        trajectory_initializer: TrajectoryInitializer,
     ):
         super().__init__(
             number_of_discretization_steps,
             number_of_corrector_steps,
             spatial_dimension,
             num_atom_types,
+            number_of_atoms,
+            trajectory_initializer
         )
-        self.initial_sample = initial_sample
-
-    def initialize(
-        self, number_of_samples: int, device: torch.device = torch.device("cpu")
-    ):
-        return self.initial_sample
 
     def predictor_step(
         self,
@@ -81,6 +82,29 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
             ),  # TODO placeholder
         )
 
+    @pytest.fixture()
+    def path_to_constraint_data_pickle(self, initial_sample, number_of_discretization_steps, tmp_path):
+        path = str(tmp_path / "constraint.pickle")
+        data = {NOISY_AXL_COMPOSITION: initial_sample,
+                'start_time_step_index': number_of_discretization_steps}
+
+        torch.save(data, path)
+        return path
+
+    @pytest.fixture()
+    def trajectory_initializer(self,
+                               spatial_dimension,
+                               num_atom_types,
+                               number_of_atoms,
+                               path_to_constraint_data_pickle):
+        params = TrajectoryInitializerParameters(spatial_dimension=spatial_dimension,
+                                                 num_atom_types=num_atom_types,
+                                                 number_of_atoms=number_of_atoms,
+                                                 path_to_constraint_data_pickle=path_to_constraint_data_pickle)
+
+        trajectory_initializer = StartFromConstraintTrajectoryInitializer(params)
+        return trajectory_initializer
+
     @pytest.fixture
     def generator(
         self,
@@ -88,14 +112,16 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         number_of_corrector_steps,
         spatial_dimension,
         num_atom_types,
-        initial_sample,
+        number_of_atoms,
+        trajectory_initializer,
     ):
         generator = FakePCGenerator(
             number_of_discretization_steps,
             number_of_corrector_steps,
             spatial_dimension,
             num_atom_types,
-            initial_sample,
+            number_of_atoms,
+            trajectory_initializer,
         )
         return generator
 

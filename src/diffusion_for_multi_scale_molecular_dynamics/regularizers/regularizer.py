@@ -23,7 +23,7 @@ class RegularizerParameters:
         assert self.regularizer_lambda_weight > 0.0, "The regularizer weight must be positive."
 
 
-class Regularizer:
+class Regularizer(torch.nn.Module):
     """Regularizer.
 
     This is the base class for Regularizers.
@@ -36,6 +36,7 @@ class Regularizer:
 
     def __init__(self, regularizer_parameters: RegularizerParameters):
         """Init method."""
+        super().__init__()
         self.regularizer_parameters = regularizer_parameters
         self.weight = self.regularizer_parameters.regularizer_lambda_weight
         self.number_of_burn_in_epochs = regularizer_parameters.number_of_burn_in_epochs

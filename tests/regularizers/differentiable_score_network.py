@@ -29,17 +29,18 @@ class DifferentiableScoreNetwork(ScoreNetwork):
     A simple score network where it is straightforward to extract the analytical derivatives.
     """
 
-    def __init__(self, hyper_params: DifferentiableScoreNetworkParameters):
+    def __init__(self, hyper_params: DifferentiableScoreNetworkParameters, device: torch.device):
         super().__init__(hyper_params)
 
+        self.device = device
         self.sigma_calculator = ExponentialSigmaCalculator(
             sigma_min=hyper_params.sigma_min, sigma_max=hyper_params.sigma_max
-        )
+        ).to(device)
 
         self.natoms = hyper_params.number_of_atoms
         self.nd = self.natoms * self.spatial_dimension
 
-        self.scrambling_matrix = torch.rand(self.nd, self.nd)
+        self.scrambling_matrix = torch.rand(self.nd, self.nd).to(self.device)
 
     def _get_flat_xyt(self, relative_coordinates: torch.Tensor, times: torch.Tensor):
         x = einops.rearrange(
@@ -168,14 +169,6 @@ class TestDifferentiableScoreNetwork:
     """Yes, testing the test code."""
 
     @pytest.fixture(scope="class", autouse=True)
-    def set_default_type_to_float64(self):
-        torch.set_default_dtype(torch.float64)
-        yield
-        # this returns the default type to float32 at the end of all tests in this class in order
-        # to not affect other tests.
-        torch.set_default_dtype(torch.float32)
-
-    @pytest.fixture(scope="class", autouse=True)
     def set_seed(self):
         """Set the random seed."""
         torch.manual_seed(2342342)
@@ -201,12 +194,12 @@ class TestDifferentiableScoreNetwork:
         return 16
 
     @pytest.fixture()
-    def relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension):
-        return torch.rand(batch_size, number_of_atoms, spatial_dimension)
+    def relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension, device):
+        return torch.rand(batch_size, number_of_atoms, spatial_dimension).to(device)
 
     @pytest.fixture()
-    def times(self, batch_size):
-        return torch.rand(batch_size, 1)
+    def times(self, batch_size, device):
+        return torch.rand(batch_size, 1).to(device)
 
     @pytest.fixture()
     def batch(
@@ -218,12 +211,13 @@ class TestDifferentiableScoreNetwork:
         times,
         sigma_min,
         sigma_max,
+        device
     ):
 
-        atom_types = torch.zeros(batch_size, number_of_atoms, dtype=torch.long)
+        atom_types = torch.zeros(batch_size, number_of_atoms, dtype=torch.long).to(device)
         unit_cells = torch.diag(5 * torch.ones(spatial_dimension)).repeat(
             batch_size, 1, 1
-        )
+        ).to(device)
 
         sigmas_t = ExponentialSigmaCalculator(sigma_min=sigma_min, sigma_max=sigma_max).get_sigma(
             times
@@ -256,8 +250,8 @@ class TestDifferentiableScoreNetwork:
         return score_parameters
 
     @pytest.fixture()
-    def score_network(self, score_parameters):
-        return DifferentiableScoreNetwork(score_parameters)
+    def score_network(self, score_parameters, device):
+        return DifferentiableScoreNetwork(score_parameters, device)
 
     def test_score_network(
         self,

@@ -1,0 +1,11 @@
+# Start time constrained trajectories
+
+
+The goal of this experiment is to explore the behavior of the diffusion sampling scheme
+when starting from an intermediate starting time t < T. We first noise a data sample
+x0 -> xt, insuring that the starting point of the sampling is in distribution. We then
+denoise this starting point xt -> x0' and quantify the quality of the samples as a function
+of the starting point t.
+
+We conduct this experiment in the SiGe 2x2x2 system, which is small enough to allow quick
+prototyping, but large enough to be hard to sample from.

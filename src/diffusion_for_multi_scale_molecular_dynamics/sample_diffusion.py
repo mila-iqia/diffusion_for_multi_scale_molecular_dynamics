@@ -23,6 +23,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator 
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
     load_sampling_parameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
+    instantiate_trajectory_initializer
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
     AXLDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
@@ -60,9 +62,16 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     parser.add_argument(
         "--output", required=True, help="path to outputs - will store files here"
     )
+
+    parser.add_argument(
+        "--path_to_constraint_data_pickle", default=None,
+        help="Path to a pickle that contains reference compositions and starting time index."
+    )
+
     parser.add_argument(
         "--device", default="cuda", help="Device to use. Defaults to cuda."
     )
+
     args = parser.parse_args(args)
     if os.path.exists(args.output):
         logger.info(f"WARNING: the output directory {args.output} already exists!")
@@ -79,16 +88,19 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     script_location = os.path.realpath(__file__)
     git_hash = get_git_hash(script_location)
     hostname = socket.gethostname()
+    device = torch.device(args.device)
     logger.info("Sampling Experiment info:")
     logger.info(f"  Hostname : {hostname}")
     logger.info(f"  Git Hash : {git_hash}")
     logger.info(f"  Checkpoint : {args.checkpoint}")
+    logger.info(f"  Device   : {device}")
+    if args.path_to_constraint_data_pickle:
+        logger.info(f"  Constraint Pickle : {args.path_to_constraint_data_pickle}")
 
     hyper_params = load_and_backup_hyperparameters(
         config_file_path=args.config, output_directory=args.output
     )
 
-    device = torch.device(args.device)
     noise_parameters, sampling_parameters = extract_and_validate_parameters(
         hyper_params
     )
@@ -109,10 +121,15 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
         axl_network = get_axl_network(args.checkpoint)
 
     logger.info("Instantiate generator...")
+    trajectory_initializer = instantiate_trajectory_initializer(
+        sampling_parameters=sampling_parameters,
+        path_to_constraint_data_pickle=args.path_to_constraint_data_pickle)
+
     generator = instantiate_generator(
         sampling_parameters=sampling_parameters,
         noise_parameters=noise_parameters,
         axl_network=axl_network,
+        trajectory_initializer=trajectory_initializer
     )
 
     create_samples_and_write_to_disk(

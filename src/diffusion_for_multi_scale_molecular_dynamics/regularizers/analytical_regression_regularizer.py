@@ -50,9 +50,10 @@ class AnalyticalRegressionRegularizer(Regularizer):
         """
         original_noisy_composition = augmented_batch[NOISY_AXL_COMPOSITION]
         original_relative_coordinates = original_noisy_composition.X
+        device = original_relative_coordinates.device
 
         # sample random relative_coordinates
-        relative_coordinates = torch.rand(*original_relative_coordinates.shape)
+        relative_coordinates = torch.rand(*original_relative_coordinates.shape).to(device)
 
         # Create the corresponding modified batch
         modified_noisy_composition = AXL(A=original_noisy_composition.A,

@@ -6,6 +6,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator 
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
+    TrajectoryInitializer
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
@@ -26,12 +28,14 @@ class AdaptiveCorrectorGenerator(LangevinGenerator):
         noise_parameters: NoiseParameters,
         sampling_parameters: PredictorCorrectorSamplingParameters,
         axl_network: ScoreNetwork,
+        trajectory_initializer: Optional[TrajectoryInitializer] = None,
     ):
         """Init method."""
         super().__init__(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
             axl_network=axl_network,
+            trajectory_initializer=trajectory_initializer,
         )
         self.corrector_r = noise_parameters.corrector_r
 

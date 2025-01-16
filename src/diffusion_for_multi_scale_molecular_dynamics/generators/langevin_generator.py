@@ -1,11 +1,13 @@
 import dataclasses
-from typing import Tuple
+from typing import Optional, Tuple
 
 import einops
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import (
     PredictorCorrectorAXLGenerator, PredictorCorrectorSamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
+    TrajectoryInitializer
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
@@ -35,6 +37,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         noise_parameters: NoiseParameters,
         sampling_parameters: PredictorCorrectorSamplingParameters,
         axl_network: ScoreNetwork,
+        trajectory_initializer: Optional[TrajectoryInitializer] = None,
     ):
         """Init method."""
         super().__init__(
@@ -42,7 +45,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             number_of_corrector_steps=sampling_parameters.number_of_corrector_steps,
             spatial_dimension=sampling_parameters.spatial_dimension,
             num_atom_types=sampling_parameters.num_atom_types,
+            number_of_atoms=sampling_parameters.number_of_atoms,
+            trajectory_initializer=trajectory_initializer,
         )
+
         self.noise_parameters = noise_parameters
         sampler = NoiseScheduler(noise_parameters, num_classes=self.num_classes)
         self.noise, self.langevin_dynamics = sampler.get_all_sampling_parameters()
@@ -77,25 +83,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             self.sample_trajectory_recorder.record(
                 key="sampling_parameters", entry=dataclasses.asdict(sampling_parameters)
             )
-
-    def initialize(
-        self, number_of_samples: int, device: torch.device = torch.device("cpu")
-    ):
-        """This method must initialize the samples from the fully noised distribution."""
-        # all atoms are initialized as masked
-        atom_types = (
-            torch.ones(number_of_samples, self.number_of_atoms).long().to(device)
-            * self.masked_atom_type_index
-        )
-        # relative coordinates are sampled from the uniform distribution
-        relative_coordinates = torch.rand(
-            number_of_samples, self.number_of_atoms, self.spatial_dimension
-        ).to(device)
-        lattice_vectors = torch.zeros_like(relative_coordinates).to(
-            device
-        )  # TODO placeholder
-        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
-        return init_composition
 
     def _draw_gaussian_sample(self, number_of_samples):
         return torch.randn(
@@ -521,7 +508,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         if this_is_last_time_step:
-            assert (a_im1 != self.masked_atom_type_index).all(), \
+            assert (
+                a_im1 != self.masked_atom_type_index
+            ).all(), \
                 "There remains MASKED atoms at the last time step: review code, there must be a bug or invalid input."
 
         # draw a gaussian noise sample and update the positions accordingly
