@@ -2,6 +2,7 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Union
 
+import schedulefree
 import torch
 from torch import optim
 
@@ -20,8 +21,10 @@ class OptimizerParameters:
     weight_decay: float = 0.0
 
 
-OPTIMIZERS_BY_NAME = {'adam': optim.Adam, 'adamw': optim.AdamW, 'None': optim.Adam}
-OPTIMIZER_PARAMETERS_BY_NAME = {'adam': OptimizerParameters, 'adamw': OptimizerParameters, 'None': OptimizerParameters}
+OPTIMIZERS_BY_NAME = {'adam': optim.Adam, 'adamw': optim.AdamW, 'None': optim.Adam,
+                      'sfadamw': schedulefree.AdamWScheduleFree}
+OPTIMIZER_PARAMETERS_BY_NAME = {'adam': OptimizerParameters, 'adamw': OptimizerParameters, 'None': OptimizerParameters,
+                                'sfadamw': OptimizerParameters}
 
 
 def check_if_optimizer_is_none(optimizer_parameters: Union[OptimizerParameters, None]) -> bool:

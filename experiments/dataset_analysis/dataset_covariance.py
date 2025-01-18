@@ -23,15 +23,16 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
 logger = logging.getLogger(__name__)
 # dataset_name = "si_diffusion_2x2x2"
 dataset_name = 'si_diffusion_1x1x1'
+# dataset_name = 'Si_diffusion_1x1x1'
 
 output_dir = ANALYSIS_RESULTS_DIR / "covariances"
 output_dir.mkdir(exist_ok=True)
 
 
-if dataset_name == "si_diffusion_1x1x1":
+if "1x1x1" in dataset_name:
     max_atom = 8
     translation = torch.tensor([0.125, 0.125, 0.125])
-elif dataset_name == "si_diffusion_2x2x2":
+elif "2x2x2" in dataset_name:
     max_atom = 64
     translation = torch.tensor([0.0625, 0.0625, 0.0625])
 
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     logger.info(f"Computing the covariance matrix for {dataset_name}")
 
     datamodule = LammpsForDiffusionDataModule(
-        lammps_run_dir=lammps_run_dir,
+        lammps_run_train_dir=str(lammps_run_dir),
         processed_dataset_dir=processed_dataset_dir,
         hyper_params=data_params,
         working_cache_dir=cache_dir,

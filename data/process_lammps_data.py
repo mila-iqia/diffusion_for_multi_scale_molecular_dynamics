@@ -34,7 +34,7 @@ def main():
     data_params = LammpsDataModuleParameters(**hyper_params)
 
     with tempfile.TemporaryDirectory() as tmp_work_dir:
-        data_module = LammpsForDiffusionDataModule(lammps_run_dir=lammps_run_dir,
+        data_module = LammpsForDiffusionDataModule(lammps_run_train_dir=lammps_run_dir,
                                                    processed_dataset_dir=processed_dataset_dir,
                                                    hyper_params=data_params,
                                                    working_cache_dir=tmp_work_dir)

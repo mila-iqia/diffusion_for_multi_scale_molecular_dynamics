@@ -20,9 +20,16 @@ class VarianceScheduler(torch.nn.Module):
             noise_parameters: parameters that define the noise schedule.
         """
         super().__init__()
+        optional_args = dict(
+            sigma_critical_min=noise_parameters.sigma_critical_min,
+            sigma_critical_max=noise_parameters.sigma_critical_max,
+            fraction_in_critical_region=noise_parameters.fraction_in_critical_region,
+        )
+
         self.sigma_calculator = instantiate_sigma_calculator(noise_parameters.sigma_min,
                                                              noise_parameters.sigma_max,
-                                                             noise_parameters.schedule_type)
+                                                             noise_parameters.schedule_type,
+                                                             **optional_args)
 
     def get_sigma(self, times: torch.Tensor) -> torch.Tensor:
         """Get sigma.

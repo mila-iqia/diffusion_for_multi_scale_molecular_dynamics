@@ -30,7 +30,12 @@ class NoiseParameters:
     # for the celeba dataset. Note the suggested value for CIFAR10 is 0.16 in that repo.
     corrector_r: float = 0.17
 
+    # optional arguments used for the DoubleLinear sigma scheduler
+    sigma_critical_min: float = 0.001
+    sigma_critical_max: float = 0.2
+    fraction_in_critical_region: float = 0.5
+
     def __post_init__(self):
         """Check parameters."""
-        assert self.schedule_type in ["exponential", "linear"], (
+        assert self.schedule_type in ["exponential", "linear", "double_linear"], (
             f"The schedule type {self.schedule_type} is not supported.")

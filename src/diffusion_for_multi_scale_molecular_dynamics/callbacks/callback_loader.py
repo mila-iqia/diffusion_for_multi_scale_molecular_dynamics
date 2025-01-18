@@ -7,6 +7,8 @@ from diffusion_for_multi_scale_molecular_dynamics.callbacks.loss_monitoring_call
     instantiate_loss_monitoring_callback
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
     instantiate_sampling_visualization_callback
+from diffusion_for_multi_scale_molecular_dynamics.callbacks.schedulefree_callback import \
+    instantiate_schedulefree_callback
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.score_viewer_callback import \
     instantiate_score_viewer_callback
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.standard_callbacks import (
@@ -18,7 +20,8 @@ OPTIONAL_CALLBACK_DICTIONARY = dict(
     model_checkpoint=instantiate_model_checkpoint_callbacks,
     sampling_visualization=instantiate_sampling_visualization_callback,
     loss_monitoring=instantiate_loss_monitoring_callback,
-    score_viewer=instantiate_score_viewer_callback
+    score_viewer=instantiate_score_viewer_callback,
+    schedulefree=instantiate_schedulefree_callback,
 )
 
 
@@ -51,6 +54,10 @@ def create_all_callbacks(
             continue
         callback_params = hyper_params[callback_name]
         callback_dict = instantiate_callback(callback_params, output_directory, verbose)
+        all_callbacks_dict.update(callback_dict)
+
+    if hyper_params["optimizer"].get("name", None) == "sfadamw":
+        callback_dict = OPTIONAL_CALLBACK_DICTIONARY["schedulefree"]()
         all_callbacks_dict.update(callback_dict)
 
     return all_callbacks_dict
