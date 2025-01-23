@@ -11,12 +11,12 @@ from diffusion_for_multi_scale_molecular_dynamics.transport.optimal_translation 
 
 @pytest.fixture()
 def batch_size():
-    return 16
+    return 2
 
 
 @pytest.fixture()
 def number_of_atoms():
-    return 8
+    return 4
 
 
 @pytest.fixture()
@@ -25,13 +25,13 @@ def spatial_dimension():
 
 
 @pytest.fixture()
-def x(batch_size, number_of_atoms, spatial_dimension):
-    return torch.rand(batch_size, number_of_atoms, spatial_dimension)
+def x(batch_size, number_of_atoms, spatial_dimension, device):
+    return torch.rand(batch_size, number_of_atoms, spatial_dimension).to(device)
 
 
 @pytest.fixture()
-def y(batch_size, number_of_atoms, spatial_dimension):
-    return torch.rand(batch_size, number_of_atoms, spatial_dimension)
+def y(batch_size, number_of_atoms, spatial_dimension, device):
+    return torch.rand(batch_size, number_of_atoms, spatial_dimension).to(device)
 
 
 def test_compute_integer_ells_and_tau_crossing_points(x, y):
@@ -49,7 +49,7 @@ def test_compute_integer_ells_and_tau_crossing_points(x, y):
     torch.testing.assert_close(l_above_crossings, l0 + 1)
 
 
-def test_get_plateau_values_and_boundaries(x, y, batch_size, spatial_dimension):
+def test_get_plateau_values_and_boundaries(x, y, batch_size, spatial_dimension, device):
 
     l0, tau_crossings = compute_integer_ells_and_tau_crossing_points(y - x)
     l_plateaus, plateau_left_tau_values, plateau_right_tau_values = (
@@ -67,10 +67,10 @@ def test_get_plateau_values_and_boundaries(x, y, batch_size, spatial_dimension):
                 expected_left_tau_values.append(tau)
                 expected_l_plateaus.append(expected_l_plateaus[-1] + 1.0)
 
-            expected_l_plateaus = torch.tensor(expected_l_plateaus)
-            expected_left_tau_values = torch.tensor(expected_left_tau_values)
+            expected_l_plateaus = torch.tensor(expected_l_plateaus).to(device)
+            expected_left_tau_values = torch.tensor(expected_left_tau_values).to(device)
             expected_right_tau_values = torch.hstack(
-                [expected_left_tau_values[1:], torch.tensor(TAU_RANGE_MAX)]
+                [expected_left_tau_values[1:], torch.tensor(TAU_RANGE_MAX).to(device)]
             )
 
             torch.testing.assert_close(

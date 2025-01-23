@@ -100,13 +100,15 @@ def get_plateau_values_and_boundaries(
         len(l0.shape) == 3 and len(tau_crossings.shape) == 3
     ), "The input tensors should have 3 dimensions, [batch_size, number_of_atoms, spatial_dimension]."
     batch_size, number_of_atoms, spatial_dimension = tau_crossings.shape
+    device = tau_crossings.device
+
     # Sort along the atom dimension. This will be the set of tau values at which l(tau) has a jump.
     sorted_tau_crossings = tau_crossings.sort(dim=1).values
 
     # Create arrays that capture the tau boundaries of the plateaus.
     # There are  "number_of_atoms + 1" plateaus
-    starting_tau = TAU_RANGE_MIN * torch.ones(batch_size, 1, spatial_dimension)
-    ending_tau = TAU_RANGE_MAX * torch.ones(batch_size, 1, spatial_dimension)
+    starting_tau = TAU_RANGE_MIN * torch.ones(batch_size, 1, spatial_dimension).to(device)
+    ending_tau = TAU_RANGE_MAX * torch.ones(batch_size, 1, spatial_dimension).to(device)
 
     plateau_left_tau_values = torch.cat([starting_tau, sorted_tau_crossings], dim=1)
     plateau_right_tau_values = torch.cat(
@@ -140,6 +142,7 @@ def find_self_consistent_taus(
         len(y_minus_x.shape) == 3
     ), "The input tensor should have 3 dimensions, [batch_size, number_of_atoms, spatial_dimension]."
     batch_size, number_of_atoms, spatial_dimension = y_minus_x.shape
+    device = y_minus_x.device
     l0, tau_crossings = compute_integer_ells_and_tau_crossing_points(y_minus_x)
 
     l_plateaus, plateau_left_tau_values, plateau_right_tau_values = (
@@ -159,13 +162,13 @@ def find_self_consistent_taus(
     )
 
     all_batch_indices = einops.repeat(
-        torch.arange(batch_size),
+        torch.arange(batch_size).to(device),
         "b -> b n d",
         d=spatial_dimension,
         n=number_of_atoms + 1,
     )
     all_alpha = einops.repeat(
-        torch.arange(spatial_dimension),
+        torch.arange(spatial_dimension).to(device),
         "d -> b n d",
         b=batch_size,
         n=number_of_atoms + 1,
@@ -198,7 +201,7 @@ def find_squared_geodesic_distance_minimizing_translation(
     ), "The input tensor should have 3 dimensions, [batch_size, number_of_atoms, spatial_dimension]."
 
     batch_size, number_of_atoms, spatial_dimension = x.shape
-
+    device = x.device
     # Arrays of dimension [total_number_of_candidates], which is all the candidates for
     # all spatial dimensions and all batch elements.
     tau_alphas, batch_indices, alphas = find_self_consistent_taus(y - x)
@@ -225,12 +228,12 @@ def find_squared_geodesic_distance_minimizing_translation(
     # cast as high dimensional matrices to simplify the extraction of optimal values of tau.
     tau_matrix = torch.inf * torch.ones(
         number_of_candidates, batch_size, spatial_dimension
-    )
+    ).to(device)
     tau_matrix[torch.arange(number_of_candidates), batch_indices, alphas] = tau_alphas
 
     candidate_squared_distance_matrix = torch.inf * torch.ones(
         number_of_candidates, batch_size, spatial_dimension
-    )
+    ).to(device)
     candidate_squared_distance_matrix[
         torch.arange(number_of_candidates), batch_indices, alphas
     ] = minimum_value_candidates
