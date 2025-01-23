@@ -22,23 +22,23 @@ def number_of_atoms():
 
 
 @pytest.fixture
-def batch_x1(batch_shape, spatial_dimension):
-    return torch.rand(*batch_shape, spatial_dimension)
+def batch_x1(batch_shape, spatial_dimension, device):
+    return torch.rand(*batch_shape, spatial_dimension).to(device)
 
 
 @pytest.fixture
-def batch_x2(batch_shape, spatial_dimension):
-    return torch.rand(*batch_shape, spatial_dimension)
+def batch_x2(batch_shape, spatial_dimension, device):
+    return torch.rand(*batch_shape, spatial_dimension).to(device)
 
 
 @pytest.fixture
-def x1(number_of_atoms, spatial_dimension):
-    return torch.rand(number_of_atoms, spatial_dimension)
+def x1(number_of_atoms, spatial_dimension, device):
+    return torch.rand(number_of_atoms, spatial_dimension).to(device)
 
 
 @pytest.fixture
-def x2(number_of_atoms, spatial_dimension):
-    return torch.rand(number_of_atoms, spatial_dimension)
+def x2(number_of_atoms, spatial_dimension, device):
+    return torch.rand(number_of_atoms, spatial_dimension).to(device)
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ def expected_displacements(batch_x1, batch_x2):
             difference = raw_difference - 1.0
         list_d.append(difference)
 
-    return torch.tensor(list_d).reshape(batch_x1.shape)
+    return torch.tensor(list_d).reshape(batch_x1.shape).to(batch_x1.device)
 
 
 def test_get_geodesic_displacements(batch_x1, batch_x2, expected_displacements):
@@ -73,7 +73,7 @@ def test_get_squared_geodesic_distance(x1, x2):
 @pytest.fixture()
 def expected_cost_matrix(x1, x2, number_of_atoms):
 
-    cost_matrix = torch.zeros(number_of_atoms, number_of_atoms)
+    cost_matrix = torch.zeros(number_of_atoms, number_of_atoms).to(x1.device)
     for i, v1 in enumerate(x1):
         for j, v2 in enumerate(x2):
             cost_matrix[i, j] = get_squared_geodesic_distance(v1, v2)
