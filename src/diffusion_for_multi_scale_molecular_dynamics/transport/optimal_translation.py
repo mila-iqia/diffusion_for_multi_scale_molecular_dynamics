@@ -72,7 +72,7 @@ def compute_integer_ells_and_tau_crossing_points(
         l0: the values of l_i^alpha(tau^alpha = TAU_RANGE_MIN)
         tau_crossings: the values of tau^alpha at which l_i^alpha -> l_i^alpha + 1.
     """
-    l0 = torch.round(y_minus_x + TAU_RANGE_MIN)
+    l0 = torch.floor(y_minus_x + TAU_RANGE_MIN + 0.5)
     epsilons = y_minus_x - l0 + TAU_RANGE_MIN
     tau_crossings = -epsilons
 
@@ -118,14 +118,16 @@ def get_plateau_values_and_boundaries(
     # The values of l for tau = TAU_RANGE_MIN
     starting_total_l = l0.sum(dim=1, keepdim=True)
 
-    l_plateaus = (sorted_tau_crossings > TAU_RANGE_MIN).cumsum(dim=1) + starting_total_l
+    # If tau_crossing = TAU_RANGE_MAX, we do not increment l because TAU_RANGE_MAX is formally outside the range
+    # of tau values, which is [TAU_RANGE_MIN, TAU_RANGE_MAX).
+    l_plateaus = (sorted_tau_crossings < TAU_RANGE_MAX).cumsum(dim=1) + starting_total_l
     l_plateaus = torch.cat([starting_total_l, l_plateaus], dim=1)
 
     return l_plateaus, plateau_left_tau_values, plateau_right_tau_values
 
 
 def find_self_consistent_taus(
-    y_minus_x: torch.Tensor,
+        y_minus_x: torch.Tensor,
 ) -> Tuple[torch.tensor, torch.Tensor, torch.Tensor]:
     """Find self-consistent taus.
 
