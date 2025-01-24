@@ -52,6 +52,7 @@ dependencies = [
     "torch==2.2.0",
     "torchode==0.2.0",
     "torchsde==0.2.6",
+    "pot==0.9.5",
     "tqdm==4.64.0",
 ]
 
