@@ -9,6 +9,9 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusio
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import (
     EGNNScoreNetwork, EGNNScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.equivariant_analytical_score_network import (
+    EquivariantAnalyticalScoreNetwork,
+    EquivariantAnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mace_score_network import (
     MACEScoreNetwork, MACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
@@ -21,6 +24,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing im
 
 SCORE_NETWORKS_BY_ARCH = dict(
     analytical=AnalyticalScoreNetwork,
+    equivariant_analytical=EquivariantAnalyticalScoreNetwork,
     mlp=MLPScoreNetwork,
     mace=MACEScoreNetwork,
     diffusion_mace=DiffusionMACEScoreNetwork,
@@ -28,6 +32,7 @@ SCORE_NETWORKS_BY_ARCH = dict(
 )
 SCORE_NETWORK_PARAMETERS_BY_ARCH = dict(
     analytical=AnalyticalScoreNetworkParameters,
+    equivariant_analytical=EquivariantAnalyticalScoreNetworkParameters,
     mlp=MLPScoreNetworkParameters,
     mace=MACEScoreNetworkParameters,
     diffusion_mace=DiffusionMACEScoreNetworkParameters,
