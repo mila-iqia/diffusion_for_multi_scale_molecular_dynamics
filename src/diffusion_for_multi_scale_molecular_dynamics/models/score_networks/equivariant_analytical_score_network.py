@@ -87,7 +87,7 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
         self.number_of_translations = len(self.translations_k)
 
         self.equilibrium_relative_coordinates = torch.tensor(
-            hyper_params.equilibrium_relative_coordinates, dtype=torch.float
+            hyper_params.equilibrium_relative_coordinates
         )
 
         self.transporter = Transporter(
