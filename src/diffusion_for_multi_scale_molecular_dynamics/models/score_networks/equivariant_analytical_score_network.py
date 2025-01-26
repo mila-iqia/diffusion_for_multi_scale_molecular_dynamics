@@ -3,7 +3,6 @@ from typing import Any, AnyStr, Dict, List
 
 import einops
 import torch
-from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
@@ -129,7 +128,7 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
         )
 
         nearest_equilibrium_coordinates = []
-        for batch_idx in tqdm(range(batch_size)):
+        for batch_idx in range(batch_size):
             transported_y, _, _ = self.transporter.get_optimal_transport(
                 x[batch_idx], y[batch_idx]
             )
