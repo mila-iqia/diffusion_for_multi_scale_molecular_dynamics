@@ -52,6 +52,8 @@ from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_pa
     DiffusionSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
+from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
+    Transporter
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
@@ -129,6 +131,15 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.noise_scheduler = NoiseScheduler(
             hyper_params.noise_parameters,
             num_classes=self.num_atom_types + 1,  # add 1 for the MASK class
+        )
+
+        self.point_group_operations = torch.nn.Parameter(
+            torch.diag(torch.ones(hyper_params.score_network_parameters.spatial_dimension)).unsqueeze(0),
+            requires_grad=False,
+        )
+        self.transporter = Transporter(
+            point_group_operations=self.point_group_operations,
+            maximum_number_of_steps=10,
         )
 
         self.generator = None
@@ -286,6 +297,18 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         )
         # we can now get noisy coordinates
         xt = self.noisers.X.get_noisy_relative_coordinates_sample(x0, sigmas)
+
+        # ================================================================================
+        # Transport xt to be as close to x0 as possible
+        nearest_xt = []
+        for batch_idx in range(batch_size):
+            transported_xt, _, _ = self.transporter.get_optimal_transport(
+                x0[batch_idx], xt[batch_idx]
+            )
+            nearest_xt.append(transported_xt)
+
+        xt = torch.stack(nearest_xt, dim=0)
+        # ================================================================================
 
         # to get noisy atom types, we need to broadcast the transition matrices q, q_bar and q_bar_tm1 from size
         # [batch_size, num_atom_types, num_atom_types] to [batch_size, number_of_atoms, num_atom_types, num_atom_types].
