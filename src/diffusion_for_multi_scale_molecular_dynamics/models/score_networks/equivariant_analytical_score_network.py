@@ -32,6 +32,8 @@ class EquivariantAnalyticalScoreNetworkParameters(ScoreNetworkParameters):
 
     equilibrium_relative_coordinates: List[List[float]]
 
+    use_point_group_symmetries: bool = False
+
     # the data distribution variance.
     sigma_d: float
 
@@ -78,10 +80,16 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
         translations_k = self._get_all_translations(self.kmax)
         self.translations_k = torch.nn.Parameter(translations_k, requires_grad=False)
 
-        self.point_group_operations = torch.nn.Parameter(
-            get_cubic_point_group_symmetries(self.spatial_dimension),
-            requires_grad=False,
-        )
+        if hyper_params.use_point_group_symmetries:
+            self.point_group_operations = torch.nn.Parameter(
+                get_cubic_point_group_symmetries(self.spatial_dimension),
+                requires_grad=False,
+            )
+        else:
+            self.point_group_operations = torch.nn.Parameter(
+                torch.diag(torch.ones(self.spatial_dimension)).unsqueeze(0),
+                requires_grad=False,
+            )
 
         self.number_of_translations = len(self.translations_k)
 
@@ -132,8 +140,8 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
             transported_y, _, _ = self.transporter.get_optimal_transport(
                 x[batch_idx], y[batch_idx]
             )
-
             nearest_equilibrium_coordinates.append(transported_y)
+
         nearest_equilibrium_coordinates = torch.stack(
             nearest_equilibrium_coordinates, dim=0
         )
