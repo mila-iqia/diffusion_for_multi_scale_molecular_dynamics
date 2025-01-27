@@ -5,7 +5,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import (
     AXLGenerator, SamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, AXL_COMPOSITION, CARTESIAN_POSITIONS, UNIT_CELL)
+    AXL, AXL_COMPOSITION, CARTESIAN_POSITIONS, UNIT_CELL, COORDINATES_JACOBIAN)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_positions_from_coordinates
 from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
@@ -46,6 +46,7 @@ def create_batch_of_samples(
     list_sampled_relative_coordinates = []
     list_sampled_atom_types = []
     list_sampled_lattice_vectors = []
+    list_sampled_jacobian = []
     for sampling_batch_indices in torch.split(
         torch.arange(number_of_samples), sample_batch_size
     ):
@@ -56,6 +57,13 @@ def create_batch_of_samples(
         list_sampled_atom_types.append(sampled_axl.A)
         list_sampled_relative_coordinates.append(sampled_axl.X)
         list_sampled_lattice_vectors.append(sampled_axl.L)
+
+        if sampling_parameters.record_jacobian:
+            samples_jacobian = generator.compute_sample_jacobian(
+                sampled_axl,
+                unit_cell=basis_vectors_
+            )
+            list_sampled_jacobian.append(samples_jacobian)
 
     atom_types = torch.concat(list_sampled_atom_types)
     relative_coordinates = torch.concat(list_sampled_relative_coordinates)
@@ -69,11 +77,13 @@ def create_batch_of_samples(
     cartesian_positions = get_positions_from_coordinates(
         relative_coordinates, basis_vectors
     )
-
     batch = {
         CARTESIAN_POSITIONS: cartesian_positions,
         AXL_COMPOSITION: axl_composition,
         UNIT_CELL: basis_vectors,  # TODO remove
     }
+
+    if sampling_parameters.record_jacobian:
+        batch[COORDINATES_JACOBIAN] = torch.concat(list_sampled_jacobian)
 
     return batch

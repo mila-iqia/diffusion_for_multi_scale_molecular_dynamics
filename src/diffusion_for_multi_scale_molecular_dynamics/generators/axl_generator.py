@@ -29,6 +29,7 @@ class SamplingParameters:
     )
     record_samples_corrector_steps: bool = False
     record_atom_type_update: bool = False  # record the information pertaining to generating atom types.
+    record_jacobian: bool = False  # record the jacobian at the last step
 
 
 class AXLGenerator(ABC):
@@ -56,4 +57,22 @@ class AXLGenerator(ABC):
     @abstractmethod
     def initialize(self, number_of_samples: int, device: torch.device) -> AXL:
         """This method must initialize the samples from the fully noised distribution."""
+        pass
+
+    @abstractmethod
+    def compute_sample_jacobian(
+            self, samples: AXL, unit_cell: torch.Tensor
+    ) -> torch.Tensor:
+        """Get coordinates jacobian.
+
+        This method computes the jacobian for the coordinates variables at the last step of generation.
+
+        Args:
+            samples: drawn samples
+            unit_cell: unit cell definition.
+
+        Returns:
+            samples jacobians: coordinates jacobian as a tensor of dimensions
+                [number_of_samples, number_of_atoms * spatial_dimension, number_of_atoms * spatial_dimension]
+        """
         pass

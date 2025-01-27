@@ -3,6 +3,7 @@ from typing import Tuple
 
 import einops
 import torch
+from torch.func import jacrev, vmap
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import (
     PredictorCorrectorAXLGenerator, PredictorCorrectorSamplingParameters)
@@ -164,6 +165,98 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         # TODO do not hard-code conditional to False - need to be able to condition sampling
         model_predictions = self.axl_network(augmented_batch, conditional=True)
         return model_predictions
+
+    def _get_model_coordinates_jacobian(
+            self,
+            composition: AXL,
+            time: float,
+            sigma_noise: float,
+            unit_cell: torch.Tensor,  # TODO replace with AXL-L
+            cartesian_forces: torch.Tensor,
+    ) -> torch.Tensor:
+        """Get the jacobian of an axl-network for the coordinates input
+
+        Args:
+            composition : AXL composition with:
+                atom types, of shape [number of samples, number_of_atoms]
+                relative coordinates, of shape [number_of_samples, number_of_atoms, spatial_dimension]
+                lattice vectors, of shape [number_of_samples, spatial_dimension * (spatial_dimension - 1)]  # TODO check
+            time : time at which to evaluate the score
+            sigma_noise: the diffusion sigma parameter corresponding to the time at which to evaluate the score
+            unit_cell: unit cell definition in Angstrom of shape [number_of_samples, spatial_dimension,
+                spatial_dimension]
+            cartesian_forces: forces to condition the sampling from. Shape [number_of_samples, number_of_atoms,
+                spatial_dimension]
+
+        Returns:
+            coordinates jacobian of shape
+            [number_of_samples, number_of_atoms * spatial_dimension, number_of_atoms * spatial_dimension]
+        """
+        # to get the jacobian wrt to coordinates, we need a wrapper around the _get_model_output so that the input and
+        # the output are tensors, and not an AXL
+        def _get_model_output_wrapper(coordinates, atom_types, lattice_parameters, time, sigma_noise, unit_cell,
+                                      cartesian_forces):
+            batch_size = coordinates.shape[0]
+            composition = AXL(
+                X=coordinates.view(batch_size, -1, self.spatial_dimension),
+                A=atom_types,
+                L=lattice_parameters
+            )
+            model_output = self._get_model_predictions(composition, time, sigma_noise, unit_cell, cartesian_forces)
+            # get only the coordinates output and reshape as a flattened tensor of shape
+            # [number_of_samples, number_of_atoms * spatial_dimension]
+            return model_output.X.view(batch_size, -1)
+
+        # flatten the last dimensions of the input coordinates tensor
+        coordinates_input = torch.flatten(composition.X, start_dim=1)
+        # result is shape [number_of_samples, number_of_atoms * spatial_dimension]
+
+        # define the torch operations to get the batched jacobian
+        # the vmap() method allows the computation of batched jacobian
+        # see https://pytorch.org/docs/stable/generated/torch.func.jacrev.html#torch.func.jacrev
+        # argnums points to which input variable to take the jacobian wrt to. In this case, the coordinates tensor
+        # as a [number_of_samples, N] tensor. Expected jacobian should be [number_of_samples, N, N]
+        # N is a stand-in for number_of_atoms * spatial_dimension
+        jacobian_function = vmap(jacrev(_get_model_output_wrapper, argnums=0))
+
+        # we call this function using the relevant inputs
+        coordinates_jacobians = jacobian_function(
+            coordinates_input,
+            composition.A,
+            composition.L,
+            time,
+            sigma_noise,
+            unit_cell,
+            cartesian_forces
+        )
+
+        return coordinates_jacobians
+
+    def compute_sample_jacobian(self, compositions: AXL, unit_cell: torch.Tensor) -> torch.Tensor:
+        """Compute the jacobians for a batch of generated samples.
+
+        This function calls the _get_model_coordinates_jacobian using the time and noise parameters at the last step
+        of the generative process i.e. when sigma is smallest.
+
+        Args:
+            compositions: AXL object with the coordinates, atom types and lattice parameters generated
+            unit_cell: vector describing the unit cell. TODO replace with AXL-L
+
+        Returns:
+            samples_jacobians: tensor of shape [number_of_samples, N, N] with N = number_of_atoms * spatial_dimension]
+                representing the jacobians for the atomic coordinates
+        """
+        last_step_time = self.noise.time[0].to(compositions.X)
+        last_step_sigma = self.noise.sigma[0].to(compositions.X)  # should be sigma_min
+        cartesian_forces = torch.zeros_like(compositions.X)  # TODO remove this
+        samples_jacobian = self._get_model_coordinates_jacobian(
+            compositions,
+            time=last_step_time,
+            sigma_noise=last_step_sigma,
+            unit_cell=unit_cell,
+            cartesian_forces=cartesian_forces
+        )
+        return samples_jacobian
 
     def _relative_coordinates_update(
         self,

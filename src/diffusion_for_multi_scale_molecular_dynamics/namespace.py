@@ -36,3 +36,5 @@ NOISY_AXL_COMPOSITION = "noisy_axl"
 AXL_COMPOSITION = "original_axl"
 
 CONDITIONAL_TEMPERATURE = "temperature"
+
+COORDINATES_JACOBIAN = "cartesian_positions_jacobian"
