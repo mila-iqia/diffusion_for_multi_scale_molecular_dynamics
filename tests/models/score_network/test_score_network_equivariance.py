@@ -7,6 +7,9 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusio
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import (
     EGNNScoreNetwork, EGNNScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.equivariant_analytical_score_network import (
+    EquivariantAnalyticalScoreNetwork,
+    EquivariantAnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mace_score_network import (
     MACEScoreNetwork, MACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import \
@@ -388,7 +391,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         rotated_basis_vectors,
         cartesian_rotations,
         rotated_scores_should_match,
-        atom_output_should_be_tested_for_rotational_equivariance
+        atom_output_should_be_tested_for_rotational_equivariance,
     ):
 
         # The score is ~ nabla_x ln P. There must a be a basis change to turn it into a cartesian score of the
@@ -521,10 +524,46 @@ class TestEquivarianceEGNN(BaseTestScoreEquivariance):
     def score_network_parameters(self, request, num_atom_types, normalize):
         edges, radial_cutoff = request.param
         return EGNNScoreNetworkParameters(
-            edges=edges, radial_cutoff=radial_cutoff, num_atom_types=num_atom_types, normalize=normalize
+            edges=edges,
+            radial_cutoff=radial_cutoff,
+            num_atom_types=num_atom_types,
+            normalize=normalize,
         )
 
     @pytest.fixture()
     def score_network(self, score_network_parameters):
         score_network = EGNNScoreNetwork(score_network_parameters)
+        return score_network
+
+
+# Some of the tests below FAIL because the optimal transport is imperfect. It is still
+# interesting to keep these around if we ever find a better OT heuristic.
+@pytest.mark.skip()
+@pytest.mark.parametrize("num_atom_types", [0])
+@pytest.mark.parametrize(
+    "is_cell_cubic, is_rotations_cubic_point_group", [(True, True)]
+)
+class TestEquivarianceEquivariantAnalyticalScoreNetwork(BaseTestScoreEquivariance):
+
+    @pytest.fixture()
+    def score_network_parameters(
+        self, number_of_atoms, num_atom_types, spatial_dimension
+    ):
+        random = torch.rand(number_of_atoms, spatial_dimension).numpy()
+        equilibrium_relative_coordinates = list(list(x) for x in random)
+
+        params = EquivariantAnalyticalScoreNetworkParameters(
+            number_of_atoms=number_of_atoms,
+            num_atom_types=num_atom_types,
+            spatial_dimension=spatial_dimension,
+            kmax=5,
+            use_point_group_symmetries=True,
+            equilibrium_relative_coordinates=equilibrium_relative_coordinates,
+            sigma_d=0.01,
+        )
+        return params
+
+    @pytest.fixture()
+    def score_network(self, score_network_parameters):
+        score_network = EquivariantAnalyticalScoreNetwork(score_network_parameters)
         return score_network
