@@ -117,7 +117,10 @@ def get_config(
     head_name: Union[str, None],
     sampling_algorithm: str,
 ):
-    data_config = dict(batch_size=4, num_workers=0, max_atom=number_of_atoms)
+    data_config = dict(batch_size=4,
+                       num_workers=0,
+                       max_atom=number_of_atoms,
+                       noise={"total_time_steps": 10})
 
     model_config = dict(
         score_network=get_score_network(

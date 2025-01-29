@@ -4,8 +4,10 @@ import numpy as np
 import pytest
 import torch
 from pytorch_lightning import LightningDataModule, Trainer
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, default_collate, random_split
 
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
+    NoisingTransform
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
@@ -63,6 +65,12 @@ class FakePositionsDataModule(LightningDataModule):
         num_atom_types: int = 2,
     ):
         super().__init__()
+
+        noising_transform = NoisingTransform(noise_parameters=NoiseParameters(total_time_steps=10),
+                                             num_atom_types=num_atom_types,
+                                             spatial_dimension=spatial_dimension,
+                                             use_optimal_transport=False)
+
         self.batch_size = batch_size
         all_relative_coordinates = torch.rand(
             dataset_size, number_of_atoms, spatial_dimension
@@ -72,7 +80,7 @@ class FakePositionsDataModule(LightningDataModule):
             0, num_atom_types, (dataset_size, number_of_atoms)
         )
         box = torch.rand(spatial_dimension)
-        self.data = [
+        raw_data = [
             {
                 RELATIVE_COORDINATES: coordinate_configuration,
                 ATOM_TYPES: atom_configuration,
@@ -84,6 +92,14 @@ class FakePositionsDataModule(LightningDataModule):
                 all_relative_coordinates, all_atom_types, potential_energies
             )
         ]
+        raw_data = default_collate(raw_data)
+
+        batched_data = noising_transform.transform(raw_data)
+
+        keys = batched_data.keys()
+
+        self.data = [{key: batched_data[key][idx] for key in keys} for idx in range(batch_size)]
+
         self.train_data, self.val_data, self.test_data = None, None, None
 
     def setup(self, stage: str):

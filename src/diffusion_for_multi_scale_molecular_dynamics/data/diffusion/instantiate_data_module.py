@@ -9,6 +9,8 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.gaussian_data_m
     GaussianDataModule, GaussianDataModuleParameters)
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsDataModuleParameters, LammpsForDiffusionDataModule)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +32,14 @@ def load_data_module(hyper_params: Dict[AnyStr, Any], args: argparse.Namespace) 
 
     data_config = hyper_params["data"]
     data_source = data_config.pop("data_source", "LAMMPS")
+    noise = data_config.pop("noise")
+    noise_parameters = NoiseParameters(**noise)
 
     match data_source:
         case "LAMMPS":
-            data_params = LammpsDataModuleParameters(**data_config, elements=hyper_params["elements"])
+            data_params = LammpsDataModuleParameters(**data_config,
+                                                     noise_parameters=noise_parameters,
+                                                     elements=hyper_params["elements"])
             data_module = LammpsForDiffusionDataModule(hyper_params=data_params,
                                                        lammps_run_dir=args.data,
                                                        processed_dataset_dir=args.processed_datadir,

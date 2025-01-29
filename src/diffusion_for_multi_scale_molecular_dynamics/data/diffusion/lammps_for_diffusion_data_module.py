@@ -34,6 +34,7 @@ class LammpsDataModuleParameters(DataModuleParameters):
 
     data_source: str = "LAMMPS"
     noise_parameters: NoiseParameters
+    use_optimal_transport: bool = False
 
 
 class LammpsForDiffusionDataModule(pl.LightningDataModule):
@@ -75,11 +76,13 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         self.element_types = ElementTypes(hyper_params.elements)
 
         num_atom_types = len(hyper_params.elements)
+        self.use_optimal_transport = hyper_params.use_optimal_transport
 
         self.noising_transform = NoisingTransform(
             noise_parameters=hyper_params.noise_parameters,
             num_atom_types=num_atom_types,
             spatial_dimension=self.spatial_dim,
+            use_optimal_transport=self.use_optimal_transport
         )
 
         if hyper_params.batch_size is None:
