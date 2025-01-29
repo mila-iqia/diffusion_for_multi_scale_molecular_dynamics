@@ -30,16 +30,6 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISY_AXL_COMPOSITION, NOISY_LATTICE_PARAMETERS,
     NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES, Q_BAR_TM1_MATRICES, Q_MATRICES,
     RELATIVE_COORDINATES, TIME, TIME_INDICES, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
-    NoiseScheduler
-from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
-    AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
-    LatticeNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
-    RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
@@ -54,8 +44,6 @@ from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_pa
     DiffusionSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
-from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
-    Transporter
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
@@ -74,7 +62,6 @@ class AXLDiffusionParameters:
     loss_parameters: LossParameters
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: Optional[SchedulerParameters] = None
-    noise_parameters: NoiseParameters
     # convergence parameter for the Ewald-like sum of the perturbation kernel for coordinates.
     kmax_target_score: int = 4
     regularizer_parameters: Optional[RegularizerParameters] = None
@@ -119,27 +106,6 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.loss_weights = AXL(A=hyper_params.loss_parameters.atom_types_lambda_weight,
                                 X=hyper_params.loss_parameters.relative_coordinates_lambda_weight,
                                 L=hyper_params.loss_parameters.lattice_lambda_weight)
-
-        # noisy samplers for atom types, coordinates and lattice vectors
-        self.noisers = AXL(
-            A=AtomTypesNoiser(),
-            X=RelativeCoordinatesNoiser(),
-            L=LatticeNoiser(),
-        )
-
-        self.noise_scheduler = NoiseScheduler(
-            hyper_params.noise_parameters,
-            num_classes=self.num_atom_types + 1,  # add 1 for the MASK class
-        )
-
-        self.point_group_operations = torch.nn.Parameter(
-            torch.diag(torch.ones(hyper_params.score_network_parameters.spatial_dimension)).unsqueeze(0),
-            requires_grad=False,
-        )
-        self.transporter = Transporter(
-            point_group_operations=self.point_group_operations,
-            maximum_number_of_steps=10,
-        )
 
         self.generator = None
         self.structure_ks_metric = None

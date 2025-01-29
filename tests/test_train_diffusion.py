@@ -127,7 +127,6 @@ def get_config(
             architecture, head_name, number_of_atoms, num_atom_types
         ),
         loss={"coordinates_algorithm": "mse"},
-        noise={"total_time_steps": 10},
     )
 
     optimizer_config = dict(name="adam", learning_rate=0.001)
