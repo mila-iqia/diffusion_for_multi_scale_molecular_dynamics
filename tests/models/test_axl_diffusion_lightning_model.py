@@ -237,15 +237,12 @@ class TestPositionDiffusionLightningModel:
             spatial_dimension=spatial_dimension,
         )
 
-        noise_parameters = NoiseParameters(total_time_steps=15)
-
         oracle_parameters = OracleParameters(name='test', elements=unique_elements)
 
         hyper_params = AXLDiffusionParameters(
             score_network_parameters=score_network_parameters,
             optimizer_parameters=optimizer_parameters,
             scheduler_parameters=scheduler_parameters,
-            noise_parameters=noise_parameters,
             loss_parameters=loss_parameters,
             diffusion_sampling_parameters=diffusion_sampling_parameters,
             oracle_parameters=oracle_parameters
