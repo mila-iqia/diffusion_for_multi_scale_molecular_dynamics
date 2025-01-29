@@ -5,6 +5,8 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.gaussian_data_m
     GaussianDataModule, GaussianDataModuleParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import \
     RELATIVE_COORDINATES
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 
 
 class TestGaussianDataModule:
@@ -33,6 +35,10 @@ class TestGaussianDataModule:
     def sigma_d(self):
         return 0.01
 
+    @pytest.fixture(params=[True, False])
+    def use_optimal_transport(self, request):
+        return request.param
+
     @pytest.fixture()
     def equilibrium_relative_coordinates(self, number_of_atoms, spatial_dimension):
         list_x = torch.rand(number_of_atoms, spatial_dimension)
@@ -40,10 +46,12 @@ class TestGaussianDataModule:
         return equilibrium_relative_coordinates
 
     @pytest.fixture
-    def data_module_hyperparameters(self, batch_size, train_dataset_size, valid_dataset_size,
+    def data_module_hyperparameters(self, batch_size, train_dataset_size, valid_dataset_size, use_optimal_transport,
                                     number_of_atoms, spatial_dimension, sigma_d, equilibrium_relative_coordinates):
         return GaussianDataModuleParameters(
             batch_size=batch_size,
+            noise_parameters=NoiseParameters(total_time_steps=10),
+            use_optimal_transport=use_optimal_transport,
             random_seed=42,
             num_workers=0,
             sigma_d=sigma_d,

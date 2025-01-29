@@ -46,7 +46,9 @@ def load_data_module(hyper_params: Dict[AnyStr, Any], args: argparse.Namespace) 
                                                        working_cache_dir=args.dataset_working_dir)
 
         case "gaussian":
-            data_params = GaussianDataModuleParameters(**data_config, elements=hyper_params["elements"])
+            data_params = GaussianDataModuleParameters(**data_config,
+                                                       noise_parameters=noise_parameters,
+                                                       elements=hyper_params["elements"])
             data_module = GaussianDataModule(data_params)
         case _:
             raise NotImplementedError(
