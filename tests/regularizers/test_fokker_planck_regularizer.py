@@ -11,6 +11,11 @@ from tests.regularizers.differentiable_score_network import \
 
 class TestFokkerPlanckRegularizer(BaseTestRegularizer):
 
+    @pytest.fixture()
+    def device(self):
+        # Regularizer currently does not work with device other than CPU. fix if needed.
+        return torch.device('cpu')
+
     @pytest.fixture(scope="class", autouse=True)
     def set_default_type_to_float64(self):
         torch.set_default_dtype(torch.float64)
@@ -52,8 +57,8 @@ class TestFokkerPlanckRegularizer(BaseTestRegularizer):
         return parameters
 
     @pytest.fixture()
-    def regularizer(self, regularizer_parameters):
-        return FokkerPlanckRegularizer(regularizer_parameters)
+    def regularizer(self, regularizer_parameters, device):
+        return FokkerPlanckRegularizer(regularizer_parameters).to(device)
 
     @pytest.fixture()
     def score_function(self, regularizer, score_network, atom_types, unit_cells):

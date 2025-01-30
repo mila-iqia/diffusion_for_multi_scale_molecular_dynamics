@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -7,6 +8,8 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
     instantiate_generator
+from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
+    instantiate_trajectory_initializer
 from diffusion_for_multi_scale_molecular_dynamics.loss import \
     create_loss_calculator
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
@@ -335,9 +338,12 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         }
 
         use_conditional = None if no_conditional is False else False
+        t1 = time.time()
         model_predictions = self.axl_network(
             augmented_batch, conditional=use_conditional
         )
+        t2 = time.time()
+        model_prediction_time = t2 - t1
         # this output is expected to be an AXL object
         # X score network output: an estimate of the sigma normalized score for the coordinates,
         # A score network output: an unnormalized estimate of p(a_0 | a_t) for the atom types
@@ -399,11 +405,17 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.regularizer and self.regularizer.can_regularizer_run():
             # Use the same times and atom types as in the noised composition. Random
             # relative coordinates will be drawn internally.
+            t1 = time.time()
             weighted_regularizer_loss = (
                 self.regularizer.compute_weighted_regularizer_loss(
                     score_network=self.axl_network,
                     augmented_batch=augmented_batch,
                     current_epoch=self.current_epoch))
+
+            t2 = time.time()
+            model_regularization_time = t2 - t1
+            logger.info(f"  - batch {batch_idx} :: Prediction time = {model_prediction_time:2.1e} s, "
+                        f"Regularization time = {model_regularization_time:2.1e} s.")
 
             output["loss"] += weighted_regularizer_loss
             output["regularizer_loss"] = weighted_regularizer_loss
@@ -562,12 +574,17 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         assert (
             self.hyper_params.diffusion_sampling_parameters is not None
         ), "sampling parameters must be provided to create a generator."
-        with torch.no_grad():
+        with ((torch.no_grad())):
             logger.info("Creating Generator for sampling")
+
+            trajectory_initializer = instantiate_trajectory_initializer(
+                self.hyper_params.diffusion_sampling_parameters.sampling_parameters)
+
             self.generator = instantiate_generator(
                 sampling_parameters=self.hyper_params.diffusion_sampling_parameters.sampling_parameters,
                 noise_parameters=self.hyper_params.diffusion_sampling_parameters.noise_parameters,
                 axl_network=self.axl_network,  # TODO use A and L too
+                trajectory_initializer=trajectory_initializer
             )
             logger.info(f"Generator type : {type(self.generator)}")
 
@@ -666,3 +683,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
+
+    def on_train_epoch_start(self) -> None:
+        """On train epoch start."""
+        logger.info(f"Starting Training Epoch {self.current_epoch}.")
+
+    def on_train_epoch_end(self) -> None:
+        """On train epoch end."""
+        logger.info(f"Ending Training Epoch {self.current_epoch}.")

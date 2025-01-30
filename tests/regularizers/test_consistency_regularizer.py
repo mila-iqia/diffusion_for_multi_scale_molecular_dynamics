@@ -19,6 +19,11 @@ from tests.regularizers.conftest import BaseTestRegularizer
 class TestConsistencyRegularizer(BaseTestRegularizer):
 
     @pytest.fixture()
+    def device(self):
+        # Regularizer currently does not work with device other than CPU. fix if needed.
+        return torch.device('cpu')
+
+    @pytest.fixture()
     def maximum_number_of_steps(self):
         return 5
 
@@ -63,8 +68,8 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
         return noise
 
     @pytest.fixture()
-    def regularizer(self, regularizer_parameters):
-        return ConsistencyRegularizer(regularizer_parameters)
+    def regularizer(self, regularizer_parameters, device):
+        return ConsistencyRegularizer(regularizer_parameters).to(device)
 
     def test_get_augmented_batch_for_fixed_time(
         self, regularizer, augmented_batch, batch_size
