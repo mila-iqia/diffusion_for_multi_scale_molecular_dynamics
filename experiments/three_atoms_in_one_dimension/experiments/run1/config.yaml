@@ -1,5 +1,5 @@
 #================================================================================
-# Configuration file for a diffusion experiment for 2 pseudo-atoms in 1D.
+# Configuration file for a diffusion experiment for 3 pseudo-atoms in 1D.
 #================================================================================
 exp_name: egnn
 run_name: run1
@@ -98,12 +98,12 @@ score_viewer:
     number_of_space_steps: 100
     starting_relative_coordinates: 
       - [0.0]
-      - [1.0]
+      - [0.0]
       - [0.0]
     ending_relative_coordinates: 
       - [1.0]
       - [0.0]
-      - [1.0]
+      - [-1.0]
   analytical_score_network:
     architecture: "analytical"
     spatial_dimension: 1
@@ -115,7 +115,7 @@ score_viewer:
       - [0.33333333]
       - [0.66666667]
     sigma_d: 0.01
-    use_permutation_invariance: False
+    use_permutation_invariance: True
 
 logging:
   - tensorboard
