@@ -1,3 +1,5 @@
+"""From a .pt file with a list of AXL to .xyz files readable by ovito."""
+
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -6,74 +8,67 @@ import torch
 from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 
-from diffusion_for_multi_scale_molecular_dynamics.analysis.sample_trajectory_analyser import (
-    SampleTrajectoryAnalyser,
-)
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import ElementTypes
+from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
+    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 TRAJECTORY_PATH = (
-    "/Users/simonblackburn/projects/courtois2024/experiments/double_linear_debug/samples/baseline_ac/"
-    + "bad_baseline"
+    "/Users/simonblackburn/projects/courtois2024/experiments/score_on_a_path"
 )
 TRAJECTORY_PATH = Path(TRAJECTORY_PATH)
-OUTPUT_PATH = TRAJECTORY_PATH / "ovito_visualization_with_jacobian"
-TRAJECTORY_INDEX = list(range(0, 5))
 
-OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 UNKNOWN_ATOM_TYPE = "X"
+
+SIGMA_INDEX = 0
 
 
 def main():
-    trajectory_analyser = SampleTrajectoryAnalyser(
-        TRAJECTORY_PATH / "trajectories.pt", num_classes=2
+    trajectory_file = TRAJECTORY_PATH / "interpolated_positions.pt"
+
+    axls = torch.load(trajectory_file, map_location="cpu")
+
+    axls_tensors = AXL(
+        A=torch.stack([axl.A for axl in axls]),
+        X=torch.stack([axl.X for axl in axls]),
+        L=torch.stack([axl.L for axl in axls]),
     )
 
-    time_indices, axls = trajectory_analyser.extract_axl("composition_i")
+    model_predictions_file = TRAJECTORY_PATH / "model_predictions.pt"
+    model_predictions = torch.load(model_predictions_file, map_location="cpu")
+    selected_sigma = model_predictions["sigma"][SIGMA_INDEX]
+    score_axls = model_predictions["model_predictions"]
+    sigma_normalized_score = torch.stack(
+        [axl.X[SIGMA_INDEX, :, :] for axl in score_axls]
+    )  # time, n_atom, spatial_dimension
 
-    with open(TRAJECTORY_PATH / "jacobians_0_64.pt", "rb") as f:
-        jacobians = torch.load(f, map_location="cpu")
+    atom_divergence = model_predictions["jacobians"][:, SIGMA_INDEX, :, :]
+    atom_divergence = (
+        torch.diagonal(atom_divergence, dim1=1, dim2=2)
+        .view(atom_divergence.shape[0], -1, sigma_normalized_score.shape[-1])
+        .sum(dim=-1, keepdim=True)
+    )  # num_sample, num_atom, 1
 
-    jacobians = torch.diagonal(jacobians["jacobians"], dim1=-2, dim2=-1)
-    spatial_dimension = axls.X.shape[-1]
-    jacobians = jacobians.view(
-        jacobians.shape[0], jacobians.shape[1], -1, spatial_dimension
+    atomic_properties = dict(
+        sigma_normalized_score=sigma_normalized_score,
+        atomic_divergence=atom_divergence,
     )
-    jacobians = jacobians.sum(dim=-1)
 
-    jacobians_time_size = jacobians.shape[0]
-    time_down_res = int(axls.X.shape[1] / jacobians_time_size)
-    axls = AXL(
-        X=axls.X[:, ::time_down_res].flip(dims=(1,)),
-        A=axls.A[:, ::time_down_res].flip(dims=(1,)),
-        L=axls.L[:, ::time_down_res].flip(dims=(1,)),
+    output_path = TRAJECTORY_PATH / f"ovito_visualization_sigma_{selected_sigma:0.4f}"
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    create_xyz_files(
+        elements=["Si"],
+        visualization_artifacts_path=output_path,
+        trajectory_index=None,
+        trajectory_axl_compositions=axls_tensors,
+        atomic_properties=atomic_properties,
     )
 
-    padded_jacobians = torch.zeros_like(axls.X[..., 0])
-    for i, t_idx in enumerate(TRAJECTORY_INDEX):
-        # padded_jacobians[t_idx] = jacobians[:, i]
-        padded_jacobians[t_idx] = jacobians[:, t_idx]
-    atomic_properties = dict(atomic_divergence=padded_jacobians)
 
-    divergence_diff_from_mean = padded_jacobians - padded_jacobians.mean(
-        dim=-1, keepdim=True
-    )
-    atomic_properties["difference_from_mean"] = divergence_diff_from_mean
-
-    for i in TRAJECTORY_INDEX:
-        create_cif_files(
-            elements=["Si"],
-            visualization_artifacts_path=OUTPUT_PATH,
-            trajectory_index=i,
-            trajectory_axl_compositions=axls,
-            atomic_properties=atomic_properties,
-        )
-
-
-def create_cif_files(
+def create_xyz_files(
     elements: list[str],
     visualization_artifacts_path: Path,
-    trajectory_index: int,
+    trajectory_index: Optional[int],
     trajectory_axl_compositions: AXL,
     atomic_properties: Optional[Dict[str, torch.Tensor]] = None,
 ):
@@ -90,8 +85,8 @@ def create_cif_files(
     Returns:
         None
     """
-    _cif_directory_template = "xyz_files_trajectory_{trajectory_index}"
-    _cif_file_name_template = "diffusion_positions_step_{time_index}.xyz"
+    _xyz_directory_template = "xyz_files_trajectory_{trajectory_index}"
+    _xyz_file_name_template = "diffusion_positions_step_{time_index}.xyz"
 
     element_types = ElementTypes(elements)
     atom_type_map = dict()
@@ -102,21 +97,30 @@ def create_cif_files(
     mask_id = np.max(element_types.element_ids) + 1
     atom_type_map[mask_id] = UNKNOWN_ATOM_TYPE
 
-    cif_directory = visualization_artifacts_path / _cif_directory_template.format(
-        trajectory_index=trajectory_index
+    xyz_directory = visualization_artifacts_path / _xyz_directory_template.format(
+        trajectory_index=trajectory_index if trajectory_index is not None else 0
     )
-    cif_directory.mkdir(exist_ok=True, parents=True)
+    xyz_directory.mkdir(exist_ok=True, parents=True)
 
-    trajectory_atom_types = trajectory_axl_compositions.A[trajectory_index].numpy()
-    trajectory_relative_coordinates = trajectory_axl_compositions.X[
-        trajectory_index
-    ].numpy()
-    trajectory_lattices = trajectory_axl_compositions.L[trajectory_index].numpy()
+    if trajectory_index is not None:
+        trajectory_atom_types = trajectory_axl_compositions.A[trajectory_index].numpy()
+        trajectory_relative_coordinates = trajectory_axl_compositions.X[
+            trajectory_index
+        ].numpy()
+        trajectory_lattices = trajectory_axl_compositions.L[trajectory_index].numpy()
+    else:
+        trajectory_atom_types = trajectory_axl_compositions.A.numpy()
+        trajectory_relative_coordinates = trajectory_axl_compositions.X.numpy()
+        trajectory_lattices = trajectory_axl_compositions.L.numpy()
 
-    if atomic_properties is not None:
+    if atomic_properties is not None and trajectory_index is not None:
         atomic_properties = {
             k: v[trajectory_index].numpy() for k, v in atomic_properties.items()
         }
+        atomic_properties_dim = {k: v.shape[-1] for k, v in atomic_properties.items()}
+    elif atomic_properties is not None:
+        atomic_properties = {k: v.numpy() for k, v in atomic_properties.items()}
+        atomic_properties_dim = {k: v.shape[-1] for k, v in atomic_properties.items()}
 
     for time_idx, (atom_types, relative_coordinates, basis_vectors) in tqdm(
         enumerate(
@@ -126,7 +130,7 @@ def create_cif_files(
                 trajectory_lattices,
             )
         ),
-        "Write CIFs",
+        "Write XYZs",
     ):
 
         lattice = Lattice(matrix=basis_vectors, pbc=(True, True, True))
@@ -149,29 +153,17 @@ def create_cif_files(
 
         structure_to_ovito(
             structure,
-            str(cif_directory / _cif_file_name_template.format(time_index=time_idx)),
-            properties=site_properties.keys(),
+            str(xyz_directory / _xyz_file_name_template.format(time_index=time_idx)),
+            properties=site_properties.keys() if site_properties is not None else None,
+            properties_dim=atomic_properties_dim,
         )
-
-        # structure.to_file(
-        #  str(cif_directory / _cif_file_name_template.format(time_index=time_idx))
-        # )
-
-        # xyz = XYZ(structure)
-        # xyz.write_file(
-        #    str(cif_directory / _cif_file_name_template.format(time_index=time_idx))
-        # )
-
-        # writer = CifWriter(structure, write_site_properties=True)
-        # writer.write_file(
-        #     str(cif_directory / _cif_file_name_template.format(time_index=time_idx))
-        # )
 
 
 def structure_to_ovito(
     structure: Structure,
     output_name: str,
     properties: Optional[Union[str, List[str]]] = None,
+    properties_dim: Optional[Dict[str, int]] = None,
 ):
     """Convert pymatgen structure to ovito readable
 
@@ -179,6 +171,8 @@ def structure_to_ovito(
         structure: pymatgen structure to convert
         lattice: lattice parameters in a 3x3 numpy array
         output_name: name of resulting file. An .xyz extension is added if not already in the name.
+        properties: atomic properties names
+        properties_dim: atomic properties dimensions
     """
     lattice = structure.lattice._matrix
     lattice = list(
@@ -189,20 +183,31 @@ def structure_to_ovito(
     n_atom = len(structure.sites)
     if properties is None:
         properties = []
+        properties_dim = []
     elif properties is not None and isinstance(properties, str):
         properties = [properties]
+        assert (
+            properties_dim is not None
+        ), "site properties are defined, but dimensionalities are not."
+
+    if properties_dim is not None:
+        properties_dim = [properties_dim[k] for k in properties]
+
+    assert len(properties_dim) == len(
+        properties
+    ), "mismatch between number of site properties names and dimensions"
 
     xyz_txt = f"{n_atom}\n"
     xyz_txt += lattice_str + " Properties=pos:R:3"
-    for prop in properties:
-        xyz_txt += f":{prop}:R:1"
+    for prop, prop_dim in zip(properties, properties_dim):
+        xyz_txt += f":{prop}:R:{prop_dim}"
     xyz_txt += "\n"
     for i in range(n_atom):
         positions_values = structure.sites[i].coords
         xyz_txt += " ".join(map(str, positions_values))
         for prop in properties:
             prop_value = structure.sites[i].properties.get(prop, 0)
-            xyz_txt += f" {prop_value}"
+            xyz_txt += f" {' '.join(map(str, prop_value))}"
         xyz_txt += "\n"
 
     if not output_name.endswith(".xyz"):
