@@ -5,7 +5,6 @@ for positions in the unit cell of a periodic structure. The aim is to do this
 efficiently on the GPU without CPU-GPU communications.
 """
 
-import itertools
 from collections import namedtuple
 
 import einops
@@ -15,6 +14,8 @@ from pykeops.torch import LazyTensor
 
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_positions_from_coordinates
+from diffusion_for_multi_scale_molecular_dynamics.utils.lattice_utils import \
+    get_relative_coordinates_lattice_vectors
 
 INDEX_PADDING_VALUE = -1
 POSITION_PADDING_VALUE = np.NaN
@@ -112,7 +113,7 @@ def get_periodic_adjacency_information(
     )
 
     # The relative coordinates lattice vectors have dimensions [number of lattice vectors, spatial_dimension]
-    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(
+    relative_lattice_vectors = get_relative_coordinates_lattice_vectors(
         number_of_shells=1, spatial_dimension=spatial_dimension
     ).to(device)
     number_of_relative_lattice_vectors = len(relative_lattice_vectors)
@@ -221,28 +222,6 @@ def get_periodic_adjacency_information(
         node_batch_indices=torch.repeat_interleave(torch.arange(batch_size), max_natom),
         number_of_edges=number_of_edges,
     )
-
-
-def _get_relative_coordinates_lattice_vectors(
-    number_of_shells: int = 1, spatial_dimension: int = 3
-) -> torch.Tensor:
-    """Get relative coordinates lattice vectors.
-
-    Get all the lattice vectors in relative coordinates from -number_of_shells to +number_of_shells,
-    in every spatial directions.
-
-    Args:
-        number_of_shells: number of shifts along lattice vectors in the positive direction.
-
-    Returns:
-        list_relative_lattice_vectors : all the lattice vectors in relative coordinates (ie, integers).
-    """
-    shifts = range(-number_of_shells, number_of_shells + 1)
-    list_relative_lattice_vectors = 1.0 * torch.tensor(
-        list(itertools.product(shifts, repeat=spatial_dimension))
-    )
-
-    return list_relative_lattice_vectors
 
 
 def _get_shifted_positions(

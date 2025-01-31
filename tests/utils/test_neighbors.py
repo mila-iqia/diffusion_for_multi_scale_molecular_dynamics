@@ -7,9 +7,11 @@ from pymatgen.core import Lattice, Structure
 
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_positions_from_coordinates
+from diffusion_for_multi_scale_molecular_dynamics.utils.lattice_utils import \
+    get_relative_coordinates_lattice_vectors
 from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
-    AdjacencyInfo, _get_relative_coordinates_lattice_vectors,
-    _get_shifted_positions, _get_shortest_distance_that_crosses_unit_cell,
+    AdjacencyInfo, _get_shifted_positions,
+    _get_shortest_distance_that_crosses_unit_cell,
     _get_vectors_from_multiple_indices, get_periodic_adjacency_information,
     shift_adjacency_matrix_indices_for_graph_batching)
 from tests.fake_data_utils import find_aligning_permutation
@@ -64,7 +66,7 @@ def positions(relative_coordinates, basis_vectors):
 
 @pytest.fixture
 def lattice_vectors(batch_size, basis_vectors, number_of_shells, spatial_dimension):
-    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(
+    relative_lattice_vectors = get_relative_coordinates_lattice_vectors(
         number_of_shells, spatial_dimension
     )
     batched_relative_lattice_vectors = relative_lattice_vectors.repeat(batch_size, 1, 1)
@@ -256,66 +258,6 @@ def test_get_periodic_neighbour_indices_and_displacements_large_cutoff(
         get_periodic_adjacency_information(
             relative_coordinates, basis_vectors, large_radial_cutoff, spatial_dimension=spatial_dimension
         )
-
-
-@pytest.mark.parametrize("number_of_shells", [1, 2, 3])
-def test_get_relative_coordinates_lattice_vectors_1d(number_of_shells):
-
-    expected_lattice_vectors = []
-
-    for nx in torch.arange(-number_of_shells, number_of_shells + 1):
-        lattice_vector = torch.tensor([nx])
-        expected_lattice_vectors.append(lattice_vector)
-
-    expected_lattice_vectors = torch.stack(expected_lattice_vectors).to(
-        dtype=torch.float32
-    )
-    computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(
-        number_of_shells, spatial_dimension=1
-    )
-
-    torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
-
-
-@pytest.mark.parametrize("number_of_shells", [1, 2, 3])
-def test_get_relative_coordinates_lattice_vectors_2d(number_of_shells):
-
-    expected_lattice_vectors = []
-
-    for nx in torch.arange(-number_of_shells, number_of_shells + 1):
-        for ny in torch.arange(-number_of_shells, number_of_shells + 1):
-            lattice_vector = torch.tensor([nx, ny])
-            expected_lattice_vectors.append(lattice_vector)
-
-    expected_lattice_vectors = torch.stack(expected_lattice_vectors).to(
-        dtype=torch.float32
-    )
-    computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(
-        number_of_shells, spatial_dimension=2
-    )
-
-    torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
-
-
-@pytest.mark.parametrize("number_of_shells", [1, 2, 3])
-def test_get_relative_coordinates_lattice_vectors_3d(number_of_shells):
-
-    expected_lattice_vectors = []
-
-    for nx in torch.arange(-number_of_shells, number_of_shells + 1):
-        for ny in torch.arange(-number_of_shells, number_of_shells + 1):
-            for nz in torch.arange(-number_of_shells, number_of_shells + 1):
-                lattice_vector = torch.tensor([nx, ny, nz])
-                expected_lattice_vectors.append(lattice_vector)
-
-    expected_lattice_vectors = torch.stack(expected_lattice_vectors).to(
-        dtype=torch.float32
-    )
-    computed_lattice_vectors = _get_relative_coordinates_lattice_vectors(
-        number_of_shells, spatial_dimension=3
-    )
-
-    torch.testing.assert_close(expected_lattice_vectors, computed_lattice_vectors)
 
 
 @pytest.mark.parametrize("number_of_shells", [1, 2])
