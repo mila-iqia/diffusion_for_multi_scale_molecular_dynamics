@@ -31,6 +31,12 @@ data:
   num_workers: 0
   max_atom: 3
   spatial_dimension: 1
+  noise:
+    total_time_steps: 100
+    schedule_type: linear
+    sigma_min: 0.001
+    sigma_max: 0.2
+  use_optimal_transport: True
 
 # architecture
 spatial_dimension: 1
@@ -59,12 +65,6 @@ model:
     residual: True
     tanh: False
     edges: fully_connected
-
-  noise:
-    total_time_steps: 100
-    schedule_type: linear
-    sigma_min: 0.001 
-    sigma_max: 0.2
 
 # optimizer and scheduler
 optimizer:
