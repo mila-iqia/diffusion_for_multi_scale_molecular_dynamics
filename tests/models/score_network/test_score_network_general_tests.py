@@ -327,12 +327,19 @@ class TestEGNNScoreNetwork(BaseScoreNetworkGeneralTests):
     def spatial_dimension(self, request):
         return request.param
 
+    @pytest.fixture(params=[1, 2, 3])
+    def nbloch(self, request):
+        return request.param
+
     @pytest.fixture(params=[("fully_connected", None), ("radial_cutoff", 3.0)])
-    def score_network_parameters(self, request, spatial_dimension, num_atom_types):
+    def score_network_parameters(self, request, spatial_dimension, num_atom_types, nbloch):
         edges, radial_cutoff = request.param
         return EGNNScoreNetworkParameters(
+            number_of_bloch_wave_shells=nbloch,
             spatial_dimension=spatial_dimension,
-            edges=edges, radial_cutoff=radial_cutoff, num_atom_types=num_atom_types
+            edges=edges,
+            radial_cutoff=radial_cutoff,
+            num_atom_types=num_atom_types
         )
 
     @pytest.fixture()
@@ -354,18 +361,22 @@ class TestEGNNScoreNetwork(BaseScoreNetworkGeneralTests):
     def test_create_block_diagonal_projection_matrices(
         self, score_network, spatial_dimension
     ):
+        list_k = score_network.bloch_wave_reciprocal_lattice_vectors
+        nk = list_k.shape[0]
+
         expected_matrices = []
-        for space_idx in range(spatial_dimension):
-            matrix = torch.zeros(2 * spatial_dimension, 2 * spatial_dimension)
-            matrix[2 * space_idx + 1, 2 * space_idx] = 1.0
-            matrix[2 * space_idx, 2 * space_idx + 1] = -1.0
+        for alpha in range(spatial_dimension):
+            matrix = torch.zeros(2 * nk, 2 * nk)
+            for idx, k in enumerate(list_k):
+                k_alpha = k[alpha]
+
+                matrix[2 * idx + 1, 2 * idx] = 1.0 * k_alpha
+                matrix[2 * idx, 2 * idx + 1] = -1.0 * k_alpha
             expected_matrices.append(matrix)
 
         expected_matrices = torch.stack(expected_matrices)
 
-        computed_matrices = score_network._create_block_diagonal_projection_matrices(
-            spatial_dimension
-        )
+        computed_matrices = score_network._create_block_diagonal_projection_matrices(list_k)
 
         torch.testing.assert_close(computed_matrices, expected_matrices)
 
@@ -393,6 +404,7 @@ class TestEGNNScoreNetwork(BaseScoreNetworkGeneralTests):
         expected_euclidean_positions = torch.stack(expected_euclidean_positions)
         return expected_euclidean_positions
 
+    @pytest.mark.parametrize("nbloch", [1])
     def test_get_euclidean_positions(
         self, score_network, flat_relative_coordinates, expected_euclidean_positions
     ):
