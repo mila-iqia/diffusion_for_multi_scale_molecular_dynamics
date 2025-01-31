@@ -38,7 +38,7 @@ class NoisingTransform:
         """Noising transform.
 
         This class creates a method that takes in a batch of dataset data and
-        augment it with noised data.
+        augments it with noised data.
 
         Args:
             noise_parameters: noise parameters.
