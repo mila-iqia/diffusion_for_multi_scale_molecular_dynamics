@@ -13,8 +13,6 @@ from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import \
     create_scheduler_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
     create_score_network_parameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle_parameters
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \
@@ -54,9 +52,6 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
     model_dict = hyper_params["model"]
     loss_parameters = create_loss_parameters(model_dict)
 
-    noise_dict = model_dict["noise"]
-    noise_parameters = NoiseParameters(**noise_dict)
-
     diffusion_sampling_parameters = load_diffusion_sampling_parameters(hyper_params)
 
     oracle_parameters = None
@@ -72,7 +67,6 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
         loss_parameters=loss_parameters,
         optimizer_parameters=optimizer_parameters,
         scheduler_parameters=scheduler_parameters,
-        noise_parameters=noise_parameters,
         regularizer_parameters=regularizer_parameters,
         diffusion_sampling_parameters=diffusion_sampling_parameters,
         oracle_parameters=oracle_parameters

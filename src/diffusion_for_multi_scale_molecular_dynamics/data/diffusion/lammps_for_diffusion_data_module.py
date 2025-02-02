@@ -16,10 +16,14 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_par
     DataModuleParameters
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_processor_for_diffusion import \
     LammpsProcessorForDiffusion
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
+    NoisingTransform
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
     NULL_ELEMENT, ElementTypes)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +31,10 @@ logger = logging.getLogger(__name__)
 @dataclass(kw_only=True)
 class LammpsDataModuleParameters(DataModuleParameters):
     """Hyper-Parameters for a Lammps-based data module."""
+
     data_source: str = "LAMMPS"
+    noise_parameters: NoiseParameters
+    use_optimal_transport: bool = False
 
 
 class LammpsForDiffusionDataModule(pl.LightningDataModule):
@@ -54,17 +61,29 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         # check_and_log_hp(["batch_size", "num_workers"], hyper_params)  # validate the hyperparameters
         # TODO add the padding parameters for number of atoms
         self.lammps_run_dir = lammps_run_dir
-        assert self.lammps_run_dir is not None, \
-            "The LAMMPS run directory must be specified to use the LAMMPS data source."
+        assert (
+            self.lammps_run_dir is not None
+        ), "The LAMMPS run directory must be specified to use the LAMMPS data source."
         self.processed_dataset_dir = processed_dataset_dir
-        assert self.processed_dataset_dir is not None, \
-            "The LAMMPS processed dataset directory must be specified to use the LAMMPS data source."
+        assert (
+            self.processed_dataset_dir is not None
+        ), "The LAMMPS processed dataset directory must be specified to use the LAMMPS data source."
         self.working_cache_dir = working_cache_dir
         self.num_workers = hyper_params.num_workers
         self.max_atom = hyper_params.max_atom  # number of atoms to pad tensors
         self.spatial_dim = hyper_params.spatial_dimension
 
         self.element_types = ElementTypes(hyper_params.elements)
+
+        num_atom_types = len(hyper_params.elements)
+        self.use_optimal_transport = hyper_params.use_optimal_transport
+
+        self.noising_transform = NoisingTransform(
+            noise_parameters=hyper_params.noise_parameters,
+            num_atom_types=num_atom_types,
+            spatial_dimension=self.spatial_dim,
+            use_optimal_transport=self.use_optimal_transport
+        )
 
         if hyper_params.batch_size is None:
             assert (
@@ -165,6 +184,28 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             )
         return x
 
+    def create_composed_transform(self):
+        """Create composed transform.
+
+        Chain the relevant dataset transforms that must be applied to the datasets.
+
+        Returns:
+            composed_transform: all transformations as a single callable.
+        """
+        formatting_transform = partial(
+            self.dataset_transform,
+            element_types=self.element_types,
+            spatial_dim=self.spatial_dim,
+        )
+
+        noising_transform = self.noising_transform.transform
+
+        def composed_transform(batch: Dict) -> Dict:
+            """Chained transforms."""
+            return noising_transform(formatting_transform(batch))
+
+        return composed_transform
+
     def setup(self, stage: Optional[str] = None):
         """Parse and split all samples across the train/valid/test parsers."""
         # here, we will actually assign train/val datasets for use in dataloaders
@@ -209,20 +250,9 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         )
         # set_transform is applied on-the-fly and is less costly upfront. Works with batches, so we can't use it for
         # padding
-        self.train_dataset.set_transform(
-            partial(
-                self.dataset_transform,
-                element_types=self.element_types,
-                spatial_dim=self.spatial_dim,
-            )
-        )
-        self.valid_dataset.set_transform(
-            partial(
-                self.dataset_transform,
-                element_types=self.element_types,
-                spatial_dim=self.spatial_dim,
-            )
-        )
+        transform = self.create_composed_transform()
+        self.train_dataset.set_transform(transform)
+        self.valid_dataset.set_transform(transform)
 
     def train_dataloader(self) -> DataLoader:
         """Create the training dataloader using the training data parser."""

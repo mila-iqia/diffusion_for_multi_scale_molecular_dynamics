@@ -9,10 +9,14 @@ from torch.utils.data import DataLoader
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_parameters import \
     DataModuleParameters
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
+    NoisingTransform
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, CARTESIAN_FORCES, RELATIVE_COORDINATES)
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
@@ -23,6 +27,9 @@ logger = logging.getLogger(__name__)
 class GaussianDataModuleParameters(DataModuleParameters):
     """Hyper-parameters for a Gaussian, in memory data module."""
     data_source = "gaussian"
+
+    noise_parameters: NoiseParameters
+    use_optimal_transport: bool
 
     random_seed: int
     # the number of atoms in a configuration.
@@ -42,14 +49,18 @@ class GaussianDataModuleParameters(DataModuleParameters):
         """Post init."""
         assert self.sigma_d > 0.0, "the sigma_d parameter should be positive."
 
-        assert len(self.equilibrium_relative_coordinates) == self.number_of_atoms, \
-            "There should be exactly one list of equilibrium coordinates per atom."
+        assert (
+            len(self.equilibrium_relative_coordinates) == self.number_of_atoms
+        ), "There should be exactly one list of equilibrium coordinates per atom."
 
         for x in self.equilibrium_relative_coordinates:
-            assert len(x) == self.spatial_dimension, \
-                "The equilibrium coordinates should be consistent with the spatial dimension."
+            assert (
+                len(x) == self.spatial_dimension
+            ), "The equilibrium coordinates should be consistent with the spatial dimension."
 
-        assert len(self.elements) == 1, "There can only be one element type for the gaussian data module."
+        assert (
+            len(self.elements) == 1
+        ), "There can only be one element type for the gaussian data module."
 
 
 class GaussianDataModule(pl.LightningDataModule):
@@ -69,8 +80,9 @@ class GaussianDataModule(pl.LightningDataModule):
         self.number_of_atoms = hyper_params.number_of_atoms
         self.spatial_dimension = hyper_params.spatial_dimension
         self.sigma_d = hyper_params.sigma_d
-        self.equilibrium_coordinates = torch.tensor(hyper_params.equilibrium_relative_coordinates,
-                                                    dtype=torch.float)
+        self.equilibrium_coordinates = torch.tensor(
+            hyper_params.equilibrium_relative_coordinates, dtype=torch.float
+        )
 
         self.train_dataset_size = hyper_params.train_dataset_size
         self.valid_dataset_size = hyper_params.valid_dataset_size
@@ -85,6 +97,41 @@ class GaussianDataModule(pl.LightningDataModule):
 
         self.element_types = ElementTypes(hyper_params.elements)
 
+        self.noising_transform = NoisingTransform(
+            noise_parameters=hyper_params.noise_parameters,
+            num_atom_types=len(hyper_params.elements),
+            spatial_dimension=self.spatial_dimension,
+            use_optimal_transport=hyper_params.use_optimal_transport,
+        )
+
+    def get_raw_dataset(self, batch_size: int, rng: torch.Generator):
+        """Get raw dataset."""
+        box = torch.ones(batch_size, self.spatial_dimension, dtype=torch.float)
+        atom_types = torch.zeros(batch_size, self.number_of_atoms, dtype=torch.long)
+
+        mean = einops.repeat(
+            self.equilibrium_coordinates,
+            "natoms space -> batch natoms space",
+            batch=batch_size,
+        )
+        std = self.sigma_d * torch.ones_like(mean)
+        relative_coordinates = map_relative_coordinates_to_unit_cell(
+            torch.normal(mean=mean, std=std, generator=rng).to(torch.float)
+        )
+
+        natoms = self.number_of_atoms * torch.ones(batch_size)
+        potential_energy = torch.zeros(batch_size)
+
+        raw_dataset = {
+            "natom": natoms,
+            "box": box,
+            RELATIVE_COORDINATES: relative_coordinates,
+            ATOM_TYPES: atom_types,
+            CARTESIAN_FORCES: torch.zeros_like(relative_coordinates),
+            "potential_energy": potential_energy,
+        }
+        return raw_dataset
+
     def setup(self, stage: Optional[str] = None):
         """Setup method."""
         self.train_dataset = []
@@ -93,29 +140,19 @@ class GaussianDataModule(pl.LightningDataModule):
         rng = torch.Generator()
         rng.manual_seed(self.random_seed)
 
-        box = torch.ones(self.spatial_dimension, dtype=torch.float)
+        for dataset, batch_size in zip(
+            [self.train_dataset, self.valid_dataset],
+            [self.train_dataset_size, self.valid_dataset_size],
+        ):
 
-        atom_types = torch.zeros(self.number_of_atoms, dtype=torch.long)
+            raw_dataset_as_single_batch = self.get_raw_dataset(batch_size, rng)
+            dataset_as_single_batch = self.noising_transform.transform(
+                raw_dataset_as_single_batch
+            )
 
-        for dataset, batch_size in zip([self.train_dataset, self.valid_dataset],
-                                       [self.train_dataset_size, self.valid_dataset_size]):
-
-            mean = einops.repeat(self.equilibrium_coordinates,
-                                 "natoms space -> batch natoms space", batch=batch_size)
-            std = self.sigma_d * torch.ones_like(mean)
-            relative_coordinates = map_relative_coordinates_to_unit_cell(
-                torch.normal(mean=mean, std=std, generator=rng).to(torch.float))
-
-            for x in relative_coordinates:
-                row = {
-                    "natom": self.number_of_atoms,
-                    "box": box,
-                    RELATIVE_COORDINATES: x,
-                    ATOM_TYPES: atom_types,
-                    CARTESIAN_FORCES: torch.zeros_like(x),
-                    "potential_energy": torch.tensor([0.0], dtype=torch.float),
-                }
-                dataset.append(row)
+            keys = dataset_as_single_batch.keys()
+            for idx in range(batch_size):
+                dataset.append({key: dataset_as_single_batch[key][idx] for key in keys})
 
     def train_dataloader(self) -> DataLoader:
         """Create the training dataloader using the training data parser."""

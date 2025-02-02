@@ -1,0 +1,121 @@
+#================================================================================
+# Configuration file for a diffusion experiment for 3 pseudo-atoms in 1D.
+#================================================================================
+exp_name: egnn
+run_name: run1
+max_epoch: 100
+log_every_n_steps: 1
+gradient_clipping: 0.0
+accumulate_grad_batches: 1  
+
+elements: [A]
+
+# set to null to avoid setting a seed (can speed up GPU computation, but
+# results will not be reproducible)
+seed: 1234
+
+# Data: a fake dataloader will recreate the same example over and over.
+data:
+  data_source: gaussian
+  random_seed: 42
+  number_of_atoms: 3
+  sigma_d: 0.01
+  equilibrium_relative_coordinates: 
+    - [0.0]
+    - [0.33333333]
+    - [0.66666667]
+  train_dataset_size: 8_192
+  valid_dataset_size: 1_024
+
+  batch_size:  64 # batch size for everyone
+  num_workers: 0
+  max_atom: 3
+  spatial_dimension: 1
+  noise:
+    total_time_steps: 100
+    schedule_type: linear
+    sigma_min: 0.001
+    sigma_max: 0.2
+  use_optimal_transport: True
+
+# architecture
+spatial_dimension: 1
+
+model:
+  loss:
+    coordinates_algorithm: mse
+    atom_types_ce_weight: 0.0
+    atom_types_lambda_weight: 0.0
+    relative_coordinates_lambda_weight: 1.0
+    lattice_lambda_weight: 0.0  
+  score_network:
+    architecture: egnn
+    num_atom_types: 1
+    n_layers: 3
+    coordinate_hidden_dimensions_size: 32
+    coordinate_n_hidden_dimensions: 1
+    coords_agg: "mean"
+    message_hidden_dimensions_size: 32
+    message_n_hidden_dimensions: 1
+    message_agg: "mean"
+    node_hidden_dimensions_size: 32
+    node_n_hidden_dimensions: 1
+    attention: False
+    normalize: False
+    residual: True
+    tanh: False
+    edges: fully_connected
+
+# optimizer and scheduler
+optimizer:
+  name: adamw
+  learning_rate: 0.001
+  weight_decay: 5.0e-8
+
+
+scheduler:
+  name: CosineAnnealingLR
+  T_max: 1000
+  eta_min: 0.0
+
+# early stopping
+early_stopping:
+  metric: validation_epoch_loss
+  mode: min
+  patience: 1000
+
+model_checkpoint:
+  monitor: validation_epoch_loss
+  mode: min
+
+score_viewer:
+  record_every_n_epochs: 1
+
+  score_viewer_parameters: 
+    sigma_min: 0.001 
+    sigma_max: 0.2
+    schedule_type: linear
+    number_of_space_steps: 100
+    starting_relative_coordinates: 
+      - [0.0]
+      - [0.0]
+      - [0.0]
+    ending_relative_coordinates: 
+      - [1.0]
+      - [0.0]
+      - [-1.0]
+  analytical_score_network:
+    architecture: "analytical"
+    spatial_dimension: 1
+    number_of_atoms: 3
+    num_atom_types: 1
+    kmax: 5
+    equilibrium_relative_coordinates: 
+      - [0.0]
+      - [0.33333333]
+      - [0.66666667]
+    sigma_d: 0.01
+    use_permutation_invariance: True
+
+logging:
+  - tensorboard

@@ -1,8 +1,8 @@
 import logging
-import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
+import einops
 import pytorch_lightning as pl
 import torch
 
@@ -26,18 +26,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     create_score_network
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, AXL_COMPOSITION, AXL_NAME_DICT, CARTESIAN_FORCES,
-    CARTESIAN_POSITIONS, NOISE, NOISY_AXL_COMPOSITION, RELATIVE_COORDINATES,
-    TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
-    NoiseScheduler
-from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
-    AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
-    LatticeNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
-    RelativeCoordinatesNoiser
+    CARTESIAN_POSITIONS, LATTICE_PARAMETERS, NOISE, NOISY_ATOM_TYPES,
+    NOISY_AXL_COMPOSITION, NOISY_LATTICE_PARAMETERS,
+    NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES, Q_BAR_TM1_MATRICES, Q_MATRICES,
+    RELATIVE_COORDINATES, TIME, TIME_INDICES, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
@@ -58,9 +50,6 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
     compute_distances_in_batch
-from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
-    broadcast_batch_matrix_tensor_to_all_dimensions,
-    broadcast_batch_tensor_to_all_dimensions)
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +62,6 @@ class AXLDiffusionParameters:
     loss_parameters: LossParameters
     optimizer_parameters: OptimizerParameters
     scheduler_parameters: Optional[SchedulerParameters] = None
-    noise_parameters: NoiseParameters
     # convergence parameter for the Ewald-like sum of the perturbation kernel for coordinates.
     kmax_target_score: int = 4
     regularizer_parameters: Optional[RegularizerParameters] = None
@@ -118,18 +106,6 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.loss_weights = AXL(A=hyper_params.loss_parameters.atom_types_lambda_weight,
                                 X=hyper_params.loss_parameters.relative_coordinates_lambda_weight,
                                 L=hyper_params.loss_parameters.lattice_lambda_weight)
-
-        # noisy samplers for atom types, coordinates and lattice vectors
-        self.noisers = AXL(
-            A=AtomTypesNoiser(),
-            X=RelativeCoordinatesNoiser(),
-            L=LatticeNoiser(),
-        )
-
-        self.noise_scheduler = NoiseScheduler(
-            hyper_params.noise_parameters,
-            num_classes=self.num_atom_types + 1,  # add 1 for the MASK class
-        )
 
         self.generator = None
         self.structure_ks_metric = None
@@ -247,104 +223,40 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         Returns:
             output_dictionary : contains the loss, the predictions and various other useful tensors.
         """
-        # The RELATIVE_COORDINATES have dimensions [batch_size, number_of_atoms, spatial_dimension].
-        assert (
-            RELATIVE_COORDINATES in batch
-        ), f"The field '{RELATIVE_COORDINATES}' is missing from the input."
-
-        assert (
-            ATOM_TYPES in batch
-        ), f"The field '{ATOM_TYPES}' is missing from the input."
-
-        x0 = batch[RELATIVE_COORDINATES]
-        shape = x0.shape
-        assert len(shape) == 3, (
-            f"the shape of the RELATIVE_COORDINATES array should be [batch_size, number_of_atoms, spatial_dimensions]. "
-            f"Got shape = {shape}."
-        )
-
         a0 = batch[ATOM_TYPES]
-        batch_size = self._get_batch_size(batch)
-        atom_shape = a0.shape
-        assert len(atom_shape) == 2, (
-            f"the shape of the ATOM_TYPES array should be [batch_size, number_of_atoms]. "
-            f"Got shape = {atom_shape}"
-        )
+        x0 = batch[RELATIVE_COORDINATES]
+        l0 = batch[LATTICE_PARAMETERS]
+        composition = AXL(A=a0, X=x0, L=l0)
 
-        l0 = batch[
-            "box"
-        ]  # should be batch[UNIT_CELL] - see later comment with batch['box']
-        # TODO assert on shape
-
-        noise_sample = self.noise_scheduler.get_random_noise_sample(batch_size)
-
-        # noise_sample.sigma has dimension [batch_size]. Broadcast these values to be of shape
-        # [batch_size, number_of_atoms, spatial_dimension] , which can be interpreted as
-        # [batch_size, (configuration)]. All the sigma values must be the same for a given configuration.
-        sigmas = broadcast_batch_tensor_to_all_dimensions(
-            batch_values=noise_sample.sigma, final_shape=shape
-        )
-        # we can now get noisy coordinates
-        xt = self.noisers.X.get_noisy_relative_coordinates_sample(x0, sigmas)
-
-        # to get noisy atom types, we need to broadcast the transition matrices q, q_bar and q_bar_tm1 from size
-        # [batch_size, num_atom_types, num_atom_types] to [batch_size, number_of_atoms, num_atom_types, num_atom_types].
-        # All the matrices must be the same for all atoms in a given configuration.
-        q_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
-            batch_values=noise_sample.q_matrix, final_shape=atom_shape
-        )
-        q_bar_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
-            batch_values=noise_sample.q_bar_matrix, final_shape=atom_shape
-        )
-
-        q_bar_tm1_matrices = broadcast_batch_matrix_tensor_to_all_dimensions(
-            batch_values=noise_sample.q_bar_tm1_matrix, final_shape=atom_shape
-        )
-
-        # we also need the atom types to be one-hot vector and not a class index
-        a0_onehot = class_index_to_onehot(a0, self.num_atom_types + 1)
-
-        at = self.noisers.A.get_noisy_atom_types_sample(a0_onehot, q_bar_matrices)
-        at_onehot = class_index_to_onehot(at, self.num_atom_types + 1)
-
-        # TODO do the same for the lattice vectors
-        lt = self.noisers.L.get_noisy_lattice_vectors(l0)
-
-        noisy_composition = AXL(A=at, X=xt, L=lt)  # not one-hot
-
-        original_composition = AXL(A=a0, X=x0, L=l0)
+        at = batch[NOISY_ATOM_TYPES]
+        xt = batch[NOISY_RELATIVE_COORDINATES]
+        lt = batch[NOISY_LATTICE_PARAMETERS]
+        noisy_composition = AXL(A=at, X=xt, L=lt)
 
         # Get the loss targets
         # Coordinates: The target is :math:`sigma(t) \nabla  log p_{t|0} (xt | x0)`
         # it is NOT the "score", but rather a "conditional" (on x0) score.
+        sigmas = einops.repeat(batch[NOISE],
+                               "batch 1 -> batch natoms space",
+                               natoms=x0.shape[1], space=x0.shape[2])
         target_coordinates_normalized_conditional_scores = (
             self._get_coordinates_target_normalized_score(xt, x0, sigmas)
         )
-        # for the atom types, the loss is constructed from the Q and Qbar matrices
-
-        # TODO get unit_cell from the noisy version and not a kwarg in batch (at least replace with namespace name)
-        unit_cell = torch.diag_embed(
-            batch["box"]
-        )  # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
-
-        forces = batch[CARTESIAN_FORCES]
 
         augmented_batch = {
             NOISY_AXL_COMPOSITION: noisy_composition,
-            TIME: noise_sample.time.reshape(-1, 1),
-            NOISE: noise_sample.sigma.reshape(-1, 1),
-            UNIT_CELL: unit_cell,  # TODO remove and take from AXL instead
-            CARTESIAN_FORCES: forces,
+            TIME: batch[TIME],
+            NOISE: batch[NOISE],
+            UNIT_CELL: batch[UNIT_CELL],  # TODO remove and take from AXL instead
+            CARTESIAN_FORCES: batch[CARTESIAN_FORCES],
         }
 
         use_conditional = None if no_conditional is False else False
-        t1 = time.time()
+
+        # this output is expected to be an AXL object
         model_predictions = self.axl_network(
             augmented_batch, conditional=use_conditional
         )
-        t2 = time.time()
-        model_prediction_time = t2 - t1
-        # this output is expected to be an AXL object
         # X score network output: an estimate of the sigma normalized score for the coordinates,
         # A score network output: an unnormalized estimate of p(a_0 | a_t) for the atom types
         # TODO something for the lattice
@@ -355,14 +267,18 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             sigmas,
         )
 
+        # we also need the atom types to be one-hot vector and not a class index
+        a0_onehot = class_index_to_onehot(a0, self.num_atom_types + 1)
+        at_onehot = class_index_to_onehot(at, self.num_atom_types + 1)
+
         unreduced_loss_atom_types = self.loss_calculator.A.calculate_unreduced_loss(
             predicted_logits=model_predictions.A,
             one_hot_real_atom_types=a0_onehot,
             one_hot_noisy_atom_types=at_onehot,
-            time_indices=noise_sample.indices,
-            q_matrices=q_matrices,
-            q_bar_matrices=q_bar_matrices,
-            q_bar_tm1_matrices=q_bar_tm1_matrices,
+            time_indices=batch[TIME_INDICES],
+            q_matrices=batch[Q_MATRICES],
+            q_bar_matrices=batch[Q_BAR_MATRICES],
+            q_bar_tm1_matrices=batch[Q_BAR_TM1_MATRICES],
         )
 
         # TODO placeholder - returns zero
@@ -405,27 +321,20 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.regularizer and self.regularizer.can_regularizer_run():
             # Use the same times and atom types as in the noised composition. Random
             # relative coordinates will be drawn internally.
-            t1 = time.time()
             weighted_regularizer_loss = (
                 self.regularizer.compute_weighted_regularizer_loss(
                     score_network=self.axl_network,
                     augmented_batch=augmented_batch,
                     current_epoch=self.current_epoch))
 
-            t2 = time.time()
-            model_regularization_time = t2 - t1
-            logger.info(f"  - batch {batch_idx} :: Prediction time = {model_prediction_time:2.1e} s, "
-                        f"Regularization time = {model_regularization_time:2.1e} s.")
-
             output["loss"] += weighted_regularizer_loss
             output["regularizer_loss"] = weighted_regularizer_loss
 
-        output[AXL_COMPOSITION] = original_composition
+        output[AXL_COMPOSITION] = composition
         output[NOISY_AXL_COMPOSITION] = noisy_composition
         output[TIME] = augmented_batch[TIME]
-        output[UNIT_CELL] = augmented_batch[
-            UNIT_CELL
-        ]  # TODO remove and use AXL instead
+        # TODO remove and use AXL instead
+        output[UNIT_CELL] = augmented_batch[UNIT_CELL]
 
         return output
 

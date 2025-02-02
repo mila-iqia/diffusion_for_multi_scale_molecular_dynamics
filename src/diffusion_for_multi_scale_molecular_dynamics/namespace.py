@@ -29,8 +29,17 @@ UNIT_CELL = "unit_cell"  # unit cell definition
 ATOM_TYPES = "atom_types"
 NOISY_ATOM_TYPES = "noisy_atom_types"
 
+LATTICE_PARAMETERS = "lattice_parameters"
+NOISY_LATTICE_PARAMETERS = "noisy_lattice_parameters"
+
 AXL = namedtuple("AXL", ["A", "X", "L"])
 AXL_NAME_DICT = {"A": ATOM_TYPES, "X": RELATIVE_COORDINATES, "L": UNIT_CELL}
 
 NOISY_AXL_COMPOSITION = "noisy_axl"
 AXL_COMPOSITION = "original_axl"
+
+TIME_INDICES = "time_indices"
+
+Q_MATRICES = 'q_matrices'
+Q_BAR_MATRICES = 'q_bar_matrices'
+Q_BAR_TM1_MATRICES = 'q_bar_tm1_matrices'

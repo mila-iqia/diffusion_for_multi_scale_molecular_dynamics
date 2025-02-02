@@ -94,7 +94,6 @@ def axl_network(number_of_atoms, noise_parameters, num_atom_types):
         loss_parameters=MSELossParameters(),
         optimizer_parameters=OptimizerParameters(name="adam", learning_rate=1e-3),
         scheduler_parameters=None,
-        noise_parameters=noise_parameters,
         diffusion_sampling_parameters=None,
     )
 
