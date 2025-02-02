@@ -64,9 +64,7 @@ class NoisingTransform:
 
         if self.use_optimal_transport:
             # TODO: review this as we improve the transporter
-            self.point_group_operations = torch.diag(
-                torch.ones(spatial_dimension)
-            ).unsqueeze(0)
+            self.point_group_operations = torch.eye(spatial_dimension).unsqueeze(0)
             self.transporter = Transporter(
                 point_group_operations=self.point_group_operations,
                 maximum_number_of_steps=10,
