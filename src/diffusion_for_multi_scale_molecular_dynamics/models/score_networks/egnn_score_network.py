@@ -27,10 +27,14 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     number_of_bloch_wave_shells: int = 1
     message_n_hidden_dimensions: int = 1
     message_hidden_dimensions_size: int = 16
+    message_radial_embedding_size: int = 2
+    message_radial_cutoff: 6  # 2 * spatial_dimension
     node_n_hidden_dimensions: int = 1
     node_hidden_dimensions_size: int = 32
     coordinate_n_hidden_dimensions: int = 1
     coordinate_hidden_dimensions_size: int = 32
+    coordinate_radial_embedding_size: int = 2
+    coordinate_radial_cutoff: Union[float, None] = None
     residual: bool = True
     attention: bool = False
     normalize: bool = False
@@ -111,10 +115,14 @@ class EGNNScoreNetwork(ScoreNetwork):
             input_size=self.number_of_features_per_node,
             message_n_hidden_dimensions=hyper_params.message_n_hidden_dimensions,
             message_hidden_dimensions_size=hyper_params.message_hidden_dimensions_size,
+            message_radial_embedding_size=hyper_params.message_radial_embedding_size,
+            message_radial_cutoff=hyper_params.message_radial_cutoff,
             node_n_hidden_dimensions=hyper_params.node_n_hidden_dimensions,
             node_hidden_dimensions_size=hyper_params.node_hidden_dimensions_size,
             coordinate_n_hidden_dimensions=hyper_params.coordinate_n_hidden_dimensions,
             coordinate_hidden_dimensions_size=hyper_params.coordinate_hidden_dimensions_size,
+            coordinate_radial_embedding_size=hyper_params.coordinate_radial_embedding_size,
+            coordinate_radial_cutoff=hyper_params.coordinate_radial_cutoff,
             residual=hyper_params.residual,
             attention=hyper_params.attention,
             normalize=hyper_params.normalize,

@@ -8,13 +8,13 @@ It implements EGNN as described in the paper "E(n) Equivariant Graph Neural Netw
 The file is modified from the original download to fit our own linting style and add additional controls.
 """
 
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import torch
 from torch import nn
 
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
-    unsorted_segment_mean, unsorted_segment_sum)
+    unsorted_segment_mean, unsorted_segment_sum, BesselBasis)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 
@@ -27,10 +27,14 @@ class E_GCL(nn.Module):
         output_size: int,
         message_n_hidden_dimensions: int,
         message_hidden_dimensions_size: int,
+        message_radial_embedding_size: int,
+        message_radial_cutoff: float,
         node_n_hidden_dimensions: int,
         node_hidden_dimensions_size: int,
         coordinate_n_hidden_dimensions: int,
         coordinate_hidden_dimensions_size: int,
+        coordinate_radial_embedding_size: int,
+        coordinate_radial_cutoff: Optional[float] = None,
         act_fn: Callable = nn.SiLU(),
         residual: bool = True,
         attention: bool = False,
@@ -46,6 +50,8 @@ class E_GCL(nn.Module):
             output_size: number of node features in the output
             message_n_hidden_dimensions: number of hidden layers of the message (edge) MLP
             message_hidden_dimensions_size: size of the hidden layers of the message (edge) MLP
+            message_radial_embedding_size: number of RBF to express the distances between 2 atoms for message updates
+            message_radial_cutoff: max distance to consider. TODO could defaults to spatial_dimension * 2
             node_n_hidden_dimensions: number of hidden layers of the node update MLP
             node_hidden_dimensions_size: size of the hidden layers of the node update MLP
             coordinate_n_hidden_dimensions: number of hidden layers of the coordinate update MLP
@@ -78,7 +84,12 @@ class E_GCL(nn.Module):
         # message update MLP i.e. message m_{ij} used in the graph neural network.
         # \phi_e is eq. (3) in https://arxiv.org/pdf/2102.09844
         # Input is a concatenation of the two node features and distance
-        message_input_size = input_size * 2 + 1
+        message_input_size = input_size * 2 + message_radial_embedding_size
+        self.message_rbf = BesselBasis(
+            r_max=message_radial_cutoff,
+            num_basis=message_radial_embedding_size,
+            trainable=False
+        )
         self.message_mlp = nn.Sequential(
             nn.Linear(message_input_size, message_hidden_dimensions_size), act_fn
         )
@@ -106,6 +117,19 @@ class E_GCL(nn.Module):
 
         # coordinate (x) update MLP. Input is the message m_{ij}
         # \phi_x in eq.(4) in https://arxiv.org/pdf/2102.09844
+
+        if coordinate_radial_cutoff is None:
+            coordinate_radial_cutoff = message_radial_cutoff
+        coordinate_rbf = BesselBasis(
+            r_max=coordinate_radial_cutoff,
+            num_basis=coordinate_radial_embedding_size,
+            trainable=False)
+        self.coord_radial_embedding = nn.Sequential(
+            coordinate_rbf,
+            nn.Linear(coordinate_radial_embedding_size, coordinate_hidden_dimensions_size),
+            act_fn,
+            nn.Linear(coordinate_hidden_dimensions_size, 1)
+        )
 
         coordinate_input_size = message_hidden_dimensions_size
         self.coord_mlp = nn.Sequential(
@@ -152,11 +176,13 @@ class E_GCL(nn.Module):
         Returns:
             messages :math:`m_{ij}` size: number of edges, message_hidden_dimensions_size
         """
-        out = torch.cat([source, target, radial], dim=1)
+        radial_embedding = self.message_rbf(radial)
+        out = torch.cat([source, target, radial_embedding], dim=1)
         out = self.message_mlp(out)
         if self.attention:  # gate the message by itself - optional
             att_val = self.att_mlp(out)
             out = out * att_val
+
         return out
 
     def node_model(
@@ -192,6 +218,7 @@ class E_GCL(nn.Module):
         edge_index: torch.Tensor,
         coord_diff: torch.Tensor,
         messages: torch.Tensor,
+        radial: torch.Tensor,
     ) -> torch.Tensor:
         r"""Update the coordinates.
 
@@ -204,12 +231,17 @@ class E_GCL(nn.Module):
             edge_index: edge indices. size: number of edges, 2
             coord_diff: difference between coordinates, :math:`x_i - x_j`. size: number of edges, spatial dimension
             messages: messages between nodes i and j.  size: number of edges, message_hidden_dimensions_size
+            radial: distances between nodes i and j. size: number of edges, 1
 
         Returns:
             updates coordinates. size: number of nodes, spatial dimension
         """
         row = edge_index[:, 0]
         trans = coord_diff * self.coord_mlp(messages)  # (x_i  - x_j) *  \phi_m(m_{ij})
+
+        radial_scaling = self.coord_radial_embedding(radial)
+        trans = trans * radial_scaling  # (x_i - x_j) * \phi_m(m_{ij}) * \phi_r(r_{ij})
+
         agg = self.coords_agg_fn(trans, row, num_segments=coord.size(0))  # sum over j
         coord += agg
         return coord
@@ -261,7 +293,8 @@ class E_GCL(nn.Module):
         #
         # In effect, this function creates a "hole" around |r| = 0 to insure that there are no
         # discontinuous jumps in norm_r.
-        return torch.tanh(radial_norm_squared) / torch.sqrt(radial_norm_squared + self.epsilon**2)
+        return 1.0 / torch.sqrt(radial_norm_squared + self.epsilon ** 2)
+        # return torch.tanh(radial_norm_squared) / torch.sqrt(radial_norm_squared + self.epsilon**2)
 
     def forward(
         self, h: torch.Tensor, edge_index: torch.Tensor, coord: torch.Tensor
@@ -297,10 +330,14 @@ class EGNN(nn.Module):
         num_classes: int,
         message_n_hidden_dimensions: int,
         message_hidden_dimensions_size: int,
+        message_radial_embedding_size: int,
+        message_radial_cutoff: float,
         node_n_hidden_dimensions: int,
         node_hidden_dimensions_size: int,
         coordinate_n_hidden_dimensions: int,
         coordinate_hidden_dimensions_size: int,
+        coordinate_radial_embedding_size: int,
+        coordinate_radial_cutoff: Optional[float] = None,
         act_fn: Callable = nn.SiLU(),
         residual: bool = True,
         attention: bool = False,
@@ -317,10 +354,15 @@ class EGNN(nn.Module):
             num_classes: number of atom types uses for the final node embedding - including the MASK class.
             message_n_hidden_dimensions: number of hidden layers of the message (edge) MLP
             message_hidden_dimensions_size: size of the hidden layers of the message (edge) MLP
+            message_radial_embedding_size: size of the RBF for message updates
+            message_radial_cutoff: max distance for the RBF for the message updates
             node_n_hidden_dimensions: number of hidden layers of the node update MLP
             node_hidden_dimensions_size: size of the hidden layers of the node update MLP
             coordinate_n_hidden_dimensions: number of hidden layers of the coordinate update MLP
             coordinate_hidden_dimensions_size: size of the hidden layers of the coordinate update MLP
+            coordinate_radial_embedding_size: size of the RBF for the coordinates updates
+            coordinate_radial_cutoff: max distance for the RBF for the coordinates updates. If None, defaults to
+                message_radial_cutoff.
             act_fn: activation function used in the MLPs. Defaults to nn.SiLU()
             residual: if True, add a skip connection in the nodes update. Defaults to True.
             attention: if True, multiply the message output by a gated value of the output. Defaults to False.
@@ -345,10 +387,14 @@ class EGNN(nn.Module):
                     output_size=node_hidden_dimensions_size,
                     message_n_hidden_dimensions=message_n_hidden_dimensions,
                     message_hidden_dimensions_size=message_hidden_dimensions_size,
+                    message_radial_embedding_size=message_radial_embedding_size,
+                    message_radial_cutoff=message_radial_cutoff,
                     node_n_hidden_dimensions=node_n_hidden_dimensions,
                     node_hidden_dimensions_size=node_hidden_dimensions_size,
                     coordinate_n_hidden_dimensions=coordinate_n_hidden_dimensions,
                     coordinate_hidden_dimensions_size=coordinate_hidden_dimensions_size,
+                    coordinate_radial_embedding_size=coordinate_radial_embedding_size,
+                    coordinate_radial_cutoff=coordinate_radial_cutoff,
                     act_fn=act_fn,
                     residual=residual,
                     attention=attention,
