@@ -1,5 +1,7 @@
-"""Compute the score along a trajectory where all atoms are fixed except one, going from it's equilibrium position
-to its nearest neighbor."""
+"""Compute the score along a trajectory.
+
+All atoms are fixed except one going from its equilibrium position to its nearest neighbor.
+"""
 
 import glob
 from pathlib import Path
@@ -307,7 +309,7 @@ def get_model_coordinates_jacobian(
     sigma_noise: torch.Tensor,
     device: torch.device,
 ) -> torch.Tensor:
-    """Get the jacobian of an axl-network for the coordinates input
+    """Get the jacobian of an axl-network for the coordinates input.
 
      Args:
         composition : AXL composition with:
@@ -322,7 +324,6 @@ def get_model_coordinates_jacobian(
         coordinates jacobian of shape
         [number_of_samples, number_of_atoms * spatial_dimension, number_of_atoms * spatial_dimension]
     """
-
     # to get the jacobian wrt to coordinates, we need a wrapper around the _get_model_output so that the input and
     # the output are tensors, and not an AXL
     def _get_model_output_wrapper(
