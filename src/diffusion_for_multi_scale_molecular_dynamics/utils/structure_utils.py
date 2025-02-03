@@ -5,9 +5,11 @@ import torch
 from pykeops.torch import LazyTensor
 from pymatgen.core import Lattice, Structure
 
+from diffusion_for_multi_scale_molecular_dynamics.utils.lattice_utils import \
+    get_relative_coordinates_lattice_vectors
 from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
-    _get_relative_coordinates_lattice_vectors, _get_shifted_positions,
-    get_periodic_adjacency_information, get_positions_from_coordinates)
+    _get_shifted_positions, get_periodic_adjacency_information,
+    get_positions_from_coordinates)
 
 
 def create_structure(
@@ -60,7 +62,7 @@ def compute_distances_in_batch(
     zero = torch.tensor(0.0).to(device)
 
     # The relative coordinates lattice vectors have dimensions [number of lattice vectors, spatial_dimension]
-    relative_lattice_vectors = _get_relative_coordinates_lattice_vectors(
+    relative_lattice_vectors = get_relative_coordinates_lattice_vectors(
         number_of_shells=1, spatial_dimension=spatial_dimension
     ).to(device)
     number_of_relative_lattice_vectors = len(relative_lattice_vectors)

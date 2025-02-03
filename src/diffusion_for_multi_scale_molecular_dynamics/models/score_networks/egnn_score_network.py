@@ -15,6 +15,8 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
+from diffusion_for_multi_scale_molecular_dynamics.utils.lattice_utils import \
+    get_cubic_point_group_positive_normalized_bloch_wave_vectors
 
 
 @dataclass(kw_only=True)
@@ -22,6 +24,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for ENN score networks."""
 
     architecture: str = "egnn"
+    number_of_bloch_wave_shells: int = 1
     message_n_hidden_dimensions: int = 1
     message_hidden_dimensions_size: int = 16
     node_n_hidden_dimensions: int = 1
@@ -61,9 +64,25 @@ class EGNNScoreNetwork(ScoreNetwork):
             self.num_atom_types + 2
         )  # +1 for MASK class, + 1 for sigma
 
-        projection_matrices = self._create_block_diagonal_projection_matrices(
-            self.spatial_dimension
+        self.number_of_bloch_wave_shells = hyper_params.number_of_bloch_wave_shells
+        bloch_wave_reciprocal_lattice_vectors = (
+            get_cubic_point_group_positive_normalized_bloch_wave_vectors(
+                number_of_complete_shells=self.number_of_bloch_wave_shells,
+                spatial_dimension=self.spatial_dimension,
+            )
+        ).float()
+
+        self.register_parameter(
+            "bloch_wave_reciprocal_lattice_vectors",
+            torch.nn.Parameter(
+                bloch_wave_reciprocal_lattice_vectors, requires_grad=False
+            ),
         )
+
+        projection_matrices = self._create_block_diagonal_projection_matrices(
+            bloch_wave_reciprocal_lattice_vectors
+        )
+
         self.register_parameter(
             "projection_matrices",
             torch.nn.Parameter(projection_matrices, requires_grad=False),
@@ -108,7 +127,7 @@ class EGNNScoreNetwork(ScoreNetwork):
 
     @staticmethod
     def _create_block_diagonal_projection_matrices(
-        spatial_dimension: int,
+        bloch_wave_reciprocal_lattice_vectors: torch.Tensor,
     ) -> torch.Tensor:
         """Create block diagonal projection matrices.
 
@@ -122,22 +141,20 @@ class EGNNScoreNetwork(ScoreNetwork):
         in real space, and i,j are coordinates in the uplifted Euclidean space.
 
         Args:
-            spatial_dimension : spatial dimension of the crystal.
+            bloch_wave_reciprocal_lattice_vectors: K vectors, in reduced units.
 
         Returns:
             projection_matrices: block diagonal projection matrices, of
-                dimension [spatial_dimension, 2 x spatial_dimension, 2 x spatial_dimension].
+                dimension [spatial_dimension, uplifted Euclidean dimension, uplifted Euclidean dimension].
         """
-        zeros = torch.zeros(2, 2)
         dimensional_projector = torch.tensor([[0.0, -1.0], [1.0, 0.0]])
 
+        spatial_dimension = bloch_wave_reciprocal_lattice_vectors.shape[1]
+
         projection_matrices = []
-        for space_idx in range(spatial_dimension):
-            blocks = (
-                space_idx * [zeros]
-                + [dimensional_projector]
-                + (spatial_dimension - space_idx - 1) * [zeros]
-            )
+        for alpha in range(spatial_dimension):
+            list_k_alpha = bloch_wave_reciprocal_lattice_vectors[:, alpha]
+            blocks = [k_alpha * dimensional_projector for k_alpha in list_k_alpha]
             projection_matrices.append(torch.block_diag(*blocks))
 
         return torch.stack(projection_matrices)
@@ -174,29 +191,33 @@ class EGNNScoreNetwork(ScoreNetwork):
         )
         return node_attributes
 
-    @staticmethod
     def _get_euclidean_positions(
+        self,
         flat_relative_coordinates: torch.Tensor,
     ) -> torch.Tensor:
         """Get Euclidean positions.
 
         Get the positions that take points on the torus into a higher dimensional
-        (ie, 2 x spatial_dimension) Euclidean space.
+        (ie, [e^{iK r}]i) Euclidean-like space.
 
         Args:
             flat_relative_coordinates: relative coordinates, of dimensions [number_of_nodes, spatial_dimension]
 
         Returns:
             euclidean_positions : uplifted relative coordinates to a higher dimensional Euclidean space.
-            euclidean_projectors : projectors in the higher dimensional Euclidean space to extract normalized score.
         """
         # Uplift the relative coordinates to the embedding Euclidean space
-        angles = 2.0 * torch.pi * flat_relative_coordinates
-        cosines = angles.cos()
-        sines = angles.sin()
+        two_pi_x = 2.0 * torch.pi * flat_relative_coordinates
+        kr = einops.einsum(
+            self.bloch_wave_reciprocal_lattice_vectors.to(two_pi_x),
+            two_pi_x,
+            "nbloch space, nodes space -> nodes nbloch",
+        )
+        cosines = kr.cos()
+        sines = kr.sin()
         euclidean_positions = einops.rearrange(
             torch.stack([cosines, sines]),
-            "two nodes spatial_dimension -> nodes (spatial_dimension two)",
+            "two nodes nbloch -> nodes (nbloch two)",
         )
         return euclidean_positions
 
@@ -214,7 +235,7 @@ class EGNNScoreNetwork(ScoreNetwork):
                 batch[UNIT_CELL],
                 self.radial_cutoff,
                 drop_duplicate_edges=self.drop_duplicate_edges,
-                spatial_dimension=self.spatial_dimension
+                spatial_dimension=self.spatial_dimension,
             )
 
         edges = edges.to(relative_coordinates.device)
@@ -241,8 +262,8 @@ class EGNNScoreNetwork(ScoreNetwork):
         #       S^alpha = z . Gamma^alpha . hat_z
         #  where:
         #       - alpha is a spatial index (ie, x, y z) in the real space
-        #       - z is  the uplifted "positions" in the 2 x spatial_dimension Euclidean space
-        #       - hat_z is the output of the EGNN model, also in 2 x spatial_dimension
+        #       - z are the "positions" in the uplifted Euclidean space
+        #       - hat_z is the output of the EGNN model, also in the uplifted Euclidean space
         #       - Gamma^alpha are the projection matrices
         flat_normalized_scores = einops.einsum(
             euclidean_positions,
