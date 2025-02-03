@@ -154,11 +154,11 @@ class Transporter:
 
     def get_optimal_transport(
         self, x: torch.Tensor, y: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, bool]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Get optimal transport.
 
-        This method finds the approximate best permutation, point group operation and translation such that
-            D2(x, g.y + tau)
+        This method finds the best permutation such that
+            D2(x, g.y)
         is as small as possible.
 
         Args:
@@ -167,30 +167,6 @@ class Transporter:
 
         Returns:
             final_y: the aligned value of y
-            list_squared_distances: the squared distances obtained during algorithm execution
-            algo_converged: this the algorithm converge.
+            optimal_permutation: the minimizing permutation, of dimension [number_of_atoms, number_of_atoms]
         """
-        sol_y1, list_squared_distances1, algo_converged1 = (
-            self.get_optimal_transport_by_projector(
-                x,
-                y,
-                self.find_permutation,
-                self.find_point_group_and_translation_operations,
-            )
-        )
-        best_squared_distance1 = list_squared_distances1[-1]
-
-        sol_y2, list_squared_distances2, algo_converged2 = (
-            self.get_optimal_transport_by_projector(
-                x,
-                y,
-                self.find_point_group_and_translation_operations,
-                self.find_permutation,
-            )
-        )
-        best_squared_distance2 = list_squared_distances2[-1]
-
-        if best_squared_distance2 >= best_squared_distance1:
-            return sol_y1, list_squared_distances1, algo_converged1
-        else:
-            return sol_y2, list_squared_distances2, algo_converged2
+        return self.find_permutation(x, y)
