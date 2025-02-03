@@ -159,7 +159,6 @@ class BesselBasis(torch.nn.Module):
                 start=1.0,
                 end=num_basis,
                 steps=num_basis,
-                dtype=torch.get_default_dtype(),
             )
         )
         if trainable:
@@ -168,11 +167,11 @@ class BesselBasis(torch.nn.Module):
             self.register_buffer("bessel_weights", bessel_weights)
 
         self.register_buffer(
-            "r_max", torch.tensor(r_max, dtype=torch.get_default_dtype())
+            "r_max", torch.tensor(r_max)
         )
         self.register_buffer(
             "prefactor",
-            torch.sqrt(torch.tensor(2.0 / r_max), dtype=torch.get_default_dtype()),
+            torch.sqrt(torch.tensor(2.0 / r_max)),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # [..., 1]
