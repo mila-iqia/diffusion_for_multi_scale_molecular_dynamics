@@ -23,6 +23,7 @@ UNIT_CELL_SIZE = 10.86  # cell size in angstrom
 
 
 def main():
+    """Create plots and video of scores as a function of distance & sigma."""
     data = torch.load(data_path, map_location="cpu")
 
     sigmas = data["sigma"]  # tensor of shape [num_time_steps]
@@ -65,19 +66,19 @@ def main():
         projected_scores
     )  # [num_space_steps, num_time_steps]
 
-    projected_scores_plot_dir = FIGURES_DIR / "projected_scores"
+    projected_scores_plot_dir = FIGURES_DIR / "projected_scores_target_atom"
     projected_scores_plot_dir.mkdir(parents=True, exist_ok=True)
     for i in range(projected_scores.shape[1]):
         plot_name = projected_scores_plot_dir / f"score_{i}.png"
         plot_projected_scores(projected_scores, sigmas, i, d_ang, output=plot_name)
-    video_name = projected_scores_plot_dir / "projected_scores.mp4"
+    video_name = projected_scores_plot_dir / "projected_scores_target_atom.mp4"
     make_video(projected_scores_plot_dir, video_name)
 
 
 def get_projected_score(
     score_axl: AXL, unit_vector: torch.Tensor, target_idx: int
 ) -> torch.Tensor:
-    # find the score of the target atom and select those of the target atom
+    """Find the score of the target atom and select those of the target atom."""
     score_x = score_axl.X[
         :, target_idx, :
     ]  # num_time_steps, num_atoms, spatial_dimension
@@ -92,7 +93,7 @@ def plot_projected_scores(
     d_length: float,
     output: Path,
 ):
-    # plot the score along the path
+    """Plot the score along the path."""
     n_space_steps, n_time_steps = projected_scores.shape
 
     # need to tweak the figure size to make a video - ffmpeg needs an even number of pixels for the height
@@ -130,6 +131,7 @@ def plot_projected_scores(
 
 
 def make_video(plot_path, output_file_path):
+    """Create a video from figures in a folder."""
     commands = [
         "ffmpeg",
         "-r",

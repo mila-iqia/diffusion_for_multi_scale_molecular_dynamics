@@ -23,6 +23,7 @@ SIGMA_INDEX = 0
 
 
 def main():
+    """Read a trajectory file and create XYZ files formatted for OVITO."""
     trajectory_file = TRAJECTORY_PATH / "interpolated_positions.pt"
 
     axls = torch.load(trajectory_file, map_location="cpu")
@@ -165,7 +166,7 @@ def structure_to_ovito(
     properties: Optional[Union[str, List[str]]] = None,
     properties_dim: Optional[Dict[str, int]] = None,
 ):
-    """Convert pymatgen structure to ovito readable
+    """Convert pymatgen structure to ovito readable format.
 
     Args:
         structure: pymatgen structure to convert
