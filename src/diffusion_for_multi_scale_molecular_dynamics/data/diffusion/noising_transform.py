@@ -137,7 +137,7 @@ class NoisingTransform:
             # Transport xt to be as close to x0 as possible
             nearest_xt = []
             for batch_idx in range(batch_size):
-                transported_xt, _, _ = self.transporter.get_optimal_transport(
+                transported_xt, _ = self.transporter.get_optimal_transport(
                     x0[batch_idx], xt[batch_idx]
                 )
                 nearest_xt.append(transported_xt)

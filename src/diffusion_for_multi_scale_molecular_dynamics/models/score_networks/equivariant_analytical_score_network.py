@@ -137,7 +137,7 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         nearest_equilibrium_coordinates = []
         for batch_idx in range(batch_size):
-            transported_y, _, _ = self.transporter.get_optimal_transport(
+            transported_y, _ = self.transporter.get_optimal_transport(
                 x[batch_idx], y[batch_idx]
             )
             nearest_equilibrium_coordinates.append(transported_y)
