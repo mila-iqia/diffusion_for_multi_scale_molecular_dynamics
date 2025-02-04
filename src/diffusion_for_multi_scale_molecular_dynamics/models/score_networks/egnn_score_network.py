@@ -93,6 +93,24 @@ class EGNNScoreNetwork(ScoreNetwork):
             torch.nn.Parameter(projection_matrices, requires_grad=False),
         )
 
+        # this breaks translation invariance & rotation equivariance
+        # done for experiments only
+        self.skip_projection = hyper_params.skip_projection
+        hidden_dim_size = hyper_params.projection_n_hidden_dimensions_hidden_dimensions_size
+        if self.skip_projection:
+            projection_mlp = [
+                torch.nn.Linear(self.projection_matrices.shape[-1], hidden_dim_size)
+            ]
+            for _ in range(hyper_params.projection_n_hidden_dimensions):
+                projection_mlp.append(torch.nn.SiLU())
+                projection_mlp.append(
+                    torch.nn.Linear(hidden_dim_size, hidden_dim_size)
+                )
+            projection_mlp.extend([torch.nn.SiLU(), torch.nn.Linear(
+                hidden_dim_size, self.spatial_dimension
+            )])
+            self.projection_mlp = torch.nn.Sequential(*projection_mlp)
+
         self.edges = hyper_params.edges
         assert self.edges in [
             "fully_connected",
