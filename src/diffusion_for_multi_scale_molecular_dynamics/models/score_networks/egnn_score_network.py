@@ -193,7 +193,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         atom_indices = einops.repeat(
             atom_indices, "natoms nfeatures -> batch natoms nfeatures", batch=batch_size
         )  # (batch, natoms, natoms)
-        atom_indices = atom_indices.view(-1, number_of_atoms)
+        atom_indices = torch.reshape(atom_indices, (-1, number_of_atoms))
 
         # atom_indices should not be in this node_attributes
         node_attributes = torch.concatenate(
