@@ -156,10 +156,10 @@ def map_lattice_parameters_to_unit_cell_vectors(
     spatial_dimension = int((-1 + np.sqrt(1 + 8 * last_dim_size)) / 2)
 
     # TODO we assume a diagonal map here  - we need to revisit this when we introduce angles in the lattice box
-    torch.allclose(
+    assert torch.allclose(
         lattice_parameters[..., spatial_dimension:],
         torch.zeros_like(lattice_parameters[..., spatial_dimension:]),
-    )
+    ), "Only orthogonal boxes are supported for now."
 
     vector_lengths = lattice_parameters[..., :spatial_dimension]
     return torch.diag_embed(vector_lengths)
@@ -168,3 +168,28 @@ def map_lattice_parameters_to_unit_cell_vectors(
 def get_number_of_lattice_parameters(spatial_dimension: int) -> int:
     """Compute the number of independent lattice parameters from the spatial dimension."""
     return int(spatial_dimension * (spatial_dimension + 1) / 2)
+
+
+def map_numpy_unit_cell_to_lattice_parameters(
+    unit_cell: np.ndarray,
+) -> torch.Tensor:
+    """Map the numpy array for the unit cell vectors to a flat lattice parameters vector.
+
+    TODO we are currently assuming the angles to be fixed at 90 degrees.
+
+    Args:
+        unit_cell: unit cell vector from the dataset.
+            Dimension: [..., spatial dimension, spatial dimension]
+
+    Returns:
+        lattice_parameters: lattice parameters as a vector.
+            Dimension: [..., spatial dimension x (spatial dimension + 1) / 2].
+    """
+    spatial_dimension = unit_cell.shape[-1]
+    num_lattice_parameters = get_number_of_lattice_parameters(spatial_dimension)
+    lattice_parameters = np.zeros(num_lattice_parameters)
+
+    lattice_parameters[:spatial_dimension] = np.diag(unit_cell)
+    # TODO add angle information in the other entries in lattice_parameters
+
+    return lattice_parameters
