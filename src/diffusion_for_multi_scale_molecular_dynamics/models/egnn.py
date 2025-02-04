@@ -315,7 +315,7 @@ class E_GCL(nn.Module):
         radial, coord_diff = self.coord2radial(edge_index, coord)
 
         messages = self.message_model(h[row], h[col], radial)  # compute m_{ij}
-        coord = self.coord_model(coord, edge_index, coord_diff, messages)  # update x_i
+        coord = self.coord_model(coord, edge_index, coord_diff, messages, radial)  # update x_i
         h = self.node_model(h, edge_index, messages)  # update h_i
 
         return h, coord
