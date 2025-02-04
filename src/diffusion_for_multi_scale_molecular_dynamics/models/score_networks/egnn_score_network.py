@@ -41,7 +41,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     edges: str = "fully_connected"
     radial_cutoff: Union[float, None] = None
     drop_duplicate_edges: bool = True
-
+    max_atom: int = 64  # used to initialize the node feature embedding layer only
 
 class EGNNScoreNetwork(ScoreNetwork):
     """Score network using EGNN.
@@ -63,6 +63,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         self.number_of_features_per_node = (
             self.num_atom_types + 2
         )  # +1 for MASK class, + 1 for sigma
+        self.number_of_features_per_node += hyper_params.max_atom  # only for the permutation breaking experiments
 
         self.number_of_bloch_wave_shells = hyper_params.number_of_bloch_wave_shells
         bloch_wave_reciprocal_lattice_vectors = (
@@ -186,8 +187,17 @@ class EGNNScoreNetwork(ScoreNetwork):
             atom_types, num_classes=num_atom_types + 1
         )
 
+        # this adds the atom index as an input feature. For experimental purpose only. DO NOT DO THIS IN REAL LIFE.
+        atom_indices = torch.arange(0, number_of_atoms).to(relative_coordinates.device)  # (num_atoms,)
+        atom_indices = torch.nn.functional.one_hot(atom_indices, num_classes=number_of_atoms)
+        atom_indices = einops.repeat(
+            atom_indices, "natoms nfeatures -> batch natoms nfeatures", batch=batch_size
+        )  # (batch, natoms, natoms)
+        atom_indices = atom_indices.view(-1, number_of_atoms)
+
+        # atom_indices should not be in this node_attributes
         node_attributes = torch.concatenate(
-            (repeated_sigmas, atom_types_one_hot.view(-1, num_atom_types + 1)), dim=1
+            (repeated_sigmas, atom_types_one_hot.view(-1, num_atom_types + 1), atom_indices), dim=1
         )
         return node_attributes
 
