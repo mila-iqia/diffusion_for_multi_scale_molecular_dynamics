@@ -2,7 +2,6 @@ import numpy as np
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from experiments.analysis.analytic_score.score_convergence_analysis import spatial_dimension
 
 
 def get_reciprocal_basis_vectors(basis_vectors: torch.Tensor) -> torch.Tensor:
@@ -157,8 +156,10 @@ def map_lattice_parameters_to_unit_cell_vectors(
     spatial_dimension = int((-1 + np.sqrt(1 + 8 * last_dim_size)) / 2)
 
     # TODO we assume a diagonal map here  - we need to revisit this when we introduce angles in the lattice box
-    torch.allclose(lattice_parameters[..., spatial_dimension:],
-                   torch.zeros_like(lattice_parameters[..., spatial_dimension:]))
+    torch.allclose(
+        lattice_parameters[..., spatial_dimension:],
+        torch.zeros_like(lattice_parameters[..., spatial_dimension:]),
+    )
 
     vector_lengths = lattice_parameters[..., :spatial_dimension]
     return torch.diag_embed(vector_lengths)
