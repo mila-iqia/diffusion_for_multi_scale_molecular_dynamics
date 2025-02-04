@@ -297,12 +297,17 @@ class EGNNScoreNetwork(ScoreNetwork):
         #       - z are the "positions" in the uplifted Euclidean space
         #       - hat_z is the output of the EGNN model, also in the uplifted Euclidean space
         #       - Gamma^alpha are the projection matrices
-        flat_normalized_scores = einops.einsum(
-            euclidean_positions,
-            self.projection_matrices,
-            raw_normalized_score.X,
-            "nodes i, alpha i j, nodes j-> nodes alpha",
-        )
+        if not self.skip_projection:
+            flat_normalized_scores = einops.einsum(
+                euclidean_positions,
+                self.projection_matrices,
+                raw_normalized_score.X,
+                "nodes i, alpha i j, nodes j-> nodes alpha",
+            )
+        else:  # break the rotation / translation symmetries and force a MLP here - for experiments only!
+            flat_normalized_scores = self.projection_mlp(
+                raw_normalized_score.X
+            )
 
         normalized_scores = einops.rearrange(
             flat_normalized_scores,
