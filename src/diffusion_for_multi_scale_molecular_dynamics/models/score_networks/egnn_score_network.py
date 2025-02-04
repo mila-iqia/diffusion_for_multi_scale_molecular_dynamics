@@ -42,6 +42,10 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     radial_cutoff: Union[float, None] = None
     drop_duplicate_edges: bool = True
     max_atom: int = 64  # used to initialize the node feature embedding layer only
+    skip_projection: bool = False
+    projection_n_hidden_dimensions: int = 1
+    projection_n_hidden_dimensions_hidden_dimensions_size: int = 32
+
 
 class EGNNScoreNetwork(ScoreNetwork):
     """Score network using EGNN.
