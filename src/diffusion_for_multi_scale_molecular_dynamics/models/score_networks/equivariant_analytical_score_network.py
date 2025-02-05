@@ -76,9 +76,9 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         self.sigma_d_square = hyper_params.sigma_d**2
 
-        self.equilibrium_relative_coordinates = torch.tensor(
-            hyper_params.equilibrium_relative_coordinates
-        )
+        self.equilibrium_relative_coordinates = torch.nn.Parameter(
+            torch.tensor(hyper_params.equilibrium_relative_coordinates),
+            requires_grad=False)
 
     def get_nearest_equilibrium_coordinates(self, relative_coordinates: torch.Tensor) -> torch.Tensor:
         """Get the nearest equilibrium coordinates.
