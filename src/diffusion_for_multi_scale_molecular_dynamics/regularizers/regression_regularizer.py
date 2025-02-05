@@ -3,10 +3,10 @@ from typing import Any, AnyStr, Dict
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
-    ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
+    ScoreNetwork, ScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
+    create_score_network
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import (
@@ -14,27 +14,23 @@ from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer impor
 
 
 @dataclass(kw_only=True)
-class AnalyticalRegressionRegularizerParameters(RegularizerParameters):
+class RegressionRegularizerParameters(RegularizerParameters):
     """Parameters for regularization by regression to an analytical score network."""
-    type: str = "analytical_regression"
-    analytical_score_network_parameters: AnalyticalScoreNetworkParameters
+    type: str = "regression"
+    score_network_parameters: ScoreNetworkParameters
 
 
-class AnalyticalRegressionRegularizer(Regularizer):
-    """Analytical Regression Regularizer.
+class RegressionRegularizer(Regularizer):
+    """Regression Regularizer.
 
-    This class implements a regression to an analytical score network.
-
-    This is useful mainly for sanity checking, as a real system will not be well described
-    by an analytical score network.
+    This class implements a regression to a known score network. This makes most sense
+    when the target score network is an analytical model.
     """
 
-    def __init__(self, regularizer_parameters: AnalyticalRegressionRegularizerParameters):
+    def __init__(self, regularizer_parameters: RegressionRegularizerParameters):
         """Init method."""
         super().__init__(regularizer_parameters)
-        self.analytical_score_network = AnalyticalScoreNetwork(
-            regularizer_parameters.analytical_score_network_parameters
-        )
+        self.target_score_network = create_score_network(regularizer_parameters.score_network_parameters)
 
     def compute_regularizer_loss(self, score_network: ScoreNetwork,
                                  augmented_batch: Dict[AnyStr, Any]) -> torch.Tensor:
@@ -62,7 +58,7 @@ class AnalyticalRegressionRegularizer(Regularizer):
         modified_batch = dict(augmented_batch)
         modified_batch[NOISY_AXL_COMPOSITION] = modified_noisy_composition
 
-        target_normalized_scores = self.analytical_score_network(modified_batch).X
+        target_normalized_scores = self.target_score_network(modified_batch).X
 
         normalized_scores = score_network(modified_batch).X
 

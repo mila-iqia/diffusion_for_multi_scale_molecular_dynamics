@@ -60,7 +60,8 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
 
     regularizer_parameters = None
     if "regularizer" in hyper_params:
-        regularizer_parameters = create_regularizer_parameters(hyper_params["regularizer"])
+        regularizer_parameters = create_regularizer_parameters(regularizer_dictionary=hyper_params["regularizer"],
+                                                               global_parameters_dictionary=globals_dict)
 
     diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,
