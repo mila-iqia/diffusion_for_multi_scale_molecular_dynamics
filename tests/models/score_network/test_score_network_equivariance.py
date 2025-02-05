@@ -546,7 +546,7 @@ class TestEquivarianceEGNN(BaseTestScoreEquivariance):
 @pytest.mark.skip()
 @pytest.mark.parametrize("num_atom_types", [0])
 @pytest.mark.parametrize(
-    "is_cell_cubic, is_rotations_cubic_point_group", [(True, True)]
+    "is_cell_cubic, is_rotations_cubic_point_group", [(False, False)]
 )
 class TestEquivarianceEquivariantAnalyticalScoreNetwork(BaseTestScoreEquivariance):
 
@@ -562,7 +562,6 @@ class TestEquivarianceEquivariantAnalyticalScoreNetwork(BaseTestScoreEquivarianc
             num_atom_types=num_atom_types,
             spatial_dimension=spatial_dimension,
             kmax=5,
-            use_point_group_symmetries=True,
             equilibrium_relative_coordinates=equilibrium_relative_coordinates,
             sigma_d=0.01,
         )

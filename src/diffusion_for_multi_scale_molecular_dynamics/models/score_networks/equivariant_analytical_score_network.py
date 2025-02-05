@@ -10,12 +10,10 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
-from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
-    Transporter
+from diffusion_for_multi_scale_molecular_dynamics.transport.optimal_permutation import \
+    get_optimal_permutation
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
-from diffusion_for_multi_scale_molecular_dynamics.utils.geometric_utils import \
-    get_cubic_point_group_symmetries
 
 
 @dataclass(kw_only=True)
@@ -31,8 +29,6 @@ class EquivariantAnalyticalScoreNetworkParameters(ScoreNetworkParameters):
     kmax: int
 
     equilibrium_relative_coordinates: List[List[float]]
-
-    use_point_group_symmetries: bool = False
 
     # the data distribution variance.
     sigma_d: float
@@ -53,6 +49,10 @@ class EquivariantAnalyticalScoreNetworkParameters(ScoreNetworkParameters):
 
 class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
     """Score network based on analytical integration of Gaussian distributions.
+
+    Equivariance to permutation is achieved by using the Hungarian algorithm to identify
+    the permutation that leads to the closest image of the equilibrium position to the evaluation
+    point.
 
     This 'score network' is for exploring and debugging.
     """
@@ -76,35 +76,30 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         self.sigma_d_square = hyper_params.sigma_d**2
 
-        # shape: [number_of_translations]
-        translations_k = self._get_all_translations(self.kmax)
-        self.translations_k = torch.nn.Parameter(translations_k, requires_grad=False)
-
-        if hyper_params.use_point_group_symmetries:
-            self.point_group_operations = torch.nn.Parameter(
-                get_cubic_point_group_symmetries(self.spatial_dimension),
-                requires_grad=False,
-            )
-        else:
-            self.point_group_operations = torch.nn.Parameter(
-                torch.diag(torch.ones(self.spatial_dimension)).unsqueeze(0),
-                requires_grad=False,
-            )
-
-        self.number_of_translations = len(self.translations_k)
-
         self.equilibrium_relative_coordinates = torch.tensor(
             hyper_params.equilibrium_relative_coordinates
         )
 
-        self.transporter = Transporter(
-            point_group_operations=self.point_group_operations,
-            maximum_number_of_steps=10,
-        )
+    def get_nearest_equilibrium_coordinates(self, relative_coordinates: torch.Tensor) -> torch.Tensor:
+        """Get the nearest equilibrium coordinates.
 
-    @staticmethod
-    def _get_all_translations(kmax: int) -> torch.Tensor:
-        return torch.arange(-kmax, kmax + 1)
+        Args:
+            relative_coordinates: relative coordinates at which the score is to be computed, of dimensions
+                [batch_size, num_atoms, spatial_dimension].
+
+        Returns:
+            nearest_equilibrium_coordinates: the closest permutation image of the equilibrium coordinates,
+                of dimensions [batch_size, number_of_atoms, spatial_dimension].
+        """
+        nearest_equilibrium_coordinates = []
+        for x in relative_coordinates:
+            optimal_permutation = get_optimal_permutation(x, self.equilibrium_relative_coordinates)
+            y = torch.matmul(optimal_permutation, self.equilibrium_relative_coordinates)
+            nearest_equilibrium_coordinates.append(y)
+
+        nearest_equilibrium_coordinates = torch.stack(nearest_equilibrium_coordinates, dim=0)
+
+        return nearest_equilibrium_coordinates
 
     def get_normalized_scores(
         self, xt: torch.tensor, sigmas_t: torch.Tensor
@@ -125,26 +120,8 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         effective_sigmas = torch.sqrt(self.sigma_d_square + sigmas_t**2)
 
-        batch_size = xt.shape[0]
-
         x = map_relative_coordinates_to_unit_cell(xt)
-
-        y = einops.repeat(
-            self.equilibrium_relative_coordinates,
-            "natoms d -> batch natoms d",
-            batch=batch_size,
-        )
-
-        nearest_equilibrium_coordinates = []
-        for batch_idx in range(batch_size):
-            transported_y, _ = self.transporter.get_optimal_transport(
-                x[batch_idx], y[batch_idx]
-            )
-            nearest_equilibrium_coordinates.append(transported_y)
-
-        nearest_equilibrium_coordinates = torch.stack(
-            nearest_equilibrium_coordinates, dim=0
-        )
+        nearest_equilibrium_coordinates = self.get_nearest_equilibrium_coordinates(x)
 
         # We leverage the fact that the probability is a wrapped Gaussian to extract the
         # score.
