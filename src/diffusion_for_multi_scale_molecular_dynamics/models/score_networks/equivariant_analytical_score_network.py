@@ -76,9 +76,8 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         self.sigma_d_square = hyper_params.sigma_d**2
 
-        self.equilibrium_relative_coordinates = torch.nn.Parameter(
-            torch.tensor(hyper_params.equilibrium_relative_coordinates),
-            requires_grad=False)
+        # This should stay on CPU.
+        self.equilibrium_relative_coordinates = torch.tensor(hyper_params.equilibrium_relative_coordinates)
 
     def get_nearest_equilibrium_coordinates(self, relative_coordinates: torch.Tensor) -> torch.Tensor:
         """Get the nearest equilibrium coordinates.
@@ -91,13 +90,16 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
             nearest_equilibrium_coordinates: the closest permutation image of the equilibrium coordinates,
                 of dimensions [batch_size, number_of_atoms, spatial_dimension].
         """
+        device = relative_coordinates.device
+        # The optimal transport only works on CPU.
+        cpu_relative_coordinates = relative_coordinates.to(torch.device("cpu"))
         nearest_equilibrium_coordinates = []
-        for x in relative_coordinates:
+        for x in cpu_relative_coordinates:
             optimal_permutation = get_optimal_permutation(x, self.equilibrium_relative_coordinates)
             y = torch.matmul(optimal_permutation, self.equilibrium_relative_coordinates)
             nearest_equilibrium_coordinates.append(y)
 
-        nearest_equilibrium_coordinates = torch.stack(nearest_equilibrium_coordinates, dim=0)
+        nearest_equilibrium_coordinates = torch.stack(nearest_equilibrium_coordinates, dim=0).to(device)
 
         return nearest_equilibrium_coordinates
 

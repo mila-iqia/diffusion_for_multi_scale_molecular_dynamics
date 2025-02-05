@@ -22,7 +22,7 @@ def get_optimal_permutation(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         optimal_permutation: the optimal permutation pi, such that pi.y is the shortest distance away from x.
     """
     cost_matrix = get_squared_geodesic_distance_cost_matrix(x, y)
-    row_idx, col_idx = linear_sum_assignment(cost_matrix.to(torch.device('cpu')))
+    row_idx, col_idx = linear_sum_assignment(cost_matrix)
     n = cost_matrix.shape[0]
-    optimal_permutation = torch.eye(n)[col_idx, :].to(cost_matrix.device)
+    optimal_permutation = torch.eye(n)[col_idx, :]
     return optimal_permutation
