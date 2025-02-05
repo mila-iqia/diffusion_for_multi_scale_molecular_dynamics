@@ -68,11 +68,13 @@ def get_score_network(
             architecture="mlp",
             number_of_atoms=number_of_atoms,
             num_atom_types=num_atom_types,
+            relative_coordinates_embedding_dimensions_size=8,
             noise_embedding_dimensions_size=8,
             time_embedding_dimensions_size=8,
             atom_type_embedding_dimensions_size=8,
             n_hidden_dimensions=2,
             hidden_dimensions_size=16,
+            lattice_parameters_embedding_dimensions_size=8,
         )
     elif architecture == "mace":
         score_network = dict(
@@ -136,7 +138,7 @@ def get_config(
         num_atom_types=num_atom_types,
         number_of_samples=4,
         record_samples=True,
-        cell_dimensions=[10.0, 10.0, 10.0],
+        # cell_dimensions=[10.0, 10.0, 10.0],
     )
     if sampling_algorithm == "predictor_corrector":
         sampling_dict["number_of_corrector_steps"] = 1

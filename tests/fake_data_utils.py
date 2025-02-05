@@ -9,7 +9,10 @@ import torch
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
+    RELATIVE_COORDINATES)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    get_number_of_lattice_parameters
 
 Configuration = namedtuple(
     "Configuration",
@@ -18,6 +21,7 @@ Configuration = namedtuple(
         CARTESIAN_POSITIONS,
         CARTESIAN_FORCES,
         RELATIVE_COORDINATES,
+        LATTICE_PARAMETERS,
         "elements",
         "ids",
         "cell_dimensions",
@@ -32,7 +36,9 @@ def generate_fake_unique_elements(num_elements: int):
     return [generate_random_string(size=4) for _ in range(num_elements)]
 
 
-def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int, unique_elements: List[str]):
+def generate_fake_configuration(
+    spatial_dimension: int, number_of_atoms: int, unique_elements: List[str]
+):
     """Generate fake configuration.
 
     Args:
@@ -50,6 +56,10 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int, un
         spatial_dimension
     )  # make sure the cell is big.
     unit_cell_vectors = np.diag(cell_dimensions)
+    num_lattice_parameters = get_number_of_lattice_parameters(spatial_dimension)
+    lattice_parameters = np.zeros((num_lattice_parameters,))
+    lattice_parameters[:spatial_dimension] = cell_dimensions
+
     positions = np.dot(relative_coordinates, unit_cell_vectors)
     potential_energy = np.random.rand()
     kinetic_energy = np.random.rand()
@@ -61,6 +71,7 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int, un
         cartesian_positions=positions,
         cartesian_forces=np.random.rand(number_of_atoms, spatial_dimension),
         elements=np.random.choice(unique_elements, number_of_atoms),
+        lattice_parameters=lattice_parameters,
         ids=np.arange(1, number_of_atoms + 1),
         cell_dimensions=cell_dimensions,
         potential_energy=potential_energy,
@@ -69,14 +80,18 @@ def generate_fake_configuration(spatial_dimension: int, number_of_atoms: int, un
     )
 
 
-def get_configuration_runs(number_of_runs, spatial_dimension, number_of_atoms, unique_elements):
+def get_configuration_runs(
+    number_of_runs, spatial_dimension, number_of_atoms, unique_elements
+):
     """Generate multiple random configuration runs, each composed of many different configurations."""
     list_configurations = []
     for _ in range(number_of_runs):
         number_of_configs = np.random.randint(1, 16)
         configurations = [
             generate_fake_configuration(
-                spatial_dimension=spatial_dimension, number_of_atoms=number_of_atoms, unique_elements=unique_elements
+                spatial_dimension=spatial_dimension,
+                number_of_atoms=number_of_atoms,
+                unique_elements=unique_elements,
             )
             for _ in range(number_of_configs)
         ]
@@ -228,6 +243,7 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
         # C-style flattening is the correct convention to interoperate with pytorch reshaping operations.
         relative_positions = configuration.relative_coordinates.flatten(order="c")
         positions = configuration.cartesian_positions.flatten(order="c")
+        lattice_parameters = configuration.lattice_parameters.flatten(order="c")
         forces = configuration.cartesian_forces.flatten(order="c")
         number_of_atoms = len(configuration.ids)
         box = configuration.cell_dimensions
@@ -238,6 +254,7 @@ def generate_parquet_dataframe(configurations: List[Configuration]) -> pd.DataFr
             potential_energy=configuration.potential_energy,
             cartesian_positions=positions,
             relative_coordinates=relative_positions,
+            lattice_parameters=lattice_parameters,
             cartesian_forces=forces,
         )
 
@@ -275,4 +292,4 @@ def find_aligning_permutation(
 
 def generate_random_string(size: int):
     chars = string.ascii_uppercase + string.ascii_lowercase
-    return ''.join(random.choice(chars) for _ in range(size))
+    return "".join(random.choice(chars) for _ in range(size))

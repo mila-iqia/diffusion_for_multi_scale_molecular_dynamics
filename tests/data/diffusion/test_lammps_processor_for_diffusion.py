@@ -4,15 +4,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_preprocess import \
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_processor_for_diffusion import \
     LammpsProcessorForDiffusion
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
+    RELATIVE_COORDINATES)
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import generate_parquet_dataframe
 
 
-class TestDataProcess(TestDiffusionDataBase):
+class TestLammpsProcessorForDiffusion(TestDiffusionDataBase):
 
     @pytest.fixture
     def processor(self, paths):
@@ -60,6 +61,7 @@ class TestDataProcess(TestDiffusionDataBase):
             CARTESIAN_POSITIONS,
             CARTESIAN_FORCES,
             RELATIVE_COORDINATES,
+            LATTICE_PARAMETERS,
             "potential_energy",
         ]
 

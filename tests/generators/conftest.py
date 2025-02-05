@@ -22,7 +22,7 @@ class FakeAXLNetwork(ScoreNetwork):
                 batch[NOISY_AXL_COMPOSITION].A, num_classes=self.num_atom_types + 1
             ),
             X=batch[NOISY_AXL_COMPOSITION].X,
-            L=None,
+            L=batch[NOISY_AXL_COMPOSITION].L,
         )
 
 

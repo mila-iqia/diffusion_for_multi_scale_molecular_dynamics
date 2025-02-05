@@ -122,14 +122,12 @@ def log_exp_details(script_location, args):
     git_hash = get_git_hash(script_location)
     hostname = socket.gethostname()
     dependencies = freeze.freeze()
-    details = (
-        "\nhostname: {}\ngit code hash: {}\ndata folder: {}\ndata folder (abs): {}\n\n"
-        "dependencies:\n{}".format(
-            hostname,
-            git_hash,
-            args.data,
-            os.path.abspath(args.data),
-            "\n".join(dependencies),
-        )
-    )
+    details = f"\nhostname: {hostname}\ngit code hash: {git_hash}"
+    if args.data is not None:
+        details += f"\ndata folder: {args.data}\ndata folder (abs): {os.path.abspath(args.data)}\n\n"
+    else:
+        details += "\nNO DATA FOLDER PROVIDED\n\n"
+
+    details += f"dependencies:\n{dependencies}"
+
     logger.info("Experiment info:" + details + "\n")

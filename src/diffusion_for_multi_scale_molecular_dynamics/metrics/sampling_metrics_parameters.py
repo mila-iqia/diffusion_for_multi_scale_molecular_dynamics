@@ -14,3 +14,6 @@ class SamplingMetricsParameters:
         False  # should the structure factor (distances distribution) be recorded
     )
     structure_factor_max_distance: float = 10.0  # cutoff for the structure factor
+    compute_lattice_parameters: bool = (
+        False  # should the lattice parameters distributions be recorded
+    )

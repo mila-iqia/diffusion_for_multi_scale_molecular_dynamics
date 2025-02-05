@@ -165,13 +165,15 @@ class TestPositionDiffusionLightningModel:
         return 12
 
     @pytest.fixture()
-    def cell_dimensions(self, unit_cell_size, spatial_dimension):
-        return spatial_dimension * [unit_cell_size]
+    def lattice_parameters(self, spatial_dimension):
+        lattice_params = LatticeDataParameters(
+            spatial_dimension=spatial_dimension,
+        )
+        return lattice_params
 
     @pytest.fixture()
     def lattice_parameters(self, unit_cell_size, spatial_dimension):
         lattice_params = LatticeDataParameters(
-            inverse_average_density=unit_cell_size**spatial_dimension,
             spatial_dimension=spatial_dimension,
         )
         return lattice_params
@@ -182,14 +184,12 @@ class TestPositionDiffusionLightningModel:
         number_of_atoms,
         spatial_dimension,
         number_of_samples,
-        cell_dimensions,
         num_atom_types,
     ):
         sampling_parameters = PredictorCorrectorSamplingParameters(
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
             number_of_samples=number_of_samples,
-            cell_dimensions=cell_dimensions,
             num_atom_types=num_atom_types,
         )
         return sampling_parameters
@@ -227,9 +227,11 @@ class TestPositionDiffusionLightningModel:
             number_of_atoms=number_of_atoms,
             num_atom_types=num_atom_types,
             n_hidden_dimensions=3,
+            relative_coordinates_embedding_dimensions_size=8,
             noise_embedding_dimensions_size=8,
             time_embedding_dimensions_size=8,
             atom_type_embedding_dimensions_size=8,
+            lattice_parameters_embedding_dimensions_size=8,
             hidden_dimensions_size=8,
             spatial_dimension=spatial_dimension,
         )

@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics.loss import \
 from diffusion_for_multi_scale_molecular_dynamics.metrics.kolmogorov_smirnov_metrics import \
     KolmogorovSmirnovMetrics
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import (
-    OptimizerParameters, load_optimizer)
+    OptimizerParameters, check_if_optimizer_is_none, load_optimizer)
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
     SchedulerParameters, load_scheduler_dictionary)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
@@ -37,6 +37,10 @@ from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import \
+    RegularizerParameters
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \
+    create_regularizer
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
@@ -46,7 +50,7 @@ from diffusion_for_multi_scale_molecular_dynamics.score.gaussian_score import \
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_coordinates_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    get_positions_from_coordinates,
+    get_number_of_lattice_parameters, get_positions_from_coordinates,
     map_lattice_parameters_to_unit_cell_vectors,
     map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
@@ -73,6 +77,7 @@ class AXLDiffusionParameters:
     noise_parameters: NoiseParameters
     # convergence parameter for the Ewald-like sum of the perturbation kernel for coordinates.
     kmax_target_score: int = 4
+    regularizer_parameters: Optional[RegularizerParameters] = None
     diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
     oracle_parameters: Optional[OracleParameters] = None
     lattice_parameters: LatticeDataParameters
@@ -97,6 +102,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         self.save_hyperparameters(
             logger=False
         )  # It is not the responsibility of this class to log its parameters.
+
+        if check_if_optimizer_is_none(self.hyper_params.optimizer_parameters):
+            # If the config indicates None as the optimizer, then no optimization should
+            # take place.
+            self.automatic_optimization = False
 
         # the score network is expected to produce an output as an AXL namedtuple:
         # atom: unnormalized estimate of p(a_0 | a_t)
@@ -127,8 +137,13 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         self.generator = None
         self.structure_ks_metric = None
+        self.lattice_parameters_ks_metrics = [None]
         self.energy_ks_metric = None
         self.oracle = None
+        self.regularizer = None
+
+        if hyper_params.regularizer_parameters is not None:
+            self.regularizer = create_regularizer(hyper_params.regularizer_parameters)
 
         self.draw_samples = hyper_params.diffusion_sampling_parameters is not None
         if self.draw_samples:
@@ -137,6 +152,13 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             )
             if self.metrics_parameters.compute_structure_factor:
                 self.structure_ks_metric = KolmogorovSmirnovMetrics()
+            if self.metrics_parameters.compute_lattice_parameters:
+                num_lattice_parameters = get_number_of_lattice_parameters(
+                    self.hyper_params.lattice_parameters.spatial_dimension
+                )
+                self.lattice_parameters_ks_metrics = [
+                    KolmogorovSmirnovMetrics() for _ in range(num_lattice_parameters)
+                ]
             if self.metrics_parameters.compute_energies:
                 self.energy_ks_metric = KolmogorovSmirnovMetrics()
                 assert (
@@ -311,9 +333,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         sigmas_for_lattice = broadcast_batch_tensor_to_all_dimensions(
             batch_values=noise_sample.sigma, final_shape=lattice_shape
         )  # same values as for X diffusion, but different shape
-        alpha_bars = broadcast_batch_tensor_to_all_dimensions(
-            batch_values=noise_sample.alpha_bar, final_shape=lattice_shape
-        )
+
         num_atoms = (
             torch.ones_like(l0) * atom_shape[1]
         )  # TODO should depend on data - not a constant
@@ -322,7 +342,8 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             sigmas_for_lattice, num_atoms, spatial_dimension=lattice_shape[-1]
         )
         lt = self.noisers.L.get_noisy_lattice_vectors(
-            l0, sigmas_n, alpha_bars, num_atoms
+            l0,
+            sigmas_n,
         )
 
         noisy_composition = AXL(A=at, X=xt, L=lt)  # not one-hot
@@ -330,17 +351,17 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         original_composition = AXL(A=a0, X=x0, L=l0)
 
         # Get the loss targets
-        # Coordinates: The target is :math:`sigma(t) \nabla  log p_{t|0} (xt | x0)`
+        # Coordinates: The target is :math:`sigma(t) \nabla log p_{t|0} (xt | x0)`
         # it is NOT the "score", but rather a "conditional" (on x0) score.
         target_coordinates_normalized_conditional_scores = (
             self._get_coordinates_target_normalized_score(xt, x0, sigmas)
         )
         # for the atom types, the loss is constructed from the Q and Qbar matrices
 
-        # Lattice: the target is :math:`sigma(t) \nabla  log p_{t|0} (lt | l0)`
+        # Lattice: the target is :math:`sigma(t) \nabla log p_{t|0} (lt | l0)`
         # it is NOT the "score", but rather a "conditional" (on l0) score.
         target_lattice_normalized_conditional_scores = (
-            self._get_lattice_target_normalized_score(lt, l0, sigmas_n, alpha_bars)
+            self._get_lattice_target_normalized_score(lt, l0, sigmas_n)
         )
 
         forces = batch[CARTESIAN_FORCES]
@@ -387,16 +408,16 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             self.loss_weights.X
             * unreduced_loss_coordinates.mean(
                 dim=(-2, -1)
-            )  # batch, num_atoms, spatial_dimension
+            )  # averaged over number of atoms and spatial dimension
             + self.loss_weights.L
             * unreduced_loss_lattice.mean(
                 dim=-1
-            )  # batch, spatial_dimension  TODO add angles
+            )  # averaged over number of lattice parameters
             + self.loss_weights.A
             * unreduced_loss_atom_types.mean(
                 dim=(-2, -1)
-            )  # batch, num_atoms, num_atom_types
-        )
+            )  # averaged over number of atoms and number of classes
+        )  # results in a tensor of dimension [batch_size]
 
         weighted_loss = torch.mean(aggregated_weighted_loss)
 
@@ -420,6 +441,21 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             target_coordinates_normalized_conditional_scores=target_coordinates_normalized_conditional_scores,
             target_lattice_normalized_conditional_scores=target_lattice_normalized_conditional_scores,
         )
+
+        if self.regularizer and self.regularizer.can_regularizer_run():
+            # Use the same times and atom types as in the noised composition. Random
+            # relative coordinates will be drawn internally.
+            weighted_regularizer_loss = (
+                self.regularizer.compute_weighted_regularizer_loss(
+                    score_network=self.axl_network,
+                    augmented_batch=augmented_batch,
+                    current_epoch=self.current_epoch,
+                )
+            )
+
+            output["loss"] += weighted_regularizer_loss
+            output["regularizer_loss"] = weighted_regularizer_loss
+
         output[AXL_COMPOSITION] = original_composition
         output[NOISY_AXL_COMPOSITION] = noisy_composition
         output[TIME] = augmented_batch[TIME]
@@ -463,7 +499,6 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         noisy_lattice_parameters: torch.Tensor,
         real_lattice_parameters: torch.Tensor,
         sigmas_n: torch.Tensor,
-        alpha_bars: torch.Tensor,
     ) -> torch.Tensor:
         """Get target normalized score for the lattice parameters.
 
@@ -479,36 +514,42 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
             sigmas_n : variance scaled by the number of atoms
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
-            alpha_bars :
-                Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
 
         Returns:
             target normalized score: sigma times target score, ie, sigma times nabla_lt log P_{t|0}(lt| l0).
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
         """
         target_normalized_scores = get_lattice_sigma_normalized_score(
-            noisy_lattice_parameters, real_lattice_parameters, sigmas_n, alpha_bars
+            noisy_lattice_parameters, real_lattice_parameters, sigmas_n
         )
         return target_normalized_scores
 
     def training_step(self, batch, batch_idx):
         """Runs a prediction step for training, returning the loss."""
         output = self._generic_step(batch, batch_idx)
-        loss = output["loss"]
-
         batch_size = self._get_batch_size(batch)
 
-        # The 'train_step_loss' is only logged on_step, meaning it is a value for each batch
-        self.log("train_step_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+        list_losses_to_log = [output["loss"]]
+        list_labels = ["loss"]
 
-        # The 'train_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
-        self.log(
-            "train_epoch_loss",
-            loss,
-            batch_size=batch_size,
-            on_step=False,
-            on_epoch=True,
-        )
+        if "regularizer_loss" in output:
+            list_losses_to_log.append(output["regularizer_loss"])
+            list_labels.append("regularizer_loss")
+
+        for loss, label in zip(list_losses_to_log, list_labels):
+            # The 'train_step_loss' is only logged on_step, meaning it is a value for each batch
+            self.log(
+                f"train_step_{label}", loss, on_step=True, on_epoch=False, prog_bar=True
+            )
+
+            # The 'train_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
+            self.log(
+                f"train_epoch_{label}",
+                loss,
+                batch_size=batch_size,
+                on_step=False,
+                on_epoch=True,
+            )
 
         for axl_field, axl_name in AXL_NAME_DICT.items():
             self.log(
@@ -552,23 +593,35 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             reference_energies = batch["potential_energy"]
             self.energy_ks_metric.register_reference_samples(reference_energies.cpu())
 
-        if self.draw_samples and self.metrics_parameters.compute_structure_factor:
-            basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
-                output[AXL_COMPOSITION].L
-            )
-            cartesian_positions = get_positions_from_coordinates(
-                relative_coordinates=output[AXL_COMPOSITION].X,
-                basis_vectors=basis_vectors,
-            )
+        if self.draw_samples and (
+            self.metrics_parameters.compute_structure_factor
+            or self.metrics_parameters.compute_lattice_parameters
+        ):
+            lattice_parameters = output[AXL_COMPOSITION].L
 
-            reference_distances = compute_distances_in_batch(
-                cartesian_positions=cartesian_positions,
-                unit_cell=basis_vectors,
-                max_distance=self.metrics_parameters.structure_factor_max_distance,
-            )
-            self.structure_ks_metric.register_reference_samples(
-                reference_distances.cpu()
-            )
+            if self.metrics_parameters.compute_structure_factor:
+                basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
+                    lattice_parameters
+                )
+                cartesian_positions = get_positions_from_coordinates(
+                    relative_coordinates=output[AXL_COMPOSITION].X,
+                    basis_vectors=basis_vectors,
+                )
+
+                reference_distances = compute_distances_in_batch(
+                    cartesian_positions=cartesian_positions,
+                    unit_cell=basis_vectors,
+                    max_distance=self.metrics_parameters.structure_factor_max_distance,
+                )
+                self.structure_ks_metric.register_reference_samples(
+                    reference_distances.cpu()
+                )
+
+            if self.metrics_parameters.compute_lattice_parameters:
+                for i in range(len(self.lattice_parameters_ks_metrics)):
+                    self.lattice_parameters_ks_metrics[i].register_reference_samples(
+                        lattice_parameters[:, i].cpu()
+                    )
 
         return output
 
@@ -651,12 +704,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             logger.info("       * Computing sample distances")
+
             sample_distances = compute_distances_in_batch(
-                cartesian_positions=samples_batch[
-                    CARTESIAN_POSITIONS
-                ],  # TODO replace with AXL
+                cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
                 unit_cell=map_lattice_parameters_to_unit_cell_vectors(
-                    samples_batch[LATTICE_PARAMETERS]
+                    samples_batch[AXL_COMPOSITION].L
                 ),
                 max_distance=self.metrics_parameters.structure_factor_max_distance,
             )
@@ -682,6 +734,35 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             )
             logger.info("       * Done logging sample distances")
 
+        if self.draw_samples and self.metrics_parameters.compute_lattice_parameters:
+            logger.info("       * Registering lattice parameters")
+            lattice_parameters = samples_batch[AXL_COMPOSITION].L
+
+            for i in range(len(self.lattice_parameters_ks_metrics)):
+                self.lattice_parameters_ks_metrics[i].register_predicted_samples(
+                    lattice_parameters[:, i].cpu()
+                )
+
+            logger.info("       * Computing KS distance for lattice parameters")
+            ks_and_p_values = [
+                metric.compute_kolmogorov_smirnov_distance_and_pvalue()
+                for metric in self.lattice_parameters_ks_metrics
+            ]
+            for i, (ks_distance, p_value) in enumerate(ks_and_p_values):
+                self.log(
+                    f"validation_ks_lattice_parameter_{i}",
+                    ks_distance,
+                    on_step=False,
+                    on_epoch=True,
+                )
+                self.log(
+                    f"validation_ks_p_value_structure_{i}",
+                    p_value,
+                    on_step=False,
+                    on_epoch=True,
+                )
+            logger.info("       * Done logging lattice parameters")
+
     def on_validation_start(self) -> None:
         """On validation start."""
         logger.info("Starting validation.")
@@ -695,6 +776,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
 
+        if self.draw_samples and self.metrics_parameters.compute_lattice_parameters:
+            for i in range(len(self.lattice_parameters_ks_metrics)):
+                self.lattice_parameters_ks_metrics[i].reset()
+
     def on_train_start(self) -> None:
         """On train start."""
         logger.info("Starting train.")
@@ -706,3 +791,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
+
+        if self.draw_samples and self.metrics_parameters.compute_lattice_parameters:
+            for i in range(len(self.lattice_parameters_ks_metrics)):
+                self.lattice_parameters_ks_metrics[i].reset()

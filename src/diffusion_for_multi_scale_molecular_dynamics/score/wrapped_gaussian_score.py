@@ -30,11 +30,66 @@ Relevant papers:
 
 from typing import Optional
 
+import einops
 import numpy as np
 import torch
 
 SIGMA_THRESHOLD = torch.Tensor([1.0 / np.sqrt(2.0 * np.pi)])
 U_THRESHOLD = torch.Tensor([0.5])
+
+
+def get_log_wrapped_gaussians(
+    relative_coordinates: torch.tensor, sigmas: torch.tensor, kmax: int
+):
+    """Get Log Wrapped Gaussians.
+
+    Args:
+        relative_coordinates : input relative coordinates: should be between 0 and 1.
+            relative_coordinates has dimensions [..., number_of_atoms, spatial_dimension], where (...)
+            are arbitrary batch dimensions.
+        sigmas : the values of sigma. Should have the same dimension as relative coordinates.
+        kmax : largest positive integer in the sum. The sum is from -kmax to +kmax.
+
+    Returns:
+        log_wrapped_gaussians: log of wrapped gaussian values, of dimensions [...], namely the batch dimensions.
+    """
+    device = relative_coordinates.device
+    assert (
+        sigmas.device == device
+    ), "relative_coordinates and sigmas should be on the same device."
+
+    assert (
+        relative_coordinates.shape == sigmas.shape
+    ), "The relative coordinates and sigmas array should have the same shape."
+
+    assert (
+        len(relative_coordinates.shape) >= 3
+    ), "relative_coordinates should have at least 3 dimensions."
+
+    input_shape = relative_coordinates.shape
+
+    # The dimension of list_k is [2 kmax + 1].
+    list_k = torch.arange(-kmax, kmax + 1).to(device)
+
+    # Broadcast to shape [Nu, 1]
+    column_u = einops.rearrange(relative_coordinates, "... -> (...) 1")
+    column_sigma = einops.rearrange(sigmas, "... -> (...) 1")
+
+    norm = torch.tensor(2 * torch.pi).sqrt() * column_sigma.squeeze(-1)
+
+    flat_log_norm = torch.log(norm)
+
+    # Broadcast to shape [Nu, Nk]
+    exponentials = -0.5 * (column_u + list_k) ** 2 / column_sigma**2
+
+    flat_logsumexp = torch.logsumexp(exponentials, dim=-1)
+
+    flat_log_gaussians = flat_logsumexp - flat_log_norm
+
+    log_gaussians = flat_log_gaussians.reshape(input_shape)
+
+    log_wrapped_gaussians = log_gaussians.sum(dim=[-2, -1])
+    return log_wrapped_gaussians
 
 
 def get_sigma_normalized_score_brute_force(

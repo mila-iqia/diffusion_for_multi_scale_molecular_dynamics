@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 import torch
 
@@ -42,22 +41,18 @@ def sigmas(batch_size, num_lattice_parameters):
 
 
 @pytest.fixture
-def alpha_bars(batch_size, num_lattice_parameters):
-    return torch.rand(batch_size, num_lattice_parameters)
-
-
-@pytest.fixture
-def expected_sigma_normalized_scores(real_lattice_parameters, noisy_lattice_parameters, sigmas, alpha_bars):
+def expected_sigma_normalized_scores(
+    real_lattice_parameters, noisy_lattice_parameters, sigmas
+):
     shape = real_lattice_parameters.shape
 
     list_sigma_normalized_scores = []
-    for real_l, noisy_l, sigma, alpha_bar in zip(
+    for real_l, noisy_l, sigma in zip(
         real_lattice_parameters.numpy().flatten(),
         noisy_lattice_parameters.numpy().flatten(),
         sigmas.numpy().flatten(),
-        alpha_bars.flatten(),
     ):
-        s = -(noisy_l - np.sqrt(alpha_bar) * real_l) / (np.sqrt(1 - alpha_bar) * sigma)
+        s = -(noisy_l - real_l) / sigma
         list_sigma_normalized_scores.append(s)
 
     return torch.tensor(list_sigma_normalized_scores).reshape(shape)
@@ -66,13 +61,15 @@ def expected_sigma_normalized_scores(real_lattice_parameters, noisy_lattice_para
 @pytest.mark.parametrize("batch_size", [1, 3, 7, 16])
 @pytest.mark.parametrize("spatial_dimension", [1, 2, 3])
 def test_get_sigma_normalized_score(
-    real_lattice_parameters, noisy_lattice_parameters, sigmas, alpha_bars, expected_sigma_normalized_scores
+    real_lattice_parameters,
+    noisy_lattice_parameters,
+    sigmas,
+    expected_sigma_normalized_scores,
 ):
     sigma_normalized_score = get_lattice_sigma_normalized_score(
         noisy_lattice_parameters,
         real_lattice_parameters,
         sigmas,
-        alpha_bars,
     )
 
     torch.testing.assert_close(
