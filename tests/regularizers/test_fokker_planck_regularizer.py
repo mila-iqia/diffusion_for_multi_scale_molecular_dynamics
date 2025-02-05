@@ -56,9 +56,11 @@ class TestFokkerPlanckRegularizer(BaseTestRegularizer):
         return FokkerPlanckRegularizer(regularizer_parameters)
 
     @pytest.fixture()
-    def score_function(self, regularizer, score_network, atom_types, unit_cells):
+    def score_function(
+        self, regularizer, score_network, atom_types, lattice_parameters
+    ):
         score_function = regularizer._create_score_function(
-            score_network, atom_types, unit_cells
+            score_network, atom_types, lattice_parameters
         )
         return score_function
 
@@ -146,10 +148,10 @@ class TestFokkerPlanckRegularizer(BaseTestRegularizer):
         relative_coordinates,
         times,
         atom_types,
-        unit_cells,
+        lattice_parameters,
     ):
         batch = regularizer._create_batch(
-            relative_coordinates, times, atom_types, unit_cells
+            relative_coordinates, times, atom_types, lattice_parameters
         )
 
         (
@@ -188,10 +190,10 @@ class TestFokkerPlanckRegularizer(BaseTestRegularizer):
         relative_coordinates,
         times,
         atom_types,
-        unit_cells,
+        lattice_parameters,
     ):
         batch = regularizer._create_batch(
-            relative_coordinates, times, atom_types, unit_cells
+            relative_coordinates, times, atom_types, lattice_parameters
         )
         residuals = regularizer.compute_score_fokker_planck_residuals(
             score_network, batch

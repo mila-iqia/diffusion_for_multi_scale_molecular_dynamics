@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 import torch
 
@@ -153,7 +155,9 @@ def map_lattice_parameters_to_unit_cell_vectors(
         unit_cell_vectors: unit vectors. Dimension: [..., spatial dimension, spatial dimension].
     """
     last_dim_size = lattice_parameters.shape[-1]
-    spatial_dimension = int((-1 + np.sqrt(1 + 8 * last_dim_size)) / 2)
+    spatial_dimension = get_spatial_dimension_from_number_of_lattice_parameters(
+        last_dim_size
+    )
 
     # TODO we assume a diagonal map here  - we need to revisit this when we introduce angles in the lattice box
     assert torch.allclose(
@@ -170,26 +174,51 @@ def get_number_of_lattice_parameters(spatial_dimension: int) -> int:
     return int(spatial_dimension * (spatial_dimension + 1) / 2)
 
 
-def map_numpy_unit_cell_to_lattice_parameters(
-    unit_cell: np.ndarray,
-) -> torch.Tensor:
-    """Map the numpy array for the unit cell vectors to a flat lattice parameters vector.
+def get_spatial_dimension_from_number_of_lattice_parameters(
+    number_of_lattice_parameters: int,
+) -> int:
+    """Compute the spatial dimension for the number of lattice parameters."""
+    return int((-1 + np.sqrt(1 + 8 * number_of_lattice_parameters)) / 2)
+
+
+def map_unit_cell_to_lattice_parameters(
+    unit_cell: Union[np.ndarray, torch.Tensor], engine: str = "torch"
+) -> Union[np.ndarray, torch.Tensor]:
+    """Map an numpy array or torch tensor for the unit cell vectors to a flat lattice parameters.
 
     TODO we are currently assuming the angles to be fixed at 90 degrees.
 
     Args:
         unit_cell: unit cell vector from the dataset.
             Dimension: [..., spatial dimension, spatial dimension]
+        engine (optional): torch or numpy. Defaults to torch.
 
     Returns:
-        lattice_parameters: lattice parameters as a vector.
+        lattice_parameters: lattice parameters as as numpy array or torch tensor.
             Dimension: [..., spatial dimension x (spatial dimension + 1) / 2].
     """
+    assert engine in [
+        "torch",
+        "numpy",
+    ], f"Mapping can be done for numpy or torch. Got {engine}."
+
     spatial_dimension = unit_cell.shape[-1]
     num_lattice_parameters = get_number_of_lattice_parameters(spatial_dimension)
-    lattice_parameters = np.zeros(num_lattice_parameters)
 
-    lattice_parameters[:spatial_dimension] = np.diag(unit_cell)
+    if engine == "torch":
+        lattice_parameters = torch.zeros(num_lattice_parameters).to(unit_cell)
+        diag_unit_cell = torch.diagonal(unit_cell, dim1=-2, dim2=-1)
+
+    elif engine == "numpy":
+        lattice_parameters = np.zeros(num_lattice_parameters)
+        diag_unit_cell = np.diag(unit_cell)
+
+    lattice_parameters[:spatial_dimension] = diag_unit_cell
     # TODO add angle information in the other entries in lattice_parameters
 
     return lattice_parameters
+
+
+def map_numpy_unit_cell_to_lattice_parameters(unit_cell: np.ndarray) -> np.ndarray:
+    """Call map_unit_cell_to_lattice_parameters for numpy."""
+    return map_unit_cell_to_lattice_parameters(unit_cell, engine="numpy")

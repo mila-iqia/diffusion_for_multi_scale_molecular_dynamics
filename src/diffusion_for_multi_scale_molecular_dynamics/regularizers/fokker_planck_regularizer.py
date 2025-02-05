@@ -7,16 +7,19 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     SigmaCalculator
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import (
     Regularizer, RegularizerParameters)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    get_spatial_dimension_from_number_of_lattice_parameters
 
 
 @dataclass(kw_only=True)
 class FokkerPlanckRegularizerParameters(RegularizerParameters):
     """Parameters for Fokker-Planck regularization."""
+
     type: str = "fokker_planck"
 
     # how many terms should contribute to the regularization batch.
@@ -34,11 +37,13 @@ class FokkerPlanckRegularizerParameters(RegularizerParameters):
     def __post_init__(self):
         """Verify conditions in post init."""
         if self.use_hte_approximation:
-            assert self.number_of_hte_terms > 0, \
-                "the number of HTE approximation terms must be greater than 0."
+            assert (
+                self.number_of_hte_terms > 0
+            ), "the number of HTE approximation terms must be greater than 0."
         else:
-            assert self.number_of_hte_terms == 0, \
-                "The exact laplacian will be computed; the number of HTE terms must be 0."
+            assert (
+                self.number_of_hte_terms == 0
+            ), "The exact laplacian will be computed; the number of HTE terms must be 0."
 
 
 class FokkerPlanckRegularizer(Regularizer):
@@ -69,19 +74,18 @@ class FokkerPlanckRegularizer(Regularizer):
         relative_coordinates: torch.Tensor,
         times: torch.Tensor,
         atom_types: torch.Tensor,
-        unit_cells: torch.Tensor,
+        lattice_parameters: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         sigmas_t = self.sigma_calculator(times)
 
         forces = torch.zeros_like(relative_coordinates)
 
-        composition = AXL(A=atom_types, X=relative_coordinates, L=unit_cells)
+        composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
 
         batch = {
             NOISY_AXL_COMPOSITION: composition,
             NOISE: sigmas_t,
             TIME: times,
-            UNIT_CELL: unit_cells,
             CARTESIAN_FORCES: forces,
         }
         return batch
@@ -90,14 +94,14 @@ class FokkerPlanckRegularizer(Regularizer):
         self,
         score_network: ScoreNetwork,
         atom_types: torch.Tensor,
-        unit_cells: torch.Tensor,
+        lattice_parameters: torch.Tensor,
     ):
         """Create score function.
 
         Args:
             score_network: a Score Network for which we seek the Fokker-Planck residual.
             atom_types: atom types, held fixed.
-            unit_cells: unit cells, held fixed.
+            lattice_parameters: unit cells, held fixed.
 
         Returns:
             score_function: a callable with input (relative_coordinates, time) which computes the scores, for
@@ -107,7 +111,7 @@ class FokkerPlanckRegularizer(Regularizer):
         def score_function(relative_coordinates, times):
             batch_size, natoms, spatial_dimension = relative_coordinates.shape
             batch = self._create_batch(
-                relative_coordinates, times, atom_types, unit_cells
+                relative_coordinates, times, atom_types, lattice_parameters
             )
 
             sigmas_t = einops.repeat(
@@ -142,6 +146,7 @@ class FokkerPlanckRegularizer(Regularizer):
         relative_coordinates: torch.Tensor,
     ):
         """Get exact score Laplacian."""
+
         def batch_sum_score_x(x: torch.Tensor) -> torch.Tensor:
             # input : [batch_size, natoms, space_dimension]
             # output :  [natoms, space_dimension]
@@ -156,14 +161,22 @@ class FokkerPlanckRegularizer(Regularizer):
 
         # full_hessian has dimension [argument output, argument input]
         #   = [natoms, space_dimension, natoms, space_dimension, batch_size, natoms, space_dimension]
-        full_hessian = torch.func.jacrev(batch_sum_jacobian_function)(relative_coordinates)
+        full_hessian = torch.func.jacrev(batch_sum_jacobian_function)(
+            relative_coordinates
+        )
 
-        laplacian = einops.einsum(full_hessian, " ni si nj sj batch nj sj -> batch ni si")
+        laplacian = einops.einsum(
+            full_hessian, " ni si nj sj batch nj sj -> batch ni si"
+        )
         return laplacian
 
-    def get_hte_laplacian(self, score_function_x: Callable, relative_coordinates: torch.Tensor):
+    def get_hte_laplacian(
+        self, score_function_x: Callable, relative_coordinates: torch.Tensor
+    ):
         """Get HTE approximation to the score Laplacian."""
-        list_z = self._create_rademacher_random_variables(*relative_coordinates.shape).to(relative_coordinates.device)
+        list_z = self._create_rademacher_random_variables(
+            *relative_coordinates.shape
+        ).to(relative_coordinates.device)
         list_laplacian_terms = [
             self.get_hte_laplacian_term(score_function_x, relative_coordinates, z)
             for z in list_z
@@ -220,10 +233,12 @@ class FokkerPlanckRegularizer(Regularizer):
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         times = batch[TIME]
         atom_types = batch[NOISY_AXL_COMPOSITION].A
-        unit_cells = batch[UNIT_CELL]
+        lattice_parameters = batch[NOISY_AXL_COMPOSITION].L
 
         score_function = self._create_score_function(
-            score_network=score_network, atom_types=atom_types, unit_cells=unit_cells
+            score_network=score_network,
+            atom_types=atom_types,
+            lattice_parameters=lattice_parameters,
         )
         scores = score_function(relative_coordinates, times)
 
@@ -256,9 +271,13 @@ class FokkerPlanckRegularizer(Regularizer):
         )[1]
 
         if self.use_hte_approximation:
-            scores_laplacian = self.get_hte_laplacian(score_function_x, relative_coordinates)
+            scores_laplacian = self.get_hte_laplacian(
+                score_function_x, relative_coordinates
+            )
         else:
-            scores_laplacian = self.get_exact_laplacian(score_function_x, relative_coordinates)
+            scores_laplacian = self.get_exact_laplacian(
+                score_function_x, relative_coordinates
+            )
 
         return (
             scores,
@@ -315,8 +334,9 @@ class FokkerPlanckRegularizer(Regularizer):
         # a torch.no_grad environment.
         return torch.is_grad_enabled()
 
-    def compute_regularizer_loss(self, score_network: ScoreNetwork,
-                                 augmented_batch: Dict[AnyStr, Any]) -> torch.Tensor:
+    def compute_regularizer_loss(
+        self, score_network: ScoreNetwork, augmented_batch: Dict[AnyStr, Any]
+    ) -> torch.Tensor:
         """Compute regularizer loss.
 
         The loss calculation will rely on externally generated tensors for times, unit cells and atom types,
@@ -335,10 +355,13 @@ class FokkerPlanckRegularizer(Regularizer):
         """
         external_times = augmented_batch[TIME]
         external_atom_types = augmented_batch[NOISY_AXL_COMPOSITION].A
-        external_unit_cells = augmented_batch[UNIT_CELL]
+        external_unit_cells = augmented_batch[NOISY_AXL_COMPOSITION].L
 
         external_batch_size, natoms = external_atom_types.shape
-        _, spatial_dimension, _ = external_unit_cells.shape
+        _, num_lattice_parameters = external_unit_cells.shape
+        spatial_dimension = get_spatial_dimension_from_number_of_lattice_parameters(
+            num_lattice_parameters
+        )
 
         if self.regularizer_batch_size <= external_batch_size:
             batch_size = self.regularizer_batch_size
