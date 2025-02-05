@@ -31,7 +31,7 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
         min=2.2 * radial_cutoff
     )
     clipped_lattice_parameters[:, spatial_dimension:] = 0
-    cell = map_lattice_parameters_to_unit_cell_vectors(x[NOISY_AXL_COMPOSITION].L)
+    cell = map_lattice_parameters_to_unit_cell_vectors(clipped_lattice_parameters)
     # cell is batch, spatial_dimension, spatial_dimension
 
     device = noisy_cartesian_positions.device
