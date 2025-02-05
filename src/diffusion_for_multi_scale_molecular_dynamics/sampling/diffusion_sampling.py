@@ -58,6 +58,8 @@ def create_batch_of_samples(
         L=lattice_vectors,
     )
 
+    spatial_dimension = relative_coordinates.shape[-1]
+    lattice_vectors[..., spatial_dimension:] = 0  # TODO support non-orthogonal boxes
     basis_vectors = map_lattice_parameters_to_unit_cell_vectors(lattice_vectors)
     cartesian_positions = get_positions_from_coordinates(
         relative_coordinates, basis_vectors

@@ -498,7 +498,6 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         noisy_lattice_parameters: torch.Tensor,
         real_lattice_parameters: torch.Tensor,
         sigmas_n: torch.Tensor,
-        alpha_bars: torch.Tensor,
     ) -> torch.Tensor:
         """Get target normalized score for the lattice parameters.
 
@@ -514,15 +513,13 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
             sigmas_n : variance scaled by the number of atoms
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
-            alpha_bars :
-                Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
 
         Returns:
             target normalized score: sigma times target score, ie, sigma times nabla_lt log P_{t|0}(lt| l0).
                 Tensor of dimensions [batch_size, spatial_dimension * (spatial_dimension + 1) / 2]
         """
         target_normalized_scores = get_lattice_sigma_normalized_score(
-            noisy_lattice_parameters, real_lattice_parameters, sigmas_n, alpha_bars
+            noisy_lattice_parameters, real_lattice_parameters, sigmas_n
         )
         return target_normalized_scores
 
