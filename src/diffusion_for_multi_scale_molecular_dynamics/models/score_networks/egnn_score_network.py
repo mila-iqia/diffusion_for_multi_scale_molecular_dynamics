@@ -132,6 +132,8 @@ class EGNNScoreNetwork(ScoreNetwork):
 
         self.drop_duplicate_edges = hyper_params.drop_duplicate_edges
 
+        self.node_features_as_outputs = hyper_params.node_features_as_outputs
+
         self.egnn = EGNN(
             input_size=self.number_of_features_per_node,
             message_n_hidden_dimensions=hyper_params.message_n_hidden_dimensions,
@@ -148,6 +150,8 @@ class EGNNScoreNetwork(ScoreNetwork):
             message_agg=hyper_params.message_agg,
             n_layers=hyper_params.n_layers,
             num_classes=self.num_atom_types + 1,
+            node_features_as_outputs=hyper_params.node_features_as_outputs,
+            spatial_dimension=hyper_params.spatial_dimension
         )
 
     @staticmethod
@@ -299,17 +303,19 @@ class EGNNScoreNetwork(ScoreNetwork):
         #       - z are the "positions" in the uplifted Euclidean space
         #       - hat_z is the output of the EGNN model, also in the uplifted Euclidean space
         #       - Gamma^alpha are the projection matrices
-        if not self.skip_projection:
+        if not self.skip_projection and not self.node_features_as_outputs:
             flat_normalized_scores = einops.einsum(
                 euclidean_positions,
                 self.projection_matrices,
                 raw_normalized_score.X,
                 "nodes i, alpha i j, nodes j-> nodes alpha",
             )
-        else:  # break the rotation / translation symmetries and force a MLP here - for experiments only!
+        elif not self.node_features_as_outputs:  # break the rotation / translation symmetries and force a MLP here - for experiments only!
             flat_normalized_scores = self.projection_mlp(
                 raw_normalized_score.X
             )
+        else:  # self.node_features_as_outputs is True
+            flat_normalized_scores = raw_normalized_score.X
 
         normalized_scores = einops.rearrange(
             flat_normalized_scores,
