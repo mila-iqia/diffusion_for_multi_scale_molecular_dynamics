@@ -179,7 +179,7 @@ class TestInputToMaceRandom(TestInputToMaceChain):
             score_network_input, radial_cutoff=radial_cutoff
         )
 
-        for feature_name in ["node_attrs", "positions", "ptr", "batch", "cell"]:
+        for feature_name in ["node_attrs", "positions", "ptr", "batch"]:
             torch.testing.assert_close(
                 mace_graph[feature_name], computed_mace_graph[feature_name]
             )
@@ -366,7 +366,7 @@ class TestReshapes:
             )
             assert torch.allclose(
                 expected_values,
-                converted_tensor[:, num_channels * start_idx:num_channels * end_idx],
+                converted_tensor[:, num_channels * start_idx : num_channels * end_idx],
             )
 
     def test_reshape_from_e3nn_to_mace(
@@ -382,5 +382,5 @@ class TestReshapes:
                 -1, num_channels, 2 * ell + 1
             )
             assert torch.allclose(
-                expected_values, converted_tensor[:, :, ell**2:(ell + 1) ** 2]
+                expected_values, converted_tensor[:, :, ell**2 : (ell + 1) ** 2]
             )

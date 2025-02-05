@@ -12,9 +12,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.diffusion_mace import (
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    get_positions_from_coordinates
+    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    get_positions_from_coordinates,
+    map_lattice_parameters_to_unit_cell_vectors)
 
 
 @dataclass(kw_only=True)
@@ -138,7 +139,11 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         batch_size, number_of_atoms, spatial_dimension = relative_coordinates.shape
 
-        basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L
+        # TODO clip is a cheap hack to avoid a collapse of the unit cell
+        basis_vectors = batch[NOISY_AXL_COMPOSITION].L.clip(min=2.2 * self.r_max)
+        basis_vectors[:, spatial_dimension:] = 0  # TODO force orthogonal box
+        basis_vectors = map_lattice_parameters_to_unit_cell_vectors(basis_vectors)
+
         batch[NOISY_CARTESIAN_POSITIONS] = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
         )
@@ -166,7 +171,7 @@ class DiffusionMACEScoreNetwork(ScoreNetwork):
         axl_scores = AXL(
             A=atom_types_scores,
             X=coordinates_scores,
-            L=torch.zeros_like(atom_types_scores),
+            L=torch.zeros_like(batch[NOISY_AXL_COMPOSITION].L),
         )
 
         return axl_scores

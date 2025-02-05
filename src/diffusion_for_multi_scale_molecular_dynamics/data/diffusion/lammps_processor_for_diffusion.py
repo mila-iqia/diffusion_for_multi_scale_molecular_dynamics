@@ -7,6 +7,7 @@ import warnings
 from functools import partial
 from typing import List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 
 from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import \
@@ -249,4 +250,4 @@ class LammpsProcessorForDiffusion:
 
     @staticmethod
     def _convert_box_to_lattice_parameters(row: pd.Series) -> List[float]:
-        return map_numpy_unit_cell_to_lattice_parameters(row["box"])
+        return map_numpy_unit_cell_to_lattice_parameters(np.diag(row["box"]))

@@ -207,14 +207,16 @@ def map_unit_cell_to_lattice_parameters(
     num_lattice_parameters = get_number_of_lattice_parameters(spatial_dimension)
 
     if engine == "torch":
-        lattice_parameters = torch.zeros(num_lattice_parameters).to(unit_cell)
+        lattice_parameters = torch.zeros(
+            *unit_cell.shape[:-2], num_lattice_parameters
+        ).to(unit_cell)
         diag_unit_cell = torch.diagonal(unit_cell, dim1=-2, dim2=-1)
 
     elif engine == "numpy":
         lattice_parameters = np.zeros(num_lattice_parameters)
         diag_unit_cell = np.diag(unit_cell)
 
-    lattice_parameters[:spatial_dimension] = diag_unit_cell
+    lattice_parameters[..., :spatial_dimension] = diag_unit_cell
     # TODO add angle information in the other entries in lattice_parameters
 
     return lattice_parameters
