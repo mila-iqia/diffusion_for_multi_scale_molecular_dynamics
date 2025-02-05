@@ -166,7 +166,10 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         return list_compositions
 
     def test_sample(
-        self, generator, number_of_samples, all_generated_compositions,
+        self,
+        generator,
+        number_of_samples,
+        all_generated_compositions,
     ):
 
         expected_samples = all_generated_compositions[-1]
@@ -177,20 +180,26 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
 
         torch.testing.assert_close(expected_samples, computed_samples)
 
-    def test_sample_from_noisy_composition(self, generator,
-                                           initial_sample,
-                                           number_of_discretization_steps,
-                                           all_generated_compositions,
-                                           unit_cell_sample):
+    def test_sample_from_noisy_composition(
+        self,
+        generator,
+        initial_sample,
+        number_of_discretization_steps,
+        all_generated_compositions,
+        unit_cell_sample,
+    ):
 
         starting_noisy_composition = initial_sample
 
-        for idx, starting_step_index in enumerate(range(number_of_discretization_steps, 1, -1)):
+        for idx, starting_step_index in enumerate(
+            range(number_of_discretization_steps, 1, -1)
+        ):
             ending_step_index = starting_step_index - 1
-            generated_sample = generator.sample_from_noisy_composition(starting_noisy_composition,
-                                                                       starting_step_index,
-                                                                       ending_step_index,
-                                                                       unit_cell_sample)
+            generated_sample = generator.sample_from_noisy_composition(
+                starting_noisy_composition,
+                starting_step_index,
+                ending_step_index,
+            )
 
             expected_sample = all_generated_compositions[idx]
             torch.testing.assert_close(expected_sample, generated_sample)
