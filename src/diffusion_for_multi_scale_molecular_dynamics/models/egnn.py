@@ -309,6 +309,8 @@ class EGNN(nn.Module):
         coords_agg: str = "mean",
         message_agg: str = "mean",
         n_layers: int = 4,
+        node_features_as_outputs: bool = False,
+        spatial_dimension: int = 3,
     ):
         """EGNN model stacking multiple E_GCL layers.
 
@@ -337,6 +339,10 @@ class EGNN(nn.Module):
         self.graph_layers = nn.ModuleList([])
         self.node_classification_layer = nn.Linear(
             node_hidden_dimensions_size, num_classes
+        )
+        self.node_features_as_outputs = node_features_as_outputs
+        self.node_regression_layer = nn.Linear(
+            node_hidden_dimensions_size, spatial_dimension
         )
         for _ in range(0, n_layers):
             self.graph_layers.append(
@@ -377,6 +383,10 @@ class EGNN(nn.Module):
         for graph_layer in self.graph_layers:
             h, x = graph_layer(h, edges, x)
         node_classification_logits = self.node_classification_layer(h)
+
+        if self.node_features_as_outputs:
+            x = self.node_regression_layer(h)
+
         model_outputs = AXL(
             A=node_classification_logits,
             X=x,

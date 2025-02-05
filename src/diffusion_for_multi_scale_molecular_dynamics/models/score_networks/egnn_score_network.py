@@ -45,6 +45,8 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     skip_projection: bool = False
     projection_n_hidden_dimensions: int = 1
     projection_n_hidden_dimensions_hidden_dimensions_size: int = 32
+    node_features_as_outputs: bool = False
+    spatial_dimension: int = 3
 
 
 class EGNNScoreNetwork(ScoreNetwork):
