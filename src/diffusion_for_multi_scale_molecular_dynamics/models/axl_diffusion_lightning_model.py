@@ -419,7 +419,6 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             )  # averaged over number of atoms and number of classes
         )  # results in a tensor of dimension [batch_size]
 
-
         weighted_loss = torch.mean(aggregated_weighted_loss)
 
         unreduced_loss = AXL(
@@ -450,7 +449,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                 self.regularizer.compute_weighted_regularizer_loss(
                     score_network=self.axl_network,
                     augmented_batch=augmented_batch,
-                    current_epoch=self.current_epoch))
+                    current_epoch=self.current_epoch,
+                )
+            )
 
             output["loss"] += weighted_regularizer_loss
             output["regularizer_loss"] = weighted_regularizer_loss
@@ -537,7 +538,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         for loss, label in zip(list_losses_to_log, list_labels):
             # The 'train_step_loss' is only logged on_step, meaning it is a value for each batch
-            self.log(f"train_step_{label}", loss, on_step=True, on_epoch=False, prog_bar=True)
+            self.log(
+                f"train_step_{label}", loss, on_step=True, on_epoch=False, prog_bar=True
+            )
 
             # The 'train_epoch_loss' is aggregated (batch_size weighted average) and logged once per epoch.
             self.log(
@@ -701,10 +704,11 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             logger.info("       * Computing sample distances")
+
             sample_distances = compute_distances_in_batch(
                 cartesian_positions=samples_batch[CARTESIAN_POSITIONS],
                 unit_cell=map_lattice_parameters_to_unit_cell_vectors(
-                    samples_batch[LATTICE_PARAMETERS]
+                    samples_batch[AXL_COMPOSITION].L
                 ),
                 max_distance=self.metrics_parameters.structure_factor_max_distance,
             )
