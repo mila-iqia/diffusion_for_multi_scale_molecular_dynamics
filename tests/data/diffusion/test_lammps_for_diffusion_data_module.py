@@ -7,15 +7,24 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diff
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     NULL_ELEMENT
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS, RELATIVE_COORDINATES)
 from tests.data.diffusion.conftest import TestLammpsForDiffusionDataModuleBase
 from tests.fake_data_utils import find_aligning_permutation
 
 
 class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
 
-    def test_dataset_transform(self, batched_input_data, element_types, batch_size, number_of_atoms, spatial_dimension):
-        result = LammpsForDiffusionDataModule.dataset_transform(batched_input_data, element_types)
+    def test_dataset_transform(
+        self,
+        batched_input_data,
+        element_types,
+        batch_size,
+        number_of_atoms,
+        spatial_dimension,
+    ):
+        result = LammpsForDiffusionDataModule.dataset_transform(
+            batched_input_data, element_types
+        )
         # Check keys in result
         assert set(result.keys()) == {
             "natom",
@@ -23,6 +32,7 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
             CARTESIAN_FORCES,
             CARTESIAN_POSITIONS,
             RELATIVE_COORDINATES,
+            LATTICE_PARAMETERS,
             "box",
             "potential_energy",
         }
@@ -40,7 +50,7 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
 
         element_ids = list(result[ATOM_TYPES].flatten().numpy())
         computed_element_names = [element_types.get_element(id) for id in element_ids]
-        expected_element_names = list(np.array(batched_input_data['element']).flatten())
+        expected_element_names = list(np.array(batched_input_data["element"]).flatten())
         assert computed_element_names == expected_element_names
 
         assert torch.equal(
@@ -62,7 +72,9 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
 
         # Check if the type and position have been padded correctly
         assert len(padded_sample["element"]) == max_atom_for_padding
-        assert padded_sample[CARTESIAN_POSITIONS].shape == torch.Size([max_atom_for_padding * 3])
+        assert padded_sample[CARTESIAN_POSITIONS].shape == torch.Size(
+            [max_atom_for_padding * 3]
+        )
 
         # Check that the padding is correct
         for k in range(number_of_atoms, max_atom_for_padding):
@@ -70,18 +82,19 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
 
         # Check that the padding uses nan for position
         assert torch.isnan(
-            padded_sample[CARTESIAN_POSITIONS][3 * number_of_atoms:]
+            padded_sample[CARTESIAN_POSITIONS][3 * number_of_atoms :]
         ).all()
 
     def test_dataset_feature_names(self, data_module):
         expected_feature_names = {
             "natom",
             "box",
-            'element',
+            "element",
             "potential_energy",
             CARTESIAN_FORCES,
             CARTESIAN_POSITIONS,
             RELATIVE_COORDINATES,
+            LATTICE_PARAMETERS,
         }
         assert set(data_module.train_dataset.features.keys()) == expected_feature_names
         assert set(data_module.valid_dataset.features.keys()) == expected_feature_names
