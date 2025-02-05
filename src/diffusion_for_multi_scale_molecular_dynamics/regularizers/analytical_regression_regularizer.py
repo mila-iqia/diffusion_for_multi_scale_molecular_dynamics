@@ -15,7 +15,7 @@ from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer impor
 
 @dataclass(kw_only=True)
 class AnalyticalRegressionRegularizerParameters(RegularizerParameters):
-    """Parameters for regularization by regression to an analytical score netwowk."""
+    """Parameters for regularization by regression to an analytical score network."""
     type: str = "analytical_regression"
     analytical_score_network_parameters: AnalyticalScoreNetworkParameters
 
