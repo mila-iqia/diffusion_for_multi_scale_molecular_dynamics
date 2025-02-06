@@ -46,6 +46,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     projection_n_hidden_dimensions: int = 1
     projection_n_hidden_dimensions_hidden_dimensions_size: int = 32
     node_features_as_outputs: bool = False
+    positions_as_node_features: bool = False
     spatial_dimension: int = 3
 
 
@@ -70,6 +71,10 @@ class EGNNScoreNetwork(ScoreNetwork):
             self.num_atom_types + 2
         )  # +1 for MASK class, + 1 for sigma
         self.number_of_features_per_node += hyper_params.max_atom  # only for the permutation breaking experiments
+
+        self.positions_as_node_features = hyper_params.positions_as_node_features
+        if self.positions_as_node_features:
+            self.number_of_features_per_node += self.spatial_dimension
 
         self.number_of_bloch_wave_shells = hyper_params.number_of_bloch_wave_shells
         bloch_wave_reciprocal_lattice_vectors = (
@@ -190,7 +195,7 @@ class EGNNScoreNetwork(ScoreNetwork):
 
     @staticmethod
     def _get_node_attributes(
-        batch: Dict[AnyStr, torch.Tensor], num_atom_types: int
+        batch: Dict[AnyStr, torch.Tensor], num_atom_types: int, positions_as_features: bool= False,
     ) -> torch.Tensor:
         """Get node attributes.
 
@@ -198,6 +203,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         Args:
             batch : the batch dictionary
             num_atom_types: number of atom types excluding the MASK token
+            positions_as_features (optional): if True, add relative coordinates as features. Defaults to False.
 
         Returns:
             node_attributes: a tensor of dimension [batch, natoms, num_atom_types + 2]
@@ -227,6 +233,11 @@ class EGNNScoreNetwork(ScoreNetwork):
         node_attributes = torch.concatenate(
             (repeated_sigmas, atom_types_one_hot.view(-1, num_atom_types + 1), atom_indices), dim=1
         )
+
+        if positions_as_features:
+            flattened_x = torch.reshape(relative_coordinates, (-1, spatial_dimension))
+            node_attributes = torch.concatenate((node_attributes, flattened_x), dim=1)
+
         return node_attributes
 
     def _get_euclidean_positions(
@@ -288,7 +299,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         euclidean_positions = self._get_euclidean_positions(flat_relative_coordinates)
 
         node_attributes_h = self._get_node_attributes(
-            batch, num_atom_types=self.num_atom_types
+            batch, num_atom_types=self.num_atom_types, positions_as_features=self.positions_as_node_features
         )
         # The raw normalized score has dimensions [number_of_nodes, 2 x spatial_dimension]
         # CAREFUL! It is important to pass a clone of the euclidian positions because EGNN will modify its input!
