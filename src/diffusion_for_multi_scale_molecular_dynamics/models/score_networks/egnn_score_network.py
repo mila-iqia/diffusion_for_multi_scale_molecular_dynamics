@@ -3,6 +3,7 @@ from typing import AnyStr, Dict, Union
 
 import einops
 import torch
+from e3nn import o3
 
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn import EGNN
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
@@ -43,6 +44,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     drop_duplicate_edges: bool = True
     diff_vector_in_message: bool = False
     num_frequencies: int = 10
+    learnable_projection: bool = False
 
 
 class EGNNScoreNetwork(ScoreNetwork):
@@ -89,6 +91,13 @@ class EGNNScoreNetwork(ScoreNetwork):
             "projection_matrices",
             torch.nn.Parameter(projection_matrices, requires_grad=False),
         )
+
+        self.learnable_projection = hyper_params.learnable_projection
+        if self.learnable_projection:
+            num_p_reps = int(projection_matrices.shape[-1] / self.spatial_dimension)
+            self.learnable_projection_layer = o3.Linear(
+                f"{num_p_reps}x1o", "1x1o"
+            )  # TODO this could depend on the euclidean position as well
 
         self.edges = hyper_params.edges
         assert self.edges in [
@@ -270,12 +279,16 @@ class EGNNScoreNetwork(ScoreNetwork):
         #       - z are the "positions" in the uplifted Euclidean space
         #       - hat_z is the output of the EGNN model, also in the uplifted Euclidean space
         #       - Gamma^alpha are the projection matrices
-        flat_normalized_scores = einops.einsum(
-            euclidean_positions,
-            self.projection_matrices,
-            raw_normalized_score.X,
-            "nodes i, alpha i j, nodes j-> nodes alpha",
-        )
+        if not self.learnable_projection:
+            flat_normalized_scores = einops.einsum(
+               euclidean_positions,
+                self.projection_matrices,
+                raw_normalized_score.X,
+                "nodes i, alpha i j, nodes j-> nodes alpha",
+            )
+        else:
+            # (batch natoms) j -> (batch natoms) spatial_dimension
+            flat_normalized_scores = self.learnable_projection_layer(raw_normalized_score.X)
 
         normalized_scores = einops.rearrange(
             flat_normalized_scores,
