@@ -127,7 +127,7 @@ class EGNNScoreNetwork(ScoreNetwork):
             num_classes=self.num_atom_types + 1,
             diff_vector_in_message=hyper_params.diff_vector_in_message,
             num_frequencies=hyper_params.num_frequencies,
-            spatial_dimension=3
+            spatial_dimension=self.projection_matrices.shape[-1],
         )
 
     @staticmethod

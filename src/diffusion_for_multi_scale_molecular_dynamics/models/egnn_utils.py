@@ -142,3 +142,28 @@ def get_edges_with_radial_cutoff(
     adj_matrix = adj_matrix.transpose(0, 1)
 
     return adj_matrix
+
+
+class SinusoidsEmbedding(torch.nn.Module):
+    """Sin embedding for x_i - x_j.
+
+    Taken from https://github.com/jiaor17/DiffCSP/blob/main/diffcsp/pl_modules/cspnet.py
+    """
+    def __init__(self, n_frequencies: int = 10, spatial_dimension: int = 3):
+        super().__init__()
+        self.n_frequencies = n_frequencies
+        self.n_space = spatial_dimension
+        self.register_parameter(
+            "frequencies",
+            torch.nn.Parameter(
+                2 * torch.pi * torch.arange(self.n_frequencies).view(1, 1, -1), requires_grad=False
+            ),
+        )
+
+        self.dim = self.n_frequencies * 2 * self.n_space
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        emb = x.unsqueeze(-1) * self.frequencies[None, None, :].to(x.device)
+        emb = emb.reshape(-1, self.n_frequencies * self.n_space)
+        emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+        return emb
