@@ -23,6 +23,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.geometric_utils import \
     get_cubic_point_group_symmetries
+from experiments.analysis.analytic_score.utils import get_silicon_supercell
 from tests.models.score_network.base_test_score_network import \
     BaseTestScoreNetwork
 
@@ -138,9 +139,9 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         return request.param
 
     @pytest.fixture()
-    def batch_size(self, is_rotations_cubic_point_group):
+    def batch_size(self, is_rotations_cubic_point_group, spatial_dimension):
         if is_rotations_cubic_point_group:
-            return len(get_cubic_point_group_symmetries())
+            return len(get_cubic_point_group_symmetries(spatial_dimension))
         else:
             return 16
 
@@ -541,22 +542,32 @@ class TestEquivarianceEGNN(BaseTestScoreEquivariance):
         return score_network
 
 
-# Some of the tests below FAIL because the optimal transport is imperfect. It is still
-# interesting to keep these around if we ever find a better OT heuristic.
-@pytest.mark.skip()
 @pytest.mark.parametrize("num_atom_types", [0])
-@pytest.mark.parametrize(
-    "is_cell_cubic, is_rotations_cubic_point_group", [(False, False)]
-)
+@pytest.mark.parametrize("is_cell_cubic", [True])
+@pytest.mark.parametrize("is_rotations_cubic_point_group", [True])
 class TestEquivarianceEquivariantAnalyticalScoreNetwork(BaseTestScoreEquivariance):
+
+    @pytest.fixture(params=[True, False])
+    def is_reference_symmetrical(self, request):
+        return request.param
+
+    @pytest.fixture()
+    def number_of_atoms(self):
+        return 8
+
+    @pytest.fixture()
+    def equilibrium_relative_coordinates(self, is_reference_symmetrical, number_of_atoms, spatial_dimension):
+        if is_reference_symmetrical:
+            numpy_relative_coordinates = get_silicon_supercell(supercell_factor=1)
+        else:
+            numpy_relative_coordinates = torch.rand(number_of_atoms, spatial_dimension).numpy()
+
+        return list(list(x) for x in numpy_relative_coordinates)
 
     @pytest.fixture()
     def score_network_parameters(
-        self, number_of_atoms, num_atom_types, spatial_dimension
+        self, equilibrium_relative_coordinates, number_of_atoms, num_atom_types, spatial_dimension
     ):
-        random = torch.rand(number_of_atoms, spatial_dimension).numpy()
-        equilibrium_relative_coordinates = list(list(x) for x in random)
-
         params = EquivariantAnalyticalScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             num_atom_types=num_atom_types,

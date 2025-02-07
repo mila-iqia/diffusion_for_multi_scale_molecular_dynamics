@@ -10,10 +10,12 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score
-from diffusion_for_multi_scale_molecular_dynamics.transport.optimal_permutation import \
-    get_optimal_permutation
+from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
+    Transporter
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.geometric_utils import \
+    get_cubic_point_group_symmetries
 
 
 @dataclass(kw_only=True)
@@ -76,8 +78,13 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         self.sigma_d_square = hyper_params.sigma_d**2
 
-        # This should stay on CPU.
-        self.equilibrium_relative_coordinates = torch.tensor(hyper_params.equilibrium_relative_coordinates)
+        self.equilibrium_relative_coordinates = torch.nn.Parameter(
+            torch.tensor(hyper_params.equilibrium_relative_coordinates), requires_grad=False)
+
+        self.symmetries = torch.nn.Parameter(get_cubic_point_group_symmetries(spatial_dimension=self.spatial_dimension),
+                                             requires_grad=False)
+
+        self.transporter = Transporter(self.symmetries)
 
     def get_nearest_equilibrium_coordinates(self, relative_coordinates: torch.Tensor) -> torch.Tensor:
         """Get the nearest equilibrium coordinates.
@@ -90,18 +97,10 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
             nearest_equilibrium_coordinates: the closest permutation image of the equilibrium coordinates,
                 of dimensions [batch_size, number_of_atoms, spatial_dimension].
         """
-        device = relative_coordinates.device
-        # The optimal transport only works on CPU.
-        cpu_relative_coordinates = relative_coordinates.to(torch.device("cpu"))
-        nearest_equilibrium_coordinates = []
-        for x in cpu_relative_coordinates:
-            optimal_permutation = get_optimal_permutation(x, self.equilibrium_relative_coordinates)
-            y = torch.matmul(optimal_permutation, self.equilibrium_relative_coordinates)
-            nearest_equilibrium_coordinates.append(y)
-
-        nearest_equilibrium_coordinates = torch.stack(nearest_equilibrium_coordinates, dim=0).to(device)
-
-        return nearest_equilibrium_coordinates
+        batch_size = relative_coordinates.shape[0]
+        eq_relative_coordinates = einops.repeat(self.equilibrium_relative_coordinates,
+                                                "n d -> b n d", b=batch_size)
+        return self.transporter.get_optimal_transport(relative_coordinates, eq_relative_coordinates)
 
     def get_normalized_scores(
         self, xt: torch.tensor, sigmas_t: torch.Tensor
