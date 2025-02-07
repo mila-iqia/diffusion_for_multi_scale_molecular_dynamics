@@ -35,6 +35,8 @@ class EquivariantAnalyticalScoreNetworkParameters(ScoreNetworkParameters):
     # the data distribution variance.
     sigma_d: float
 
+    use_point_group_symmetries: bool = True
+
     def __post_init__(self):
         """Post init."""
         assert self.sigma_d > 0.0, "the sigma_d parameter should be positive."
@@ -81,8 +83,12 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
         self.equilibrium_relative_coordinates = torch.nn.Parameter(
             torch.tensor(hyper_params.equilibrium_relative_coordinates), requires_grad=False)
 
-        self.symmetries = torch.nn.Parameter(get_cubic_point_group_symmetries(spatial_dimension=self.spatial_dimension),
-                                             requires_grad=False)
+        if hyper_params.use_point_group_symmetries:
+            symmetries = get_cubic_point_group_symmetries(spatial_dimension=self.spatial_dimension)
+        else:
+            symmetries = torch.eye(self.spatial_dimension).unsqueeze(0)
+
+        self.symmetries = torch.nn.Parameter(symmetries, requires_grad=False)
 
         self.transporter = Transporter(self.symmetries)
 
