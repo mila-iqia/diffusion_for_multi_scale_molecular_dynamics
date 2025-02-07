@@ -104,7 +104,7 @@ class EGNNScoreNetwork(ScoreNetwork):
                 f"{num_p_reps}x1o", f"{mixing_layer_size}x1o"
             )
             self.learnable_projection_mixing_layer = o3.Linear(
-               f"{2 * mixing_layer_size}x1o", "1xo"
+               f"{2 * mixing_layer_size}x1o", "1x1o"
             )
 
 
