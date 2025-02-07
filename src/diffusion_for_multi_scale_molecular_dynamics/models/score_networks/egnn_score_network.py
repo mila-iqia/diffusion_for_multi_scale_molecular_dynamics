@@ -45,6 +45,7 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     diff_vector_in_message: bool = False
     num_frequencies: int = 10
     learnable_projection: bool = False
+    learnable_projection_mixing_layer_size: int = 4
 
 
 class EGNNScoreNetwork(ScoreNetwork):
@@ -95,9 +96,17 @@ class EGNNScoreNetwork(ScoreNetwork):
         self.learnable_projection = hyper_params.learnable_projection
         if self.learnable_projection:
             num_p_reps = int(projection_matrices.shape[-1] / self.spatial_dimension)
-            self.learnable_projection_layer = o3.Linear(
-                f"{num_p_reps}x1o", "1x1o"
-            )  # TODO this could depend on the euclidean position as well
+            mixing_layer_size = hyper_params.learnable_projection_mixing_layer_size
+            self.learnable_projection_score_layer = o3.Linear(
+                f"{num_p_reps}x1o", f"{mixing_layer_size}x1o"
+            )
+            self.learnable_projection_position_layer = o3.Linear(
+                f"{num_p_reps}x1o", f"{mixing_layer_size}x1o"
+            )
+            self.learnable_projection_mixing_layer = o3.Linear(
+               f"{2 * mixing_layer_size}x1o", "1xo"
+            )
+
 
         self.edges = hyper_params.edges
         assert self.edges in [
@@ -288,7 +297,11 @@ class EGNNScoreNetwork(ScoreNetwork):
             )
         else:
             # (batch natoms) j -> (batch natoms) spatial_dimension
-            flat_normalized_scores = self.learnable_projection_layer(raw_normalized_score.X)
+            score_rep = self.learnable_projection_score_layer(raw_normalized_score.X)
+            position_rep = self.learnable_projection_position_layer(euclidean_positions)
+            flat_normalized_scores = self.learnable_projection_mixing_layer(
+                torch.cat([score_rep, position_rep], dim=-1)
+            )
 
         normalized_scores = einops.rearrange(
             flat_normalized_scores,
