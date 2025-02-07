@@ -73,7 +73,7 @@ class E_GCL(nn.Module):
 
         if diff_vector_in_message:
             assert sin_embeddings is not None, (
-                    "Vector information is used in messages but embedding module is not defined."à
+                    "Vector information is used in messages but embedding module is not defined."
             )
         self.diff_vector_in_message = diff_vector_in_message
         self.sin_embeddings = sin_embeddings
