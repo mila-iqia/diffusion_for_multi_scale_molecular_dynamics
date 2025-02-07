@@ -8,13 +8,13 @@ It implements EGNN as described in the paper "E(n) Equivariant Graph Neural Netw
 The file is modified from the original download to fit our own linting style and add additional controls.
 """
 
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import torch
 from torch import nn
 
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import (
-    unsorted_segment_mean, unsorted_segment_sum)
+    unsorted_segment_mean, unsorted_segment_sum, SinusoidsEmbedding)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 
@@ -38,6 +38,8 @@ class E_GCL(nn.Module):
         coords_agg: str = "mean",
         message_agg: str = "mean",
         tanh: bool = False,
+        diff_vector_in_message: bool = False,
+        sin_embeddings: Optional[nn.Module] = None,
     ):
         """E_GCL layer initialization.
 
@@ -58,6 +60,9 @@ class E_GCL(nn.Module):
             coords_agg: Use a mean or sum aggregation for the coordinates update. Defaults to mean.
             message_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
+            diff_vector_in_message: if True, use the vector as features in the message model. Defaults to False.
+            sin_embeddings: if diff_vector_in_message is True, use this module to get sin / cos embeddings for the
+                vectors. Defaults to None.
         """
         super(E_GCL, self).__init__()
         self.residual = residual
@@ -65,6 +70,13 @@ class E_GCL(nn.Module):
         self.normalize = normalize
         self.tanh = tanh
         self.epsilon = 1e-8
+
+        if diff_vector_in_message:
+            assert sin_embeddings is not None, (
+                    "Vector information is used in messages but embedding module is not defined."à
+            )
+        self.diff_vector_in_message = diff_vector_in_message
+        self.sin_embeddings = sin_embeddings
 
         if coords_agg not in ["mean", "sum"]:
             raise ValueError(f"coords_agg should be mean or sum. Got {coords_agg}")
@@ -79,6 +91,8 @@ class E_GCL(nn.Module):
         # \phi_e is eq. (3) in https://arxiv.org/pdf/2102.09844
         # Input is a concatenation of the two node features and distance
         message_input_size = input_size * 2 + 1
+        if self.diff_vector_in_message:
+            message_input_size += self.sin_embeddings.dim
         self.message_mlp = nn.Sequential(
             nn.Linear(message_input_size, message_hidden_dimensions_size), act_fn
         )
@@ -134,7 +148,7 @@ class E_GCL(nn.Module):
             )
 
     def message_model(
-        self, source: torch.Tensor, target: torch.Tensor, radial: torch.Tensor
+        self, source: torch.Tensor, target: torch.Tensor, radial: torch.Tensor, pos_diff: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         r"""Constructs the message m_{ij} from source (j) to target (i).
 
@@ -144,15 +158,29 @@ class E_GCL(nn.Module):
 
         with :math:`a_{ij}` the edge attributes
 
+        If vector_diff_in_message is used, them the message takes this form.
+
+        .. math::
+
+            m_ij = \phi_e(h_i^l, h_j^l, ||x_i^l - x_j^l||^2, \psi(x_i^l - x_j^l)}
+
+        where :math:`\psi(x)` is an embedding function.
+
         Args:
             source: source node features (size: number of edges, input_size)
             target: target node features (size: number of edges, input_size)
             radial: distance squared between nodes i and j (size: number of edges, 1)
+            pos_diff: vector separation between nodes i and j: x_i - x_j (size: number of edges, spatial_dimension)
 
         Returns:
             messages :math:`m_{ij}` size: number of edges, message_hidden_dimensions_size
         """
         out = torch.cat([source, target, radial], dim=1)
+
+        if self.diff_vector_in_message:
+            vec_diff_embedding = self.sin_embeddings(pos_diff)
+            out = torch.cat([out, vec_diff_embedding], dim=1)
+
         out = self.message_mlp(out)
         if self.attention:  # gate the message by itself - optional
             att_val = self.att_mlp(out)
@@ -281,7 +309,7 @@ class E_GCL(nn.Module):
         # compute distances between nodes (atoms)
         radial, coord_diff = self.coord2radial(edge_index, coord)
 
-        messages = self.message_model(h[row], h[col], radial)  # compute m_{ij}
+        messages = self.message_model(h[row], h[col], radial, coord_diff)  # compute m_{ij}
         coord = self.coord_model(coord, edge_index, coord_diff, messages)  # update x_i
         h = self.node_model(h, edge_index, messages)  # update h_i
 
@@ -309,6 +337,9 @@ class EGNN(nn.Module):
         coords_agg: str = "mean",
         message_agg: str = "mean",
         n_layers: int = 4,
+        diff_vector_in_message: bool = False,
+        num_frequencies: int = 10,
+        spatial_dimension: int = 6
     ):
         """EGNN model stacking multiple E_GCL layers.
 
@@ -330,6 +361,10 @@ class EGNN(nn.Module):
             message_agg: Use a mean or sum aggregation for the messages. Defaults to mean.
             tanh: if True, add a tanh non-linearity after the coordinates update. Defaults to False.
             n_layers: number of E_GCL layers. Defaults to 4.
+            diff_vector_in_message: if True, use x_i - x_j as a vector in the message updates. Defaults to False.
+            num_frequencies: number of frequencies for the sin embedding for the vectors in the messages.
+                Defaults to 10.
+            spatial_dimension: spatial dimension of the input. Defaults to 6 (3D x 2 for a single shell of bloch waves)
         """
         super(EGNN, self).__init__()
         self.n_layers = n_layers
@@ -338,6 +373,15 @@ class EGNN(nn.Module):
         self.node_classification_layer = nn.Linear(
             node_hidden_dimensions_size, num_classes
         )
+
+        if diff_vector_in_message:
+            sin_embeddings = SinusoidsEmbedding(
+                n_frequencies=num_frequencies,
+                spatial_dimension=spatial_dimension
+            )
+        else:
+            sin_embeddings = None
+
         for _ in range(0, n_layers):
             self.graph_layers.append(
                 E_GCL(
@@ -356,6 +400,8 @@ class EGNN(nn.Module):
                     coords_agg=coords_agg,
                     message_agg=message_agg,
                     tanh=tanh,
+                    diff_vector_in_message=diff_vector_in_message,
+                    sin_embeddings=sin_embeddings
                 )
             )
 

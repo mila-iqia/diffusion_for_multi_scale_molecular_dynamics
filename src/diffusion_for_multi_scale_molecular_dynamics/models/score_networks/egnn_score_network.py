@@ -41,6 +41,8 @@ class EGNNScoreNetworkParameters(ScoreNetworkParameters):
     edges: str = "fully_connected"
     radial_cutoff: Union[float, None] = None
     drop_duplicate_edges: bool = True
+    diff_vector_in_message: bool = False
+    num_frequencies: int = 10
 
 
 class EGNNScoreNetwork(ScoreNetwork):
@@ -123,6 +125,9 @@ class EGNNScoreNetwork(ScoreNetwork):
             message_agg=hyper_params.message_agg,
             n_layers=hyper_params.n_layers,
             num_classes=self.num_atom_types + 1,
+            diff_vector_in_message=hyper_params.diff_vector_in_message,
+            num_frequencies=hyper_params.num_frequencies,
+            spatial_dimension=3
         )
 
     @staticmethod
