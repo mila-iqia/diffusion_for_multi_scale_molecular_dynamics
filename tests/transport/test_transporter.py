@@ -73,15 +73,15 @@ def transporter(point_group_operations):
 
 
 def test_find_pseudo_center_of_mass(transporter, x, batch_size, spatial_dimension):
-    computed_tau = transporter.find_pseudo_center_of_mass(x)
+    computed_tau = transporter._find_pseudo_center_of_mass(x)
     assert computed_tau.shape == (batch_size, spatial_dimension)
 
 
 def test_substact_center_of_mass(transporter, x):
-    x_com = transporter.find_pseudo_center_of_mass(x)
+    x_com = transporter._find_pseudo_center_of_mass(x)
     x_minus_x_com = transporter._substact_center_of_mass(x, x_com)
 
-    should_be_zero = transporter.find_pseudo_center_of_mass(x_minus_x_com)
+    should_be_zero = transporter._find_pseudo_center_of_mass(x_minus_x_com)
 
     # Because of numerical bjorks, the results can also be very close to 1, which is equivalent to zero.
     torch.testing.assert_close(
@@ -90,12 +90,12 @@ def test_substact_center_of_mass(transporter, x):
 
 
 def test_get_all_cost_matrices(transporter, x, mu, batch_size, point_group_operations):
-    x_com = transporter.find_pseudo_center_of_mass(x)
-    mu_com = transporter.find_pseudo_center_of_mass(mu)
+    x_com = transporter._find_pseudo_center_of_mass(x)
+    mu_com = transporter._find_pseudo_center_of_mass(mu)
     x_minus_x_com = transporter._substact_center_of_mass(x, x_com)
     mu_minus_mu_com = transporter._substact_center_of_mass(mu, mu_com)
 
-    computed_cost_matrices = transporter.get_all_cost_matrices(
+    computed_cost_matrices = transporter._get_all_cost_matrices(
         x_minus_x_com, mu_minus_mu_com
     )
 
@@ -114,7 +114,7 @@ def test_find_permutation_and_cost(transporter, number_of_atoms):
 
     random_cost_matrix = torch.rand(number_of_atoms, number_of_atoms)
 
-    permutation, computed_cost = transporter.find_permutation_and_cost(
+    permutation, computed_cost = transporter._find_permutation_and_cost(
         random_cost_matrix
     )
     expected_cost = torch.matmul(permutation, random_cost_matrix).trace()
@@ -127,12 +127,12 @@ def test_solve_linear_assigment_problem(
 ):
     small_epsilon = 1.0e-6
 
-    x_com = transporter.find_pseudo_center_of_mass(x)
-    mu_com = transporter.find_pseudo_center_of_mass(mu)
+    x_com = transporter._find_pseudo_center_of_mass(x)
+    mu_com = transporter._find_pseudo_center_of_mass(mu)
     x_minus_x_com = transporter._substact_center_of_mass(x, x_com)
     mu_minus_mu_com = transporter._substact_center_of_mass(mu, mu_com)
 
-    computed_cost_matrices = transporter.get_all_cost_matrices(
+    computed_cost_matrices = transporter._get_all_cost_matrices(
         x_minus_x_com, mu_minus_mu_com
     )
 
