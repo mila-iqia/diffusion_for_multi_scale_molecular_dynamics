@@ -35,7 +35,7 @@ class Transporter:
         self.point_group_operations = point_group_operations
         self.number_of_point_group_operations = len(self.point_group_operations)
 
-    def find_pseudo_center_of_mass(self, x):
+    def _find_pseudo_center_of_mass(self, x):
         """Find pseudo center of mass.
 
         Find the global translation tau that minimizes the distance D2(x, tau)
@@ -61,7 +61,7 @@ class Transporter:
         repeated_x_com = einops.repeat(x_com, "b d -> b n d", n=natoms)
         return map_relative_coordinates_to_unit_cell(x - repeated_x_com)
 
-    def get_all_cost_matrices(
+    def _get_all_cost_matrices(
         self, x_minus_x_com: torch.Tensor, mu_minus_mu_com: torch.Tensor
     ) -> torch.Tensor:
         """Get all cost matrices."""
@@ -99,7 +99,7 @@ class Transporter:
             computed_cost_matrices, " b o n1 n2 -> (b o) n1 n2"
         ).to(cpu):
             # Unfortunately, the LAP problem must be solved on CPU and cannot be batched.
-            permutation, cost = self.find_permutation_and_cost(cost_matrix)
+            permutation, cost = self._find_permutation_and_cost(cost_matrix)
             list_permutations.append(permutation)
             list_costs.append(cost)
 
@@ -123,7 +123,7 @@ class Transporter:
         ]
         return lowest_cost_permutations, lowest_cost_point_group_operations
 
-    def find_permutation_and_cost(self, cost_matrix: torch.Tensor):
+    def _find_permutation_and_cost(self, cost_matrix: torch.Tensor):
         """Find permutation and cost.
 
         Args:
@@ -156,14 +156,14 @@ class Transporter:
         """
         natoms = x.shape[1]
 
-        x_com = self.find_pseudo_center_of_mass(x)
-        mu_com = self.find_pseudo_center_of_mass(mu)
+        x_com = self._find_pseudo_center_of_mass(x)
+        mu_com = self._find_pseudo_center_of_mass(mu)
 
         x_minus_x_com = self._substact_center_of_mass(x, x_com)
         mu_minus_mu_com = self._substact_center_of_mass(mu, mu_com)
 
         # Dimension [batch_size, number of point group operations, natoms, natoms]
-        computed_cost_matrices = self.get_all_cost_matrices(
+        computed_cost_matrices = self._get_all_cost_matrices(
             x_minus_x_com, mu_minus_mu_com
         )
 
