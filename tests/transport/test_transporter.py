@@ -38,9 +38,19 @@ def mu(batch_size, number_of_atoms, spatial_dimension, device):
     return torch.rand(batch_size, number_of_atoms, spatial_dimension).to(device)
 
 
+@pytest.fixture(params=[True, False])
+def use_point_groups(request):
+    return request.param
+
+
 @pytest.fixture()
-def point_group_operations(spatial_dimension, device):
-    return get_cubic_point_group_symmetries(spatial_dimension).to(device)
+def point_group_operations(spatial_dimension, use_point_groups, device):
+    if use_point_groups:
+        point_group_symmetries = get_cubic_point_group_symmetries(spatial_dimension).to(device)
+    else:
+        point_group_symmetries = torch.eye(spatial_dimension).unsqueeze(0).to(device)
+
+    return point_group_symmetries
 
 
 @pytest.fixture()
