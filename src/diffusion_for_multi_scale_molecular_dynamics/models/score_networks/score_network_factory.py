@@ -16,6 +16,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mace_sco
     MACEScoreNetwork, MACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import (
     MLPScoreNetwork, MLPScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.pyg_models import (
+    PygGCNScoreNetwork, PygGCNScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_prediction_head import (
     MaceEquivariantScorePredictionHeadParameters,
     MaceMLPScorePredictionHeadParameters)
@@ -29,6 +31,7 @@ SCORE_NETWORKS_BY_ARCH = dict(
     mace=MACEScoreNetwork,
     diffusion_mace=DiffusionMACEScoreNetwork,
     egnn=EGNNScoreNetwork,
+    gcn=PygGCNScoreNetwork
 )
 SCORE_NETWORK_PARAMETERS_BY_ARCH = dict(
     analytical=AnalyticalScoreNetworkParameters,
@@ -37,6 +40,7 @@ SCORE_NETWORK_PARAMETERS_BY_ARCH = dict(
     mace=MACEScoreNetworkParameters,
     diffusion_mace=DiffusionMACEScoreNetworkParameters,
     egnn=EGNNScoreNetworkParameters,
+    gcn=PygGCNScoreNetworkParameters
 )
 MACE_PREDICTION_HEAD_BY_NAME = dict(
     mlp=MaceMLPScorePredictionHeadParameters,
