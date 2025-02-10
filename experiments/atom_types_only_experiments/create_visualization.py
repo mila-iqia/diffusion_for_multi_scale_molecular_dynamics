@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics import ROOT_DIR
-from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.ovito_utils import \
+from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.io import \
     create_cif_files
 from diffusion_for_multi_scale_molecular_dynamics.analysis.sample_trajectory_analyser import \
     SampleTrajectoryAnalyser

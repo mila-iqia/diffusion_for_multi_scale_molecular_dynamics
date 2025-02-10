@@ -13,72 +13,12 @@ import ovito
 from ovito.io import import_file
 from ovito.modifiers import (AffineTransformationModifier,
                              CombineDatasetsModifier, CreateBondsModifier)
-from pymatgen.core import Lattice, Structure
-from tqdm import tqdm
+from pymatgen.core import Structure
 
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
-    ElementTypes
-from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.io import \
+    CIF_DIRECTORY_TEMPLATE
 
 UNKNOWN_ATOM_TYPE = "X"
-
-_cif_directory_template = "cif_files_trajectory_{trajectory_index}"
-_cif_file_name_template = "diffusion_positions_step_{time_index}.cif"
-
-
-def create_cif_files(
-    elements: list[str],
-    visualization_artifacts_path: Path,
-    trajectory_index: int,
-    trajectory_axl_compositions: AXL,
-):
-    """Create cif files.
-
-    Args:
-        elements: list of unique elements present in the samples
-        visualization_artifacts_path : where the various visualization artifacts should be written to disk.
-        trajectory_index : the index of the trajectory to be loaded.
-        trajectory_axl_compositions: AXL that contains the trajectories, where each field
-            has dimension [samples, time, ...]
-
-    Returns:
-        None
-    """
-    element_types = ElementTypes(elements)
-    atom_type_map = dict()
-    for element in elements:
-        id = element_types.get_element_id(element)
-        atom_type_map[id] = element
-
-    mask_id = np.max(element_types.element_ids) + 1
-    atom_type_map[mask_id] = UNKNOWN_ATOM_TYPE
-
-    cif_directory = visualization_artifacts_path / _cif_directory_template.format(
-        trajectory_index=trajectory_index
-    )
-    cif_directory.mkdir(exist_ok=True, parents=True)
-
-    trajectory_atom_types = trajectory_axl_compositions.A[trajectory_index].numpy()
-    trajectory_relative_coordinates = trajectory_axl_compositions.X[trajectory_index].numpy()
-    trajectory_lattices = trajectory_axl_compositions.L[trajectory_index].numpy()
-
-    for time_idx, (atom_types, relative_coordinates, basis_vectors) in tqdm(
-        enumerate(zip(trajectory_atom_types, trajectory_relative_coordinates, trajectory_lattices)), "Write CIFs"
-    ):
-
-        lattice = Lattice(matrix=basis_vectors, pbc=(True, True, True))
-        species = list(map(atom_type_map.get, atom_types))
-
-        structure = Structure(
-            lattice=lattice,
-            species=species,
-            coords=relative_coordinates,
-            coords_are_cartesian=False,
-        )
-
-        structure.to_file(
-            str(cif_directory / _cif_file_name_template.format(time_index=time_idx))
-        )
 
 
 def create_ovito_session_state(
@@ -108,7 +48,7 @@ def create_ovito_session_state(
 
     # Read the first structure to get the cell shape.
     structure = Structure.from_file(
-        cif_directory / _cif_file_name_template.format(time_index=0)
+        cif_directory / CIF_DIRECTORY_TEMPLATE.format(time_index=0)
     )
 
     # It is impossible to programmatically control the size of the atomic spheres from a python script.
@@ -121,7 +61,7 @@ def create_ovito_session_state(
     )
 
     cif_directory_template = str(
-        cif_directory / _cif_file_name_template.format(time_index="*")
+        cif_directory / CIF_DIRECTORY_TEMPLATE.format(time_index="*")
     )
 
     # Create the Ovito pipeline
