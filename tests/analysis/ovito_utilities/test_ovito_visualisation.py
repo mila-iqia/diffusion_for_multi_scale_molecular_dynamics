@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_visualisation import (
+from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.ovito_visualisation import (
     get_lattice_from_lammps, mtp_predictions_to_ovito)
 
 
