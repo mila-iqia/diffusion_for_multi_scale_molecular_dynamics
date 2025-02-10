@@ -2,6 +2,8 @@ import numpy as np
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics import ROOT_DIR
+from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.ovito_utils import \
+    create_cif_files
 from diffusion_for_multi_scale_molecular_dynamics.analysis.sample_trajectory_analyser import \
     SampleTrajectoryAnalyser
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
@@ -9,8 +11,6 @@ from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
-from diffusion_for_multi_scale_molecular_dynamics.utils.ovito_utils import \
-    create_cif_files
 
 setup_analysis_logger()
 
