@@ -3,7 +3,7 @@ from typing import AnyStr, Dict
 
 import torch
 from torch import nn
-from torch_geometric.nn.models import GCN
+from torch_geometric.nn.models import GCN, GIN, GAT
 
 from diffusion_for_multi_scale_molecular_dynamics.models.egnn_utils import get_edges_with_radial_cutoff
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import (
@@ -15,15 +15,16 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
 
 
 @dataclass(kw_only=True)
-class PygGCNScoreNetworkParameters(ScoreNetworkParameters):
+class PygScoreNetworkParameters(ScoreNetworkParameters):
     """Specific Hyper-parameters for MLP score networks."""
 
-    architecture: str = "pyg_gcn"
+    architecture: str = "pyg_gcn"  # or pyg_gin, pyg_gat
     number_of_atoms: int  # the number of atoms in a configuration.
     hidden_channels: int  # size of each hidden same.
     num_layers: int  # Number of message passing layers.
     dropout: float = 0.0  # dropout probability
     act: str = "relu"  # The non-linear activation function to use.
+    v2: bool = False  # for GAT only
     # the dimension of the embedding of the noise parameter.
     noise_embedding_dimensions_size: int
 
@@ -42,19 +43,19 @@ class PygGCNScoreNetworkParameters(ScoreNetworkParameters):
     radial_cutoff: float = 5.0
 
 
-class PygGCNScoreNetwork(ScoreNetwork):
+class PygScoreNetwork(ScoreNetwork):
     """Simple Model Class.
 
     Inherits from the given framework's model class. This is a simple MLP model.
     """
 
-    def __init__(self, hyper_params: PygGCNScoreNetworkParameters):
+    def __init__(self, hyper_params: PygScoreNetworkParameters):
         """__init__.
 
         Args:
             hyper_params : hyper parameters from the config file.
         """
-        super(PygGCNScoreNetwork, self).__init__(hyper_params)
+        super(PygScoreNetwork, self).__init__(hyper_params)
 
         self._natoms = hyper_params.number_of_atoms
         self.num_atom_types = hyper_params.num_atom_types
@@ -97,12 +98,28 @@ class PygGCNScoreNetwork(ScoreNetwork):
             coordinate_output_dimension, hyper_params.condition_embedding_size
         )
 
-        self.gcn = GCN(
-            in_channels=input_dimension,
-            hidden_channels=hyper_params.hidden_channels,
-            num_layers=hyper_params.num_layers,
-            out_channels=self.spatial_dimension
-        )
+        match hyper_params.architecture:
+            case "pyg_gcn" | "pyg_gin":
+                gnn_model = GCN if hyper_params.architecture == "pyg_gcn" else GIN
+                self.gnn_model = gnn_model(
+                    in_channels=input_dimension,
+                    hidden_channels=hyper_params.hidden_channels,
+                    num_layers=hyper_params.num_layers,
+                    out_channels=self.spatial_dimension
+                )
+            case "pyg_gat":
+                self.gnn_model = GIN(
+                    in_channels=input_dimension,
+                    hidden_channels=hyper_params.hidden_channels,
+                    num_layers=hyper_params.num_layers,
+                    out_channels=self.spatial_dimension,
+                    v2=hyper_params.v2
+                )
+
+            case _:
+                raise ValueError(
+                    f"Pytorch geometric model should be gcn, gin or gat. Got {hyper_params.architecture}."
+                )
 
         # Create a self nn object to be discoverable to be placed on the correct device
         self.output_A_layer = nn.Linear(
@@ -116,7 +133,7 @@ class PygGCNScoreNetwork(ScoreNetwork):
         )
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
-        super(PygGCNScoreNetwork, self)._check_batch(batch)
+        super(PygScoreNetwork, self)._check_batch(batch)
         number_of_atoms = batch[NOISY_AXL_COMPOSITION].X.shape[1]
         assert (
             number_of_atoms == self._natoms
