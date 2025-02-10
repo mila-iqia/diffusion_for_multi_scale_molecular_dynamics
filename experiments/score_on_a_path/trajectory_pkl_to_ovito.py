@@ -4,7 +4,7 @@ from pathlib import Path
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.io import \
+from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.trajectory_io import \
     create_xyz_files
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 

@@ -15,10 +15,8 @@ from ovito.modifiers import (AffineTransformationModifier,
                              CombineDatasetsModifier, CreateBondsModifier)
 from pymatgen.core import Structure
 
-from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.io import \
+from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.trajectory_io import \
     CIF_DIRECTORY_TEMPLATE
-
-UNKNOWN_ATOM_TYPE = "X"
 
 
 def create_ovito_session_state(

@@ -6,11 +6,11 @@ import torch
 from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 
-from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.ovito_utils import \
-    UNKNOWN_ATOM_TYPE
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+
+UNKNOWN_ATOM_TYPE = "X"
 
 CIF_DIRECTORY_TEMPLATE = "cif_files_trajectory_{trajectory_index}"
 CIF_FILENAME_TEMPLATE = "diffusion_positions_step_{time_index}.cif"
@@ -123,7 +123,7 @@ def create_io_files(
             raise NotImplementedError(f"no such format {format}")
 
     for time_idx, (axl, site_properties) in tqdm(
-        enumerate(zip(list_axl, list_site_properties)), "Write XYZs"
+        enumerate(zip(list_axl, list_site_properties)), "IO"
     ):
         structure = Structure(
             lattice=Lattice(matrix=axl.L, pbc=(True, True, True)),
