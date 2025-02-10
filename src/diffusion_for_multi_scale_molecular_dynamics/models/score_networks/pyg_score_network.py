@@ -207,8 +207,7 @@ class PygScoreNetwork(ScoreNetwork):
             (input.shape[0], input.shape[0])
         )
 
-        # DEBUG HERE
-        output = self.gcn(input, edge_index=edges)
+        output = self.gnn_model(input, edge_index=edges)
 
         coordinates_output = output.reshape(
             relative_coordinates.shape
