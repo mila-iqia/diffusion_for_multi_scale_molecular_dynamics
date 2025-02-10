@@ -21,6 +21,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_schedul
     Noise, NoiseScheduler)
 from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import \
     get_axl_network
+from diffusion_for_multi_scale_molecular_dynamics.utils.closest_neighbors import \
+    get_closest_relative_coordinates_and_index
 
 # directory where to save the results
 RESULTS_DIR = Path(
@@ -106,8 +108,14 @@ def make_interpolated_frames() -> List[AXL]:
 
     # get the position of the fixed atom
     start_position_moving_atom = best_configuration_axl.X[MOVING_ATOM_INDEX, :]
+
     # find its nearest neighbor index
-    target_atom_index = find_closest_atom(MOVING_ATOM_INDEX, best_configuration_axl.X)
+    relative_coordinates = best_configuration_axl.X
+    reference_relative_coordinates = relative_coordinates[MOVING_ATOM_INDEX]
+    _, target_atom_index = get_closest_relative_coordinates_and_index(reference_relative_coordinates,
+                                                                      relative_coordinates,
+                                                                      avoid_self=True)
+
     # get the final position of the moving atom
     final_position_moving_atom = best_configuration_axl.X[target_atom_index, :]
 
