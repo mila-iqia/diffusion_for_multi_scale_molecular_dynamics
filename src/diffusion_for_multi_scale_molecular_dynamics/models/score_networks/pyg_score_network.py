@@ -99,7 +99,7 @@ class PygScoreNetwork(ScoreNetwork):
         )
 
         match hyper_params.architecture:
-            case "pyg_gcn" | "pyg_gin":
+            case "gcn" | "gin":
                 gnn_model = GCN if hyper_params.architecture == "pyg_gcn" else GIN
                 self.gnn_model = gnn_model(
                     in_channels=input_dimension,
@@ -107,8 +107,8 @@ class PygScoreNetwork(ScoreNetwork):
                     num_layers=hyper_params.num_layers,
                     out_channels=self.spatial_dimension
                 )
-            case "pyg_gat":
-                self.gnn_model = GIN(
+            case "gat":
+                self.gnn_model = GAT(
                     in_channels=input_dimension,
                     hidden_channels=hyper_params.hidden_channels,
                     num_layers=hyper_params.num_layers,

@@ -31,9 +31,9 @@ SCORE_NETWORKS_BY_ARCH = dict(
     mace=MACEScoreNetwork,
     diffusion_mace=DiffusionMACEScoreNetwork,
     egnn=EGNNScoreNetwork,
-    pyg_gcn=PygScoreNetwork,
-    pyg_gin=PygScoreNetwork,
-    pyg_gat=PygScoreNetwork
+    gcn=PygScoreNetwork,
+    gin=PygScoreNetwork,
+    gat=PygScoreNetwork
 )
 SCORE_NETWORK_PARAMETERS_BY_ARCH = dict(
     analytical=AnalyticalScoreNetworkParameters,
