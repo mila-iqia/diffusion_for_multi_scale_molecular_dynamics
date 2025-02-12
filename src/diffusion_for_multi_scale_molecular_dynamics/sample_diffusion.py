@@ -29,6 +29,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning
     AXLDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import (
+    ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
@@ -119,6 +121,11 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
         # Very opinionated logger, which writes to the output folder.
         logger.info(f"Start Generating Samples with checkpoint {args.checkpoint}")
         axl_network = get_axl_network(args.checkpoint)
+
+    if 'force_field' in hyper_params:
+        logger.info("Augmenting the AXL_network with an excluding Force Field.")
+        force_field_parameters = ForceFieldParameters(**hyper_params["force_field"])
+        axl_network = ForceFieldAugmentedScoreNetwork(axl_network, force_field_parameters)
 
     logger.info("Instantiate generator...")
     trajectory_initializer = instantiate_trajectory_initializer(
