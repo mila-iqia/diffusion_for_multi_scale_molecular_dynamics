@@ -123,9 +123,13 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
         axl_network = get_axl_network(args.checkpoint)
 
     if 'force_field' in hyper_params:
-        logger.info("Augmenting the AXL_network with an excluding Force Field.")
         force_field_parameters = ForceFieldParameters(**hyper_params["force_field"])
-        axl_network = ForceFieldAugmentedScoreNetwork(axl_network, force_field_parameters)
+        if force_field_parameters.radial_cutoff > 0.0:
+            logger.info("Augmenting the AXL_network with an excluding Force Field.")
+            axl_network = ForceFieldAugmentedScoreNetwork(axl_network, force_field_parameters)
+        else:
+            logger.info("Force field parameters are present, but the radial cutoff is zero. "
+                        "Using original AXL network")
 
     logger.info("Instantiate generator...")
     trajectory_initializer = instantiate_trajectory_initializer(

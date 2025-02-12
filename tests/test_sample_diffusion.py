@@ -58,10 +58,15 @@ def noise_parameters():
     return NoiseParameters(total_time_steps=10)
 
 
-@pytest.fixture(params=[True, False])
-def force_field_parameters(request):
-    if request.param:
-        return ForceFieldParameters(radial_cutoff=1.0, strength=0.1)
+@pytest.fixture(params=[None, 0.0, 1.0])
+def radial_cutoff(request):
+    return request.param
+
+
+@pytest.fixture()
+def force_field_parameters(radial_cutoff):
+    if radial_cutoff:
+        return ForceFieldParameters(radial_cutoff=radial_cutoff, strength=0.1)
     else:
         return None
 
