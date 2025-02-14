@@ -13,6 +13,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning
     AXLDiffusionLightningModel, AXLDiffusionParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
     OptimizerParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import \
+    ForceFieldParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import \
@@ -54,6 +56,19 @@ def record_samples(request):
 @pytest.fixture()
 def noise_parameters():
     return NoiseParameters(total_time_steps=10)
+
+
+@pytest.fixture(params=[None, 0.0, 1.0])
+def radial_cutoff(request):
+    return request.param
+
+
+@pytest.fixture()
+def force_field_parameters(radial_cutoff):
+    if radial_cutoff:
+        return ForceFieldParameters(radial_cutoff=radial_cutoff, strength=0.1)
+    else:
+        return None
 
 
 @pytest.fixture()
@@ -102,13 +117,15 @@ def axl_network(number_of_atoms, noise_parameters, num_atom_types):
 
 
 @pytest.fixture()
-def config_path(tmp_path, noise_parameters, sampling_parameters):
+def config_path(tmp_path, noise_parameters, sampling_parameters, force_field_parameters):
     config_path = str(tmp_path / "test_config.yaml")
 
     config = dict(
         noise=dataclasses.asdict(noise_parameters),
         sampling=dataclasses.asdict(sampling_parameters),
     )
+    if force_field_parameters:
+        config['force_field'] = dataclasses.asdict(force_field_parameters)
 
     with open(config_path, "w") as fd:
         yaml.dump(config, fd)
