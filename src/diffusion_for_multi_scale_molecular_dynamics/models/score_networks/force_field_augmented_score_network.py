@@ -31,8 +31,8 @@ class ForceFieldParameters:
 
     def __post_init__(self):
         """Post init."""
-        assert self.radial_cutoff >= 0., "the radial cutoff should be non-negative"
-        assert self.strength >= 0., "the repulsive strength should be non-negative"
+        assert self.radial_cutoff > 0., "the radial cutoff should be greater than zero."
+        assert self.strength > 0., "the repulsive strength should be greater than zero."
 
 
 class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
