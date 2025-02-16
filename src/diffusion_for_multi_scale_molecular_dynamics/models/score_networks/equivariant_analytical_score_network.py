@@ -127,12 +127,10 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         effective_sigmas = torch.sqrt(self.sigma_d_square + sigmas_t**2)
 
-        x = map_relative_coordinates_to_unit_cell(xt)
-        nearest_equilibrium_coordinates = self.get_nearest_equilibrium_coordinates(x)
+        x_invariant = self.transporter.get_translation_invariant(xt)
+        mu_invariant = self.get_nearest_equilibrium_coordinates(xt)
 
-        # We leverage the fact that the probability is a wrapped Gaussian to extract the
-        # score.
-        u = map_relative_coordinates_to_unit_cell(x - nearest_equilibrium_coordinates)
+        u = map_relative_coordinates_to_unit_cell(x_invariant - mu_invariant)
         effective_sigma_normalized_scores = get_sigma_normalized_score(
             u, effective_sigmas, self.kmax
         )

@@ -6,8 +6,6 @@ from scipy.optimize import linear_sum_assignment
 
 from diffusion_for_multi_scale_molecular_dynamics.transport.distance import \
     get_geodesic_displacements
-from diffusion_for_multi_scale_molecular_dynamics.transport.optimal_translation import \
-    find_squared_geodesic_distance_minimizing_translation
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
@@ -35,31 +33,17 @@ class Transporter:
         self.point_group_operations = point_group_operations
         self.number_of_point_group_operations = len(self.point_group_operations)
 
-    def _find_pseudo_center_of_mass(self, x):
-        """Find pseudo center of mass.
+    def _get_atan2_translation(self, x: torch.Tensor) -> torch.Tensor:
+        two_pi = 2 * torch.pi
+        x_bar = torch.cos(two_pi * x).mean(dim=1)
+        y_bar = torch.sin(two_pi * x).mean(dim=1)
+        return torch.atan2(y_bar, x_bar) / two_pi
 
-        Find the global translation tau that minimizes the distance D2(x, tau)
-
-        Args:
-            x: a points on the hyper-torus. Assumed to be of dimension [batch_size, number_of_atoms, spatial_dimension]
-
-        Returns:
-            tau: minimizing global translation,  of dimension [batch_size, spatial_dimension].
-        """
-        tau = map_relative_coordinates_to_unit_cell(
-            find_squared_geodesic_distance_minimizing_translation(
-                x, torch.zeros_like(x)
-            )
-        )
-        return tau
-
-    def _substact_center_of_mass(
-        self, x: torch.Tensor, x_com: torch.Tensor
-    ) -> torch.Tensor:
+    def get_translation_invariant(self, x: torch.Tensor) -> torch.Tensor:
         """Remove the center of mass from a point on the hyper-torus."""
         natoms = x.shape[1]
-        repeated_x_com = einops.repeat(x_com, "b d -> b n d", n=natoms)
-        return map_relative_coordinates_to_unit_cell(x - repeated_x_com)
+        x_com = einops.repeat(self._get_atan2_translation(x), 'b d -> b n d', n=natoms)
+        return map_relative_coordinates_to_unit_cell(x - x_com)
 
     def _get_all_cost_matrices(
         self, x_minus_x_com: torch.Tensor, mu_minus_mu_com: torch.Tensor
@@ -154,13 +138,8 @@ class Transporter:
         Returns:
             aligned_mu: the aligned value of mu
         """
-        natoms = x.shape[1]
-
-        x_com = self._find_pseudo_center_of_mass(x)
-        mu_com = self._find_pseudo_center_of_mass(mu)
-
-        x_minus_x_com = self._substact_center_of_mass(x, x_com)
-        mu_minus_mu_com = self._substact_center_of_mass(mu, mu_com)
+        x_minus_x_com = self.get_translation_invariant(x)
+        mu_minus_mu_com = self.get_translation_invariant(mu)
 
         # Dimension [batch_size, number of point group operations, natoms, natoms]
         computed_cost_matrices = self._get_all_cost_matrices(
@@ -184,10 +163,6 @@ class Transporter:
             lowest_cost_permutations, rotation, "b n2 n1, b n2 d -> b n1 d"
         )
 
-        tau = einops.repeat(x_com, "b d -> b n d", n=natoms)
-
-        best_mu_image = map_relative_coordinates_to_unit_cell(
-            rotation_permutation + tau
-        )
+        best_mu_image = map_relative_coordinates_to_unit_cell(rotation_permutation)
 
         return best_mu_image

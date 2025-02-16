@@ -82,28 +82,36 @@ def transporter(point_group_operations):
     return Transporter(point_group_operations)
 
 
-def test_find_pseudo_center_of_mass(transporter, x, batch_size, spatial_dimension):
-    computed_tau = transporter._find_pseudo_center_of_mass(x)
-    assert computed_tau.shape == (batch_size, spatial_dimension)
+def test_get_translation_invariant_is_translation_invariant(transporter, x, random_global_translations):
+    x_minus_x_com = transporter.get_translation_invariant(x)
+    xt_minus_xt_com = transporter.get_translation_invariant(x + random_global_translations)
+    torch.testing.assert_close(x_minus_x_com, xt_minus_xt_com)
 
 
-def test_substact_center_of_mass(transporter, x):
-    x_com = transporter._find_pseudo_center_of_mass(x)
-    x_minus_x_com = transporter._substact_center_of_mass(x, x_com)
+def test_get_translation_invariant_is_permutation_equivariant(transporter, x, random_permutations):
+    x_minus_x_com = transporter.get_translation_invariant(x)
+    perm_x_minus_x_com = einops.einsum(random_permutations, x_minus_x_com, "b n1 n2, b n2 d -> b n1 d")
 
-    should_be_zero = transporter._find_pseudo_center_of_mass(x_minus_x_com)
+    perm_x = einops.einsum(random_permutations, x, "b n1 n2, b n2 d -> b n1 d")
+    px_minus_px_com = transporter.get_translation_invariant(perm_x)
 
-    # Because of numerical bjorks, the results can also be very close to 1, which is equivalent to zero.
-    torch.testing.assert_close(
-        should_be_zero - torch.round(should_be_zero), torch.zeros_like(should_be_zero)
-    )
+    torch.testing.assert_close(perm_x_minus_x_com, px_minus_px_com)
+
+
+def test_get_translation_invariant_is_point_group_equivariant(transporter, x, random_point_group_operations):
+    x_minus_x_com = transporter.get_translation_invariant(x)
+    rot_x_minus_x_com = einops.einsum(random_point_group_operations, x_minus_x_com, "b d1 d2, b n d2 -> b n d1")
+    rot_x_minus_x_com = map_relative_coordinates_to_unit_cell(rot_x_minus_x_com)
+
+    rot_x = einops.einsum(random_point_group_operations, x, "b d1 d2, b n d2 -> b n d1")
+    rx_minus_rx_com = transporter.get_translation_invariant(rot_x)
+
+    torch.testing.assert_close(rot_x_minus_x_com, rx_minus_rx_com)
 
 
 def test_get_all_cost_matrices(transporter, x, mu, batch_size, point_group_operations):
-    x_com = transporter._find_pseudo_center_of_mass(x)
-    mu_com = transporter._find_pseudo_center_of_mass(mu)
-    x_minus_x_com = transporter._substact_center_of_mass(x, x_com)
-    mu_minus_mu_com = transporter._substact_center_of_mass(mu, mu_com)
+    x_minus_x_com = transporter.get_translation_invariant(x)
+    mu_minus_mu_com = transporter.get_translation_invariant(mu)
 
     computed_cost_matrices = transporter._get_all_cost_matrices(
         x_minus_x_com, mu_minus_mu_com
@@ -137,10 +145,8 @@ def test_solve_linear_assigment_problem(
 ):
     small_epsilon = 1.0e-6
 
-    x_com = transporter._find_pseudo_center_of_mass(x)
-    mu_com = transporter._find_pseudo_center_of_mass(mu)
-    x_minus_x_com = transporter._substact_center_of_mass(x, x_com)
-    mu_minus_mu_com = transporter._substact_center_of_mass(mu, mu_com)
+    x_minus_x_com = transporter.get_translation_invariant(x)
+    mu_minus_mu_com = transporter.get_translation_invariant(mu)
 
     computed_cost_matrices = transporter._get_all_cost_matrices(
         x_minus_x_com, mu_minus_mu_com
@@ -195,9 +201,7 @@ def test_get_optimal_transport(
     perm_rot_mu = einops.einsum(
         random_permutations, rot_mu, "b n1 n2, b n2 d -> b n1 d"
     )
-    transported_best_mu_image = map_relative_coordinates_to_unit_cell(
-        perm_rot_mu + random_global_translations
-    )
+    transported_best_mu_image = map_relative_coordinates_to_unit_cell(perm_rot_mu)
 
     rot_x = einops.einsum(random_point_group_operations, x, "b d1 d2, b n d2 -> b n d1")
     perm_rot_x = einops.einsum(random_permutations, rot_x, "b n1 n2, b n2 d -> b n1 d")
