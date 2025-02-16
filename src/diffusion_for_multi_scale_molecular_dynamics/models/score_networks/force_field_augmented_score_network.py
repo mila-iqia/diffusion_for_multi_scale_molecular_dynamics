@@ -26,9 +26,13 @@ class ForceFieldParameters:
     The corresponding force is thus of the form
         F(r) = -nabla phi(r) = -2 strength * ( r - radial_cutoff) r_hat.
     """
-
     radial_cutoff: float  # Cutoff to the interaction, in Angstrom
     strength: float  # Strength of the repulsion
+
+    def __post_init__(self):
+        """Post init."""
+        assert self.radial_cutoff > 0., "the radial cutoff should be greater than zero."
+        assert self.strength > 0., "the repulsive strength should be greater than zero."
 
 
 class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
