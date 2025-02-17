@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_parameters import \
     DataModuleParameters
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.negative_sampling_transform import (
+    NegativeSamplingTransform, RandomizePositionTransform)
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
     NoisingTransform
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
@@ -44,6 +46,10 @@ class GaussianDataModuleParameters(DataModuleParameters):
 
     train_dataset_size: int = 8_192
     valid_dataset_size: int = 1_024
+
+    negative_samples: bool = False
+    negative_samples_displacement: float = 0.001
+    randomize_positions: bool = False
 
     def __post_init__(self):
         """Post init."""
@@ -104,6 +110,14 @@ class GaussianDataModule(pl.LightningDataModule):
             use_optimal_transport=hyper_params.use_optimal_transport,
         )
 
+        self.negative_samples = hyper_params.negative_samples
+        if self.negative_samples:
+            self.negative_sample_transform = NegativeSamplingTransform(hyper_params.negative_samples_displacement)
+
+        self.randomize_positions = hyper_params.randomize_positions
+        if self.randomize_positions:
+            self.randomize_positions_transform = RandomizePositionTransform()
+
     def get_raw_dataset(self, batch_size: int, rng: torch.Generator):
         """Get raw dataset."""
         box = torch.ones(batch_size, self.spatial_dimension, dtype=torch.float)
@@ -146,6 +160,14 @@ class GaussianDataModule(pl.LightningDataModule):
         ):
 
             raw_dataset_as_single_batch = self.get_raw_dataset(batch_size, rng)
+            if self.randomize_positions:
+                raw_dataset_as_single_batch = self.randomize_positions_transform.transform(
+                    raw_dataset_as_single_batch
+                )
+            if self.negative_samples:
+                raw_dataset_as_single_batch = self.negative_sample_transform.transform(
+                    raw_dataset_as_single_batch
+                )
             dataset_as_single_batch = self.noising_transform.transform(
                 raw_dataset_as_single_batch
             )

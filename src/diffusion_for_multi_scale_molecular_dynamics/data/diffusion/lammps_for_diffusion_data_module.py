@@ -16,6 +16,8 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_par
     DataModuleParameters
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_processor_for_diffusion import \
     LammpsProcessorForDiffusion
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.negative_sampling_transform import \
+    NegativeSamplingTransform
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
     NoisingTransform
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
@@ -35,6 +37,8 @@ class LammpsDataModuleParameters(DataModuleParameters):
     data_source: str = "LAMMPS"
     noise_parameters: NoiseParameters
     use_optimal_transport: bool = False
+    negative_samples: bool = False
+    negative_samples_distance: float = 0.001
 
 
 class LammpsForDiffusionDataModule(pl.LightningDataModule):
@@ -82,7 +86,13 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             noise_parameters=hyper_params.noise_parameters,
             num_atom_types=num_atom_types,
             spatial_dimension=self.spatial_dim,
-            use_optimal_transport=self.use_optimal_transport
+            use_optimal_transport=self.use_optimal_transport,
+        )
+
+        self.negative_samples_transform = (
+            None
+            if hyper_params.negative_samples is False
+            else NegativeSamplingTransform(hyper_params.negative_samples_distance)
         )
 
         if hyper_params.batch_size is None:
@@ -198,11 +208,18 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             spatial_dim=self.spatial_dim,
         )
 
+        # transform the sample into a negative one or do nothing
+        samples_transform = (
+            self.negative_samples_transform
+            if self.negative_samples_transform is not None
+            else lambda x: x
+        )
+
         noising_transform = self.noising_transform.transform
 
         def composed_transform(batch: Dict) -> Dict:
             """Chained transforms."""
-            return noising_transform(formatting_transform(batch))
+            return noising_transform(samples_transform(formatting_transform(batch)))
 
         return composed_transform
 
