@@ -210,7 +210,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
 
         # transform the sample into a negative one or do nothing
         samples_transform = (
-            self.negative_samples_transform
+            self.negative_samples_transform.transform
             if self.negative_samples_transform is not None
             else lambda x: x
         )
