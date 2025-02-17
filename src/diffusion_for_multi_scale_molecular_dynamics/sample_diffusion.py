@@ -104,6 +104,8 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     logger.info(f"  Hostname : {hostname}")
     logger.info(f"  Git Hash : {git_hash}")
     logger.info(f"  Checkpoint : {args.checkpoint}")
+    if args.negative_checkpoint is not None:
+        logger.info(f"  Negative Checkpoint : {args.negative_checkpoint}")
     logger.info(f"  Device   : {device}")
     if args.path_to_constraint_data_pickle:
         logger.info(f"  Constraint Pickle : {args.path_to_constraint_data_pickle}")
