@@ -29,6 +29,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning
     AXLDiffusionLightningModel
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_difference import \
+    ScoreNetworkDifference
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
@@ -59,6 +61,12 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     parser.add_argument(
         "--checkpoint", default=None, help="path to checkpoint model to be loaded."
     )
+
+    parser.add_argument(
+        "--negative_checkpoint", default=None, help="path to the negative model to be loaded." \
+        "If not specified, no negative model is used."
+    )
+
     parser.add_argument(
         "--output", required=True, help="path to outputs - will store files here"
     )
@@ -84,6 +92,9 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
         assert os.path.exists(
             args.checkpoint
         ), f"The path {args.checkpoint} does not exist. Cannot go on."
+
+    if args.negative_checkpoint is not None:
+        assert os.path.exists(args.negative_checkpoint), f"The path {args.negative_checkpoint} does not exist."
 
     script_location = os.path.realpath(__file__)
     git_hash = get_git_hash(script_location)
@@ -119,6 +130,17 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
         # Very opinionated logger, which writes to the output folder.
         logger.info(f"Start Generating Samples with checkpoint {args.checkpoint}")
         axl_network = get_axl_network(args.checkpoint)
+
+        if args.negative_checkpoint is not None:
+            negative_axl_network = get_axl_network(args.negative_checkpoint)
+            negative_model_weight = hyper_params.get("negative_model_weight", 1.0)
+            negative_model_sigma_threshold = hyper_params.get("negative_model_sigma_threshold", 0.5)
+            axl_network = ScoreNetworkDifference(
+                axl_network,
+                negative_axl_network,
+                weight=negative_model_weight,
+                sigma_threshold=negative_model_sigma_threshold
+            )
 
     logger.info("Instantiate generator...")
     trajectory_initializer = instantiate_trajectory_initializer(
