@@ -17,6 +17,7 @@ class ScoreNetworkDifference:
         negative_score_network: ScoreNetwork,
         weight: float = 1,
         sigma_threshold: float = 0.5,
+        average_scores: bool = False
     ):
         """__init__.
 
@@ -25,11 +26,13 @@ class ScoreNetworkDifference:
             negative_score_network: score network trained with negative samples
             weight: prefactor weighting the negative score network
             sigma_threshold: only apply the negative model to sigma smaller than this value
+            average_scores: if True, take the average of the scores, not the sum
         """
         self.positive_score_network = positive_score_network
         self.negative_score_network = negative_score_network
         self.weight = weight
         self.sigma_threshold = sigma_threshold
+        self.use_average = average_scores
 
     def __call__(self, batch: Dict[AnyStr, Any], conditional: bool = False) -> AXL:
         """Forward unchecked.
@@ -54,9 +57,14 @@ class ScoreNetworkDifference:
             (batch[NOISE] <= self.sigma_threshold).to(negative_scores.X).unsqueeze(-1)
         )  # shape (batchsize, 1, 1)
 
+        coord_scores = positive_scores.X - self.weight * sigma_cutoff * negative_scores.X
+
+        if self.use_average:
+            coord_scores *= 0.5
+
         axl_scores = AXL(
             A=positive_scores.A,
-            X=positive_scores.X - self.weight * sigma_cutoff * negative_scores.X,
+            X=coord_scores,
             L=positive_scores.L,
         )
 
