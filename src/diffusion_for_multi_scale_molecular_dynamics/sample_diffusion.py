@@ -137,11 +137,13 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
             negative_axl_network = get_axl_network(args.negative_checkpoint)
             negative_model_weight = hyper_params.get("negative_model_weight", 1.0)
             negative_model_sigma_threshold = hyper_params.get("negative_model_sigma_threshold", 0.5)
+            average_scores = hyper_params.get("average_scores", False)
             axl_network = ScoreNetworkDifference(
                 axl_network,
                 negative_axl_network,
                 weight=negative_model_weight,
-                sigma_threshold=negative_model_sigma_threshold
+                sigma_threshold=negative_model_sigma_threshold,
+                average_scores=average_scores
             )
 
     logger.info("Instantiate generator...")
