@@ -108,6 +108,49 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
                                                 "n d -> b n d", b=batch_size)
         return self.transporter.get_optimal_transport(relative_coordinates, eq_relative_coordinates)
 
+    def _get_jacobian_matrix(self, x: torch.Tensor) -> torch.Tensor:
+        r"""Get lambda Jacobian matrix.
+
+        The score is s = nabla_{x} ln P. However, since the probabiliyt is built with an invariant c(x),
+        we have
+            s = J(x) . nabla_{c} ln P
+
+        where the Jacobian matrix J accounts for the change of variable,
+
+            J_{ij}^{alpha} = d c_{j}^{\alpha} / d x_{i}^{\alpha}
+
+        It is easy to see that the Jacobian must be diagonal with respect to spatial indices alpha, beta, so
+        we only keep one index.
+
+        Args:
+            x: the relative coordinates, of dimensions [batch_size, natoms, spatial_dimension].
+
+        Returns:
+            jacobian_matrix: the score jacobian matrix,
+                of dimensions [batch_size, spatial_dimension, natoms, natoms].
+        """
+        batch_size, natoms, spatial_dimension = x.shape
+
+        two_pi = 2 * torch.pi
+        cosines = torch.cos(two_pi * x)
+        sines = torch.sin(two_pi * x)
+
+        u_mean = cosines.mean(dim=1)
+        v_mean = sines.mean(dim=1)
+
+        denominator = u_mean**2 + v_mean**2
+
+        cos_prefactor = einops.repeat(u_mean / denominator, "b d -> b d n1 n2", n1=natoms, n2=natoms)
+        sin_prefactor = einops.repeat(v_mean / denominator, "b d -> b d n1 n2", n1=natoms, n2=natoms)
+
+        cos_term = einops.repeat(cosines / natoms, "b n1 d -> b d n1 n2", n2=natoms)
+        sin_term = einops.repeat(sines / natoms, "b n1 d -> b d n1 n2", n2=natoms)
+
+        identity = einops.repeat(torch.eye(natoms), "n1 n2 -> b d n1 n2", b=batch_size, d=spatial_dimension)
+
+        jacobian_matrix = identity - (cos_prefactor * cos_term + sin_prefactor * sin_term)
+        return jacobian_matrix
+
     def get_normalized_scores(
         self, xt: torch.tensor, sigmas_t: torch.Tensor
     ) -> torch.Tensor:
@@ -137,6 +180,12 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
         sigma_normalized_scores = (
             sigmas_t * effective_sigma_normalized_scores / effective_sigmas
         )
+
+        # The adjusted score doesn't work at the moment.
+        # jacobian_matrix = self._get_jacobian_matrix(xt)
+        # adjusted_sigma_normalized_scores = einops.einsum(jacobian_matrix, sigma_normalized_scores,
+        #                                                "b d n1 n2, b n2 d -> b n1 d" )
+        # return adjusted_sigma_normalized_scores
 
         return sigma_normalized_scores
 
