@@ -33,7 +33,9 @@ class Transporter:
         self.point_group_operations = point_group_operations
         self.number_of_point_group_operations = len(self.point_group_operations)
 
-    def _get_atan2_translation(self, x: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def get_atan2_translation(x: torch.Tensor) -> torch.Tensor:
+        """Get atan2 translation."""
         two_pi = 2 * torch.pi
         x_bar = torch.cos(two_pi * x).mean(dim=1)
         y_bar = torch.sin(two_pi * x).mean(dim=1)
@@ -42,7 +44,7 @@ class Transporter:
     def get_translation_invariant(self, x: torch.Tensor) -> torch.Tensor:
         """Remove the center of mass from a point on the hyper-torus."""
         natoms = x.shape[1]
-        x_com = einops.repeat(self._get_atan2_translation(x), 'b d -> b n d', n=natoms)
+        x_com = einops.repeat(self.get_atan2_translation(x), 'b d -> b n d', n=natoms)
         return map_relative_coordinates_to_unit_cell(x - x_com)
 
     def _get_all_cost_matrices(
