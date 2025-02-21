@@ -12,7 +12,9 @@ from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import (
     get_adj_matrix, reshape_from_e3nn_to_mace, reshape_from_mace_to_e3nn)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION,
-    NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
+    NOISY_CARTESIAN_POSITIONS)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_lattice_parameters_to_unit_cell_vectors
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 
@@ -64,8 +66,10 @@ def input_to_diffusion_mace(
     batch_size, n_atom_per_graph, spatial_dimension = cartesian_positions.shape
     device = cartesian_positions.device
 
-    # TODO replace with AXL L
-    basis_vectors = batch[UNIT_CELL]  # batch, spatial_dimension, spatial_dimension
+    # TODO cheap hack to prevent box collapse
+    basis_vectors = batch[NOISY_AXL_COMPOSITION].L.clip(min=2.2 * radial_cutoff)
+    basis_vectors[:, spatial_dimension:] = 0  # TODO enforce orthogonal cells
+    basis_vectors = map_lattice_parameters_to_unit_cell_vectors(basis_vectors)
 
     adj_matrix, shift_matrix, batch_tensor, num_edges = get_adj_matrix(
         positions=cartesian_positions,
@@ -456,6 +460,6 @@ class DiffusionMACE(torch.nn.Module):
         axl_output = AXL(
             A=classification_output,
             X=vectors_output,
-            L=torch.zeros_like(classification_output),
+            L=torch.zeros_like(classification_output),  # TODO
         )
         return axl_output

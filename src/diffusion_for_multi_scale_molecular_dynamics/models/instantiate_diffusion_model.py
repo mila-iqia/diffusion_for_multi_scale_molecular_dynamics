@@ -21,6 +21,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import 
     LatticeDataParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle_parameters
+from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \
+    create_regularizer_parameters
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_parameters import \
     load_diffusion_sampling_parameters
 
@@ -67,12 +69,13 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
             hyper_params["oracle"], elements
         )
 
-    # TODO these should come from the dataset, not the config file
+    regularizer_parameters = None
+    if "regularizer" in hyper_params:
+        regularizer_parameters = create_regularizer_parameters(hyper_params["regularizer"])
+
     lattice_parameters = dict(
         spatial_dimension=globals_dict["spatial_dimension"],
-        inverse_average_density=globals_dict["max_atom"]
-        / torch.prod(torch.tensor(hyper_params["cell_dimensions"])),
-    )  # TODO inverse density should come from the dataset, not fixed like this
+    )
     lattice_parameters = LatticeDataParameters(**lattice_parameters)
 
     diffusion_params = AXLDiffusionParameters(
@@ -81,6 +84,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
         optimizer_parameters=optimizer_parameters,
         scheduler_parameters=scheduler_parameters,
         noise_parameters=noise_parameters,
+        regularizer_parameters=regularizer_parameters,
         diffusion_sampling_parameters=diffusion_sampling_parameters,
         oracle_parameters=oracle_parameters,
         lattice_parameters=lattice_parameters,

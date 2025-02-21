@@ -27,7 +27,6 @@ class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
         self,
         number_of_atoms,
         spatial_dimension,
-        cell_dimensions,
         number_of_samples,
         record_samples,
         num_atom_types,
@@ -36,7 +35,6 @@ class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
             number_of_samples=number_of_samples,
-            cell_dimensions=cell_dimensions,
             record_samples=record_samples,
             num_atom_types=num_atom_types,
         )
@@ -78,10 +76,9 @@ class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
         number_of_samples,
         number_of_atoms,
         spatial_dimension,
-        unit_cell_sample,
     ):
         # Just a smoke test that we can sample without crashing.
-        sampled_axl = ode_generator.sample(number_of_samples, device, unit_cell_sample)
+        sampled_axl = ode_generator.sample(number_of_samples, device)
 
         assert sampled_axl.X.shape == (
             number_of_samples,
