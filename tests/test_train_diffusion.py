@@ -138,7 +138,6 @@ def get_config(
         num_atom_types=num_atom_types,
         number_of_samples=4,
         record_samples=True,
-        # cell_dimensions=[10.0, 10.0, 10.0],
     )
     if sampling_algorithm == "predictor_corrector":
         sampling_dict["number_of_corrector_steps"] = 1

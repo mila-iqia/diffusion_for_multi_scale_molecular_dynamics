@@ -456,7 +456,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         lattice_parameters: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_i: torch.Tensor,
+        sigma_n_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
         z: Optional[torch.Tensor] = None,
@@ -472,10 +472,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             sigma_normalized_scores: output of the model - an estimate of the normalized
                 score :math:`\sigma \nabla log p(x)`.
                 Dimension: [number_of_samples, number_of_atoms, spatial_dimension]
-            sigma_i: noise parameter for variance exploding noise scheduler. Dimension: [number_of_samples]
-            score_weight: prefactor in front of the normalized score update. Should be :math:`beta_i` in the predictor
-                step and eps_i in the corrector step. Dimension: [number_of_samples]
-            gaussian_noise_weight: prefactor in front of the random noise update. Should be :math:`sqrt{beta_i}` in the
+            sigma_n_i: noise parameter for variance exploding noise scheduler scaled by the number of atoms.
+                Dimension: [number_of_samples]
+            score_weight: prefactor in front of the normalized score update. Should be g2_i in the predictor step and
+                eps_i in the corrector step. Dimension: [number_of_samples]
+            gaussian_noise_weight: prefactor in front of the random noise update. Should be g_i in the
                 predictor step and sqrt_2eps_i in the corrector step. Dimension: [number_of_samples]
             z: gaussian noise used to update the coordinates. A sample drawn from the normal distribution. If None,
                 random values are drawn from a gaussian distribution. Defaults to None.
@@ -493,7 +494,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         updated_lattice_parameters = (
             lattice_parameters
-            + score_weight * sigma_normalized_scores / sigma_i
+            + score_weight * sigma_normalized_scores / sigma_n_i
             + gaussian_noise_weight * z
         )
         return updated_lattice_parameters
@@ -502,7 +503,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         lattice_parameters: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_i: torch.Tensor,
+        sigma_n_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
         z: Optional[torch.Tensor] = None,
@@ -514,7 +515,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         return self._lattice_parameters_update(
             lattice_parameters,
             sigma_normalized_scores,
-            sigma_i,
+            sigma_n_i,
             score_weight,
             gaussian_noise_weight,
             z,
@@ -524,7 +525,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         lattice_parameters: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_i: torch.Tensor,
+        sigma_n_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
         z: Optional[torch.Tensor] = None,
@@ -536,7 +537,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         return self._lattice_parameters_update(
             lattice_parameters,
             sigma_normalized_scores,
-            sigma_i,
+            sigma_n_i,
             score_weight,
             gaussian_noise_weight,
             z,
@@ -570,6 +571,12 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         g_i = self.noise.g[idx].to(composition_i.X)
         g2_i = self.noise.g_squared[idx].to(composition_i.X)
         sigma_i = self.noise.sigma[idx].to(composition_i.X)
+
+        # TODO we should consider scaling sigma_i by the number of atoms for the relative coordinates update
+        # for now, we are only scaling for the lattice parameters
+        n_atom = composition_i.X.shape[-2]
+        spatial_dimension_inv = 1 / composition_i.X.shape[-1]
+        sigma_n_i = sigma_i / (n_atom ** spatial_dimension_inv)
 
         # Broadcast the q matrices to the expected dimensions.
         q_matrices_i = einops.repeat(
@@ -637,14 +644,14 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i.L
         )
         lp_im1 = self._lattice_parameters_update_predictor_step(
-            composition_i.L, model_predictions_i.L, sigma_i, g2_i, g_i, z_lattice
+            composition_i.L, model_predictions_i.L, sigma_n_i, g2_i, g_i, z_lattice
         )
 
         composition_im1 = AXL(A=a_im1, X=x_im1, L=lp_im1)
 
         if self.record:
             composition_i_for_recording = AXL(
-                A=composition_i.A, X=composition_i.X, L=lp_im1
+                A=composition_i.A, X=composition_i.X, L=composition_i.L
             )
             # Keep the record on the CPU
             entry = dict(time_step_index=index_i)
@@ -681,7 +688,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
     def _get_lattice_parameters_corrector_step_size(
         self,
         index_i: int,
-        sigma_i: torch.Tensor,
+        sigma_n_i: torch.Tensor,
         model_predictions_i: torch.Tensor,
         z: torch.Tensor,
     ) -> torch.Tensor:
@@ -728,6 +735,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             sigma_i = self.noise.sigma[idx].to(composition_i.X)
             t_i = self.noise.time[idx].to(composition_i.X)
 
+        n_atom = composition_i.X.shape[-2]
+        spatial_dimension_inv = 1 / composition_i.X.shape[-1]
+        sigma_n_i = sigma_i / (n_atom ** spatial_dimension_inv)
+
         model_predictions_i = self._get_model_predictions(
             composition_i, t_i, sigma_i, cartesian_forces
         )
@@ -760,14 +771,14 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         # get the step size eps_i
         eps_i_lattice = self._get_lattice_parameters_corrector_step_size(
-            index_i, sigma_i, model_predictions_i.L, z_lattice
+            index_i, sigma_n_i, model_predictions_i.L, z_lattice
         )
         sqrt_2eps_i_lattice = torch.sqrt(2 * eps_i_lattice)
 
         corrected_lp_i = self._lattice_parameters_update(
             composition_i.L,
             model_predictions_i.L,
-            sigma_i,
+            sigma_n_i,
             eps_i_lattice,
             sqrt_2eps_i_lattice,
         )
