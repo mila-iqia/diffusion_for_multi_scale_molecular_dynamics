@@ -140,8 +140,7 @@ def get_probability_from_logits(logits: torch.Tensor, lowest_probability_value: 
     """
     raw_probabilities = torch.nn.functional.softmax(logits, dim=-1)
     probability_sum = raw_probabilities.sum(dim=-1)
-    if torch.isnan(probability_sum[0, 0]):
-        print(1)
+
     torch.testing.assert_close(probability_sum, torch.ones_like(probability_sum),
                                msg="Logits are pathological: the probabilities do not sum to one.")
 

@@ -69,60 +69,44 @@ class AdaptiveCorrectorGenerator(LangevinGenerator):
         model_predictions_i: torch.Tensor,
         z: torch.Tensor,
     ) -> torch.Tensor:
-        r"""Compute the size of the corrector step for the relative coordinates update.
+        """Compute the size of the corrector step for the relative coordinates update.
 
-        Always affect the reduced coordinates and lattice vectors. The prefactors determining the changes in the
-        relative coordinates (lattice parameters)are determined using the sigma normalized score at that corrector step.
-        The relative coordinates (lattice parameters) update is given by:
-
-        .. math::
-
-            x_i \leftarrow x_i + \epsilon_i * s(x_i, t_i) + \sqrt(2 \epsilon_i) z
-
-        where :math:`s(x_i, t_i)` is the score, :math:`z` is a random variable drawn from a normal distribution and
-        :math:`\epsilon_i` is given by:
-
-        .. math::
-
-            \epsilon_i = 2 \left(r \frac{||z||_2}{||s(x_i, t_i)||_2}\right)^2
-
-        where :math:`r` is an hyper-parameter (0.17 by default) and :math:`||\cdot||_2` is the L2 norm.
+        The update is similar to the one for the lattice parameters, so this method is a wrapper for the more generic
+        one used for relative coordinates and lattice parameters.
         """
-        # to compute epsilon_i, we need the norm of the score summed over the atoms and averaged over the mini-batch.
-        # taking the norm over the last 2 dimensions means summing the squared components over the spatial dimension and
-        # the atoms, then taking the square-root.
-        # the mean averages over the mini-batch
-        sigma_score_norm = (
-            torch.linalg.norm(model_predictions_i, dim=[-2, -1]).mean()
-        ).view(1, 1, 1)
-        # note that sigma_score is \sigma * s(x, t), so we need to divide the norm by sigma to get the correct step size
-        sigma_score_norm /= sigma_i
-        # compute the norm of the z random noise similarly
-        z_norm = torch.linalg.norm(z, dim=[-2, -1]).mean().view(1, 1, 1)
-
-        eps_i = (
-            2
-            * (
-                self.corrector_r
-                * z_norm
-                / (sigma_score_norm.clip(min=self.small_epsilon))
-            )
-            ** 2
+        return self._generic_corrector_step_size(
+            index_i, sigma_i, model_predictions_i, z, n_dim=3
         )
-
-        return eps_i
 
     def _get_lattice_parameters_corrector_step_size(
         self,
         index_i: int,
-        sigma_i: torch.Tensor,
+        sigma_n_i: torch.Tensor,
         model_predictions_i: torch.Tensor,
         z: torch.Tensor,
     ) -> torch.Tensor:
-        r"""Compute the size of the corrector step for the lattice parameters update.
+        """Compute the size of the corrector step for the lattice parameters update.
 
-        Always affect the reduced coordinates and lattice vectors. The prefactors determining the changes in the
-        relative coordinates (lattice parameters)are determined using the sigma normalized score at that corrector step.
+        The update is similar to the one for the relatice coordinates, so this method is a wrapper for the more generic
+        one used for relative coordinates and lattice parameters.
+        """
+        return self._generic_corrector_step_size(
+            index_i, sigma_n_i, model_predictions_i, z, n_dim=2
+        )
+
+    def _generic_corrector_step_size(
+        self,
+        index_i: int,
+        sigma_n_i: torch.Tensor,
+        model_predictions_i: torch.Tensor,
+        z: torch.Tensor,
+        n_dim: int,
+    ) -> torch.Tensor:
+        r"""Compute the size of the corrector step for the relative coordinates (n_dim=3) or lattice parameters update
+        (n_dim = 2).
+
+        The prefactors determining the changes in the relative coordinates (lattice parameters) are determined using
+        the sigma normalized score at that corrector step.
         The relative coordinates (lattice parameters) update is given by:
 
         .. math::
@@ -138,17 +122,19 @@ class AdaptiveCorrectorGenerator(LangevinGenerator):
 
         where :math:`r` is an hyper-parameter (0.17 by default) and :math:`||\cdot||_2` is the L2 norm.
         """
-        # to compute epsilon_i, we need the norm of the score summed over the atoms and averaged over the mini-batch.
-        # taking the norm over the last 2 dimensions means summing the squared components over the spatial dimension and
-        # the atoms, then taking the square-root.
-        # the mean averages over the mini-batch
+        # to compute epsilon_i, we need the norm of the score for each atom or lattice parameter.
+        # For relative coordinates, taking the norm over the last 2 dimensions means summing the squared components
+        # over the spatial dimension and the atoms, then taking the square-root.
+        # For lattice parameters, we can take the norm over the last dimension only.
+        norm_dims = [-2, -1] if n_dim == 3 else -1
+        view_dims = (1, 1, 1) if n_dim == 3 else (1, 1)
         sigma_score_norm = (
-            torch.linalg.norm(model_predictions_i, dim=-1)  # .mean()
-        ).view(-1, 1)
+            torch.linalg.norm(model_predictions_i, dim=norm_dims).mean()
+        ).view(*view_dims)
         # note that sigma_score is \sigma * s(x, t), so we need to divide the norm by sigma to get the correct step size
-        sigma_score_norm /= sigma_i
+        sigma_score_norm /= sigma_n_i
         # compute the norm of the z random noise similarly
-        z_norm = torch.linalg.norm(z, dim=-1).view(-1, 1)
+        z_norm = torch.linalg.norm(z, dim=-1).view(*view_dims)
 
         eps_i = (
             2
