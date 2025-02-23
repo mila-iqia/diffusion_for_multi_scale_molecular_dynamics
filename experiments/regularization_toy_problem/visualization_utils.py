@@ -1,6 +1,7 @@
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Union
 
 import einops
 import numpy as np
@@ -173,7 +174,7 @@ def plot_2d_samples(relative_coordinates: torch.Tensor):
 def get_2d_vector_field_figure(
     X1: torch.tensor,
     X2: torch.tensor,
-    probabilities: torch.tensor,
+    probabilities: Union[torch.tensor, None],
     sigma_normalized_scores: torch.tensor,
     time: float,
     sigma_t: float,
@@ -182,10 +183,6 @@ def get_2d_vector_field_figure(
 ):
     """Get 2D vector field figure."""
     effective_sigma = np.sqrt(sigma_t**2 + sigma_d**2)
-
-    pmin = probabilities.min()
-    pmax = probabilities.max()
-    levels = pmin + (pmax - pmin) * np.array([0.01, 0.1, 0.5, 0.9])
 
     max_normalized_score_norm = torch.norm(sigma_normalized_scores, dim=-1).max()
 
@@ -205,9 +202,13 @@ def get_2d_vector_field_figure(
     )
 
     ax1 = fig.add_subplot(111)
-    # Basic contour plot
-    CS = ax1.contour(X1, X2, probabilities, levels=levels)
-    ax1.clabel(CS, CS.levels, fontsize=10)
+    if probabilities is not None:
+        # Basic contour plot
+        pmin = probabilities.min()
+        pmax = probabilities.max()
+        levels = pmin + (pmax - pmin) * np.array([0.01, 0.1, 0.5, 0.9])
+        CS = ax1.contour(X1, X2, probabilities, levels=levels)
+        ax1.clabel(CS, CS.levels, fontsize=10)
 
     ax1.spines["top"].set_visible(True)
     ax1.spines["right"].set_visible(True)
