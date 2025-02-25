@@ -88,7 +88,7 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
         else:
             symmetries = torch.eye(self.spatial_dimension).unsqueeze(0)
 
-        self.symmetries = torch.nn.Parameter(symmetries, requires_grad=False)
+        self.register_buffer('symmetries', symmetries)
 
         self.transporter = Transporter(self.symmetries)
 
@@ -111,12 +111,14 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
     def _get_jacobian_matrix(self, x: torch.Tensor) -> torch.Tensor:
         r"""Get lambda Jacobian matrix.
 
-        The score is s = nabla_{x} ln P. However, since the probabiliyt is built with an invariant c(x),
+        The score is s = nabla_{x} ln P. However, since the probability is built with an invariant c(x),
         we have
-            s = J(x) . nabla_{c} ln P
+
+         :math: s = \nabla_{x} \ln P
 
         where the Jacobian matrix J accounts for the change of variable,
 
+        ::math::
             J_{ij}^{alpha} = d c_{j}^{\alpha} / d x_{i}^{\alpha}
 
         It is easy to see that the Jacobian must be diagonal with respect to spatial indices alpha, beta, so

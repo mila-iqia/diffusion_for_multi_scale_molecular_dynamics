@@ -1,7 +1,7 @@
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Union
+from typing import Optional
 
 import einops
 import numpy as np
@@ -174,7 +174,7 @@ def plot_2d_samples(relative_coordinates: torch.Tensor):
 def get_2d_vector_field_figure(
     X1: torch.tensor,
     X2: torch.tensor,
-    probabilities: Union[torch.tensor, None],
+    probabilities: Optional[torch.tensor],
     sigma_normalized_scores: torch.tensor,
     time: float,
     sigma_t: float,
