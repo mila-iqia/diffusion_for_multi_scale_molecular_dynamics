@@ -1,14 +1,11 @@
-from typing import Callable, Tuple
+from typing import Tuple
 
 import einops
 import torch
+from scipy.optimize import linear_sum_assignment
 
-from diffusion_for_multi_scale_molecular_dynamics.transport.distance import (
-    get_geodesic_displacements, get_squared_geodesic_distance)
-from diffusion_for_multi_scale_molecular_dynamics.transport.optimal_permutation import \
-    get_optimal_permutation
-from diffusion_for_multi_scale_molecular_dynamics.transport.optimal_translation import \
-    find_squared_geodesic_distance_minimizing_translation
+from diffusion_for_multi_scale_molecular_dynamics.transport.distance import \
+    get_geodesic_displacements
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 
@@ -16,181 +13,158 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
 class Transporter:
     """Transporter.
 
-    This class applies an iterative algorithm to find the best symmetry group operation that aligns
-    two points on the hyper-torus.
+    This class finds a symmetry group operation that aligns two points on the hyper-torus.
+    It does not seek to minimize the distance between the first point and the aligned second point:
+    it aims to create a fully equivariant function.
 
     The symmetry group is composed of translations, point group symmetries and permutations.
-
-    The algorithm is a heuristic: there is no guarantee that it finds the global minimum.
     """
 
     def __init__(
         self,
         point_group_operations: torch.Tensor,
-        maximum_number_of_steps: int = 3,
-        progress_threshold: float = 1e-8,
     ):
         """Init method.
 
         Args:
             point_group_operations: matrices representing the point group operations, of dimension
                 [number_of_point_group_operations, spatial_dimension, spatial_dimension]
-            maximum_number_of_steps: the maximum number of steps that can be performed using the iterative algorithm.
-            progress_threshold: the threshold for determining if the algorithm should stop.
         """
         self.point_group_operations = point_group_operations
         self.number_of_point_group_operations = len(self.point_group_operations)
 
-        self.maximum_number_of_steps = maximum_number_of_steps
-        self.progress_threshold = progress_threshold
+    @staticmethod
+    def get_atan2_translation(x: torch.Tensor) -> torch.Tensor:
+        """Get atan2 translation."""
+        two_pi = 2 * torch.pi
+        x_bar = torch.cos(two_pi * x).mean(dim=1)
+        y_bar = torch.sin(two_pi * x).mean(dim=1)
+        return torch.atan2(y_bar, x_bar) / two_pi
 
-    def find_permutation(
-        self, x: torch.Tensor, y: torch.Tensor
+    def get_translation_invariant(self, x: torch.Tensor) -> torch.Tensor:
+        """Remove the center of mass from a point on the hyper-torus."""
+        natoms = x.shape[1]
+        x_com = einops.repeat(self.get_atan2_translation(x), 'b d -> b n d', n=natoms)
+        return map_relative_coordinates_to_unit_cell(x - x_com)
+
+    def _get_all_cost_matrices(
+        self, x_minus_x_com: torch.Tensor, mu_minus_mu_com: torch.Tensor
+    ) -> torch.Tensor:
+        """Get all cost matrices."""
+        natoms = x_minus_x_com.shape[1]
+
+        point_group_mu = einops.einsum(
+            self.point_group_operations, mu_minus_mu_com, "o d1 d2, b n d2 -> b o n d1"
+        )
+
+        point_group_x = einops.repeat(
+            x_minus_x_com, "b n d -> b o n d", o=self.number_of_point_group_operations
+        )
+
+        # We have to add a dimension to these arrays because the cost matrix is squared in "number of atoms"
+
+        array_x = einops.repeat(point_group_x, "b o n1 d -> b o n1 n2 d", n2=natoms)
+        array_mu = einops.repeat(point_group_mu, "b o n2 d -> b o n1 n2 d", n1=natoms)
+
+        squared_displacements = get_geodesic_displacements(array_x, array_mu) ** 2
+        # Sum over spatial dimension and to get the cost matrices, of dimension [b o n1 n2]
+        cost_matrices = squared_displacements.sum(dim=-1)
+        return cost_matrices
+
+    def _solve_linear_assigment_problem(
+        self, computed_cost_matrices: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Find permutation.
+        """Solve the linear assignment problem."""
+        device = computed_cost_matrices.device
+        batch_size = computed_cost_matrices.shape[0]
+        cpu = torch.device("cpu")
+        list_permutations = []
+        list_costs = []
 
-        Args:
-            x: a point on the hyper-torus. Assumed to be of dimension [number_of_atoms, spatial_dimension]
-            y: a point on the hyper-torus. Assumed to be of dimension [number_of_atoms, spatial_dimension]
+        for cost_matrix in einops.rearrange(
+            computed_cost_matrices, " b o n1 n2 -> (b o) n1 n2"
+        ).to(cpu):
+            # Unfortunately, the LAP problem must be solved on CPU and cannot be batched.
+            permutation, cost = self._find_permutation_and_cost(cost_matrix)
+            list_permutations.append(permutation)
+            list_costs.append(cost)
 
-        Returns:
-            permuted_y: the transported point y, of dimension [number_of_atoms, spatial_dimension]
-            optimal_permutation: the minimizing permutation,
-                of dimension [number_of_atoms, number_of_atoms]
-        """
-        optimal_permutation = get_optimal_permutation(x, y).to(x.device)
-        permuted_y = torch.matmul(optimal_permutation, y)
-        return permuted_y, optimal_permutation
-
-    def find_point_group_and_translation_operations(
-        self, x: torch.Tensor, y: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Find point group and translation operations.
-
-        Args:
-            x: a point on the hyper-torus. Assumed to be of dimension [number_of_atoms, spatial_dimension]
-            y: a point on the hyper-torus. Assumed to be of dimension [number_of_atoms, spatial_dimension]
-
-        Returns:
-            transported_y: the transported point y, of dimension [number_of_atoms, spatial_dimension]
-            tau: the minimizing global translation, or dimension [spatial_dimension]
-            point_group_operation: the minimizing point group operation,
-                of dimension [spatial_dimension, spatial_dimension]
-        """
-        # point group operation
-        batch_x = einops.repeat(
-            x, "n d -> b n d", b=self.number_of_point_group_operations
-        )
-        batch_y = einops.einsum(self.point_group_operations, y, "o i j, n j -> o n i")
-
-        # all translations
-        batch_tau = find_squared_geodesic_distance_minimizing_translation(
-            batch_x, batch_y
-        )
-        batch_working_y = map_relative_coordinates_to_unit_cell(
-            batch_y + batch_tau.unsqueeze(1)
+        permutations = einops.rearrange(
+            torch.stack(list_permutations, dim=0),
+            "(b o) n1 n2 -> b o n1 n2",
+            b=batch_size,
         )
 
-        batch_squared_distances = (
-            get_geodesic_displacements(batch_x, batch_working_y) ** 2
-        ).sum(dim=[1, 2])
+        costs = einops.rearrange(
+            torch.stack(list_costs, dim=0), "(b o) -> b o", b=batch_size
+        )
 
-        # find point group operation + translation that minimizes squared distance
-        min_idx = batch_squared_distances.argmin()
-        tau = batch_tau[min_idx]
+        lowest_cost_symmetry_operation_indices = costs.argmin(dim=1)
 
-        transported_y = batch_working_y[min_idx]
-        return transported_y, tau, self.point_group_operations[min_idx]
+        lowest_cost_permutations = permutations[
+            range(batch_size), lowest_cost_symmetry_operation_indices
+        ].to(device)
+        lowest_cost_point_group_operations = self.point_group_operations[
+            lowest_cost_symmetry_operation_indices
+        ]
+        return lowest_cost_permutations, lowest_cost_point_group_operations
 
-    def get_optimal_transport_by_projector(
-        self,
-        x: torch.Tensor,
-        y: torch.Tensor,
-        projector1: Callable,
-        projector2: Callable,
-    ) -> Tuple[torch.Tensor, torch.Tensor, bool]:
-        """Get optimal transport by projector.
+    def _find_permutation_and_cost(self, cost_matrix: torch.Tensor):
+        """Find permutation and cost.
 
         Args:
-            x: a point on the hyper-torus. Assumed to be of dimension [number_of_atoms, spatial_dimension]
-            y: a point on the hyper-torus. Assumed to be of dimension [number_of_atoms, spatial_dimension]
-            projector1: a transporting function
-            projector2: a transporting function
+            cost_matrix: an n x n cost matrix. The tensor is assumed to be on the CPU.
 
         Returns:
-            final_y: the aligned value of y
-            list_squared_distances: the squared distances obtained during algorithm execution
-            algo_converged: this the algorithm converge.
+            permutation: the optimal permutation matrix that solves the assignment problem, meaning
+                        Tr[permutation . cost_matrix] is minimized.
+            cost: the minimized cost.
         """
-        list_squared_distances = []
-        previous_squared_distance = get_squared_geodesic_distance(x, y)
-        list_squared_distances.append(previous_squared_distance)
+        row_idx, col_idx = linear_sum_assignment(cost_matrix)
+        cost = cost_matrix[row_idx, col_idx].sum()
+        n = cost_matrix.shape[0]
+        optimal_permutation = torch.eye(n)[:, col_idx]
+        return optimal_permutation, cost
 
-        working_y = y.clone()
-
-        progress = True
-        i_step = 0
-
-        while i_step < self.maximum_number_of_steps and progress:
-            i_step += 1
-
-            working_y = projector1(x, working_y)[0]
-
-            working_y = projector2(x, working_y)[0]
-
-            squared_distance = get_squared_geodesic_distance(x, working_y)
-
-            list_squared_distances.append(squared_distance)
-
-            progress = (
-                previous_squared_distance - squared_distance > self.progress_threshold
-            )
-            previous_squared_distance = squared_distance
-
-        list_squared_distances = torch.tensor(list_squared_distances)
-        algo_converged = not progress
-
-        return working_y, list_squared_distances, algo_converged
-
-    def get_optimal_transport(
-        self, x: torch.Tensor, y: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, bool]:
+    def get_optimal_transport(self, x: torch.Tensor, mu: torch.Tensor) -> torch.Tensor:
         """Get optimal transport.
 
-        This method finds the approximate best permutation, point group operation and translation such that
-            D2(x, g.y + tau)
-        is as small as possible.
+        This method finds the best symmetry group image of mu to insure that the selection is equivariant
+        under symetry operations on x. It is chosen so that the distance is as small as possible, but
+        it is not guaranteed to be minimized.
 
         Args:
-            x: a point on the hyper-torus. Assumed to be of dimension [number_of_atoms, spatial_dimension]
-            y: a point on the hyper-torus. Assumed to be of dimension [number_of_atoms, spatial_dimension]
+            x: a point on the hyper-torus. Assumed to be of dimension [batch_size, number_of_atoms, spatial_dimension]
+            mu: a point on the hyper-torus. Assumed to be of dimension [batch_size, number_of_atoms, spatial_dimension]
 
         Returns:
-            final_y: the aligned value of y
-            list_squared_distances: the squared distances obtained during algorithm execution
-            algo_converged: this the algorithm converge.
+            aligned_mu: the aligned value of mu
         """
-        sol_y1, list_squared_distances1, algo_converged1 = (
-            self.get_optimal_transport_by_projector(
-                x,
-                y,
-                self.find_permutation,
-                self.find_point_group_and_translation_operations,
-            )
-        )
-        best_squared_distance1 = list_squared_distances1[-1]
+        x_minus_x_com = self.get_translation_invariant(x)
+        mu_minus_mu_com = self.get_translation_invariant(mu)
 
-        sol_y2, list_squared_distances2, algo_converged2 = (
-            self.get_optimal_transport_by_projector(
-                x,
-                y,
-                self.find_point_group_and_translation_operations,
-                self.find_permutation,
-            )
+        # Dimension [batch_size, number of point group operations, natoms, natoms]
+        computed_cost_matrices = self._get_all_cost_matrices(
+            x_minus_x_com, mu_minus_mu_com
         )
-        best_squared_distance2 = list_squared_distances2[-1]
 
-        if best_squared_distance2 >= best_squared_distance1:
-            return sol_y1, list_squared_distances1, algo_converged1
-        else:
-            return sol_y2, list_squared_distances2, algo_converged2
+        # One permutation and one point group operation per batch entry.
+        lowest_cost_permutations, lowest_cost_point_group_operations = (
+            self._solve_linear_assigment_problem(computed_cost_matrices)
+        )
+
+        # Build the best aligned image of mu
+        rotation = einops.einsum(
+            lowest_cost_point_group_operations,
+            mu_minus_mu_com,
+            "b d1 d2, b n d2 -> b n d1",
+        )
+
+        # Careful! We must apply the inverse of the permutation, which is its transpose
+        rotation_permutation = einops.einsum(
+            lowest_cost_permutations, rotation, "b n2 n1, b n2 d -> b n1 d"
+        )
+
+        best_mu_image = map_relative_coordinates_to_unit_cell(rotation_permutation)
+
+        return best_mu_image

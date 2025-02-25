@@ -32,10 +32,10 @@ class EquivariantAnalyticalScoreNetworkParameters(ScoreNetworkParameters):
 
     equilibrium_relative_coordinates: List[List[float]]
 
-    use_point_group_symmetries: bool = False
-
     # the data distribution variance.
     sigma_d: float
+
+    use_point_group_symmetries: bool = True
 
     def __post_init__(self):
         """Post init."""
@@ -53,6 +53,10 @@ class EquivariantAnalyticalScoreNetworkParameters(ScoreNetworkParameters):
 
 class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
     """Score network based on analytical integration of Gaussian distributions.
+
+    Equivariance to permutation is achieved by using the Hungarian algorithm to identify
+    the permutation that leads to the closest image of the equilibrium position to the evaluation
+    point.
 
     This 'score network' is for exploring and debugging.
     """
@@ -76,35 +80,78 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         self.sigma_d_square = hyper_params.sigma_d**2
 
-        # shape: [number_of_translations]
-        translations_k = self._get_all_translations(self.kmax)
-        self.translations_k = torch.nn.Parameter(translations_k, requires_grad=False)
+        self.equilibrium_relative_coordinates = torch.nn.Parameter(
+            torch.tensor(hyper_params.equilibrium_relative_coordinates), requires_grad=False)
 
         if hyper_params.use_point_group_symmetries:
-            self.point_group_operations = torch.nn.Parameter(
-                get_cubic_point_group_symmetries(self.spatial_dimension),
-                requires_grad=False,
-            )
+            symmetries = get_cubic_point_group_symmetries(spatial_dimension=self.spatial_dimension)
         else:
-            self.point_group_operations = torch.nn.Parameter(
-                torch.diag(torch.ones(self.spatial_dimension)).unsqueeze(0),
-                requires_grad=False,
-            )
+            symmetries = torch.eye(self.spatial_dimension).unsqueeze(0)
 
-        self.number_of_translations = len(self.translations_k)
+        self.symmetries = torch.nn.Parameter(symmetries, requires_grad=False)
 
-        self.equilibrium_relative_coordinates = torch.tensor(
-            hyper_params.equilibrium_relative_coordinates
-        )
+        self.transporter = Transporter(self.symmetries)
 
-        self.transporter = Transporter(
-            point_group_operations=self.point_group_operations,
-            maximum_number_of_steps=10,
-        )
+    def get_nearest_equilibrium_coordinates(self, relative_coordinates: torch.Tensor) -> torch.Tensor:
+        """Get the nearest equilibrium coordinates.
 
-    @staticmethod
-    def _get_all_translations(kmax: int) -> torch.Tensor:
-        return torch.arange(-kmax, kmax + 1)
+        Args:
+            relative_coordinates: relative coordinates at which the score is to be computed, of dimensions
+                [batch_size, num_atoms, spatial_dimension].
+
+        Returns:
+            nearest_equilibrium_coordinates: the closest permutation image of the equilibrium coordinates,
+                of dimensions [batch_size, number_of_atoms, spatial_dimension].
+        """
+        batch_size = relative_coordinates.shape[0]
+        eq_relative_coordinates = einops.repeat(self.equilibrium_relative_coordinates,
+                                                "n d -> b n d", b=batch_size)
+        return self.transporter.get_optimal_transport(relative_coordinates, eq_relative_coordinates)
+
+    def _get_jacobian_matrix(self, x: torch.Tensor) -> torch.Tensor:
+        r"""Get lambda Jacobian matrix.
+
+        The score is s = nabla_{x} ln P. However, since the probability is built with an invariant c(x),
+        we have
+
+         :math: s = \nabla_{x} \ln P
+
+        where the Jacobian matrix J accounts for the change of variable,
+
+        ::math::
+            J_{ij}^{alpha} = d c_{j}^{\alpha} / d x_{i}^{\alpha}
+
+        It is easy to see that the Jacobian must be diagonal with respect to spatial indices alpha, beta, so
+        we only keep one index.
+
+        Args:
+            x: the relative coordinates, of dimensions [batch_size, natoms, spatial_dimension].
+
+        Returns:
+            jacobian_matrix: the score jacobian matrix,
+                of dimensions [batch_size, spatial_dimension, natoms, natoms].
+        """
+        batch_size, natoms, spatial_dimension = x.shape
+
+        two_pi = 2 * torch.pi
+        cosines = torch.cos(two_pi * x)
+        sines = torch.sin(two_pi * x)
+
+        u_mean = cosines.mean(dim=1)
+        v_mean = sines.mean(dim=1)
+
+        denominator = u_mean**2 + v_mean**2
+
+        cos_prefactor = einops.repeat(u_mean / denominator, "b d -> b d n1 n2", n1=natoms, n2=natoms)
+        sin_prefactor = einops.repeat(v_mean / denominator, "b d -> b d n1 n2", n1=natoms, n2=natoms)
+
+        cos_term = einops.repeat(cosines / natoms, "b n1 d -> b d n1 n2", n2=natoms)
+        sin_term = einops.repeat(sines / natoms, "b n1 d -> b d n1 n2", n2=natoms)
+
+        identity = einops.repeat(torch.eye(natoms), "n1 n2 -> b d n1 n2", b=batch_size, d=spatial_dimension)
+
+        jacobian_matrix = identity - (cos_prefactor * cos_term + sin_prefactor * sin_term)
+        return jacobian_matrix
 
     def get_normalized_scores(
         self, xt: torch.tensor, sigmas_t: torch.Tensor
@@ -125,36 +172,22 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
 
         effective_sigmas = torch.sqrt(self.sigma_d_square + sigmas_t**2)
 
-        batch_size = xt.shape[0]
+        x_invariant = self.transporter.get_translation_invariant(xt)
+        mu_invariant = self.get_nearest_equilibrium_coordinates(xt)
 
-        x = map_relative_coordinates_to_unit_cell(xt)
-
-        y = einops.repeat(
-            self.equilibrium_relative_coordinates,
-            "natoms d -> batch natoms d",
-            batch=batch_size,
-        )
-
-        nearest_equilibrium_coordinates = []
-        for batch_idx in range(batch_size):
-            transported_y, _, _ = self.transporter.get_optimal_transport(
-                x[batch_idx], y[batch_idx]
-            )
-            nearest_equilibrium_coordinates.append(transported_y)
-
-        nearest_equilibrium_coordinates = torch.stack(
-            nearest_equilibrium_coordinates, dim=0
-        )
-
-        # We leverage the fact that the probability is a wrapped Gaussian to extract the
-        # score.
-        u = map_relative_coordinates_to_unit_cell(x - nearest_equilibrium_coordinates)
+        u = map_relative_coordinates_to_unit_cell(x_invariant - mu_invariant)
         effective_sigma_normalized_scores = get_sigma_normalized_score(
             u, effective_sigmas, self.kmax
         )
         sigma_normalized_scores = (
             sigmas_t * effective_sigma_normalized_scores / effective_sigmas
         )
+
+        # The adjusted score doesn't work at the moment.
+        # jacobian_matrix = self._get_jacobian_matrix(xt)
+        # adjusted_sigma_normalized_scores = einops.einsum(jacobian_matrix, sigma_normalized_scores,
+        #                                                "b d n1 n2, b n2 d -> b n1 d" )
+        # return adjusted_sigma_normalized_scores
 
         return sigma_normalized_scores
 

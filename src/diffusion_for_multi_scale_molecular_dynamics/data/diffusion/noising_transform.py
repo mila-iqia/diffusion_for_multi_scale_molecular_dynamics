@@ -67,7 +67,6 @@ class NoisingTransform:
             self.point_group_operations = torch.eye(spatial_dimension).unsqueeze(0)
             self.transporter = Transporter(
                 point_group_operations=self.point_group_operations,
-                maximum_number_of_steps=10,
             )
 
     def transform(self, batch: Dict) -> Dict:
@@ -135,14 +134,7 @@ class NoisingTransform:
 
         if self.use_optimal_transport:
             # Transport xt to be as close to x0 as possible
-            nearest_xt = []
-            for batch_idx in range(batch_size):
-                transported_xt, _, _ = self.transporter.get_optimal_transport(
-                    x0[batch_idx], xt[batch_idx]
-                )
-                nearest_xt.append(transported_xt)
-
-            xt = torch.stack(nearest_xt, dim=0)
+            xt = self.transporter.get_optimal_transport(x0, xt)
 
         # to get noisy atom types, we need to broadcast the transition matrices q, q_bar and q_bar_tm1 from size
         # [batch_size, num_atom_types, num_atom_types] to [batch_size, number_of_atoms, num_atom_types, num_atom_types].
