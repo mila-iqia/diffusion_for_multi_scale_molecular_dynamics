@@ -88,7 +88,7 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
         else:
             symmetries = torch.eye(self.spatial_dimension).unsqueeze(0)
 
-        self.register_buffer('symmetries', symmetries)
+        self.symmetries = torch.nn.Parameter(symmetries, requires_grad=False)
 
         self.transporter = Transporter(self.symmetries)
 
