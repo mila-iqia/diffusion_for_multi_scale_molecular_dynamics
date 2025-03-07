@@ -1,4 +1,5 @@
-"""
+"""Maxvol implementation.
+
 This submodule is taken from maxvol-py.
 https://github.com/c-f-h/maxvolpy
 

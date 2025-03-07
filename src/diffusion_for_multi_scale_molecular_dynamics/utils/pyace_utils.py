@@ -13,7 +13,7 @@ from pyace.asecalc import PyACECalculator
 def count_number_total_atoms_per_species_type(
     atomic_env_list: List[ACEAtomicEnvironment],
 ) -> Dict[int, int]:
-    """Helper function to count total number of atoms of each type in dataset
+    """Helper function to count total number of atoms of each type in dataset.
 
     Adapted from pyace.
 
@@ -66,8 +66,7 @@ def convert_to_atomic_env_list(atomic_env_list, pot: ACEBBasisSet) -> np.array:
 
 
 def compute_number_of_functions(pot: ACEBBasisSet) -> List[int]:
-    """
-    Computes the number of functions for each pair of basis_rank1 and basis elements.
+    """Computes the number of functions for each pair of basis_rank1 and basis elements.
 
     This function takes an ACEBBasisSet object as input and calculates the sum of
     the lengths of each corresponding pair of basis_rank1 and basis elements,
@@ -115,7 +114,7 @@ def compute_B_projections(
     atomic_env_list: Union[List[Atoms], List[ACEAtomicEnvironment]],
     structure_ind_list: Optional[List[int]] = None,
 ) -> Tuple[Dict[int, np.array], Dict[int, np.array]]:
-    """Function to compute the B-basis projection using basis configuration
+    """Function to compute the B-basis projection using basis configuration.
 
     Adapted from pyace. Modified to not be dependent on maxvolpy.
 

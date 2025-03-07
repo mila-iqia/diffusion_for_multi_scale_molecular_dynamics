@@ -189,6 +189,8 @@ class ACE_MLIP:
                 forces: List of (m, 3) forces array  with m atoms for each ASE Atoms object.
                     m can vary with each structure.
             mlip_name: filename for the trained ACE. Defaults to ace_fitted.yaml
+            mode: train, eval or train_and_eval. Defaults to train.
+
         Returns:
             fitted_mtp: path to the fitted ACE MLIP
         """
