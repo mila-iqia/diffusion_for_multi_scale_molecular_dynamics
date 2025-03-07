@@ -103,7 +103,7 @@ class MTPWithMLIP3(MTPotential):
 
     def evaluate(
         self, dataset: MTPInputs, mlip_name: str = "mtp_fitted.almtp"
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> pd.DataFrame:
         """Evaluate energies, forces, stresses and MaxVol gamma factor of structures with trained MTP.
 
         Args:
@@ -138,9 +138,9 @@ class MTPWithMLIP3(MTPotential):
             # write the structures to evaluate in a mlp compatible format
             original_file = self.write_cfg(original_file, cfg_pool=predict_pool)
             # TODO how to handle when GT is not available
-            df_orig = self.read_cfgs(
-                original_file, nbh_grade=False
-            )  # read original values as a DataFrame
+            # df_orig = self.read_cfgs(
+            #     original_file, nbh_grade=False
+            # )  # read original values as a DataFrame
 
             # copy the trained mtp in the scratchdir
             shutil.copyfile(mlip_name, os.path.join(os.getcwd(), local_mtp_name))
@@ -169,7 +169,7 @@ class MTPWithMLIP3(MTPotential):
                 raise RuntimeError(error_msg)
             # read the config
             df_predict = self.read_cfgs(predict_file, nbh_grade=True)
-        return df_orig, df_predict
+        return df_predict
 
     def read_cfgs(self, filename: str, nbh_grade: bool = False) -> pd.DataFrame:
         """Read mlp output when MaxVol gamma factor is present.

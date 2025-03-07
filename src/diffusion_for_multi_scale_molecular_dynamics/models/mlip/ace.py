@@ -79,7 +79,9 @@ class ACE_MLIP:
         self.maxvol_max_iters = ace_args.maxvol_max_iters
         self.maxvol_epsilon = 1e-16  # small value used in maxvol algorithm
 
-    def evaluate(self, dataset: pd.DataFrame, mlip_name: str) -> Path:
+    def evaluate(
+        self, dataset: pd.DataFrame, mlip_name: str, mode: str = "eval"
+    ) -> Path:
         """Evaluate energies, forces, stresses and MaxVol gamma factor of structures with trained MTP.
 
         This calls _run_pacemaker with mode="eval" to evaluate MLIP on a dataset.
@@ -90,12 +92,17 @@ class ACE_MLIP:
                 energy_corrected: List of total energies of each structure in structures list.
                 forces: List of (m, 3) forces array of each structure with m atoms in structures list.
                     m can be varied with each single structure case.
-            mlip_name: str : filename for the trained MLIP.
+            mlip_name: filename for the trained MLIP.
+            mode (optional): evaluate or train and evaluate. Defaults to "eval".
 
         Returns:
             path dataframe with ground truth energies, forces
         """
-        return self._run_pacemaker(dataset, mlip_name, mode="eval")
+        assert mode in [
+            "eval",
+            "train_and_eval",
+        ], f"Mode should be eval or train_and_eval. Got {mode}"
+        return self._run_pacemaker(dataset, mlip_name, mode=mode)
 
     @staticmethod
     def prepare_dataset_from_lammps(
@@ -203,7 +210,7 @@ class ACE_MLIP:
                 commands.append("--no-predict")
                 if self.initial_ace is not None:
                     commands += ["-ip", self.initial_ace]
-            else:
+            elif mode != "train_and_eval":
                 commands += ["--no-fit", "-p", str(output_mlip)]
             with subprocess.Popen(commands, stdout=subprocess.PIPE) as p:
                 stdout = p.communicate()[0]
@@ -220,7 +227,7 @@ class ACE_MLIP:
                     error_msg += msg[-1]
                 raise RuntimeError(error_msg)
 
-            if mode == "eval":  # data is saved in a pickle gzip file in tmp_work_dir
+            if "eval" in mode:  # data is saved in a pickle gzip file in tmp_work_dir
                 eval_data = self.process_evaluation_dataframe(
                     os.path.join(tmp_work_dir, "train_pred.pckl.gzip"), str(output_mlip)
                 )
@@ -275,7 +282,8 @@ class ACE_MLIP:
         original_data_df = pd.read_pickle(original_data_df, compression="gzip")[
             "ase_atoms"
         ]
-        self.get_maxvol(ase_potential, original_data_df)
+        maxvol_values = self.get_maxvol(ase_potential, original_data_df)
+        cur_atom_idx = 0
 
         for structure_index, properties in eval_data.iterrows():
             num_atoms = properties["NUMBER_OF_ATOMS"]
@@ -291,7 +299,6 @@ class ACE_MLIP:
             ] * num_atoms  # predicted energy
             s_index = [structure_index] * num_atoms
             atom_index = list(range(num_atoms))
-            maxvol_values = self.get_maxvol(properties)
             structure_df = pd.DataFrame(
                 {
                     "x": positions[:, 0],
@@ -301,15 +308,18 @@ class ACE_MLIP:
                     "fy": pred_forces[:, 1],
                     "fz": pred_forces[:, 2],
                     "energy": pred_energy,
-                    "nbh_grades": maxvol_values,
                     "atom_index": atom_index,
                     "structure_index": s_index,
                     "fx_target": real_forces[:, 0],
                     "fy_target": real_forces[:, 1],
                     "fz_target": real_forces[:, 2],
                     "energy_target": real_energy,
+                    "nbh_grades": maxvol_values[
+                        cur_atom_idx:cur_atom_idx + num_atoms
+                    ],
                 }
             )
+            cur_atom_idx += num_atoms
             new_eval_data.append(structure_df)
 
         return pd.concat(new_eval_data)
@@ -318,9 +328,6 @@ class ACE_MLIP:
         self,
         potential_yaml_path: str,
         structure_data: pd.Series,
-        tol: float = 1.01,
-        max_iters: int = 100,
-        top_k_index: int = -1,
     ) -> np.array:
         """Compute maxvol gamma per atom.
 
@@ -329,11 +336,6 @@ class ACE_MLIP:
                 attributes. Used for creating a basis configuration.
             structure_data (pd.Series): Input structural data in the form of a Pandas Series.
                 Each entry represents data related to atomic environments.
-            tol (float): Numerical tolerance parameter for the maxvol algorithm. Defaults to 1.01.
-            max_iters (int): Maximum number of iterations for the maxvol computation to converge.
-                Defaults to 100.
-            top_k_index (int): Index denoting the rank of a particular projection during selection.
-                Primarily used for advanced filtering criteria. Defaults to -1.
 
         Returns:
             maxvol: an array with maxvol gamma factor for each atom.
@@ -347,7 +349,7 @@ class ACE_MLIP:
             elements_mapper_dict=elements_to_index_map,
         )
         a_zero_projection_dict, structure_ind_dict = compute_B_projections(
-            bbasis, atomic_env_list, return_structure_ind_dict=True
+            bbasis, atomic_env_list
         )
 
         # from pyace.activelearning compute_active_set

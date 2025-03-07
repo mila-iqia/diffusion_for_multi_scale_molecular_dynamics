@@ -142,11 +142,11 @@ def test_evaluate(mocker, fake_structure, mtp_instance, mock_popen):
     )
 
     # Perform the test
-    df_orig, df_predict = mtp_instance.evaluate(mtp_inputs)
+    df_predict = mtp_instance.evaluate(mtp_inputs)
 
     # Assertions can vary based on the real output of `read_cfgs`
     # Here's an example assertion assuming `read_cfgs` returns a string in this mocked scenario
-    assert df_orig == "mock_dataframe" and df_predict == "mock_dataframe", (
+    assert df_predict == "mock_dataframe", (
         "Evaluate method should return mock" + "dataframes"
     )
 
@@ -154,7 +154,6 @@ def test_evaluate(mocker, fake_structure, mtp_instance, mock_popen):
 def test_read_cfgs(mtp_instance):
     cfg_path = Path(__file__).parent.joinpath("mtp_cfg_examples.txt")
     df = mtp_instance.read_cfgs(cfg_path, True)
-    print(df.keys())
     assert np.array_equal(df["x"], [0.1, 0.2, 0.3])
     assert np.array_equal(df["y"], [1.1, 1.2, 1.3])
     assert np.array_equal(df["z"], [2.1, 2.2, 2.3])
@@ -170,7 +169,7 @@ def test_extract_structure_and_forces_from_file(tmpdir):
     # Create a mock LAMMPS output
     yaml_content = {
         "box": [[0, 10], [0, 10], [0, 10]],  # x_lim, y_lim, z_lim
-        "keywords": ["x", "y", "z", "type", "fx", "fy", "fz"],
+        "keywords": ["x", "y", "z", "element", "fx", "fy", "fz"],
         "data": [[1, 1, 1, 1, 0.1, 0.2, 0.3], [2, 2, 2, 2, 0.4, 0.5, 0.6]],
     }
     yaml_file = os.path.join(tmpdir, "lammps.yaml")
