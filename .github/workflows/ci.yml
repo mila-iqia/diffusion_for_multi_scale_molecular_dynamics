@@ -27,7 +27,7 @@ jobs:
         pip install -e .
     - name: unit tests
       run: |
-        pytest --cov=crystal_diffusion -m "not not_on_github"
+        pytest --cov=crystal_diffusion -m "not not_on_github" --ignore tests/models/mlip/test_ace.py
     - name: doc-creation-test
       run: |
         ./tests/test_docs/run.sh
