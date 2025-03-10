@@ -22,6 +22,9 @@ class TestActiveLearningLoop:
             key4: value4
         oracle:
             key5: value5
+            elements: [fire, earth, air, water]
+            box: [1, 2, 3]
+            name: fake_oracle
         """
 
     @pytest.fixture
@@ -42,6 +45,17 @@ class TestActiveLearningLoop:
             lambda x: x
         )  # Return the config itself for simplicity
 
+        mock_oracle_params = mocker.patch(
+            "diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.benchmark."
+            + "create_energy_oracle_parameters"
+        )
+        mock_oracle_params.side_effect = lambda x, y: x
+
+        mock_oracle = mocker.patch(
+            "diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.benchmark.create_energy_oracle"
+        )
+        mock_oracle.side_effect = lambda x: x
+
         # Create an instance of ActiveLearningLoop
         loop = ActiveLearningLoop(meta_config)
         return loop
@@ -53,7 +67,7 @@ class TestActiveLearningLoop:
         assert mock_al_loop.mlip_model == {"key2": "value2"}
         assert mock_al_loop.eval_config == {"key3": "value3"}
         assert mock_al_loop.structure_generation == {"key4": "value4"}
-        assert mock_al_loop.oracle == {"key5": "value5"}
+        assert mock_al_loop.oracle == {"key5": "value5", "name": "fake_oracle"}
 
         # Verify that the file was opened and the path was checked
         open.assert_called_once_with(meta_config, "r")
@@ -76,7 +90,7 @@ class TestActiveLearningLoop:
         # Verify the methods were called with expected parameters
         mock_mlip_model.prepare_dataset_from_lammps.assert_called_once_with(
             root_data_dir="mock_training_data_dir",
-            atom_dict=mock_al_loop.atom_dict,
+            atom_dict=mock_al_loop.index_to_atom_name,
             mode="train",
         )
 
@@ -125,12 +139,12 @@ class TestActiveLearningLoop:
         loop.data_paths = MagicMock(evaluation_data_dir="mock_evaluation_data_dir")
 
         # Run the evaluate_mlip method without specifying mlip_name
-        result_df = loop.evaluate_mlip(round=1)
+        _, result_df = loop.evaluate_mlip(round=1)
 
         # Verify the prepare_dataset_from_lammps method was called with expected parameters
         mock_mlip_model.prepare_dataset_from_lammps.assert_called_once_with(
             root_data_dir="mock_evaluation_data_dir",
-            atom_dict=loop.atom_dict,
+            atom_dict=loop.index_to_atom_name,
             mode="evaluation",
             get_forces=True,
         )
@@ -145,7 +159,7 @@ class TestActiveLearningLoop:
 
         # Run the evaluate_mlip method with a custom mlip_name
         custom_mlip_name = "custom_mlip.almtp"
-        result_df = loop.evaluate_mlip(round=2, mlip_name=custom_mlip_name)
+        _, result_df = loop.evaluate_mlip(round=2, mlip_name=custom_mlip_name)
 
         # The evaluate method should be called with the custom mlip_name
         mock_mlip_model.evaluate.assert_called_with(
@@ -159,7 +173,7 @@ class TestActiveLearningLoop:
 
         mock_mlip_model.prepare_dataset_from_lammps.assert_called_with(
             root_data_dir="mock_evaluation_data_dir",
-            atom_dict=loop.atom_dict,
+            atom_dict=loop.index_to_atom_name,
             mode="evaluation",
             get_forces=False,
         )

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Tuple
 
 import numpy as np
 import pytest
@@ -46,13 +47,13 @@ class FakeOracleParameters(OracleParameters):
 
 class FakeEnergyOracle(EnergyOracle):
 
-    def _compute_one_configuration_energy(
+    def _compute_one_configuration_energy_and_forces(
         self,
         cartesian_positions: np.ndarray,
         basis_vectors: np.ndarray,
         atom_types: np.ndarray,
-    ) -> float:
-        return np.random.rand()
+    ) -> Tuple[float, np.ndarray]:
+        return np.random.rand(), torch.rand(*cartesian_positions.shape)
 
 
 class FakePositionsDataModule(LightningDataModule):

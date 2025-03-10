@@ -114,5 +114,5 @@ class TestLammpsEnergyOracle:
         assert expected_atoms == computed_atoms
 
     def test_compute_oracle_energies(self, oracle, samples, batch_size):
-        energies = oracle.compute_oracle_energies(samples)
+        energies, _ = oracle.compute_oracle_energies_and_forces(samples)
         assert len(energies) == batch_size

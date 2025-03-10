@@ -138,9 +138,8 @@ class LammpsEnergyOracle(EnergyOracle):
 
         forces = (
             pd.DataFrame(doc["data"], columns=doc["keywords"])
-            .sort_values("id")[["fx", "fy", "fz"]]
-            .to_numpy()
-        )  # organize in a dataframe and cast as ndarray
+            .sort_values("id")
+        )  # organize in a dataframe
 
         # get the energy
         ke = lmp.get_thermo(
@@ -166,4 +165,4 @@ class LammpsEnergyOracle(EnergyOracle):
             # clean up!
             dump_file_path.unlink()
 
-        return energy, forces
+        return energy, forces[["fx", "fy", "fz"]].to_numpy()

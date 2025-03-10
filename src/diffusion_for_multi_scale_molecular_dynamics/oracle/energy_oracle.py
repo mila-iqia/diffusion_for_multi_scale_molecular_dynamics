@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import AnyStr, Dict, List, Optional, Tuple, Union
+from typing import AnyStr, Dict, List, Tuple, Union
 
 import numpy as np
 import torch
@@ -102,7 +102,7 @@ class EnergyOracle:
         logger.info("Done computing energies from Oracle")
 
         if return_type == torch.Tensor:
-            forces = torch.stack(list_forces)
+            forces = torch.tensor(np.stack(list_forces))
             energies = torch.tensor(list_energy)
         else:
             forces = np.stack(list_forces)
