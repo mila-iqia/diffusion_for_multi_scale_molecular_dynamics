@@ -21,7 +21,8 @@ from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import (
 @dataclass(kw_only=True)
 class LammpsOracleParameters(OracleParameters):
     """Lammps Oracle Parameters."""
-    name: str = 'lammps'
+
+    name: str = "lammps"
     sw_coeff_filename: str  # Stillinger-Weber potential filename
 
 
@@ -30,6 +31,7 @@ class LammpsEnergyOracle(EnergyOracle):
 
     This class invokes LAMMPS to get the forces and energy in a given configuration.
     """
+
     def __init__(
         self,
         lammps_oracle_parameters: LammpsOracleParameters,
@@ -96,7 +98,11 @@ class LammpsEnergyOracle(EnergyOracle):
         return commands
 
     def _compute_energy_and_forces(
-        self, cartesian_positions: np.ndarray, box: np.ndarray, atom_types: np.ndarray, dump_file_path: Path
+        self,
+        cartesian_positions: np.ndarray,
+        box: np.ndarray,
+        atom_types: np.ndarray,
+        dump_file_path: Path,
     ):
         """Call LAMMPS to compute the energy and forces on all atoms in a configuration.
 
@@ -110,12 +116,18 @@ class LammpsEnergyOracle(EnergyOracle):
             energy: energy of configuration
             forces: forces on each atom in the configuration
         """
-        assert np.allclose(box, np.diag(np.diag(box))), "only orthogonal LAMMPS box are valid"
+        assert np.allclose(
+            box, np.diag(np.diag(box))
+        ), "only orthogonal LAMMPS box are valid"
 
         # create a lammps run, turning off logging
-        lmp = lammps.lammps(cmdargs=["-log", "none", "-echo", "none", "-screen", "none"])
+        lmp = lammps.lammps(
+            cmdargs=["-log", "none", "-echo", "none", "-screen", "none"]
+        )
 
-        commands = self._create_lammps_commands(cartesian_positions, box, atom_types, dump_file_path)
+        commands = self._create_lammps_commands(
+            cartesian_positions, box, atom_types, dump_file_path
+        )
         for command in commands:
             lmp.command(command)
 
@@ -124,9 +136,11 @@ class LammpsEnergyOracle(EnergyOracle):
             dump_yaml = yaml.safe_load_all(f)
             doc = next(iter(dump_yaml))
 
-        forces = pd.DataFrame(doc["data"], columns=doc["keywords"]).sort_values(
-            "id"
-        )  # organize in a dataframe
+        forces = (
+            pd.DataFrame(doc["data"], columns=doc["keywords"])
+            .sort_values("id")[["fx", "fy", "fz"]]
+            .to_numpy()
+        )  # organize in a dataframe and cast as ndarray
 
         # get the energy
         ke = lmp.get_thermo(
@@ -137,17 +151,19 @@ class LammpsEnergyOracle(EnergyOracle):
 
         return energy, forces
 
-    def _compute_one_configuration_energy(self, cartesian_positions: np.ndarray,
-                                          basis_vectors: np.ndarray,
-                                          atom_types: np.ndarray) -> float:
+    def _compute_one_configuration_energy_and_forces(
+        self,
+        cartesian_positions: np.ndarray,
+        basis_vectors: np.ndarray,
+        atom_types: np.ndarray,
+    ) -> float:
 
         with tempfile.TemporaryDirectory() as tmp_work_dir:
             dump_file_path = Path(tmp_work_dir) / "dump.yaml"
-            energy, _ = self._compute_energy_and_forces(cartesian_positions,
-                                                        basis_vectors,
-                                                        atom_types,
-                                                        dump_file_path)
+            energy, forces = self._compute_energy_and_forces(
+                cartesian_positions, basis_vectors, atom_types, dump_file_path
+            )
             # clean up!
             dump_file_path.unlink()
 
-        return energy
+        return energy, forces

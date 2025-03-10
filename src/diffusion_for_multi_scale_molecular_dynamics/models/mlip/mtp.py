@@ -271,6 +271,7 @@ class MTPWithMLIP3(MTPotential):
                 df["nbh_grades"] += nbh_grades
             df["atom_index"] += list(range(n_atom))
             df["structure_index"] += [s_idx] * n_atom
+            df["species"] += outputs["species"].tolist()
 
         df = pd.DataFrame(df)
         return df
