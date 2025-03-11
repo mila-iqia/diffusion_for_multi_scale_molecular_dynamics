@@ -114,7 +114,7 @@ class ActiveLearningLoop:
             training_set = self.mlip_model.merge_inputs(self.training_sets)
 
         trained_mtp = self.mlip_model.train(
-            training_set, mlip_name=f"mlip_round_{round}"
+            training_set, mlip_output_filename=f"mlip_round_{round}"
         )
         self.trained_mlips.append(
             trained_mtp
@@ -381,6 +381,7 @@ def main():
     """Example to do an active learning loop once."""
     args = get_arguments()
     config_path = args.config
+
     al_loop = ActiveLearningLoop(config_path)
     initial_df, new_df = al_loop.round_of_active_learning_loop()
     al_loop.evaluate_mtp_update(initial_df, new_df)

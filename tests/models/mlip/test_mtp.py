@@ -8,10 +8,10 @@ import yaml
 from pymatgen.core import Structure
 from sklearn.metrics import mean_absolute_error
 
-from diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils import (
-    MTPInputs, extract_energy_from_thermo_log,
+from diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils import (
+    MLIPInputs, extract_energy_from_thermo_log,
     extract_structure_and_forces_from_file, get_metrics_from_pred,
-    prepare_mtp_inputs_from_lammps)
+    prepare_mlip_inputs_from_lammps)
 from diffusion_for_multi_scale_molecular_dynamics.models.mlip.mtp import (
     MTPArguments, MTPWithMLIP3)
 
@@ -74,7 +74,7 @@ def test_train(mocker, mock_popen, tmpdir):
     )
     model = MTPWithMLIP3(mtp_args)
     # Call the train method
-    mtp_inputs = MTPInputs(
+    mtp_inputs = MLIPInputs(
         structure=[FakeStructure(["H", "O"]), FakeStructure(["Si"])],
         forces=[],
         energy=[1, 2],
@@ -137,7 +137,7 @@ def test_evaluate(mocker, fake_structure, mtp_instance, mock_popen):
     mocker.patch("shutil.copyfile", return_value=None)
     mocker.patch("os.path.exists", return_value=True)
 
-    mtp_inputs = MTPInputs(
+    mtp_inputs = MLIPInputs(
         structure=test_structures, forces=test_forces, energy=test_energies
     )
 
@@ -266,7 +266,7 @@ def test_prepare_mtp_inputs_from_lammps(
     atom_dict = {1: "H", 2: "He"}
 
     # Call the function
-    mtp_inputs = prepare_mtp_inputs_from_lammps(
+    mtp_inputs = prepare_mlip_inputs_from_lammps(
         output_yaml_files, thermo_yaml_files, atom_dict
     )
 
