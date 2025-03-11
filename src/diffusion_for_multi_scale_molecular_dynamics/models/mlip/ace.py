@@ -1,8 +1,19 @@
-"""Moment Tensor Potential model.
+"""Atomic Cluster Expansion MLIP.
 
-This script defines a MTP model in a lightning like manner, with a train() and evaluate() method.
+This script defines an ACE model in a lightning like manner, with a train() and evaluate() method.
 However, it cannot be called as a standard lightning module as it relies on the MLIP-3 library for the model
 implementation.
+
+The training and evaluation methods rely on datasets structured as pandas dataframes.
+The dataframe should contain the following elements:
+    ase_atoms: ASE Atoms object which represents an atomic configuration.
+    energy_corrected: List of total energies of each structure used as targets to train or evaluate the model.
+        This can be either the energy coming from LAMMPS (or other oracle), or the energy of the structure
+        after changing the reference point (zero).
+    forces: List of (m, 3) forces array  with m atoms for each ASE Atoms object.
+        m can vary with each structure.
+
+TODO the current approach impose having energy and forces. This should be relaxed for unlabeled structures.
 """
 
 import os
@@ -18,8 +29,8 @@ import pandas as pd
 from pyace import (ACEBBasisSet, BBasisConfiguration,
                    aseatoms_to_atomicenvironment)
 
-from diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils import (
-    crawl_lammps_directory, prepare_mtp_inputs_from_lammps)
+from diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils import (
+    crawl_lammps_directory, prepare_mlip_inputs_from_lammps)
 from diffusion_for_multi_scale_molecular_dynamics.utils.maxvol import maxvol
 from diffusion_for_multi_scale_molecular_dynamics.utils.pyace_utils import \
     compute_B_projections
@@ -81,14 +92,14 @@ class ACE_MLIP:
 
     def evaluate(
         self, dataset: pd.DataFrame, mlip_name: str, mode: str = "eval"
-    ) -> Path:
-        """Evaluate energies, forces, stresses and MaxVol gamma factor of structures with trained MTP.
+    ) -> pd.DataFrame:
+        """Evaluate energies, forces and MaxVol gamma factor of structures with a trained MLIP.
 
-        This calls _run_pacemaker with mode="eval" to evaluate MLIP on a dataset.
+        This calls _run_pacemaker with mode="eval" "train_and_eval" to evaluate MLIP on a dataset.
 
         Args:
             dataset: dataframe with the following columns:
-                ase_atoms: The list of Pymatgen Structure object.
+                ase_atoms: The list of ASE Atoms object.
                 energy_corrected: List of total energies of each structure in structures list.
                 forces: List of (m, 3) forces array of each structure with m atoms in structures list.
                     m can be varied with each single structure case.
@@ -96,7 +107,7 @@ class ACE_MLIP:
             mode (optional): evaluate or train and evaluate. Defaults to "eval".
 
         Returns:
-            path dataframe with ground truth energies, forces
+            dataframe with predicted energies, forces and maxvol coefficients
         """
         assert mode in [
             "eval",
@@ -121,15 +132,17 @@ class ACE_MLIP:
         Returns:
             dataframe usable by pacemaker
         """
+        assert get_forces is False, "get_forces is not yet implemented"
+
         lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
-        mtp_dataset = prepare_mtp_inputs_from_lammps(
+        mtp_dataset = prepare_mlip_inputs_from_lammps(
             lammps_outputs, thermo_outputs, atom_dict
         )
         energies = mtp_dataset.energy  # list of length = num structures
         forces = (
             mtp_dataset.forces
-        )  # list of ... of length = num structures. Each element is length = num_atoms. Each
-        # is length spatial_dimension (num_structures, num_atoms, spatial_dimension)
+        )  # list of tables of length = num structures. Each table is length = num_atoms. Each
+        # is length spatial_dimension aka (num_structures, num_atoms, spatial_dimension)
         # pymatgen Structure can be converted to ASE Atoms classes
         ase_atoms = [x.to_ase_atoms() for x in mtp_dataset.structure]
         num_atoms = [len(x) for x in mtp_dataset.forces]
@@ -156,23 +169,25 @@ class ACE_MLIP:
         """
         return pd.concat(ace_inputs)
 
-    def train(self, dataset: pd.DataFrame, mlip_name: str = "ace_fitted.yaml") -> Path:
+    def train(
+        self, dataset: pd.DataFrame, mlip_output_filename: str = "ace_fitted.yaml"
+    ) -> Path:
         """Training method for an ACE MLIP.
 
         This calls _run_pacemaker with mode="train" to train MLIP on a dataset.
 
         Args:
-            dataset: dataframe dataclass with the following elements:
+            dataset: dataframe with the following elements:
                 ase_atoms: ASE Atoms object which represents an atomic configuration.
                 energy_corrected: List of total energies of each structure used as targets to train the model
                 forces: List of (m, 3) forces array  with m atoms for each ASE Atoms object.
                     m can vary with each structure.
-            mlip_name: filename for the trained ACE. Defaults to ace_fitted.yaml
+            mlip_output_filename: filename for the trained ACE. Defaults to ace_fitted.yaml
 
         Returns:
             fitted_mtp: path to the fitted ACE MLIP
         """
-        return self._run_pacemaker(dataset, mlip_name, mode="train")
+        return self._run_pacemaker(dataset, mlip_output_filename, mode="train")
 
     def _run_pacemaker(
         self,
@@ -192,7 +207,7 @@ class ACE_MLIP:
             mode: train, eval or train_and_eval. Defaults to train.
 
         Returns:
-            fitted_mtp: path to the fitted ACE MLIP
+            fitted_mtp: path to the fitted ACE MLIP or dataframe with predicted energies, forces and maxvol coefficients
         """
         init_dir = os.getcwd()
         with tempfile.TemporaryDirectory() as tmp_work_dir:
@@ -257,7 +272,7 @@ class ACE_MLIP:
         return returned_value
 
     def process_evaluation_dataframe(
-        self, path_to_eval_data: str, ase_potential: str
+        self, path_to_eval_data: str, ace_potential: str
     ) -> pd.DataFrame:
         """Process evaluation data.
 
@@ -266,9 +281,9 @@ class ACE_MLIP:
         and additional computed metrics.
 
         Args:
-            path_to_eval_data (str): Path to the evaluation data file, which is expected to be
+            path_to_eval_data: Path to the evaluation data file, which is expected to be
                 a pickled DataFrame with compression enabled.
-            ase_potential (str): The path or identifier for the ASE potential, used to retrieve
+            ace_potential: The path or identifier for the ACE potential, used to retrieve
                 associated required properties and to perform necessary computations.
 
         Returns:
@@ -280,11 +295,11 @@ class ACE_MLIP:
         new_eval_data = []
 
         # positions are not in that dataframe... because why make things easy when you have a choice
-        original_data_df = eval_data["name"][0][:-2]
-        original_data_df = pd.read_pickle(original_data_df, compression="gzip")[
+        ase_atoms_series = eval_data["name"][0][:-2]
+        ase_atoms_series = pd.read_pickle(ase_atoms_series, compression="gzip")[
             "ase_atoms"
         ]
-        maxvol_values = self.get_maxvol(ase_potential, original_data_df)
+        maxvol_values = self.get_maxvol(ace_potential, ase_atoms_series)
         cur_atom_idx = 0
 
         for structure_index, properties in eval_data.iterrows():
@@ -292,9 +307,10 @@ class ACE_MLIP:
             pred_forces = np.array(
                 properties["forces_pred"]
             )  # shape: (num_atoms, spatial_dimension)
-            real_forces = np.array(properties["forces"])
-            # positions = properties["ase_atoms"].get_positions()  # shape: (num_atoms, spatial_dimension)
-            positions = original_data_df[structure_index].get_positions()
+            real_forces = np.array(
+                properties["forces"]
+            )  # TODO handle cases where this is not available
+            positions = ase_atoms_series[structure_index].get_positions()
             pred_energy = [properties["energy_pred"]] * num_atoms  # predicted energy
             real_energy = [
                 properties["energy_corrected"]
@@ -328,21 +344,21 @@ class ACE_MLIP:
 
     def get_maxvol(
         self,
-        potential_yaml_path: str,
+        ace_potential_yaml_path: str,
         structure_data: pd.Series,
     ) -> np.array:
         """Compute maxvol gamma per atom.
 
         Args:
-            potential_yaml_path (str): Path to the YAML file containing potential configuration
+            ace_potential_yaml_path: Path to the YAML file containing potential configuration
                 attributes. Used for creating a basis configuration.
-            structure_data (pd.Series): Input structural data in the form of a Pandas Series.
+            structure_data: Input structural data in the form of a Pandas Series.
                 Each entry represents data related to atomic environments.
 
         Returns:
             maxvol: an array with maxvol gamma factor for each atom.
         """
-        bconf = BBasisConfiguration(potential_yaml_path)
+        bconf = BBasisConfiguration(ace_potential_yaml_path)
         bbasis = ACEBBasisSet(bconf)
         elements_to_index_map = bbasis.elements_to_index_map
         atomic_env_list = structure_data.apply(
@@ -358,10 +374,12 @@ class ACE_MLIP:
         maxvol_gamma_list = []
         for st, cur_a_zero in a_zero_projection_dict.items():
             shape = cur_a_zero.shape
+
             assert shape[0] < shape[1], (
                 f"Insufficient atomic environments to determine active set for species type {st}, "
                 f"system is under-determined, projections shape={shape}"
             )
+
             proj_std = np.std(cur_a_zero, axis=0)
             zero_proj_columns = np.where(proj_std == 0)[0]
             if len(zero_proj_columns) > 0:

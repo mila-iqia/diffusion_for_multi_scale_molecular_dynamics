@@ -48,9 +48,6 @@ def extract_structure_and_forces_from_file(
             for i, x in enumerate(d["box"]):
                 lattice[i, i] = x[1]
             type_idx = d["keywords"].index("element")
-            # species = [
-            #     atom_dict[x[type_idx]] for x in d["data"]
-            # ]  # convert to atom type
             species = [x[type_idx] for x in d["data"]]
             coords_idx = [d["keywords"].index(x) for x in ["x", "y", "z"]]
             coords = [[x[i] for i in coords_idx] for x in d["data"]]

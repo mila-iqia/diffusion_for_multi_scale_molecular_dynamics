@@ -138,9 +138,6 @@ class MTPWithMLIP3(MTPotential):
             # write the structures to evaluate in a mlp compatible format
             original_file = self.write_cfg(original_file, cfg_pool=predict_pool)
             # TODO how to handle when GT is not available
-            # df_orig = self.read_cfgs(
-            #     original_file, nbh_grade=False
-            # )  # read original values as a DataFrame
 
             # copy the trained mtp in the scratchdir
             shutil.copyfile(mlip_name, os.path.join(os.getcwd(), local_mtp_name))

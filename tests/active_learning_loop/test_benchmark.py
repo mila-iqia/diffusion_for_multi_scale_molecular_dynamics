@@ -18,6 +18,7 @@ class TestActiveLearningLoop:
             key2: value2
         structure_evaluation:
             key3: value3
+            criteria_threshold: None
         repainting_model:
             key4: value4
         oracle:
@@ -37,13 +38,29 @@ class TestActiveLearningLoop:
         mocker.patch("builtins.open", mock_open(read_data=mock_yaml_config))
         # Mock os.path.exists to always return True
         mocker.patch("os.path.exists", return_value=True)
+
         # Mock the instantiate function from hydra.utils
+        # Create a mock object for structure_evaluation with the required attributes
+        class MockEvalConfig:
+            def __init__(self, config_dict):
+                self.criteria_threshold = config_dict.get("criteria_threshold", "None")
+                self.key3 = config_dict["key3"]
+                config_dict["criteria_threshold"] = None
+                self.config_as_dict = config_dict
+                # Add any other attributes that your eval_config should have
+
+        # Modify the instantiate mock to return proper objects
+        def mock_instantiate_side_effect(config):
+            if isinstance(config, dict) and "criteria_threshold" in config.keys():
+                return MockEvalConfig(config)
+            return config
+
         mock_instantiate = mocker.patch(
             "diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.benchmark.instantiate"
         )
         mock_instantiate.side_effect = (
-            lambda x: x
-        )  # Return the config itself for simplicity
+            mock_instantiate_side_effect  # Return the config itself for simplicity
+        )
 
         mock_oracle_params = mocker.patch(
             "diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.benchmark."
@@ -65,7 +82,10 @@ class TestActiveLearningLoop:
         # Assertions to verify that the attributes were correctly set
         assert mock_al_loop.data_paths == {"key1": "value1"}
         assert mock_al_loop.mlip_model == {"key2": "value2"}
-        assert mock_al_loop.eval_config == {"key3": "value3"}
+        assert mock_al_loop.eval_config.config_as_dict == {
+            "criteria_threshold": None,
+            "key3": "value3",
+        }
         assert mock_al_loop.structure_generation == {"key4": "value4"}
         assert mock_al_loop.oracle == {"key5": "value5", "name": "fake_oracle"}
 
