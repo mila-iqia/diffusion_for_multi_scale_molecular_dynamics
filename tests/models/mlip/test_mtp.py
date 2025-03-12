@@ -236,7 +236,7 @@ def test_extract_energy_from_thermo_log(tmpdir):
 @pytest.fixture
 def mock_extract_energy_from_thermo_log(mocker):
     return mocker.patch(
-        "diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils.extract_energy_from_thermo_log",
+        "diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils.extract_energy_from_thermo_log",
         return_value=[],
     )
 
@@ -244,7 +244,7 @@ def mock_extract_energy_from_thermo_log(mocker):
 @pytest.fixture
 def mock_extract_structure_and_forces(mocker):
     return mocker.patch(
-        "diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils.extract_structure_and_forces_from_file",
+        "diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils.extract_structure_and_forces_from_file",
         return_value=([], []),
     )
 
