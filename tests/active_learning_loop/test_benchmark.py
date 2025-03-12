@@ -115,7 +115,7 @@ class TestActiveLearningLoop:
         )
 
         mock_mlip_model.train.assert_called_once_with(
-            "mock_training_set", mlip_name="mlip_round_1"
+            "mock_training_set", mlip_output_filename="mlip_round_1"
         )
 
         # Verify the trained model path is correctly returned
@@ -131,7 +131,7 @@ class TestActiveLearningLoop:
         # The prepare_dataset_from_lammps should not be called since we provided a training_set
         mock_mlip_model.prepare_dataset_from_lammps.assert_called_once()  # No new call
         mock_mlip_model.train.assert_called_with(
-            custom_training_set, mlip_name="mlip_round_2"
+            custom_training_set, mlip_output_filename="mlip_round_2"
         )
 
         assert result == "mock_trained_mlip_model"
