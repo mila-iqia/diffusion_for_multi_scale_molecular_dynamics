@@ -113,13 +113,13 @@ class ActiveLearningLoop:
                 ]
             training_set = self.mlip_model.merge_inputs(self.training_sets)
 
-        trained_mtp = self.mlip_model.train(
+        trained_mlip = self.mlip_model.train(
             training_set, mlip_output_filename=f"mlip_round_{round}"
         )
         self.trained_mlips.append(
-            trained_mtp
+            trained_mlip
         )  # history of trained MLIPs ... not sure if useful
-        return trained_mtp
+        return trained_mlip
 
     def evaluate_mlip(
         self,
@@ -131,7 +131,7 @@ class ActiveLearningLoop:
 
         Args:
             round (optional): current round of training. Defaults to 1.
-            mlip_name (optional): if not None, use this MTP to evaluate the dataset.
+            mlip_name (optional): if not None, use this MLIP to evaluate the dataset.
             forces_available (optional): if True, get the ground truth forces from the dataset.
 
         Returns:
@@ -281,7 +281,7 @@ class ActiveLearningLoop:
             ATOM_TYPES: atom_type[None, ...],
         }
         energy, forces = self.oracle.compute_oracle_energies_and_forces(samples)
-        labels_as_mtp = self.mlip_model.prepare_dataset_from_numpy(
+        labels_as_mlip = self.mlip_model.prepare_dataset_from_numpy(
             cartesian_positions,
             box,
             forces[0, :, :],
@@ -289,7 +289,7 @@ class ActiveLearningLoop:
             atom_type,
             self.index_to_atom_name,
         )
-        return labels_as_mtp
+        return labels_as_mlip
 
     def round_of_active_learning_loop(
         self, trained_mlip: Optional[MTPWithMLIP3] = None
@@ -314,9 +314,9 @@ class ActiveLearningLoop:
             dataframe with the MLIP evaluation results before finetuning with the generated structures
             dataframe with the MLIP evaluation results after finetuning with the generated structures
         """
-        # one round from a known mtp (or train from provided training set)
-        # evaluate, find candidates and update MTP
-        # return the updated MTP
+        # one round from a known mlip (or train from provided training set)
+        # evaluate, find candidates and update MLIP
+        # return the updated MLIP
         if trained_mlip is None:
             trained_mlip = self.train_mlip()
 
@@ -332,11 +332,11 @@ class ActiveLearningLoop:
             [self.training_sets[-1], new_labeled_candidates]
         )
         self.training_sets.append(new_training_set)
-        new_mtp = self.train_mlip()
-        new_pred_df = self.evaluate_mlip(mlip_name=new_mtp)
+        new_mlip = self.train_mlip()
+        new_pred_df = self.evaluate_mlip(mlip_name=new_mlip)
         return pred_df, new_pred_df
 
-    def evaluate_mtp_update(
+    def evaluate_mlip_update(
         self, original_predictions: pd.DataFrame, updated_predictions
     ) -> Tuple[float, float]:
         """Find the evaluation criteria in the original predictions and the corresponding value after retraining.
@@ -384,7 +384,7 @@ def main():
 
     al_loop = ActiveLearningLoop(config_path)
     initial_df, new_df = al_loop.round_of_active_learning_loop()
-    al_loop.evaluate_mtp_update(initial_df, new_df)
+    al_loop.evaluate_mlip_update(initial_df, new_df)
 
 
 if __name__ == "__main__":

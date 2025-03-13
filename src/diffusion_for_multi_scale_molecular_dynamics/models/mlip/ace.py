@@ -1,7 +1,7 @@
 """Atomic Cluster Expansion MLIP.
 
 This script defines an ACE model in a lightning like manner, with a train() and evaluate() method.
-However, it cannot be called as a standard lightning module as it relies on the MLIP-3 library for the model
+However, it cannot be called as a standard lightning module as it relies on the pacemaker library for the model
 implementation.
 
 The training and evaluation methods rely on datasets structured as pandas dataframes.
@@ -45,7 +45,7 @@ class ACE_arguments:
         None  # Define the initial ACE potential file. Default to None
     )
     fitted_ace_savedir: str = (
-        "../"  # save directory for the fitted MTP. Defaults to '../' (current wd)
+        "../"  # save directory for the fitted ACE MLIP. Defaults to '../' (current wd)
     )
     working_dir: Optional[str] = None
     clear_working_dir: bool = True
@@ -95,7 +95,8 @@ class ACE_MLIP:
     ) -> pd.DataFrame:
         """Evaluate energies, forces and MaxVol gamma factor of structures with a trained MLIP.
 
-        This calls _run_pacemaker with mode="eval" "train_and_eval" to evaluate MLIP on a dataset.
+        This calls _run_pacemaker with mode="eval" to evaluate MLIP on a dataset or with mode="train_and_eval"
+        to train and evaluate MLIP on a dataset.
 
         Args:
             dataset: dataframe with the following columns:
@@ -135,17 +136,17 @@ class ACE_MLIP:
         assert get_forces is False, "get_forces is not yet implemented"
 
         lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
-        mtp_dataset = prepare_mlip_inputs_from_lammps(
+        mlip_dataset = prepare_mlip_inputs_from_lammps(
             lammps_outputs, thermo_outputs, atom_dict
         )
-        energies = mtp_dataset.energy  # list of length = num structures
+        energies = mlip_dataset.energy  # list of length = num structures
         forces = (
-            mtp_dataset.forces
+            mlip_dataset.forces
         )  # list of tables of length = num structures. Each table is length = num_atoms. Each
         # is length spatial_dimension aka (num_structures, num_atoms, spatial_dimension)
         # pymatgen Structure can be converted to ASE Atoms classes
-        ase_atoms = [x.to_ase_atoms() for x in mtp_dataset.structure]
-        num_atoms = [len(x) for x in mtp_dataset.forces]
+        ase_atoms = [x.to_ase_atoms() for x in mlip_dataset.structure]
+        num_atoms = [len(x) for x in mlip_dataset.forces]
         ase_dataframe = pd.DataFrame(
             {
                 "energy": energies,
@@ -185,7 +186,7 @@ class ACE_MLIP:
             mlip_output_filename: filename for the trained ACE. Defaults to ace_fitted.yaml
 
         Returns:
-            fitted_mtp: path to the fitted ACE MLIP
+            fitted_mlip: path to the fitted ACE MLIP
         """
         return self._run_pacemaker(dataset, mlip_output_filename, mode="train")
 
@@ -207,7 +208,8 @@ class ACE_MLIP:
             mode: train, eval or train_and_eval. Defaults to train.
 
         Returns:
-            fitted_mtp: path to the fitted ACE MLIP or dataframe with predicted energies, forces and maxvol coefficients
+            path to the fitted ACE MLIP or
+            dataframe with predicted energies, forces and maxvol coefficients
         """
         init_dir = os.getcwd()
         with tempfile.TemporaryDirectory() as tmp_work_dir:
