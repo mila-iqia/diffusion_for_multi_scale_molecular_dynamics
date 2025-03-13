@@ -517,7 +517,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and self.metrics_parameters.compute_energies:
             logger.info("       * Computing sample energies")
-            sample_energies = self.oracle.compute_oracle_energies(samples_batch)
+            sample_energies, _ = self.oracle.compute_oracle_energies_and_forces(samples_batch)
             logger.info("       * Registering sample energies")
             self.energy_ks_metric.register_predicted_samples(sample_energies.cpu())
 

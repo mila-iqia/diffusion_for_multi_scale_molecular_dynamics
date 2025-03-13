@@ -10,14 +10,6 @@ from diffusion_for_multi_scale_molecular_dynamics.models.mlip.ace import (
     ACE_MLIP, ACE_arguments)
 
 
-def passthrough(*args, **kwargs):
-    """Return arguments as passed.
-
-    Useful for mocking a function to return its input arguments directly.
-    """
-    return args if len(kwargs) == 0 else (args, kwargs)
-
-
 @pytest.fixture
 def mock_popen(mocker):
     # mock subprocess calling mlp

@@ -22,9 +22,9 @@ from monty.io import zopen
 from monty.tempfile import ScratchDir
 from pymatgen.core import Structure
 
-from diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils import (
-    MTPInputs, concat_mtp_inputs, crawl_lammps_directory,
-    prepare_mtp_inputs_from_lammps)
+from diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils import (
+    MLIPInputs, concat_mlip_inputs, crawl_lammps_directory,
+    prepare_mlip_inputs_from_lammps)
 
 
 @dataclass(kw_only=True)
@@ -102,7 +102,7 @@ class MTPWithMLIP3(MTPotential):
         pass
 
     def evaluate(
-        self, dataset: MTPInputs, mlip_name: str = "mtp_fitted.almtp"
+        self, dataset: MLIPInputs, mlip_name: str = "mtp_fitted.almtp"
     ) -> pd.DataFrame:
         """Evaluate energies, forces, stresses and MaxVol gamma factor of structures with trained MTP.
 
@@ -138,9 +138,6 @@ class MTPWithMLIP3(MTPotential):
             # write the structures to evaluate in a mlp compatible format
             original_file = self.write_cfg(original_file, cfg_pool=predict_pool)
             # TODO how to handle when GT is not available
-            # df_orig = self.read_cfgs(
-            #     original_file, nbh_grade=False
-            # )  # read original values as a DataFrame
 
             # copy the trained mtp in the scratchdir
             shutil.copyfile(mlip_name, os.path.join(os.getcwd(), local_mtp_name))
@@ -271,6 +268,7 @@ class MTPWithMLIP3(MTPotential):
                 df["nbh_grades"] += nbh_grades
             df["atom_index"] += list(range(n_atom))
             df["structure_index"] += [s_idx] * n_atom
+            df["species"] += outputs["species"].tolist()
 
         df = pd.DataFrame(df)
         return df
@@ -308,7 +306,7 @@ class MTPWithMLIP3(MTPotential):
         atom_dict: Dict[int, str],
         mode: str = "train",
         get_forces: bool = True,
-    ) -> MTPInputs:
+    ) -> MLIPInputs:
         """Get the LAMMPS in a folder and organize them as inputs for a MTP.
 
         Args:
@@ -321,7 +319,7 @@ class MTPWithMLIP3(MTPotential):
             inputs for MTP in the MTPInputs dataclass
         """
         lammps_outputs, thermo_outputs = crawl_lammps_directory(root_data_dir, mode)
-        mtp_dataset = prepare_mtp_inputs_from_lammps(
+        mtp_dataset = prepare_mlip_inputs_from_lammps(
             lammps_outputs, thermo_outputs, atom_dict, get_forces=get_forces
         )
         return mtp_dataset
@@ -334,7 +332,7 @@ class MTPWithMLIP3(MTPotential):
         energy: float,
         atom_type: np.ndarray,
         atom_dict: Dict[int, str] = {1: "Si"},
-    ) -> MTPInputs:
+    ) -> MLIPInputs:
         """Convert numpy array variables to a format compatible with MTP.
 
         Args:
@@ -357,10 +355,10 @@ class MTPWithMLIP3(MTPotential):
         forces = (
             forces.tolist()
         )  # from Nx3 np array to a list of length N where each element is a list of 3 forces
-        return MTPInputs(structure=[structure], forces=[forces], energy=[energy])
+        return MLIPInputs(structure=[structure], forces=[forces], energy=[energy])
 
     @staticmethod
-    def merge_inputs(mtp_inputs: List[MTPInputs]) -> MTPInputs:
+    def merge_inputs(mtp_inputs: List[MLIPInputs]) -> MLIPInputs:
         """Merge a list of MTPInputs in a single MTPInputs.
 
         Args:
@@ -369,12 +367,12 @@ class MTPWithMLIP3(MTPotential):
         Returns:
             merged MTPInputs
         """
-        merged_inputs = MTPInputs(structure=[], forces=[], energy=[])
+        merged_inputs = MLIPInputs(structure=[], forces=[], energy=[])
         for x in mtp_inputs:
-            merged_inputs = concat_mtp_inputs(merged_inputs, x)
+            merged_inputs = concat_mlip_inputs(merged_inputs, x)
         return merged_inputs
 
-    def train(self, dataset: MTPInputs, mlip_name: str = "mtp_fitted.almtp") -> str:
+    def train(self, dataset: MLIPInputs, mlip_name: str = "mtp_fitted.almtp") -> str:
         """Training data with moment tensor method using MLIP-3.
 
         Override the base class method.

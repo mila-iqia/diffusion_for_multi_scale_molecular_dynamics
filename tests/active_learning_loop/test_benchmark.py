@@ -18,10 +18,14 @@ class TestActiveLearningLoop:
             key2: value2
         structure_evaluation:
             key3: value3
+            criteria_threshold: None
         repainting_model:
             key4: value4
         oracle:
             key5: value5
+            elements: [fire, earth, air, water]
+            box: [1, 2, 3]
+            name: fake_oracle
         """
 
     @pytest.fixture
@@ -34,13 +38,40 @@ class TestActiveLearningLoop:
         mocker.patch("builtins.open", mock_open(read_data=mock_yaml_config))
         # Mock os.path.exists to always return True
         mocker.patch("os.path.exists", return_value=True)
+
         # Mock the instantiate function from hydra.utils
+        # Create a mock object for structure_evaluation with the required attributes
+        class MockEvalConfig:
+            def __init__(self, config_dict):
+                self.criteria_threshold = config_dict.get("criteria_threshold", "None")
+                self.key3 = config_dict["key3"]
+                config_dict["criteria_threshold"] = None
+                self.config_as_dict = config_dict
+                # Add any other attributes that your eval_config should have
+
+        # Modify the instantiate mock to return proper objects
+        def mock_instantiate_side_effect(config):
+            if isinstance(config, dict) and "criteria_threshold" in config.keys():
+                return MockEvalConfig(config)
+            return config
+
         mock_instantiate = mocker.patch(
             "diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.benchmark.instantiate"
         )
         mock_instantiate.side_effect = (
-            lambda x: x
-        )  # Return the config itself for simplicity
+            mock_instantiate_side_effect  # Return the config itself for simplicity
+        )
+
+        mock_oracle_params = mocker.patch(
+            "diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.benchmark."
+            + "create_energy_oracle_parameters"
+        )
+        mock_oracle_params.side_effect = lambda x, y: x
+
+        mock_oracle = mocker.patch(
+            "diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.benchmark.create_energy_oracle"
+        )
+        mock_oracle.side_effect = lambda x: x
 
         # Create an instance of ActiveLearningLoop
         loop = ActiveLearningLoop(meta_config)
@@ -51,9 +82,12 @@ class TestActiveLearningLoop:
         # Assertions to verify that the attributes were correctly set
         assert mock_al_loop.data_paths == {"key1": "value1"}
         assert mock_al_loop.mlip_model == {"key2": "value2"}
-        assert mock_al_loop.eval_config == {"key3": "value3"}
+        assert mock_al_loop.eval_config.config_as_dict == {
+            "criteria_threshold": None,
+            "key3": "value3",
+        }
         assert mock_al_loop.structure_generation == {"key4": "value4"}
-        assert mock_al_loop.oracle == {"key5": "value5"}
+        assert mock_al_loop.oracle == {"key5": "value5", "name": "fake_oracle"}
 
         # Verify that the file was opened and the path was checked
         open.assert_called_once_with(meta_config, "r")
@@ -76,12 +110,12 @@ class TestActiveLearningLoop:
         # Verify the methods were called with expected parameters
         mock_mlip_model.prepare_dataset_from_lammps.assert_called_once_with(
             root_data_dir="mock_training_data_dir",
-            atom_dict=mock_al_loop.atom_dict,
+            atom_dict=mock_al_loop.index_to_atom_name,
             mode="train",
         )
 
         mock_mlip_model.train.assert_called_once_with(
-            "mock_training_set", mlip_name="mlip_round_1"
+            "mock_training_set", mlip_output_filename="mlip_round_1"
         )
 
         # Verify the trained model path is correctly returned
@@ -97,7 +131,7 @@ class TestActiveLearningLoop:
         # The prepare_dataset_from_lammps should not be called since we provided a training_set
         mock_mlip_model.prepare_dataset_from_lammps.assert_called_once()  # No new call
         mock_mlip_model.train.assert_called_with(
-            custom_training_set, mlip_name="mlip_round_2"
+            custom_training_set, mlip_output_filename="mlip_round_2"
         )
 
         assert result == "mock_trained_mlip_model"
@@ -125,12 +159,12 @@ class TestActiveLearningLoop:
         loop.data_paths = MagicMock(evaluation_data_dir="mock_evaluation_data_dir")
 
         # Run the evaluate_mlip method without specifying mlip_name
-        result_df = loop.evaluate_mlip(round=1)
+        _, result_df = loop.evaluate_mlip(round=1)
 
         # Verify the prepare_dataset_from_lammps method was called with expected parameters
         mock_mlip_model.prepare_dataset_from_lammps.assert_called_once_with(
             root_data_dir="mock_evaluation_data_dir",
-            atom_dict=loop.atom_dict,
+            atom_dict=loop.index_to_atom_name,
             mode="evaluation",
             get_forces=True,
         )
@@ -145,7 +179,7 @@ class TestActiveLearningLoop:
 
         # Run the evaluate_mlip method with a custom mlip_name
         custom_mlip_name = "custom_mlip.almtp"
-        result_df = loop.evaluate_mlip(round=2, mlip_name=custom_mlip_name)
+        _, result_df = loop.evaluate_mlip(round=2, mlip_name=custom_mlip_name)
 
         # The evaluate method should be called with the custom mlip_name
         mock_mlip_model.evaluate.assert_called_with(
@@ -159,7 +193,7 @@ class TestActiveLearningLoop:
 
         mock_mlip_model.prepare_dataset_from_lammps.assert_called_with(
             root_data_dir="mock_evaluation_data_dir",
-            atom_dict=loop.atom_dict,
+            atom_dict=loop.index_to_atom_name,
             mode="evaluation",
             get_forces=False,
         )

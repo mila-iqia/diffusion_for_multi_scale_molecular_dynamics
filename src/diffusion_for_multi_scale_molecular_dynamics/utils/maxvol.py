@@ -78,7 +78,7 @@ def maxvol(
     # float numbers
     try:
         ger = get_blas_funcs("geru", [C])
-    except RuntimeError:
+    except (RuntimeError, ValueError):
         ger = get_blas_funcs("ger", [C])
     # set number of iters to 0
     iters = 0
