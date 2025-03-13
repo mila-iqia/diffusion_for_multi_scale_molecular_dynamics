@@ -8,12 +8,12 @@ import yaml
 from pymatgen.core import Structure
 from sklearn.metrics import mean_absolute_error
 
+from diffusion_for_multi_scale_molecular_dynamics.models.mlip.mtp import (
+    MTPArguments, MTPWithMLIP3)
 from diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils import (
     MLIPInputs, extract_energy_from_thermo_log,
     extract_structure_and_forces_from_file, get_metrics_from_pred,
     prepare_mlip_inputs_from_lammps)
-from diffusion_for_multi_scale_molecular_dynamics.models.mlip.mtp import (
-    MTPArguments, MTPWithMLIP3)
 
 
 class FakeStructure:
