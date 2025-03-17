@@ -7,12 +7,16 @@ import warnings
 from functools import partial
 from typing import List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 
 from diffusion_for_multi_scale_molecular_dynamics.data.parse_lammps_outputs import \
     parse_lammps_output
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
+    RELATIVE_COORDINATES)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_numpy_unit_cell_to_lattice_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -205,14 +209,19 @@ class LammpsProcessorForDiffusion:
             partial(self._flatten_positions_in_row, keys=["fx", "fy", "fz"]), axis=1
         )
 
+        df[LATTICE_PARAMETERS] = df.apply(
+            self._convert_box_to_lattice_parameters, axis=1
+        )
+
         return df[
             [
                 "natom",
-                "box",
+                "box",  # TODO remove
                 "element",
                 "potential_energy",
                 CARTESIAN_POSITIONS,
                 RELATIVE_COORDINATES,
+                LATTICE_PARAMETERS,
                 CARTESIAN_FORCES,
             ]
         ]
@@ -238,3 +247,7 @@ class LammpsProcessorForDiffusion:
         )
 
         return flat_positions
+
+    @staticmethod
+    def _convert_box_to_lattice_parameters(row: pd.Series) -> List[float]:
+        return map_numpy_unit_cell_to_lattice_parameters(np.diag(row["box"]))

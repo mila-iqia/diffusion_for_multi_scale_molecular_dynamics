@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 import torch
 
@@ -21,9 +21,6 @@ class SamplingParameters:
     # iterate up to number_of_samples with batches of this size
     # if None, use number_of_samples as batchsize
     sample_batchsize: Optional[int] = None
-    cell_dimensions: List[
-        float
-    ]  # unit cell dimensions; the unit cell is assumed to be an orthogonal box.  TODO replace with AXL-L
     record_samples: bool = (
         False  # should the predictor and corrector steps be recorded to a file
     )
@@ -36,7 +33,7 @@ class AXLGenerator(ABC):
 
     @abstractmethod
     def sample(
-        self, number_of_samples: int, device: torch.device, unit_cell: torch.Tensor
+        self, number_of_samples: int, device: torch.device,
     ) -> AXL:
         """Sample.
 
@@ -45,8 +42,6 @@ class AXLGenerator(ABC):
         Args:
             number_of_samples : number of samples to draw.
             device: device to use (cpu, cuda, etc.). Should match the PL model location.
-            unit_cell: unit cell definition in Angstrom.
-                Tensor of dimensions [number_of_samples, spatial_dimension, spatial_dimension]
 
         Returns:
             AXL samples: samples as AXL namedtuple with atom types, reduced coordinates and lattice vectors.

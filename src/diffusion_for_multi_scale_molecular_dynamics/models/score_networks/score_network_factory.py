@@ -3,6 +3,8 @@ from typing import Any, AnyStr, Dict
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
     ScoreNetwork, ScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.diffusion_mace_score_network import (
     DiffusionMACEScoreNetwork, DiffusionMACEScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import (
@@ -18,12 +20,14 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.configuration_parsing im
     create_parameters_from_configuration_dictionary
 
 SCORE_NETWORKS_BY_ARCH = dict(
+    analytical=AnalyticalScoreNetwork,
     mlp=MLPScoreNetwork,
     mace=MACEScoreNetwork,
     diffusion_mace=DiffusionMACEScoreNetwork,
     egnn=EGNNScoreNetwork,
 )
 SCORE_NETWORK_PARAMETERS_BY_ARCH = dict(
+    analytical=AnalyticalScoreNetworkParameters,
     mlp=MLPScoreNetworkParameters,
     mace=MACEScoreNetworkParameters,
     diffusion_mace=DiffusionMACEScoreNetworkParameters,
