@@ -10,16 +10,19 @@ from diffusion_for_multi_scale_molecular_dynamics.models.graph_utils import \
     get_adj_matrix
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_lattice_parameters_to_unit_cell_vectors
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_noisy_axl_lattice_parameters_to_unit_cell_vectors)
 
 
-def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
+def input_to_mace(
+    x: Dict[AnyStr, torch.Tensor], radial_cutoff: float, unit_cell_cutoff: float = 4.0
+) -> Data:
     """Convert score network input to MACE input.
 
     Args:
         x: score network input dictionary
         radial_cutoff : largest distance between neighbors.
+        unit_cell_cutoff: minimal box cutoff in Angstrom.. Useful for noisy lattice parameters. Defaults to 4.0.
 
     Returns:
         pytorch-geometric graph data compatible with MACE forward
@@ -27,11 +30,10 @@ def input_to_mace(x: Dict[AnyStr, torch.Tensor], radial_cutoff: float) -> Data:
     noisy_cartesian_positions = x[NOISY_CARTESIAN_POSITIONS]
     batch_size, n_atom_per_graph, spatial_dimension = noisy_cartesian_positions.shape
 
-    clipped_lattice_parameters = x[NOISY_AXL_COMPOSITION].L.clip(
-        min=2.2 * radial_cutoff
+    cell = map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
+        x[NOISY_AXL_COMPOSITION].L,
+        min_box_size=unit_cell_cutoff,
     )
-    clipped_lattice_parameters[:, spatial_dimension:] = 0
-    cell = map_lattice_parameters_to_unit_cell_vectors(clipped_lattice_parameters)
     # cell is batch, spatial_dimension, spatial_dimension
 
     device = noisy_cartesian_positions.device
@@ -236,7 +238,7 @@ def reshape_from_mace_to_e3nn(x: torch.Tensor, irreps: o3.Irreps) -> torch.Tenso
     x_ = []
     for ell in range(irreps.lmax + 1):
         # for example, for l=1, take indices 1, 2, 3 (in the last index) and flatten as a channel * 3 tensor
-        x_l = x[:, :, (ell**2) : (ell + 1) ** 2].reshape(
+        x_l = x[:, :, (ell**2):(ell + 1) ** 2].reshape(
             node, -1
         )  # node, channel * (2l + 1)
         x_.append(x_l)

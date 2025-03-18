@@ -8,7 +8,9 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_POSITIONS, UNIT_CELL)
+    ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_POSITIONS, LATTICE_PARAMETERS)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_lattice_parameters_to_unit_cell_vectors
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ class EnergyOracle:
         Args:
             samples:  a dictionary assumed to contain the fields
                         - CARTESIAN_POSITIONS
-                        - UNIT_CELL
+                        - AXL_COMPOSITION
 
         Returns:
             energies: a numpy array with the computed energies.
@@ -57,20 +59,22 @@ class EnergyOracle:
         ), f"the field '{CARTESIAN_POSITIONS}' must be present in the sample dictionary"
 
         assert (
-            UNIT_CELL in samples
-        ), f"the field '{UNIT_CELL}' must be present in the sample dictionary"
+            LATTICE_PARAMETERS in samples or AXL_COMPOSITION in samples
+        ), f"the field '{LATTICE_PARAMETERS}' or '{AXL_COMPOSITION}' must be present in the sample dictionary"
 
         assert (
             AXL_COMPOSITION in samples or ATOM_TYPES in samples
         ), f"the field '{AXL_COMPOSITION}' or '{ATOM_TYPES}' must be present in the sample dictionary"
 
-        if isinstance(samples[UNIT_CELL], torch.Tensor):
-            # Dimension [batch_size, space_dimension, space_dimension]
-            batched_basis_vectors = (
-                samples[UNIT_CELL].detach().cpu().numpy()
-            )  # TODO: use the AXL_COMPOSITION
-        else:
-            batched_basis_vectors = samples[UNIT_CELL]
+        # Dimension [batch_size, space_dimension, space_dimension]
+        lattice_parameters = (
+            samples[LATTICE_PARAMETERS]
+            if LATTICE_PARAMETERS in samples
+            else samples[AXL_COMPOSITION].L
+        )
+        batched_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
+            lattice_parameters.detach().cpu()
+        ).numpy()
 
         # Dimension [batch_size, number_of_atoms, space_dimension]
         if isinstance(samples[CARTESIAN_POSITIONS], torch.Tensor):

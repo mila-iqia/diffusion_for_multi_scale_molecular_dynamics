@@ -225,3 +225,32 @@ def map_unit_cell_to_lattice_parameters(
 def map_numpy_unit_cell_to_lattice_parameters(unit_cell: np.ndarray) -> np.ndarray:
     """Call map_unit_cell_to_lattice_parameters for numpy."""
     return map_unit_cell_to_lattice_parameters(unit_cell, engine="numpy")
+
+
+def map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
+    lattice_parameters: torch.Tensor,
+    min_box_size: float = 4.0,
+) -> torch.Tensor:
+    """Map the lattice parameters in an AXL namedtuple back to vectors used to describe the lattice explicitly.
+
+    The lattice parameters are a set of spatial dimension x (spatial dimension + 1) / 2 variables describing the length
+    of the vectors and the angles.
+    TODO we are currently assuming the angles to be fixed at 90 degrees.
+
+    Args:
+        lattice_parameters: lattice parameters used in AXL diffusion model i.e. the vector norms and angles.
+            Dimension: [..., spatial dimension x (spatial dimension + 1) / 2]
+        min_box_size (optional): minimal box size in Angstrom. Unit cell vectors are clipped so they are at least this
+            size. Defaults to 4.0.
+
+    Returns:
+        unit_cell_vectors: unit vectors. Dimension: [..., spatial dimension, spatial dimension].
+    """
+    last_dim_size = lattice_parameters.shape[-1]
+    spatial_dimension = get_spatial_dimension_from_number_of_lattice_parameters(
+        last_dim_size
+    )
+    lattice_parameters = lattice_parameters.clip(min=min_box_size)
+    lattice_parameters[:, spatial_dimension:] = 0.0
+
+    return map_lattice_parameters_to_unit_cell_vectors(lattice_parameters)

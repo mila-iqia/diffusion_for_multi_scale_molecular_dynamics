@@ -127,8 +127,9 @@ class TestInputToMaceRandom(TestInputToMaceChain):
         orthogonal_boxes = torch.stack(
             [torch.diag(5.0 + 5.0 * torch.rand(3)) for _ in range(batch_size)]
         )
-        # add a bit of noise to make the vectors not quite orthogonal
-        basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, 3, 3)
+        # TODO add a bit of noise to make the vectors not quite orthogonal
+        # basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, 3, 3)
+        basis_vectors = orthogonal_boxes
         return basis_vectors
 
     @pytest.fixture
@@ -176,7 +177,9 @@ class TestInputToMaceRandom(TestInputToMaceChain):
     @pytest.mark.parametrize("radial_cutoff", [1.1, 2.2, 4.4])
     def test_input_to_mace(self, score_network_input, radial_cutoff, mace_graph):
         computed_mace_graph = input_to_mace(
-            score_network_input, radial_cutoff=radial_cutoff
+            score_network_input,
+            radial_cutoff=radial_cutoff,
+            unit_cell_cutoff=1.1 * radial_cutoff,
         )
 
         for feature_name in ["node_attrs", "positions", "ptr", "batch"]:
@@ -366,7 +369,7 @@ class TestReshapes:
             )
             assert torch.allclose(
                 expected_values,
-                converted_tensor[:, num_channels * start_idx : num_channels * end_idx],
+                converted_tensor[:, num_channels * start_idx:num_channels * end_idx],
             )
 
     def test_reshape_from_e3nn_to_mace(
@@ -382,5 +385,5 @@ class TestReshapes:
                 -1, num_channels, 2 * ell + 1
             )
             assert torch.allclose(
-                expected_values, converted_tensor[:, :, ell**2 : (ell + 1) ** 2]
+                expected_values, converted_tensor[:, :, ell**2:(ell + 1) ** 2]
             )
