@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import norm
 
-from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -22,18 +22,14 @@ imin = -1
 imax = 2
 if __name__ == "__main__":
 
-    fig1 = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    fig3 = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    list_figs = [fig1, fig2, fig3]
-
     x = np.linspace(imin, imax, 1001)
 
     x_in_cell = np.linspace(0, 1, 1001)
 
     list_locs = np.arange(-8, 9) + 0.5
 
-    for fig, sigma, color in zip(list_figs, list_sigmas, list_colors):
+    for sigma, color in zip(list_sigmas, list_colors):
+        fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
         fig.suptitle(f"Gaussian vs. Wrapped Gaussian for $\\sigma = {sigma}$")
         ax = fig.add_subplot(111)
         in_cell_gaussian = norm(loc=0.5, scale=sigma).pdf(x_in_cell)
@@ -67,7 +63,8 @@ if __name__ == "__main__":
 
         fig.tight_layout()
         fig.savefig(
-            ANALYSIS_RESULTS_DIR.joinpath(
+            PLOTS_OUTPUT_DIRECTORY.joinpath(
                 f"Gaussian_vs_Wrapped_Gaussian_sigma={sigma}.png"
             )
         )
+        plt.show()
