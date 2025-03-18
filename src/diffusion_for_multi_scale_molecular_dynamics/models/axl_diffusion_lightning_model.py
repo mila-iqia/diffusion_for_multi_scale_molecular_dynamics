@@ -28,16 +28,6 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISY_AXL_COMPOSITION, NOISY_LATTICE_PARAMETERS,
     NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES, Q_BAR_TM1_MATRICES, Q_MATRICES,
     RELATIVE_COORDINATES, TIME, TIME_INDICES)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
-    NoiseScheduler
-from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
-    AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import (
-    LatticeDataParameters, LatticeNoiser)
-from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
-    RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
@@ -81,7 +71,6 @@ class AXLDiffusionParameters:
     regularizer_parameters: Optional[RegularizerParameters] = None
     diffusion_sampling_parameters: Optional[DiffusionSamplingParameters] = None
     oracle_parameters: Optional[OracleParameters] = None
-    lattice_parameters: LatticeDataParameters
 
 
 class AXLDiffusionLightningModel(pl.LightningModule):
@@ -122,18 +111,6 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             A=hyper_params.loss_parameters.A.lambda_weight,
             X=hyper_params.loss_parameters.X.lambda_weight,
             L=hyper_params.loss_parameters.L.lambda_weight,
-        )
-
-        # noisy samplers for atom types, coordinates and lattice vectors
-        self.noisers = AXL(
-            A=AtomTypesNoiser(),
-            X=RelativeCoordinatesNoiser(),
-            L=LatticeNoiser(hyper_params.lattice_parameters),
-        )
-
-        self.noise_scheduler = NoiseScheduler(
-            hyper_params.noise_parameters,
-            num_classes=self.num_atom_types + 1,  # add 1 for the MASK class
         )
 
         self.generator = None
@@ -292,7 +269,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                                            space=l0.shape[-1])
         # same values as for X diffusion, but different shape
         num_atoms = (
-                torch.ones_like(l0) * a0.shape[1]
+            torch.ones_like(l0) * a0.shape[1]
         )  # TODO should depend on data - not a constant
         # num_atoms should be broadcasted to match sigmas_for_lattice
         sigmas_n = scale_sigma_by_number_of_atoms(

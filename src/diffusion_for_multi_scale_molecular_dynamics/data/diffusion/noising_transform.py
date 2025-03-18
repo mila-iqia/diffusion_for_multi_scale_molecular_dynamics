@@ -13,8 +13,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_schedul
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
     AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
-    LatticeNoiser
+from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import (
+    LatticeDataParameters, LatticeNoiser)
 from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
     RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
@@ -59,7 +59,7 @@ class NoisingTransform:
         self.noisers = AXL(
             A=AtomTypesNoiser(),
             X=RelativeCoordinatesNoiser(),
-            L=LatticeNoiser(),
+            L=LatticeNoiser(LatticeDataParameters(spatial_dimension=spatial_dimension)),
         )
 
         if self.use_optimal_transport:

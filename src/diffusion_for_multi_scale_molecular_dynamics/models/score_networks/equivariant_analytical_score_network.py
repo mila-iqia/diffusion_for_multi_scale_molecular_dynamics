@@ -9,7 +9,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
+    get_coordinates_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
     Transporter
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
@@ -176,7 +176,7 @@ class EquivariantAnalyticalScoreNetwork(ScoreNetwork):
         mu_invariant = self.get_nearest_equilibrium_coordinates(xt)
 
         u = map_relative_coordinates_to_unit_cell(x_invariant - mu_invariant)
-        effective_sigma_normalized_scores = get_sigma_normalized_score(
+        effective_sigma_normalized_scores = get_coordinates_sigma_normalized_score(
             u, effective_sigmas, self.kmax
         )
         sigma_normalized_scores = (
