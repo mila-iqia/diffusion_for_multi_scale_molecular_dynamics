@@ -23,7 +23,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.geometric_utils import \
     get_cubic_point_group_symmetries
-from experiments.analysis.analytic_score.utils import get_silicon_supercell
+from diffusion_for_multi_scale_molecular_dynamics.utils.reference_configurations import \
+    get_silicon_supercell
 from tests.models.score_network.base_test_score_network import \
     BaseTestScoreNetwork
 
