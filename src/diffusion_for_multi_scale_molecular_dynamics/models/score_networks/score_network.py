@@ -19,6 +19,7 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import get_number_of_lattice_parameters
 
 
 @dataclass(kw_only=True)
@@ -35,6 +36,9 @@ class ScoreNetworkParameters:
         2.0  # conditional score weighting - see eq. B45 in MatterGen
     )
     # p_\gamma(x|c) = p(c|x)^\gamma p(x)
+
+    def __post_init__(self):
+        self.num_lattice_parameters = get_number_of_lattice_parameters(self.spatial_dimension)
 
 
 class ScoreNetwork(torch.nn.Module):

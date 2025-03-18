@@ -130,9 +130,9 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             )
             if self.metrics_parameters.compute_structure_factor:
                 self.structure_ks_metric = KolmogorovSmirnovMetrics()
-            if self.metrics_parameters.compute_lattice_parameters:
+            if self.metrics_parameters.record_lattice_parameters:
                 num_lattice_parameters = get_number_of_lattice_parameters(
-                    self.hyper_params.lattice_parameters.spatial_dimension
+                    self.hyper_params.score_network_parameters.spatial_dimension
                 )
                 self.lattice_parameters_ks_metrics = [
                     KolmogorovSmirnovMetrics() for _ in range(num_lattice_parameters)
@@ -515,7 +515,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         if self.draw_samples and (
             self.metrics_parameters.compute_structure_factor
-            or self.metrics_parameters.compute_lattice_parameters
+            or self.metrics_parameters.record_lattice_parameters
         ):
             lattice_parameters = output[AXL_COMPOSITION].L
 
@@ -537,7 +537,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                     reference_distances.cpu()
                 )
 
-            if self.metrics_parameters.compute_lattice_parameters:
+            if self.metrics_parameters.record_lattice_parameters:
                 for i in range(len(self.lattice_parameters_ks_metrics)):
                     self.lattice_parameters_ks_metrics[i].register_reference_samples(
                         lattice_parameters[:, i].cpu()
@@ -659,7 +659,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             )
             logger.info("       * Done logging sample distances")
 
-        if self.draw_samples and self.metrics_parameters.compute_lattice_parameters:
+        if self.draw_samples and self.metrics_parameters.record_lattice_parameters:
             logger.info("       * Registering lattice parameters")
             lattice_parameters = samples_batch[AXL_COMPOSITION].L
 
@@ -701,7 +701,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
 
-        if self.draw_samples and self.metrics_parameters.compute_lattice_parameters:
+        if self.draw_samples and self.metrics_parameters.record_lattice_parameters:
             for i in range(len(self.lattice_parameters_ks_metrics)):
                 self.lattice_parameters_ks_metrics[i].reset()
 
@@ -717,7 +717,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         if self.draw_samples and self.metrics_parameters.compute_structure_factor:
             self.structure_ks_metric.reset()
 
-        if self.draw_samples and self.metrics_parameters.compute_lattice_parameters:
+        if self.draw_samples and self.metrics_parameters.record_lattice_parameters:
             for i in range(len(self.lattice_parameters_ks_metrics)):
                 self.lattice_parameters_ks_metrics[i].reset()
 

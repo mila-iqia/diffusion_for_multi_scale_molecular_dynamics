@@ -87,17 +87,12 @@ def sampling_parameters(
 
 
 @pytest.fixture()
-def lattice_parameters(spatial_dimension):
-    return LatticeDataParameters(spatial_dimension=spatial_dimension)
-
-
-@pytest.fixture()
 def loss_parameters():
     return create_loss_parameters({})
 
 
 @pytest.fixture()
-def axl_network(number_of_atoms, noise_parameters, num_atom_types, lattice_parameters, loss_parameters):
+def axl_network(number_of_atoms, noise_parameters, num_atom_types, loss_parameters):
     score_network_parameters = MLPScoreNetworkParameters(
         number_of_atoms=number_of_atoms,
         num_atom_types=num_atom_types,
@@ -116,7 +111,6 @@ def axl_network(number_of_atoms, noise_parameters, num_atom_types, lattice_param
         optimizer_parameters=OptimizerParameters(name="adam", learning_rate=1e-3),
         scheduler_parameters=None,
         diffusion_sampling_parameters=None,
-        lattice_parameters=lattice_parameters
     )
 
     model = AXLDiffusionLightningModel(diffusion_params)

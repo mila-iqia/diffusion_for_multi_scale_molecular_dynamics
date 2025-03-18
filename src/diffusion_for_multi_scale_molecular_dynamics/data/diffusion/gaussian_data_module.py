@@ -14,11 +14,11 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transfo
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, RELATIVE_COORDINATES)
+    ATOM_TYPES, CARTESIAN_FORCES, LATTICE_PARAMETERS, RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell, map_unit_cell_to_lattice_parameters)
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,7 @@ class GaussianDataModule(pl.LightningDataModule):
     def get_raw_dataset(self, batch_size: int, rng: torch.Generator):
         """Get raw dataset."""
         box = torch.ones(batch_size, self.spatial_dimension, dtype=torch.float)
+        lattice_parameters = map_unit_cell_to_lattice_parameters(torch.diag_embed(box))
         atom_types = torch.zeros(batch_size, self.number_of_atoms, dtype=torch.long)
 
         mean = einops.repeat(
@@ -124,7 +125,7 @@ class GaussianDataModule(pl.LightningDataModule):
 
         raw_dataset = {
             "natom": natoms,
-            "box": box,
+            LATTICE_PARAMETERS: lattice_parameters,
             RELATIVE_COORDINATES: relative_coordinates,
             ATOM_TYPES: atom_types,
             CARTESIAN_FORCES: torch.zeros_like(relative_coordinates),
