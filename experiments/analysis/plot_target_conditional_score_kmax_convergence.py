@@ -1,7 +1,7 @@
-"""Plot Target Conditional Score.
+"""Plot Target Conditional Score kmax convergence.
 
 This script computes and plots the target conditional score for various values of sigma, showing
-that the 'smart' implementation converges quickly and is equal to the expected brute force value.
+that the 'smart' implementation converges quickly with respect to kmax and is equal to the expected brute force value.
 """
 
 import matplotlib.pyplot as plt
