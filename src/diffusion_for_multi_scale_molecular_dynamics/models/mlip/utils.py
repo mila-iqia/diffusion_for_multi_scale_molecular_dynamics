@@ -11,7 +11,7 @@ from sklearn.metrics import mean_absolute_error
 
 
 @dataclass(kw_only=True)
-class MTPInputs:
+class MLIPInputs:
     """Create a dataclass to train or evaluate a MTP model."""
 
     structure: List[Structure]
@@ -47,10 +47,8 @@ def extract_structure_and_forces_from_file(
             lattice = np.zeros((3, 3))
             for i, x in enumerate(d["box"]):
                 lattice[i, i] = x[1]
-            type_idx = d["keywords"].index("type")
-            species = [
-                atom_dict[x[type_idx]] for x in d["data"]
-            ]  # convert to atom type
+            type_idx = d["keywords"].index("element")
+            species = [x[type_idx] for x in d["data"]]
             coords_idx = [d["keywords"].index(x) for x in ["x", "y", "z"]]
             coords = [[x[i] for i in coords_idx] for x in d["data"]]
             pm_structure = Structure(
@@ -84,12 +82,12 @@ def extract_energy_from_thermo_log(filename: str) -> List[float]:
     return energies
 
 
-def prepare_mtp_inputs_from_lammps(
+def prepare_mlip_inputs_from_lammps(
     output_yaml: List[str],
     thermo_yaml: List[str],
     atom_dict: Dict[int, Any],
     get_forces: bool = True,
-) -> MTPInputs:
+) -> MLIPInputs:
     """Convert a list of LAMMPS output files and thermodynamic output files to MTP input format.
 
     Args:
@@ -110,7 +108,7 @@ def prepare_mtp_inputs_from_lammps(
         mtp_inputs["forces"] += forces  # will be None if get_forces is False
     for filename in thermo_yaml:
         mtp_inputs["energy"] += extract_energy_from_thermo_log(filename)
-    mtp_inputs = MTPInputs(
+    mtp_inputs = MLIPInputs(
         structure=mtp_inputs["structure"],
         energy=mtp_inputs["energy"],
         forces=mtp_inputs["forces"],
@@ -150,17 +148,17 @@ def crawl_lammps_directory(
     return lammps_output_files, thermo_output_files
 
 
-def concat_mtp_inputs(input1: MTPInputs, input2: MTPInputs) -> MTPInputs:
-    """Merge two MTP inputs data class.
+def concat_mlip_inputs(input1: MLIPInputs, input2: MLIPInputs) -> MLIPInputs:
+    """Merge two MLIP inputs data class.
 
     Args:
-        input1: first MTPInputs dataset
-        input2: second MTPInputs dataset
+        input1: first MLIPInputs dataset
+        input2: second MLIPInputs dataset
 
     Returns:
         concatenated MTPInputs dataset
     """
-    concat_inputs = MTPInputs(
+    concat_inputs = MLIPInputs(
         structure=input1.structure + input2.structure,
         forces=input1.forces + input2.forces,
         energy=input1.energy + input2.energy,

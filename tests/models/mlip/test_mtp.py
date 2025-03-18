@@ -8,12 +8,12 @@ import yaml
 from pymatgen.core import Structure
 from sklearn.metrics import mean_absolute_error
 
-from diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils import (
-    MTPInputs, extract_energy_from_thermo_log,
-    extract_structure_and_forces_from_file, get_metrics_from_pred,
-    prepare_mtp_inputs_from_lammps)
 from diffusion_for_multi_scale_molecular_dynamics.models.mlip.mtp import (
     MTPArguments, MTPWithMLIP3)
+from diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils import (
+    MLIPInputs, extract_energy_from_thermo_log,
+    extract_structure_and_forces_from_file, get_metrics_from_pred,
+    prepare_mlip_inputs_from_lammps)
 
 
 class FakeStructure:
@@ -74,7 +74,7 @@ def test_train(mocker, mock_popen, tmpdir):
     )
     model = MTPWithMLIP3(mtp_args)
     # Call the train method
-    mtp_inputs = MTPInputs(
+    mtp_inputs = MLIPInputs(
         structure=[FakeStructure(["H", "O"]), FakeStructure(["Si"])],
         forces=[],
         energy=[1, 2],
@@ -137,16 +137,16 @@ def test_evaluate(mocker, fake_structure, mtp_instance, mock_popen):
     mocker.patch("shutil.copyfile", return_value=None)
     mocker.patch("os.path.exists", return_value=True)
 
-    mtp_inputs = MTPInputs(
+    mtp_inputs = MLIPInputs(
         structure=test_structures, forces=test_forces, energy=test_energies
     )
 
     # Perform the test
-    df_orig, df_predict = mtp_instance.evaluate(mtp_inputs)
+    df_predict = mtp_instance.evaluate(mtp_inputs)
 
     # Assertions can vary based on the real output of `read_cfgs`
     # Here's an example assertion assuming `read_cfgs` returns a string in this mocked scenario
-    assert df_orig == "mock_dataframe" and df_predict == "mock_dataframe", (
+    assert df_predict == "mock_dataframe", (
         "Evaluate method should return mock" + "dataframes"
     )
 
@@ -154,7 +154,6 @@ def test_evaluate(mocker, fake_structure, mtp_instance, mock_popen):
 def test_read_cfgs(mtp_instance):
     cfg_path = Path(__file__).parent.joinpath("mtp_cfg_examples.txt")
     df = mtp_instance.read_cfgs(cfg_path, True)
-    print(df.keys())
     assert np.array_equal(df["x"], [0.1, 0.2, 0.3])
     assert np.array_equal(df["y"], [1.1, 1.2, 1.3])
     assert np.array_equal(df["z"], [2.1, 2.2, 2.3])
@@ -170,7 +169,7 @@ def test_extract_structure_and_forces_from_file(tmpdir):
     # Create a mock LAMMPS output
     yaml_content = {
         "box": [[0, 10], [0, 10], [0, 10]],  # x_lim, y_lim, z_lim
-        "keywords": ["x", "y", "z", "type", "fx", "fy", "fz"],
+        "keywords": ["x", "y", "z", "element", "fx", "fy", "fz"],
         "data": [[1, 1, 1, 1, 0.1, 0.2, 0.3], [2, 2, 2, 2, 0.4, 0.5, 0.6]],
     }
     yaml_file = os.path.join(tmpdir, "lammps.yaml")
@@ -237,7 +236,7 @@ def test_extract_energy_from_thermo_log(tmpdir):
 @pytest.fixture
 def mock_extract_energy_from_thermo_log(mocker):
     return mocker.patch(
-        "diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils.extract_energy_from_thermo_log",
+        "diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils.extract_energy_from_thermo_log",
         return_value=[],
     )
 
@@ -245,7 +244,7 @@ def mock_extract_energy_from_thermo_log(mocker):
 @pytest.fixture
 def mock_extract_structure_and_forces(mocker):
     return mocker.patch(
-        "diffusion_for_multi_scale_molecular_dynamics.mlip.mtp_utils.extract_structure_and_forces_from_file",
+        "diffusion_for_multi_scale_molecular_dynamics.models.mlip.utils.extract_structure_and_forces_from_file",
         return_value=([], []),
     )
 
@@ -267,7 +266,7 @@ def test_prepare_mtp_inputs_from_lammps(
     atom_dict = {1: "H", 2: "He"}
 
     # Call the function
-    mtp_inputs = prepare_mtp_inputs_from_lammps(
+    mtp_inputs = prepare_mlip_inputs_from_lammps(
         output_yaml_files, thermo_yaml_files, atom_dict
     )
 

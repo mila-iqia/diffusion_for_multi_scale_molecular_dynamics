@@ -75,12 +75,12 @@ def extract_target_region(
     # TODO better method to determine radius: number of atoms ?
     target_atom = structure_df[evaluation_criteria].idxmax()
     target_position = structure_df.loc[target_atom][["x", "y", "z"]]
-    # TODO periodicity...
+    # TODO periodicity... and pd warnings about .loc
     structure_df.loc[:, "distance_squared"] = structure_df.apply(
         lambda x: sum([(x[i] - target_position[i]) ** 2 for i in ["x", "y", "z"]]),
         axis=1,
     )
     atom_positions = structure_df.loc[
-        structure_df["distance_squared"] <= extraction_radius**2, ["x", "y", "z"]
+        structure_df["distance_squared"] <= extraction_radius**2, ["x", "y", "z", "species"]
     ]
     return atom_positions
