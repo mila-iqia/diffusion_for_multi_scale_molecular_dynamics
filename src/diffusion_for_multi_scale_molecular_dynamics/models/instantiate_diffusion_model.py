@@ -17,8 +17,6 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     create_score_network_parameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
-    LatticeDataParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle_parameters
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \
@@ -71,11 +69,6 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
         regularizer_parameters = create_regularizer_parameters(regularizer_dictionary=hyper_params["regularizer"],
                                                                global_parameters_dictionary=globals_dict)
 
-    lattice_parameters = dict(
-        spatial_dimension=globals_dict["spatial_dimension"],
-    )
-    lattice_parameters = LatticeDataParameters(**lattice_parameters)
-
     diffusion_params = AXLDiffusionParameters(
         score_network_parameters=score_network_parameters,
         loss_parameters=loss_parameters,
@@ -84,7 +77,6 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
         regularizer_parameters=regularizer_parameters,
         diffusion_sampling_parameters=diffusion_sampling_parameters,
         oracle_parameters=oracle_parameters,
-        lattice_parameters=lattice_parameters,
     )
 
     model = AXLDiffusionLightningModel(diffusion_params)

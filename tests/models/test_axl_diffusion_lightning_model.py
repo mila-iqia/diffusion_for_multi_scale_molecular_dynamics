@@ -189,13 +189,6 @@ class TestPositionDiffusionLightningModel:
         return lattice_params
 
     @pytest.fixture()
-    def lattice_parameters(self, unit_cell_size, spatial_dimension):
-        lattice_params = LatticeDataParameters(
-            spatial_dimension=spatial_dimension,
-        )
-        return lattice_params
-
-    @pytest.fixture()
     def sampling_parameters(
         self,
         number_of_atoms,
@@ -238,7 +231,6 @@ class TestPositionDiffusionLightningModel:
         loss_parameters,
         sampling_parameters,
         diffusion_sampling_parameters,
-        lattice_parameters,
     ):
         score_network_parameters = MLPScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
@@ -253,8 +245,6 @@ class TestPositionDiffusionLightningModel:
             spatial_dimension=spatial_dimension,
         )
 
-        noise_parameters = NoiseParameters(total_time_steps=15)
-
         oracle_parameters = OracleParameters(name="test", elements=unique_elements)
 
         hyper_params = AXLDiffusionParameters(
@@ -264,7 +254,6 @@ class TestPositionDiffusionLightningModel:
             loss_parameters=loss_parameters,
             diffusion_sampling_parameters=diffusion_sampling_parameters,
             oracle_parameters=oracle_parameters,
-            lattice_parameters=lattice_parameters,
         )
         return hyper_params
 
