@@ -9,6 +9,8 @@ from matplotlib import pyplot as plt
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.gaussian_data_module import (
+    GaussianDataModule, GaussianDataModuleParameters)
 from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import (
     ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
@@ -17,8 +19,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from experiments.generators_sanity_check import PLOTS_OUTPUT_DIRECTORY
 from experiments.generators_sanity_check.utils import (
-    DisplacementCalculator, generate_exact_samples,
-    standardize_sde_trajectory_data)
+    DisplacementCalculator, standardize_sde_trajectory_data)
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -36,12 +37,16 @@ cell_dimensions = [acell]
 number_of_samples = 1000
 
 list_sigma_d = [0.1, 0.01, 0.001]
+
 sigma_min = 0.001
 sigma_max = 0.5
 total_time_steps = 101
+noise_parameters = NoiseParameters(
+    total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=sigma_max)
 
 equilibrium_relative_coordinates_list = [[0.5]]
 equilibrium_relative_coordinates = torch.tensor(equilibrium_relative_coordinates_list)
+
 
 if __name__ == "__main__":
 
@@ -56,15 +61,29 @@ if __name__ == "__main__":
 
     for sigma_d in list_sigma_d:
 
-        exact_samples = generate_exact_samples(
-            equilibrium_relative_coordinates,
+        # We use the Gaussian Data Module to extract random relative coordinates distributed around
+        # the specified relative coordinates.
+        gaussian_datamodule_parameters = GaussianDataModuleParameters(
+            elements=['Dummy'],
+            noise_parameters=noise_parameters,
+            use_optimal_transport=False,
+            random_seed=42,
+            number_of_atoms=number_of_atoms,
+            spatial_dimension=spatial_dimension,
             sigma_d=sigma_d,
-            number_of_samples=number_of_samples,
-        )
+            equilibrium_relative_coordinates=equilibrium_relative_coordinates_list,
+            train_dataset_size=number_of_samples,
+            valid_dataset_size=1,
+            batch_size=number_of_samples)
 
-        exact_samples_displacements = displacement_calculator.compute_displacements(
-            exact_samples
-        )
+        gaussian_data_module = GaussianDataModule(gaussian_datamodule_parameters)
+        gaussian_data_module.setup()
+
+        # There is a single batch
+        for batch in gaussian_data_module.train_dataloader():
+            exact_samples = batch['relative_coordinates']
+
+        exact_samples_displacements = displacement_calculator.compute_displacements(exact_samples)
 
         score_network_parameters = AnalyticalScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
@@ -92,9 +111,6 @@ if __name__ == "__main__":
             cell_dimensions=cell_dimensions,
             record_samples=True,
         )
-
-        noise_parameters = NoiseParameters(
-            total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=sigma_max)
 
         generator = ExplodingVarianceSDEPositionGenerator(
             noise_parameters=noise_parameters,
