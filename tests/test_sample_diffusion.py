@@ -55,7 +55,7 @@ def noise_parameters():
     return NoiseParameters(total_time_steps=10)
 
 
-@pytest.fixture(params=[None, 0.0, 1.0])
+@pytest.fixture(params=[None, 0.0, 0.9])
 def radial_cutoff(request):
     return request.param
 
