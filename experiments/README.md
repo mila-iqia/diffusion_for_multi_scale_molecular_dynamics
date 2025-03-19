@@ -12,7 +12,7 @@ place to start to visualize the various ingredients that go into the constructio
 
 The various scripts will show plots on the matplotlib console and save figures in ./analysis/images/.
 
-## generators
+## generators_sanity_check
 The main entry point is the script
 > sde_generator_sanity_check.py
 

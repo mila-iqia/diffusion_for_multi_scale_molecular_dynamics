@@ -15,10 +15,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytic
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from experiments.generators import PLOTS_OUTPUT_DIRECTORY
-from experiments.generators.utils import (DisplacementCalculator,
-                                          generate_exact_samples,
-                                          standardize_sde_trajectory_data)
+from experiments.generators_sanity_check import PLOTS_OUTPUT_DIRECTORY
+from experiments.generators_sanity_check.utils import (
+    DisplacementCalculator, generate_exact_samples,
+    standardize_sde_trajectory_data)
 
 plt.style.use(PLOT_STYLE_PATH)
 
