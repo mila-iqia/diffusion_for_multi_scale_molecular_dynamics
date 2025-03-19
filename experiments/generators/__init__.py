@@ -1,3 +1,4 @@
 from pathlib import Path
 
-GENERATOR_SANITY_CHECK_DIRECTORY = Path(__file__).parent
+PLOTS_OUTPUT_DIRECTORY = Path(__file__).parent / "images"
+PLOTS_OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)

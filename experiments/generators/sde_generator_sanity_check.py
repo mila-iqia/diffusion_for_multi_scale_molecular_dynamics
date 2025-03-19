@@ -1,10 +1,9 @@
 """SDE Generator Sanity Check.
 
 Check that the SDE generator can solve simple SDEs in 1 dimension with the analytical score as the source of drift.
+This script solves the SDE for various values of the sigma_d parameter and creates plots.
 """
-
 import einops
-import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
@@ -13,70 +12,36 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
 from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import (
     ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetworkParameters, TargetScoreBasedAnalyticalScoreNetwork)
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
-from experiments.analysis.analytic_score.utils import get_exact_samples
-from experiments.generators import GENERATOR_SANITY_CHECK_DIRECTORY
+from experiments.generators import PLOTS_OUTPUT_DIRECTORY
+from experiments.generators.utils import (DisplacementCalculator,
+                                          generate_exact_samples,
+                                          standardize_sde_trajectory_data)
 
 plt.style.use(PLOT_STYLE_PATH)
 
-
-class DisplacementCalculator:
-    """Calculate the displacement distribution."""
-
-    def __init__(self, equilibrium_relative_coordinates: torch.Tensor):
-        """Init method."""
-        self.equilibrium_relative_coordinates = equilibrium_relative_coordinates
-
-    def compute_displacements(
-        self, batch_relative_coordinates: torch.Tensor
-    ) -> np.ndarray:
-        """Compute displacements."""
-        return (batch_relative_coordinates - equilibrium_relative_coordinates).flatten()
-
-
-def generate_exact_samples(
-    equilibrium_relative_coordinates: torch.Tensor,
-    sigma_d: float,
-    number_of_samples: int,
-):
-    """Generate Gaussian samples about the equilibrium relative coordinates."""
-    variance_parameter = sigma_d**2
-
-    number_of_atoms, spatial_dimension = equilibrium_relative_coordinates.shape
-    nd = number_of_atoms * spatial_dimension
-
-    inverse_covariance = torch.diag(torch.ones(nd)) / variance_parameter
-    inverse_covariance = inverse_covariance.reshape(
-        number_of_atoms, spatial_dimension, number_of_atoms, spatial_dimension
-    )
-
-    exact_samples = get_exact_samples(
-        equilibrium_relative_coordinates, inverse_covariance, number_of_samples
-    )
-    exact_samples = map_relative_coordinates_to_unit_cell(exact_samples)
-    return exact_samples
-
-
 device = torch.device("cpu")
 
+# Define a very simple situation with a single "atom" in 1D.
 number_of_atoms = 1
 spatial_dimension = 1
+num_atom_types = 1
+
 kmax = 8
 acell = 1.0
 cell_dimensions = [acell]
-
-output_dir = GENERATOR_SANITY_CHECK_DIRECTORY / "figures"
-output_dir.mkdir(exist_ok=True)
 
 number_of_samples = 1000
 
 list_sigma_d = [0.1, 0.01, 0.001]
 sigma_min = 0.001
+sigma_max = 0.5
 total_time_steps = 101
+
+equilibrium_relative_coordinates_list = [[0.5]]
+equilibrium_relative_coordinates = torch.tensor(equilibrium_relative_coordinates_list)
 
 if __name__ == "__main__":
 
@@ -85,7 +50,6 @@ if __name__ == "__main__":
         unit_cell, "d1 d2 -> b d1 d2", b=number_of_samples
     )
 
-    equilibrium_relative_coordinates = torch.tensor([[0.5]])
     displacement_calculator = DisplacementCalculator(
         equilibrium_relative_coordinates=equilibrium_relative_coordinates
     )
@@ -105,23 +69,24 @@ if __name__ == "__main__":
         score_network_parameters = AnalyticalScoreNetworkParameters(
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
-            use_permutation_invariance=False,
+            num_atom_types=num_atom_types,
             kmax=kmax,
-            equilibrium_relative_coordinates=equilibrium_relative_coordinates,
-            variance_parameter=sigma_d**2,
+            equilibrium_relative_coordinates=equilibrium_relative_coordinates_list,
+            sigma_d=sigma_d,
         )
 
-        sigma_normalized_score_network = TargetScoreBasedAnalyticalScoreNetwork(
+        sigma_normalized_score_network = AnalyticalScoreNetwork(
             score_network_parameters
         )
 
         sampling_parameters = SDESamplingParameters(
             method="euler",
-            adaptative=False,
+            adaptive=False,
             absolute_solver_tolerance=1.0e-7,
             relative_solver_tolerance=1.0e-5,
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
+            num_atom_types=num_atom_types,
             number_of_samples=number_of_samples,
             sample_batchsize=number_of_samples,
             cell_dimensions=cell_dimensions,
@@ -129,24 +94,24 @@ if __name__ == "__main__":
         )
 
         noise_parameters = NoiseParameters(
-            total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=0.5
-        )
+            total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=sigma_max)
 
         generator = ExplodingVarianceSDEPositionGenerator(
             noise_parameters=noise_parameters,
             sampling_parameters=sampling_parameters,
-            sigma_normalized_score_network=sigma_normalized_score_network,
+            axl_network=sigma_normalized_score_network,
         )
 
+        # The generated samples are for positions only.
+        #   The array has dimensions [number_of_samples,number_of_atoms, spatial_dimension]
         generated_samples = generator.sample(
             number_of_samples, device=device, unit_cell=batched_unit_cells
         )
 
         sampled_x = generated_samples[:, 0, 0]
 
-        trajectory_data = generator.sample_trajectory_recorder.standardize_data(
-            generator.sample_trajectory_recorder.data
-        )
+        # extract a useful dictionary of the recorded data during sampling.
+        trajectory_data = standardize_sde_trajectory_data(generator.sample_trajectory_recorder)
 
         times = trajectory_data["time"]
         x = trajectory_data["relative_coordinates"][:, :, 0, 0]
@@ -189,4 +154,5 @@ if __name__ == "__main__":
         ax2.set_ylabel("Density")
         ax2.legend(loc="upper right", fancybox=True, shadow=True, ncol=1, fontsize=8)
         fig.tight_layout()
-        fig.savefig(output_dir / f"sde_solution_sigma_d={sigma_d}.png")
+        fig.savefig(PLOTS_OUTPUT_DIRECTORY / f"sde_solution_sigma_d={sigma_d}.png")
+        plt.show()
