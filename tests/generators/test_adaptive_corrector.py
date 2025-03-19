@@ -73,6 +73,8 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
         total_time_steps,
         number_of_samples,
         num_atomic_classes,
+        number_of_atoms,
+        spatial_dimension
     ):
         pc_generator.corrector_r = corrector_r
         sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes)
@@ -99,13 +101,11 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
         )
 
         z_coordinates_norm = torch.sqrt(
-            (z_coordinates**2).sum(dim=-1).sum(dim=-1)
-        ).mean(
-            dim=-1
-        )  # norm of z averaged over atoms
+            (z_coordinates**2).sum(dim=-1)
+        ).mean()  # norm of z
         z_lattice_norm = torch.sqrt(
             (z_lattice**2).sum(dim=-1)
-        )  # norm of z averaged over lattice parameters
+        ).mean()  # norm of z averaged over lattice parameters
 
         for index_i in range(0, total_time_steps):
             computed_sample = pc_generator.corrector_step(axl_i, index_i, forces)
@@ -137,7 +137,7 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
                 )
                 ** 2
             )
-            eps_i_coordinates = eps_i_coordinates.view(-1, 1, 1)
+            eps_i_coordinates = eps_i_coordinates.view(1, 1, 1)
 
             expected_coordinates = (
                 axl_i.X
@@ -151,9 +151,10 @@ class TestAdaptiveCorrectorGenerator(TestLangevinGenerator):
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
 
             # test lattice parameters update
-            s_i_lattice = model_predictions.L / sigma_i
+            sigma_i_for_lattice = sigma_i / (number_of_atoms ** (1 / spatial_dimension))
+            s_i_lattice = model_predictions.L / sigma_i_for_lattice
 
-            s_i_lattice_norm = torch.sqrt((s_i_lattice**2).sum(dim=-1))
+            s_i_lattice_norm = torch.sqrt((s_i_lattice**2).sum(dim=-1)).mean()
             # \epsilon_i = 2 \left(r \frac{||z||_2}{||s(x_i, t_i)||_2}\right)^2
             eps_i_lattice = (
                 2

@@ -212,13 +212,13 @@ def test_specific_scenario_sanity_check():
     # Put two atoms on a straight line
     relative_coordinates = torch.tensor([[[0.35, 0.5, 0.0], [0.65, 0.5, 0.0]]])
     atom_types = torch.zeros_like(relative_coordinates[..., 0])
-    basis_vectors = torch.diag(torch.ones(spatial_dimension)).unsqueeze(0)
+    lattice_parameters = torch.ones(1, 6)
+    lattice_parameters[:, 3:] = 0
 
     batch = {
         NOISY_AXL_COMPOSITION: AXL(
-            A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
+            A=atom_types, X=relative_coordinates, L=lattice_parameters
         ),
-        UNIT_CELL: basis_vectors,
     }
 
     forces = force_field_score_network.get_relative_coordinates_pseudo_force(batch)

@@ -16,7 +16,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_pr
     MaceEquivariantScorePredictionHeadParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION,
-    NOISY_CARTESIAN_POSITIONS, TIME, UNIT_CELL)
+    NOISY_CARTESIAN_POSITIONS, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,
@@ -91,7 +91,6 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             NOISY_CARTESIAN_POSITIONS: cartesian_positions,
             TIME: times,
             NOISE: noises,
-            UNIT_CELL: basis_vectors,  # TODO link to lattice parameters
             CARTESIAN_FORCES: forces,
         }
         return batch
@@ -384,6 +383,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             forces,
         )
 
+    # TODO this test is broken - we need to investigate this
     def test_translation_invariance(self, output, translated_output):
         torch.testing.assert_close(output, translated_output)
 

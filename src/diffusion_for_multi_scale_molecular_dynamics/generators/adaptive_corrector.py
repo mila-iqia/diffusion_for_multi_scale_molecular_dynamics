@@ -134,7 +134,7 @@ class AdaptiveCorrectorGenerator(LangevinGenerator):
         # note that sigma_score is \sigma * s(x, t), so we need to divide the norm by sigma to get the correct step size
         sigma_score_norm /= sigma_n_i
         # compute the norm of the z random noise similarly
-        z_norm = torch.linalg.norm(z, dim=-1).view(*view_dims)
+        z_norm = torch.linalg.norm(z, dim=-1).mean().view(*view_dims)
 
         eps_i = (
             2

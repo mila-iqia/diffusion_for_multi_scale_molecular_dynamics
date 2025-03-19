@@ -120,7 +120,8 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         self, batch: Dict[AnyStr, torch.Tensor]
     ) -> AdjacencyInfo:
         basis_vectors = map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
-            batch[NOISY_AXL_COMPOSITION].L
+            batch[NOISY_AXL_COMPOSITION].L,
+            min_box_size=1.0
         )
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         cartesian_positions = get_positions_from_coordinates(
@@ -147,7 +148,8 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
 
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         basis_vectors = map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
-            batch[NOISY_AXL_COMPOSITION].L
+            batch[NOISY_AXL_COMPOSITION].L,
+            min_box_size=1.0
         )  # TODO handle the minimal size
         cartesian_positions = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
@@ -223,7 +225,8 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         )
 
         basis_vectors = map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
-            batch[NOISY_AXL_COMPOSITION].L
+            batch[NOISY_AXL_COMPOSITION].L,
+            min_box_size=1.0
         )  # TODO handle minimal size
         reciprocal_basis_vectors = get_reciprocal_basis_vectors(basis_vectors)
         relative_pseudo_forces = get_relative_coordinates_from_cartesian_positions(

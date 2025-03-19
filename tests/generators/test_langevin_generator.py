@@ -148,6 +148,8 @@ class TestLangevinGenerator(BaseTestGenerator):
         axl_i,
         total_time_steps,
         number_of_samples,
+        number_of_atoms,
+        spatial_dimension,
     ):
         list_sigma = noise.sigma
         list_time = noise.time
@@ -196,7 +198,9 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
 
-            s_i_lattice = model_predictions.L / sigma_i
+            # scale back sigma_i for the number of atoms
+            sigma_i_for_lattice = sigma_i / (number_of_atoms ** (1 / spatial_dimension))
+            s_i_lattice = model_predictions.L / sigma_i_for_lattice
             expected_lattice = axl_i.L + g2 * s_i_lattice + torch.sqrt(g2) * z_lattice
 
             torch.testing.assert_close(computed_sample.L, expected_lattice)
@@ -499,6 +503,8 @@ class TestLangevinGenerator(BaseTestGenerator):
         total_time_steps,
         number_of_samples,
         num_atomic_classes,
+        number_of_atoms,
+        spatial_dimension,
     ):
 
         sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes)
@@ -557,7 +563,8 @@ class TestLangevinGenerator(BaseTestGenerator):
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
 
             # test lattice
-            s_i_lattice = model_predictions.L / sigma_i
+            sigma_i_for_lattice = sigma_i / (number_of_atoms ** (1 / spatial_dimension))
+            s_i_lattice = model_predictions.L / sigma_i_for_lattice
 
             expected_lattice = (
                 axl_i.L + eps_i * s_i_lattice + torch.sqrt(2.0 * eps_i) * z_lattice

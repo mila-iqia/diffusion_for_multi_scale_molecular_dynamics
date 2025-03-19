@@ -46,7 +46,7 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
             number_of_atoms,
             spatial_dimension,
         )
-        assert result["box"].shape == (batch_size, spatial_dimension)
+        assert result[LATTICE_PARAMETERS].shape == (batch_size, int(spatial_dimension * (spatial_dimension + 1) / 2))
 
         element_ids = list(result[ATOM_TYPES].flatten().numpy())
         computed_element_names = [element_types.get_element(id) for id in element_ids]

@@ -10,9 +10,10 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diff
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES, LATTICE_PARAMETERS)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import get_number_of_lattice_parameters
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import Configuration, generate_fake_configuration
 
@@ -60,8 +61,13 @@ class TestLammpsForDiffusionDataModuleBase(TestDiffusionDataBase):
     def batched_input_data(self, batch_of_configurations):
         data = defaultdict(list)
         for configuration in batch_of_configurations:
+            cell_dimension = configuration.cell_dimensions.astype(np.float32)
+            spatial_dimension = cell_dimension.shape[0]
+            num_lattice_parameters = get_number_of_lattice_parameters(spatial_dimension)
+            lattice_parameters = np.zeros((num_lattice_parameters,))
+            lattice_parameters[:spatial_dimension] = cell_dimension
             data["natom"].append(len(configuration.ids))
-            data["box"].append(configuration.cell_dimensions.astype(np.float32))
+            data[LATTICE_PARAMETERS].append(lattice_parameters)
             data[CARTESIAN_FORCES].append(configuration.cartesian_forces.flatten().astype(np.float32))
             data[CARTESIAN_POSITIONS].append(configuration.cartesian_positions.flatten().astype(np.float32))
             data[RELATIVE_COORDINATES].append(configuration.relative_coordinates.flatten().astype(np.float32))
