@@ -2,6 +2,9 @@
 
 This folder contains various experiments and analysis scripts.
 
+## Active Learning Benchmark
+
+TODO
 
 ## analysis
 This folder contains scripts to plot different components used in the diffusion model. This is a good
@@ -9,5 +12,11 @@ place to start to visualize the various ingredients that go into the constructio
 
 The various scripts will show plots on the matplotlib console and save figures in ./analysis/images/.
 
+## generators
+The main entry point is the script
+> sde_generator_sanity_check.py
 
+which solves an SDE using for a simple situation and creates plots that show that the
+SDE produces results that compare well to what is expected. This is a "sanity check" to
+validate that the code works.
 
