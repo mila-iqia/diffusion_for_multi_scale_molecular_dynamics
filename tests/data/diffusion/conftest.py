@@ -10,10 +10,12 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diff
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, RELATIVE_COORDINATES, LATTICE_PARAMETERS)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
+    RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import get_number_of_lattice_parameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    get_number_of_lattice_parameters
 from tests.conftest import TestDiffusionDataBase
 from tests.fake_data_utils import Configuration, generate_fake_configuration
 
@@ -32,7 +34,12 @@ def convert_configurations_to_dataset(
         data[CARTESIAN_FORCES].append(configuration.cartesian_forces)
         data[CARTESIAN_POSITIONS].append(configuration.cartesian_positions)
         data[RELATIVE_COORDINATES].append(configuration.relative_coordinates)
-        data[ATOM_TYPES].append([element_types.get_element_id(element) for element in configuration.elements])
+        data[ATOM_TYPES].append(
+            [
+                element_types.get_element_id(element)
+                for element in configuration.elements
+            ]
+        )
         data["potential_energy"].append(configuration.potential_energy)
 
     configuration_dataset = dict()
@@ -53,9 +60,15 @@ class TestLammpsForDiffusionDataModuleBase(TestDiffusionDataBase):
         return 4
 
     @pytest.fixture
-    def batch_of_configurations(self, spatial_dimension, number_of_atoms, unique_elements, batch_size):
-        return [generate_fake_configuration(spatial_dimension, number_of_atoms, unique_elements)
-                for _ in range(batch_size)]
+    def batch_of_configurations(
+        self, spatial_dimension, number_of_atoms, unique_elements, batch_size
+    ):
+        return [
+            generate_fake_configuration(
+                spatial_dimension, number_of_atoms, unique_elements
+            )
+            for _ in range(batch_size)
+        ]
 
     @pytest.fixture
     def batched_input_data(self, batch_of_configurations):
@@ -68,10 +81,16 @@ class TestLammpsForDiffusionDataModuleBase(TestDiffusionDataBase):
             lattice_parameters[:spatial_dimension] = cell_dimension
             data["natom"].append(len(configuration.ids))
             data[LATTICE_PARAMETERS].append(lattice_parameters)
-            data[CARTESIAN_FORCES].append(configuration.cartesian_forces.flatten().astype(np.float32))
-            data[CARTESIAN_POSITIONS].append(configuration.cartesian_positions.flatten().astype(np.float32))
-            data[RELATIVE_COORDINATES].append(configuration.relative_coordinates.flatten().astype(np.float32))
-            data['element'].append(configuration.elements)
+            data[CARTESIAN_FORCES].append(
+                configuration.cartesian_forces.flatten().astype(np.float32)
+            )
+            data[CARTESIAN_POSITIONS].append(
+                configuration.cartesian_positions.flatten().astype(np.float32)
+            )
+            data[RELATIVE_COORDINATES].append(
+                configuration.relative_coordinates.flatten().astype(np.float32)
+            )
+            data["element"].append(configuration.elements)
             data["potential_energy"].append(configuration.potential_energy)
 
         return data
@@ -88,14 +107,16 @@ class TestLammpsForDiffusionDataModuleBase(TestDiffusionDataBase):
         return number_of_atoms + 4
 
     @pytest.fixture
-    def data_module_hyperparameters(self, number_of_atoms, spatial_dimension, unique_elements):
+    def data_module_hyperparameters(
+        self, number_of_atoms, spatial_dimension, unique_elements
+    ):
         return LammpsDataModuleParameters(
             batch_size=2,
             num_workers=0,
             max_atom=number_of_atoms,
             spatial_dimension=spatial_dimension,
             elements=unique_elements,
-            noise_parameters=NoiseParameters(total_time_steps=10)
+            noise_parameters=NoiseParameters(total_time_steps=10),
         )
 
     @pytest.fixture()
@@ -113,7 +134,12 @@ class TestLammpsForDiffusionDataModuleBase(TestDiffusionDataBase):
 
     @pytest.fixture()
     def real_and_test_datasets(
-        self, mode, data_module, all_train_configurations, all_valid_configurations, element_types
+        self,
+        mode,
+        data_module,
+        all_train_configurations,
+        all_valid_configurations,
+        element_types,
     ):
 
         match mode:

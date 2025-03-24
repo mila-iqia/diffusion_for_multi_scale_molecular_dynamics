@@ -7,7 +7,8 @@ from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diff
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     NULL_ELEMENT
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS, RELATIVE_COORDINATES)
+    ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
+    RELATIVE_COORDINATES)
 from tests.data.diffusion.conftest import TestLammpsForDiffusionDataModuleBase
 from tests.fake_data_utils import find_aligning_permutation
 
@@ -46,7 +47,10 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
             number_of_atoms,
             spatial_dimension,
         )
-        assert result[LATTICE_PARAMETERS].shape == (batch_size, int(spatial_dimension * (spatial_dimension + 1) / 2))
+        assert result[LATTICE_PARAMETERS].shape == (
+            batch_size,
+            int(spatial_dimension * (spatial_dimension + 1) / 2),
+        )
 
         element_ids = list(result[ATOM_TYPES].flatten().numpy())
         computed_element_names = [element_types.get_element(id) for id in element_ids]
@@ -67,8 +71,12 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
         assert result[ATOM_TYPES].dtype == torch.long
         assert result["potential_energy"].dtype == torch.float32
 
-    def test_pad_dataset(self, input_data_for_padding, number_of_atoms, max_atom_for_padding):
-        padded_sample = LammpsForDiffusionDataModule.pad_samples(input_data_for_padding, max_atom_for_padding)
+    def test_pad_dataset(
+        self, input_data_for_padding, number_of_atoms, max_atom_for_padding
+    ):
+        padded_sample = LammpsForDiffusionDataModule.pad_samples(
+            input_data_for_padding, max_atom_for_padding
+        )
 
         # Check if the type and position have been padded correctly
         assert len(padded_sample["element"]) == max_atom_for_padding
@@ -104,7 +112,9 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
 
         data_module_dataset, configuration_dataset = real_and_test_datasets
 
-        assert set(configuration_dataset.keys()).issubset(set(data_module_dataset.keys()))
+        assert set(configuration_dataset.keys()).issubset(
+            set(data_module_dataset.keys())
+        )
 
         # the configurations and the data module dataset might not be in the same order. Try to build a mapping.
         dataset_boxes = data_module_dataset["box"]
