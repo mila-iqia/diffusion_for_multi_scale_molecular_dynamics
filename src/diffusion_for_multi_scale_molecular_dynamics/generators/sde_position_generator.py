@@ -74,6 +74,8 @@ class SDE(torch.nn.Module):
                 relative coordinates: predicts the sigma normalized score
                 lattice: placeholder  # TODO
             atom_types: atom type indices. Tensor of dimensions [number_of_samples, natoms]
+            lattice_parameters: lattice parameters. Tensor of dimensions
+                [number_of_samples, spatial_dimension * (spatial_dimension + 1) / 2].
             initial_diffusion_time : initial diffusion time. Dimensionless tensor.
             final_diffusion_time : final diffusion time. Dimensionless tensor.
         """

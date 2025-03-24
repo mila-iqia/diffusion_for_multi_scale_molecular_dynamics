@@ -169,7 +169,7 @@ class MACEScoreNetwork(ScoreNetwork):
         clipped_unit_cell = unit_cell.clip(
             min=2.2 * self.r_max
         )  # TODO cheap hack to prevent collapse
-        clipped_unit_cell[:, self.spatial_dimension :] = 0
+        clipped_unit_cell[:, self.spatial_dimension:] = 0
         batch[NOISY_CARTESIAN_POSITIONS] = torch.bmm(
             relative_coordinates,
             map_lattice_parameters_to_unit_cell_vectors(clipped_unit_cell),
@@ -202,7 +202,7 @@ class MACEScoreNetwork(ScoreNetwork):
         # Note that the basis_vectors is composed of ROWS of basis vectors
         basis_vectors = batch[NOISY_AXL_COMPOSITION].L
         clipped_basis_vectors = basis_vectors.clip(min=2.2 * self.r_max)
-        clipped_basis_vectors[:, self.spatial_dimension :] = 0
+        clipped_basis_vectors[:, self.spatial_dimension:] = 0
         clipped_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
             clipped_unit_cell
         )

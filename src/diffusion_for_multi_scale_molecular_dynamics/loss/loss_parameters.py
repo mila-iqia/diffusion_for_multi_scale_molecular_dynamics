@@ -35,6 +35,7 @@ class WeightedMSELossParameters(LossParameters):
 
 @dataclass(kw_only=True)
 class AtomTypeLossParameters(LossParameters):
+    """Specific Hyper-parameters for the atom type loss function."""
     algorithm: str = "d3pm"
     ce_weight: float = 0.001  # default value in google D3PM repo
     eps: float = 1e-8  # avoid divisions by zero

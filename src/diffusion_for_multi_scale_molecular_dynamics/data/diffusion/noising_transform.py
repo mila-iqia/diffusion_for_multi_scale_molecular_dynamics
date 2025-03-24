@@ -5,8 +5,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, LATTICE_PARAMETERS, NOISE, NOISY_ATOM_TYPES,
     NOISY_LATTICE_PARAMETERS, NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES,
-    Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME, TIME_INDICES,
-    )
+    Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME, TIME_INDICES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -46,6 +45,8 @@ class NoisingTransform:
             noise_parameters: noise parameters.
             num_atom_types:  number of distinct atom types.
             spatial_dimension: dimension of space.
+            use_fixed_lattice_parameters: if True, do not noise the lattice parameters, consider them as constant.
+                Defaults to False.
             use_optimal_transport: should optimal transport be used for the relative coordinates.
         """
         super().__init__()
@@ -168,7 +169,7 @@ class NoisingTransform:
 
         # scale sigma by the number of atoms for lattice parameters noising
         num_atoms = (
-                torch.ones_like(l0) * atom_shape[1]
+            torch.ones_like(l0) * atom_shape[1]
         )  # TODO should depend on data - not a constant
         # num_atoms should be broadcasted to match sigmas_for_lattice
         sigmas_n = scale_sigma_by_number_of_atoms(

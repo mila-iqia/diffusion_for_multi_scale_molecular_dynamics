@@ -616,7 +616,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         if this_is_last_time_step:
             assert (
                 a_im1 != self.masked_atom_type_index
-            ).all(), "There remains MASKED atoms at the last time step: review code, there must be a bug or invalid input."
+            ).all(), ("There remains MASKED atoms at the last time step: review code, there must be a bug or invalid "
+                      "input.")
 
         # draw a gaussian noise sample and update the positions accordingly
         z_coordinates = self._draw_coordinates_gaussian_sample(number_of_samples).to(

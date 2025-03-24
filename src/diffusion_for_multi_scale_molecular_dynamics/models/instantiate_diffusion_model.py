@@ -3,8 +3,6 @@
 import logging
 from typing import Any, AnyStr, Dict
 
-import torch
-
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     create_loss_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
@@ -15,8 +13,6 @@ from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import \
     create_scheduler_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network_factory import \
     create_score_network_parameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
     create_energy_oracle_parameters
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer_factory import \

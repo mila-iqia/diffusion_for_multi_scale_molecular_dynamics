@@ -102,8 +102,7 @@ class AdaptiveCorrectorGenerator(LangevinGenerator):
         z: torch.Tensor,
         n_dim: int,
     ) -> torch.Tensor:
-        r"""Compute the size of the corrector step for the relative coordinates (n_dim=3) or lattice parameters update
-        (n_dim = 2).
+        r"""Compute the size of the corrector step for the relative coordinates or lattice parameters update.
 
         The prefactors determining the changes in the relative coordinates (lattice parameters) are determined using
         the sigma normalized score at that corrector step.

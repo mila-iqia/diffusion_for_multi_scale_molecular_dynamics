@@ -49,6 +49,7 @@ class SamplingParameters:
         else:
             self.fixed_lattice_parameters = None
 
+
 class AXLGenerator(ABC):
     """This defines the interface for AXL (atom types, reduced coordinates and lattice) generators."""
 
