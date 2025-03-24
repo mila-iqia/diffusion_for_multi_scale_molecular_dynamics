@@ -22,7 +22,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
-    get_log_wrapped_gaussians, get_coordinates_sigma_normalized_score)
+    get_coordinates_sigma_normalized_score, get_log_wrapped_gaussians)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.symmetry_utils import \
@@ -55,12 +55,14 @@ class AnalyticalScoreNetworkParameters(ScoreNetworkParameters):
         """Post init."""
         assert self.sigma_d > 0.0, "the sigma_d parameter should be positive."
 
-        assert len(self.equilibrium_relative_coordinates) == self.number_of_atoms, \
-            "There should be exactly one list of equilibrium coordinates per atom."
+        assert (
+            len(self.equilibrium_relative_coordinates) == self.number_of_atoms
+        ), "There should be exactly one list of equilibrium coordinates per atom."
 
         for x in self.equilibrium_relative_coordinates:
-            assert len(x) == self.spatial_dimension, \
-                "The equilibrium coordinates should be consistent with the spatial dimension."
+            assert (
+                len(x) == self.spatial_dimension
+            ), "The equilibrium coordinates should be consistent with the spatial dimension."
 
 
 class AnalyticalScoreNetwork(ScoreNetwork):
@@ -96,8 +98,9 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         self.number_of_translations = len(self.translations_k)
 
-        self.equilibrium_relative_coordinates = torch.tensor(hyper_params.equilibrium_relative_coordinates,
-                                                             dtype=torch.float)
+        self.equilibrium_relative_coordinates = torch.tensor(
+            hyper_params.equilibrium_relative_coordinates, dtype=torch.float
+        )
 
         if self.use_permutation_invariance:
             # Shape : [natom!, natoms, spatial dimension]
@@ -398,7 +401,9 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
         )
 
         # Mimic perfect predictions of single possible atomic type.
-        atomic_logits = torch.zeros(batch_size, self.natoms, self.number_of_atomic_classes)
+        atomic_logits = torch.zeros(
+            batch_size, self.natoms, self.number_of_atomic_classes
+        )
         atomic_logits[..., -1] = -torch.inf
 
         axl_scores = AXL(

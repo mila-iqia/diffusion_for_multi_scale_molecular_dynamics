@@ -19,7 +19,8 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import get_number_of_lattice_parameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    get_number_of_lattice_parameters
 
 
 @dataclass(kw_only=True)
@@ -38,7 +39,9 @@ class ScoreNetworkParameters:
     # p_\gamma(x|c) = p(c|x)^\gamma p(x)
 
     def __post_init__(self):
-        self.num_lattice_parameters = get_number_of_lattice_parameters(self.spatial_dimension)
+        self.num_lattice_parameters = get_number_of_lattice_parameters(
+            self.spatial_dimension
+        )
 
 
 class ScoreNetwork(torch.nn.Module):
@@ -98,8 +101,10 @@ class ScoreNetwork(torch.nn.Module):
         assert (
             len(relative_coordinates_shape) == 3
             and relative_coordinates_shape[2] == self.spatial_dimension
-        ), ("The relative coordinates are expected to be in a tensor of "
-            "shape [batch_size, number_of_atoms, spatial_dimension]")
+        ), (
+            "The relative coordinates are expected to be in a tensor of "
+            "shape [batch_size, number_of_atoms, spatial_dimension]"
+        )
 
         assert torch.logical_and(
             relative_coordinates >= 0.0, relative_coordinates < 1.0

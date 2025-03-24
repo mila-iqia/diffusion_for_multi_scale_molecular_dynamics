@@ -20,7 +20,8 @@ from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
     Transporter
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
-from diffusion_for_multi_scale_molecular_dynamics.utils.noise_utils import scale_sigma_by_number_of_atoms
+from diffusion_for_multi_scale_molecular_dynamics.utils.noise_utils import \
+    scale_sigma_by_number_of_atoms
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
     broadcast_batch_matrix_tensor_to_all_dimensions,
     broadcast_batch_tensor_to_all_dimensions)
@@ -28,6 +29,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
 
 class NoisingTransform:
     """Noising Transform."""
+
     def __init__(
         self,
         noise_parameters: NoiseParameters,
@@ -65,7 +67,7 @@ class NoisingTransform:
             L=LatticeNoiser(
                 LatticeDataParameters(
                     spatial_dimension=spatial_dimension,
-                    use_fixed_lattice_parameters=use_fixed_lattice_parameters
+                    use_fixed_lattice_parameters=use_fixed_lattice_parameters,
                 )
             ),
         )
@@ -173,7 +175,9 @@ class NoisingTransform:
         )  # TODO should depend on data - not a constant
         # num_atoms should be broadcasted to match sigmas_for_lattice
         sigmas_n = scale_sigma_by_number_of_atoms(
-            noise_sample.sigma.reshape(-1, 1), num_atoms, spatial_dimension=lattice_parameters_shape[-1]
+            noise_sample.sigma.reshape(-1, 1),
+            num_atoms,
+            spatial_dimension=lattice_parameters_shape[-1],
         )
         lt = self.noisers.L.get_noisy_lattice_vectors(
             l0,

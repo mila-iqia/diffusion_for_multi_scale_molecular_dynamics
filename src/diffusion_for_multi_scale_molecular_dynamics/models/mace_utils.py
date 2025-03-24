@@ -10,8 +10,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.graph_utils import \
     get_adj_matrix
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    map_noisy_axl_lattice_parameters_to_unit_cell_vectors)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_noisy_axl_lattice_parameters_to_unit_cell_vectors
 
 
 def input_to_mace(
