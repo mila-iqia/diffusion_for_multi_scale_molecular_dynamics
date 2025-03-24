@@ -11,17 +11,18 @@ class LatticeDataParameters:
     TODO: this might belong elsewhere
     """
     spatial_dimension: int = 3
+    use_fixed_lattice_parameters: bool = False  # if True, do not noise the lattice parameters
 
 
 class LatticeNoiser:
     """Lattice noiser.
 
     This class provides methods to generate noisy lattices.
-    TODO this is a placeholder
     """
 
     def __init__(self, lattice_parameters: LatticeDataParameters):
         self.spatial_dimension = lattice_parameters.spatial_dimension
+        self.use_fixed_lattice_parameters = lattice_parameters.use_fixed_lattice_parameters
 
     @staticmethod
     def _get_gaussian_noise(shape: Tuple[int]) -> torch.Tensor:
@@ -61,6 +62,10 @@ class LatticeNoiser:
         assert (
             real_lattice_parameters.shape == sigmas_n.shape
         ), "sigmas array is expected to be of the same shape as the real_lattice_parameters array"
+
+        if self.use_fixed_lattice_parameters:
+            # do not noise
+            return real_lattice_parameters
 
         z_scores = self._get_gaussian_noise(real_lattice_parameters.shape).to(sigmas_n)
 

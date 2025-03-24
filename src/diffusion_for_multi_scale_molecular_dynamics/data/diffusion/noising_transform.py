@@ -6,7 +6,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, LATTICE_PARAMETERS, NOISE, NOISY_ATOM_TYPES,
     NOISY_LATTICE_PARAMETERS, NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES,
     Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME, TIME_INDICES,
-    UNIT_CELL)
+    )
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -34,6 +34,7 @@ class NoisingTransform:
         noise_parameters: NoiseParameters,
         num_atom_types: int,
         spatial_dimension: int,
+        use_fixed_lattice_parameters: bool = False,
         use_optimal_transport: bool = True,
     ):
         """Noising transform.
@@ -60,7 +61,12 @@ class NoisingTransform:
         self.noisers = AXL(
             A=AtomTypesNoiser(),
             X=RelativeCoordinatesNoiser(),
-            L=LatticeNoiser(LatticeDataParameters(spatial_dimension=spatial_dimension)),
+            L=LatticeNoiser(
+                LatticeDataParameters(
+                    spatial_dimension=spatial_dimension,
+                    use_fixed_lattice_parameters=use_fixed_lattice_parameters
+                )
+            ),
         )
 
         if self.use_optimal_transport:

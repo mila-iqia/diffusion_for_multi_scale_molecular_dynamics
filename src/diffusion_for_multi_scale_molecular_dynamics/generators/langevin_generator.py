@@ -46,6 +46,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             spatial_dimension=sampling_parameters.spatial_dimension,
             num_atom_types=sampling_parameters.num_atom_types,
             number_of_atoms=sampling_parameters.number_of_atoms,
+            use_fixed_lattice_parameters=sampling_parameters.use_fixed_lattice_parameters,
+            fixed_lattice_parameters=sampling_parameters.fixed_lattice_parameters,
             trajectory_initializer=trajectory_initializer,
         )
 
@@ -64,6 +66,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self.atom_type_transition_in_corrector = (
             sampling_parameters.atom_type_transition_in_corrector
         )
+
+        self.use_fixed_lattice_parameters = sampling_parameters.use_fixed_lattice_parameters
+        self.fixed_lattice_parameters = sampling_parameters.fixed_lattice_parameters
 
         self.record = sampling_parameters.record_samples
         self.record_corrector = sampling_parameters.record_samples_corrector_steps
@@ -118,7 +123,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition : AXL composition with:
                 atom types, of shape [number of samples, number_of_atoms]
                 relative coordinates, of shape [number_of_samples, number_of_atoms, spatial_dimension]
-                lattice vectors, of shape [number_of_samples, spatial_dimension * (spatial_dimension - 1)]  # TODO check
+                lattice parameters, of shape [number_of_samples, spatial_dimension * (spatial_dimension + 1) / 2]
             time : time at which to evaluate the score
             sigma_noise: the diffusion sigma parameter corresponding to the time at which to evaluate the score
             cartesian_forces: forces to condition the sampling from. Shape [number_of_samples, number_of_atoms,
@@ -467,6 +472,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             update_lattice_parameters: lattice parameters after the update. Dimension: [number_of_samples,
             spatial_dimension * (spatial_dimension + 1) / 2].
         """
+        if self.use_fixed_lattice_parameters:
+            # do not "denoise" fixed lattice parameters
+            return lattice_parameters
+
         number_of_samples = lattice_parameters.shape[0]
         if z is None:
             z = self._draw_lattice_gaussian_sample(number_of_samples).to(
@@ -618,7 +627,6 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i, z_coordinates
         )
 
-        # TODO the score weight for the lattice update should be different from relative coordinates
         # TODO sigma_i should depend on the number of atoms - actually, this should be tested empirically
         # update lattice parameters
         z_lattice = self._draw_lattice_gaussian_sample(number_of_samples).to(

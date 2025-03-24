@@ -79,6 +79,7 @@ class GaussianDataModule(pl.LightningDataModule):
         self.random_seed = hyper_params.random_seed
         self.number_of_atoms = hyper_params.number_of_atoms
         self.spatial_dimension = hyper_params.spatial_dimension
+        self.use_fixed_lattice_parameters = hyper_params.use_fixed_lattice_parameters
         self.sigma_d = hyper_params.sigma_d
         self.equilibrium_coordinates = torch.tensor(
             hyper_params.equilibrium_relative_coordinates, dtype=torch.float
@@ -101,6 +102,7 @@ class GaussianDataModule(pl.LightningDataModule):
             noise_parameters=hyper_params.noise_parameters,
             num_atom_types=len(hyper_params.elements),
             spatial_dimension=self.spatial_dimension,
+            use_fixed_lattice_parameters=self.use_fixed_lattice_parameters,
             use_optimal_transport=hyper_params.use_optimal_transport,
         )
 

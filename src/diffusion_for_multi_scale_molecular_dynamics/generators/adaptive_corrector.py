@@ -59,7 +59,7 @@ class AdaptiveCorrectorGenerator(LangevinGenerator):
         gaussian_noise_weight: torch.Tensor,
         z: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Do not update the relative coordinates in the predictor."""
+        """Do not update the lattice parameters in the predictor."""
         return lattice_parameters
 
     def _get_coordinates_corrector_step_size(

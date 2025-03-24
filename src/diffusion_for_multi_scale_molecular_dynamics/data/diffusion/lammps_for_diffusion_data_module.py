@@ -73,6 +73,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
         self.num_workers = hyper_params.num_workers
         self.max_atom = hyper_params.max_atom  # number of atoms to pad tensors
         self.spatial_dim = hyper_params.spatial_dimension
+        self.use_fixed_lattice_parameters = hyper_params.use_fixed_lattice_parameters
 
         self.element_types = ElementTypes(hyper_params.elements)
 
@@ -83,6 +84,7 @@ class LammpsForDiffusionDataModule(pl.LightningDataModule):
             noise_parameters=hyper_params.noise_parameters,
             num_atom_types=num_atom_types,
             spatial_dimension=self.spatial_dim,
+            use_fixed_lattice_parameters=self.use_fixed_lattice_parameters,
             use_optimal_transport=self.use_optimal_transport
         )
 

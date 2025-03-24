@@ -19,11 +19,25 @@ class TrajectoryInitializerParameters:
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
     num_atom_types: int  # number of atom types excluding MASK
 
+    use_fixed_lattice_parameters: bool = False
+    fixed_lattice_parameters: Optional[torch.Tensor] = None
+
     # the number of atoms that must be generated in a sampled configuration.
     number_of_atoms: int
 
     # Path to a pickle file that contains starting configuration information.
     path_to_constraint_data_pickle: Optional[str] = None
+
+    def __post_init__(self):
+        if self.use_fixed_lattice_parameters:
+            assert self.fixed_lattice_parameters is not None, (
+                "If use_fixed_lattice_parameters is True, then fixed_lattice_parameters must be provided."
+            )
+            assert self.fixed_lattice_parameters.shape[0] == get_number_of_lattice_parameters(self.spatial_dimension), (
+                f"The fixed_lattice_parameters tensor must have shape"
+                f"[spatial_dimension * (spatial_dimension + 1) / 2]."
+                f"Got {self.fixed_lattice_parameters.shape}."
+            )
 
 
 class TrajectoryInitializer(ABC):
@@ -44,6 +58,8 @@ class TrajectoryInitializer(ABC):
         self.num_lattice_parameters = get_number_of_lattice_parameters(
             trajectory_initializer_parameters.spatial_dimension
         )
+        self.use_fixed_lattice_parameters = trajectory_initializer_parameters.use_fixed_lattice_parameters
+        self.fixed_lattice_parameters = trajectory_initializer_parameters.fixed_lattice_parameters
 
     @abstractmethod
     def initialize(self, number_of_samples: int, device: torch.device) -> AXL:
@@ -79,9 +95,14 @@ class FullRandomTrajectoryInitializer(TrajectoryInitializer):
         relative_coordinates = torch.rand(
             number_of_samples, self.number_of_atoms, self.spatial_dimension
         ).to(device)
-        lattice_parameters = torch.randn(
-            number_of_samples, self.num_lattice_parameters
-        ).to(device)
+        if self.use_fixed_lattice_parameters:
+            lattice_parameters = self.fixed_lattice_parameters.repeat(
+                number_of_samples, 1
+            ).to(device)
+        else:
+            lattice_parameters = torch.randn(
+                number_of_samples, self.num_lattice_parameters
+            ).to(device)
         init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
         return init_composition
 
@@ -167,6 +188,8 @@ def instantiate_trajectory_initializer(
         spatial_dimension=sampling_parameters.spatial_dimension,
         num_atom_types=sampling_parameters.num_atom_types,
         number_of_atoms=sampling_parameters.number_of_atoms,
+        use_fixed_lattice_parameters=sampling_parameters.use_fixed_lattice_parameters,
+        fixed_lattice_parameters=sampling_parameters.fixed_lattice_parameters,
         path_to_constraint_data_pickle=path_to_constraint_data_pickle,
     )
 

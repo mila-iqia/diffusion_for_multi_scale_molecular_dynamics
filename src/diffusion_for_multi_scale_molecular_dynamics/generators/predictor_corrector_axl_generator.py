@@ -40,6 +40,8 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         spatial_dimension: int,
         num_atom_types: int,
         number_of_atoms: int,
+        use_fixed_lattice_parameters: bool = False,
+        fixed_lattice_parameters: Optional[torch.Tensor] = None,
         trajectory_initializer: Optional[TrajectoryInitializer] = None,
         **kwargs,
     ):
@@ -67,6 +69,8 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
                 spatial_dimension=spatial_dimension,
                 num_atom_types=num_atom_types,
                 number_of_atoms=number_of_atoms,
+                use_fixed_lattice_parameters=use_fixed_lattice_parameters,
+                fixed_lattice_parameters=fixed_lattice_parameters,
             )
             self.trajectory_initializer = FullRandomTrajectoryInitializer(params)
 

@@ -31,7 +31,9 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
             spatial_dimension,
             num_atom_types,
             number_of_atoms,
-            trajectory_initializer
+            use_fixed_lattice_parameters=False,
+            fixed_lattice_parameters=None,
+            trajectory_initializer=trajectory_initializer
         )
 
     def predictor_step(

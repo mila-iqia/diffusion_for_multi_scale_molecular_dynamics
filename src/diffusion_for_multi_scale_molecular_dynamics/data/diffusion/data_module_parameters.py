@@ -16,6 +16,7 @@ class DataModuleParameters:
     num_workers: int = 0
     max_atom: int = 64
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
+    use_fixed_lattice_parameters: bool = False  # if True, do not noise the lattice parameters and use a fixed box
     elements: list[str]  # the elements that can exist.
 
     def __post_init__(self):
