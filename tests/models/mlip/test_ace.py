@@ -1,3 +1,4 @@
+import importlib.util
 import os
 from pathlib import Path
 
@@ -6,8 +7,9 @@ import pandas as pd
 import pytest
 from ase import Atoms
 
-from diffusion_for_multi_scale_molecular_dynamics.models.mlip.ace import (
-    ACE_MLIP, ACE_arguments)
+
+def pyace_is_not_installed():
+    return importlib.util.find_spec("pyace") is None
 
 
 @pytest.fixture
@@ -64,9 +66,12 @@ def ace_dataset(num_samples, energies, forces, num_atoms, ase_atoms):
     return pd.DataFrame(df)
 
 
-@pytest.mark.not_on_github
+@pytest.mark.skipif(pyace_is_not_installed(), reason="PYACE is not installed. It is required for this test.")
 # this test is slow and requires pacemaker in the CLI - not included with pip
 def test_train(ace_dataset, tmpdir):
+    from diffusion_for_multi_scale_molecular_dynamics.models.mlip.ace import (
+        ACE_MLIP, ACE_arguments)
+
     # Initialize ACE_MLIP with mock parameters
     ace_args = ACE_arguments(
         config_path=Path(__file__).parent / "ace_config.yaml",
@@ -82,8 +87,10 @@ def test_train(ace_dataset, tmpdir):
     assert os.path.exists(returned_potential)
 
 
-@pytest.mark.not_on_github
+@pytest.mark.skipif(pyace_is_not_installed(), reason="PYACE is not installed. It is required for this test.")
 def test_evaluate(ace_dataset, num_atoms, tmpdir):
+    from diffusion_for_multi_scale_molecular_dynamics.models.mlip.ace import (
+        ACE_MLIP, ACE_arguments)
     ace_args = ACE_arguments(
         config_path=Path(__file__).parent / "ace_config.yaml",
         fitted_ace_savedir=os.path.join(tmpdir, "fitted_ace"),
