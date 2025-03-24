@@ -84,7 +84,7 @@ if __name__ == "__main__":
     noise_parameters = NoiseParameters(
         total_time_steps=total_time_steps, sigma_min=0.001, sigma_max=0.5
     )
-    exploding_variance = ExplodingVariance(noise_parameters)
+    exploding_variance = VarianceScheduler(noise_parameters)
 
     if sampling_algorithm == "ode":
         ode_sampling_parameters = ODESamplingParameters(
@@ -97,7 +97,7 @@ if __name__ == "__main__":
             relative_solver_tolerance=1.0e-5,
         )
 
-        position_generator = ExplodingVarianceODEPositionGenerator(
+        position_generator = ExplodingVarianceODEAXLGenerator(
             noise_parameters=noise_parameters,
             sampling_parameters=ode_sampling_parameters,
             sigma_normalized_score_network=sigma_normalized_score_network,

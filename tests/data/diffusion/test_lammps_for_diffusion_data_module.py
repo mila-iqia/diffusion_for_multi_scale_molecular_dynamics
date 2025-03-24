@@ -82,7 +82,7 @@ class TestLammpsForDiffusionDataModule(TestLammpsForDiffusionDataModuleBase):
 
         # Check that the padding uses nan for position
         assert torch.isnan(
-            padded_sample[CARTESIAN_POSITIONS][3 * number_of_atoms :]
+            padded_sample[CARTESIAN_POSITIONS][3 * number_of_atoms:]
         ).all()
 
     def test_dataset_feature_names(self, data_module):
