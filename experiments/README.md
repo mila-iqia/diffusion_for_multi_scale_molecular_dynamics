@@ -12,6 +12,11 @@ place to start to visualize the various ingredients that go into the constructio
 
 The various scripts will show plots on the matplotlib console and save figures in ./analysis/images/.
 
+## tutorial
+This folder contains a jupyter-notebook that presents a simplified experiment. This is an ideal
+starting point to understand the various components in the code base and how they all work together.
+
+
 ## generators_sanity_check
 The main entry point is the script
 > sde_generator_sanity_check.py
