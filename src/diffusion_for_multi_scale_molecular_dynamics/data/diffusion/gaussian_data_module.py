@@ -160,6 +160,7 @@ class GaussianDataModule(pl.LightningDataModule):
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
+            persistent_workers=True,
             num_workers=self.num_workers,
         )
 
@@ -169,6 +170,7 @@ class GaussianDataModule(pl.LightningDataModule):
             self.valid_dataset,
             batch_size=self.batch_size,
             shuffle=False,
+            persistent_workers=True,
             num_workers=self.num_workers,
         )
 
