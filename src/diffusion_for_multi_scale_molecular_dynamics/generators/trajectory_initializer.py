@@ -29,6 +29,7 @@ class TrajectoryInitializerParameters:
     path_to_constraint_data_pickle: Optional[str] = None
 
     def __post_init__(self):
+        """Post init."""
         if self.use_fixed_lattice_parameters:
             assert self.fixed_lattice_parameters is not None, (
                 "If use_fixed_lattice_parameters is True, then fixed_lattice_parameters must be provided."

@@ -21,6 +21,7 @@ class LatticeNoiser:
     """
 
     def __init__(self, lattice_parameters: LatticeDataParameters):
+        """Init method."""
         self.spatial_dimension = lattice_parameters.spatial_dimension
         self.use_fixed_lattice_parameters = lattice_parameters.use_fixed_lattice_parameters
 

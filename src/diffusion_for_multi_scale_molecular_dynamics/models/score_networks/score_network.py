@@ -39,6 +39,7 @@ class ScoreNetworkParameters:
     # p_\gamma(x|c) = p(c|x)^\gamma p(x)
 
     def __post_init__(self):
+        """Post init."""
         self.num_lattice_parameters = get_number_of_lattice_parameters(
             self.spatial_dimension
         )
