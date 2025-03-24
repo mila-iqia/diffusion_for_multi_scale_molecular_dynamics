@@ -31,7 +31,6 @@ dependencies = [
     "orion>=0.2.7",
     "ovito==3.10.6.post2",
     "pip>=24.2",
-    "pyace==0.1.1",
     "pyarrow==15.0.1",
     "pykeops==2.2.3",
     "pymatgen==2024.2.23",
@@ -56,6 +55,12 @@ dependencies = [
     "tqdm==4.64.0",
 ]
 
+[project.optional-dependencies]
+pyace = [
+    "pyace",
+    "tensorpotential",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -64,3 +69,7 @@ build-backend = "hatchling.build"
 testpaths = ["tests/"]
 norecursedirs = "__pycache__"
 markers = ["slow", "not_on_github"]
+
+[tool.uv.sources]
+tensorpotential = { git = "https://github.com/ICAMS/TensorPotential" }
+pyace = { git = "https://github.com/ICAMS/python-ace" }
