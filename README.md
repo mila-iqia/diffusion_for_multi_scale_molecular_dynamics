@@ -16,12 +16,15 @@ The project dependencies are stated in the `pyproject.toml` file. They must be i
 The recommended way of creating a virtual environment is to use the tool [`uv`](https://docs.astral.sh/uv/). 
 Once `uv` is installed locally, the virtual environment can be created with the command
     
-    uv sync
+    uv sync [--extra pyace]
 
 which will install the exact environment described in file `uv.lock`. The environment can then be activated with
 the command
 
     source .venv/bin/activate
+
+Note that the optional dependency "pyace" is needed for the active learning loop. It is recommended to install it 
+for development.
 
 ### pip
 
