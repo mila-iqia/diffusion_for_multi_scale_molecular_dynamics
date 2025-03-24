@@ -1,3 +1,4 @@
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional
@@ -47,6 +48,8 @@ class SamplingParameters:
             self.fixed_lattice_parameters = map_unit_cell_to_lattice_parameters(
                 cell_dimensions)
         else:
+            if not self.use_fixed_lattice_parameters:
+                warnings.warn("Using diffusion on lattice parameters. This is experimental and not fully tested.")
             self.fixed_lattice_parameters = None
 
 

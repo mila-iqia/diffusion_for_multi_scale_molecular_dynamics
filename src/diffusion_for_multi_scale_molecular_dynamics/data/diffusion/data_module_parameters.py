@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 from typing import Optional
 
@@ -21,6 +22,9 @@ class DataModuleParameters:
 
     def __post_init__(self):
         """Post init."""
+        if not self.use_fixed_lattice_parameters:
+            warnings.warn("Using diffusion on lattice parameters. This is experimental and not fully tested.")
+
         assert self.data_source is not None, "The data source must be set."
 
         if self.batch_size is None:
