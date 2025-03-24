@@ -35,6 +35,10 @@ class TestGaussianDataModule:
     def sigma_d(self):
         return 0.01
 
+    @pytest.fixture(params=[0, 2])
+    def number_of_workers(self, request):
+        return request.param
+
     @pytest.fixture(params=[True, False])
     def use_optimal_transport(self, request):
         return request.param
@@ -46,14 +50,15 @@ class TestGaussianDataModule:
         return equilibrium_relative_coordinates
 
     @pytest.fixture
-    def data_module_hyperparameters(self, batch_size, train_dataset_size, valid_dataset_size, use_optimal_transport,
-                                    number_of_atoms, spatial_dimension, sigma_d, equilibrium_relative_coordinates):
+    def data_module_hyperparameters(self, batch_size, number_of_workers, train_dataset_size, valid_dataset_size,
+                                    use_optimal_transport, number_of_atoms, spatial_dimension, sigma_d,
+                                    equilibrium_relative_coordinates):
         return GaussianDataModuleParameters(
             batch_size=batch_size,
             noise_parameters=NoiseParameters(total_time_steps=10),
             use_optimal_transport=use_optimal_transport,
             random_seed=42,
-            num_workers=0,
+            num_workers=number_of_workers,
             sigma_d=sigma_d,
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
