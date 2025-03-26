@@ -32,7 +32,7 @@ num_atom_types = 1
 
 kmax = 8
 acell = 1.0
-cell_dimensions = [acell]
+cell_dimensions = [[acell]]
 
 number_of_samples = 1000
 
@@ -50,7 +50,7 @@ equilibrium_relative_coordinates = torch.tensor(equilibrium_relative_coordinates
 
 if __name__ == "__main__":
 
-    unit_cell = torch.diag(torch.tensor(cell_dimensions))
+    unit_cell = torch.diag(torch.tensor([acell]))
     batched_unit_cells = einops.repeat(
         unit_cell, "d1 d2 -> b d1 d2", b=number_of_samples
     )
@@ -108,6 +108,7 @@ if __name__ == "__main__":
             num_atom_types=num_atom_types,
             number_of_samples=number_of_samples,
             sample_batchsize=number_of_samples,
+            use_fixed_lattice_parameters=True,
             cell_dimensions=cell_dimensions,
             record_samples=True,
         )
@@ -120,9 +121,7 @@ if __name__ == "__main__":
 
         # The generated samples are for positions only.
         #   The array has dimensions [number_of_samples,number_of_atoms, spatial_dimension]
-        generated_samples = generator.sample(
-            number_of_samples, device=device, unit_cell=batched_unit_cells
-        )
+        generated_samples = generator.sample(number_of_samples, device=device)
 
         sampled_x = generated_samples[:, 0, 0]
 
