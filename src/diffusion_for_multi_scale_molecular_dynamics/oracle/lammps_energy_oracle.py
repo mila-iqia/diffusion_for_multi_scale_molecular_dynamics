@@ -136,9 +136,8 @@ class LammpsEnergyOracle(EnergyOracle):
             dump_yaml = yaml.safe_load_all(f)
             doc = next(iter(dump_yaml))
 
-        forces = (
-            pd.DataFrame(doc["data"], columns=doc["keywords"])
-            .sort_values("id")
+        forces = pd.DataFrame(doc["data"], columns=doc["keywords"]).sort_values(
+            "id"
         )  # organize in a dataframe
 
         # get the energy
@@ -147,7 +146,6 @@ class LammpsEnergyOracle(EnergyOracle):
         )  # kinetic energy - should be 0 as atoms are created with 0 velocity
         pe = lmp.get_thermo("pe")  # potential energy
         energy = ke + pe
-
         return energy, forces
 
     def _compute_one_configuration_energy_and_forces(

@@ -1,4 +1,5 @@
 import logging
+import warnings
 from dataclasses import dataclass
 from typing import AnyStr, Dict, List, Tuple, Union
 
@@ -8,9 +9,10 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_POSITIONS, LATTICE_PARAMETERS)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_lattice_parameters_to_unit_cell_vectors
+    ATOM_TYPES, AXL_COMPOSITION, LATTICE_PARAMETERS, RELATIVE_COORDINATES)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    get_positions_from_coordinates,
+    map_lattice_parameters_to_unit_cell_vectors)
 
 logger = logging.getLogger(__name__)
 
@@ -47,17 +49,11 @@ class EnergyOracle:
         Method to call the oracle for samples expressed in a standardized format.
 
         Args:
-            samples:  a dictionary assumed to contain the fields
-                        - CARTESIAN_POSITIONS
-                        - AXL_COMPOSITION
+            samples:  a dictionary assumed to contain the field AXL_COMPOSITION
 
         Returns:
             energies: a numpy array with the computed energies.
         """
-        assert (
-            CARTESIAN_POSITIONS in samples
-        ), f"the field '{CARTESIAN_POSITIONS}' must be present in the sample dictionary"
-
         assert (
             LATTICE_PARAMETERS in samples or AXL_COMPOSITION in samples
         ), f"the field '{LATTICE_PARAMETERS}' or '{AXL_COMPOSITION}' must be present in the sample dictionary"
@@ -66,40 +62,59 @@ class EnergyOracle:
             AXL_COMPOSITION in samples or ATOM_TYPES in samples
         ), f"the field '{AXL_COMPOSITION}' or '{ATOM_TYPES}' must be present in the sample dictionary"
 
+        batched_relative_coordinates = (
+            samples[RELATIVE_COORDINATES]
+            if RELATIVE_COORDINATES in samples
+            else samples[AXL_COMPOSITION].X
+        )
+        if isinstance(batched_relative_coordinates, torch.Tensor):
+            batched_relative_coordinates = batched_relative_coordinates.detach().cpu()
+            return_type = torch.Tensor
+        else:
+            return_type = np.ndarray
+
         # Dimension [batch_size, space_dimension, space_dimension]
-        lattice_parameters = (
+        batched_lattice_parameters = (
             samples[LATTICE_PARAMETERS]
             if LATTICE_PARAMETERS in samples
             else samples[AXL_COMPOSITION].L
         )
-        batched_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
-            lattice_parameters.detach().cpu()
-        ).numpy()
 
-        # Dimension [batch_size, number_of_atoms, space_dimension]
-        if isinstance(samples[CARTESIAN_POSITIONS], torch.Tensor):
-            batched_cartesian_positions = (
-                samples[CARTESIAN_POSITIONS].detach().cpu().numpy()
-            )
-            return_type = torch.Tensor
-        else:
-            batched_cartesian_positions = samples[CARTESIAN_POSITIONS]
-            return_type = np.ndarray
+        if isinstance(batched_lattice_parameters, torch.Tensor):
+            batched_lattice_parameters = batched_lattice_parameters.detach().cpu()
 
-        if AXL_COMPOSITION in samples:
-            # Dimension [batch_size, number_of_atoms]
-            batched_atom_types = samples[AXL_COMPOSITION].A.detach().cpu().numpy()
-        else:
-            batched_atom_types = samples[ATOM_TYPES]
+        batched_atom_types = (
+            samples[ATOM_TYPES] if ATOM_TYPES in samples else samples[AXL_COMPOSITION].A
+        )
+        if isinstance(batched_atom_types, torch.Tensor):
+            batched_atom_types = batched_atom_types.detach().cpu()
 
         logger.info("Compute energy from Oracle")
         list_energy = []
         list_forces = []
-        for cartesian_positions, basis_vectors, atom_types in zip(
-            batched_cartesian_positions, batched_basis_vectors, batched_atom_types
+        spatial_dimension = batched_relative_coordinates.shape[-1]
+        for relative_coordinates, lattice_parameters, atom_types in zip(
+            batched_relative_coordinates, batched_lattice_parameters, batched_atom_types
         ):
+            lattice_parameters[spatial_dimension:] = (
+                0  # TODO support non-orthogonal boxes
+            )
+            if lattice_parameters[:spatial_dimension].min() < 0:
+                warnings.warn(
+                    "Got a negative lattice parameter. Clipping to 4.0 Angstrom"
+                )
+                lattice_parameters[:spatial_dimension] = np.clip(
+                    lattice_parameters[:spatial_dimension], a_min=4.0, a_max=None
+                )
+            basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
+                lattice_parameters
+            )
+            cartesian_positions = get_positions_from_coordinates(
+                relative_coordinates, basis_vectors
+            )
+
             energy, forces = self._compute_one_configuration_energy_and_forces(
-                cartesian_positions, basis_vectors, atom_types
+                cartesian_positions.numpy(), basis_vectors.numpy(), atom_types
             )
             list_energy.append(energy)
             list_forces.append(forces)

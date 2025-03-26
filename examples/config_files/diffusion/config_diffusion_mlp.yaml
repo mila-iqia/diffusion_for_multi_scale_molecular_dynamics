@@ -18,6 +18,10 @@ data:
   num_workers: 0
   max_atom: 8
   use_fixed_lattice_parameters: False
+  noise:
+    total_time_steps: 100
+    sigma_min: 0.0001
+    sigma_max: 0.25
 
 # architecture
 spatial_dimension: 3
@@ -29,16 +33,13 @@ model:
     num_atom_types: 1
     number_of_atoms: 8
     n_hidden_dimensions: 2
-    noise_embedding_dimensions_size: 16
-    atom_type_embedding_dimensions_size: 16
     hidden_dimensions_size: 64
+
     conditional_prob: 0.0
     conditional_gamma: 2
     condition_embedding_size: 64
-  noise:
-    total_time_steps: 100
-    sigma_min: 0.0001
-    sigma_max: 0.25  
+    use_time_dependent_prefactor: False
+    use_permutation_invariance: False
 
 # Sampling from the generative model
 diffusion_sampling:
