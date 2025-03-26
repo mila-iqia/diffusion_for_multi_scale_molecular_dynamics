@@ -1,4 +1,4 @@
-"""Perturbation Kernel Analysis.
+"""Plot Target Conditional Score Different Sigmas.
 
 This script computes and plots the conditional target score based on the perturbation kernel K for various values of
 sigma, showing the behavior for different normalizations.
@@ -7,11 +7,11 @@ sigma, showing the behavior for different normalizations.
 import matplotlib.pyplot as plt
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_coordinates_sigma_normalized_score
+from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -34,10 +34,10 @@ if __name__ == "__main__":
     # A first figure to compare the "smart" and the "brute force" results
     fig_size = (1.25 * PLEASANT_FIG_SIZE[0], 1.25 * PLEASANT_FIG_SIZE[1])
     fig = plt.figure(figsize=fig_size)
-    fig.suptitle(r"$\alpha$ Component of Conditional Score")
+    fig.suptitle(r"$\alpha$ Component of Target Conditional Score")
 
     left, right, bottom, top = 0, 1.0, 0.0, sigma_max
-    extent = [left, right, bottom, top]
+    extent = (left, right, bottom, top)
 
     ax1 = fig.add_subplot(221)
     ax2 = fig.add_subplot(222)
@@ -85,8 +85,5 @@ if __name__ == "__main__":
     ax4.set_ylabel(label2)
 
     fig.tight_layout()
-    fig.savefig(
-        ANALYSIS_RESULTS_DIR.joinpath(
-            "perturbation_kernel_with_different_normalizations.png"
-        )
-    )
+    fig.savefig(PLOTS_OUTPUT_DIRECTORY / "perturbation_kernel_with_different_normalizations.png")
+    plt.show()

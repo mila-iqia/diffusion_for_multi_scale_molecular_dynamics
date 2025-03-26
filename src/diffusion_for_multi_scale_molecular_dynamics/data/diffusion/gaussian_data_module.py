@@ -95,6 +95,7 @@ class GaussianDataModule(pl.LightningDataModule):
         self.valid_size = hyper_params.valid_batch_size
 
         self.num_workers = hyper_params.num_workers
+        self.persistent_workers = self.num_workers != 0
 
         self.element_types = ElementTypes(hyper_params.elements)
 
@@ -163,6 +164,7 @@ class GaussianDataModule(pl.LightningDataModule):
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
+            persistent_workers=self.persistent_workers,
             num_workers=self.num_workers,
         )
 
@@ -172,6 +174,7 @@ class GaussianDataModule(pl.LightningDataModule):
             self.valid_dataset,
             batch_size=self.batch_size,
             shuffle=False,
+            persistent_workers=self.persistent_workers,
             num_workers=self.num_workers,
         )
 

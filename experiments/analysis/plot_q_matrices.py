@@ -1,3 +1,8 @@
+"""Plotting Q matrices.
+
+This script plots the relevant terms making up the Q matrices, used for atom type diffusion.
+"""
+
 from matplotlib import pyplot as plt
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
@@ -6,10 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
-from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
-    setup_analysis_logger
-
-setup_analysis_logger()
+from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -49,4 +51,5 @@ if __name__ == '__main__':
         ax.set_xlim(times[-1] + 0.1, times[0] - 0.1)
 
     fig.tight_layout()
+    fig.savefig(PLOTS_OUTPUT_DIRECTORY / "q_matrices.png")
     plt.show()

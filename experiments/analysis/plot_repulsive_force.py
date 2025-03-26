@@ -1,3 +1,8 @@
+"""Plotting Repulsive Forces.
+
+This script plots the repulsive force field that can be used to prevent atoms overlapping at sampling time.
+"""
+
 import torch
 from matplotlib import pyplot as plt
 
@@ -6,7 +11,8 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import (
     ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISY_RELATIVE_COORDINATES, UNIT_CELL)
+    AXL, NOISY_AXL_COMPOSITION, UNIT_CELL)
+from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -25,6 +31,8 @@ force_field_parameters = ForceFieldParameters(
 )
 
 if __name__ == "__main__":
+    # The score network will not be called since we are only looking to plot the force field.
+    # This is why we can get away with giving a None argument.
     force_field_score_network = ForceFieldAugmentedScoreNetwork(
         score_network=None, force_field_parameters=force_field_parameters
     )
@@ -36,10 +44,13 @@ if __name__ == "__main__":
         relative_coordinates = torch.tensor(
             [[[0.5 - 0.5 * x, 0.5, 0.0], [0.5 + 0.5 * x, 0.5, 0.0]]]
         )
+        # The atom types are irrelevant to the force field. We put a dummy value.
+        batch_size, natoms, _ = relative_coordinates.shape
+        atom_types = torch.zeros(batch_size, natoms)
 
         basis_vectors = acell * torch.diag(torch.ones(spatial_dimension)).unsqueeze(0)
         batch = {
-            NOISY_RELATIVE_COORDINATES: relative_coordinates,
+            NOISY_AXL_COMPOSITION: AXL(A=atom_types, X=relative_coordinates, L=UNIT_CELL),
             UNIT_CELL: basis_vectors,
         }
         forces = force_field_score_network.get_relative_coordinates_pseudo_force(batch)
@@ -59,4 +70,6 @@ if __name__ == "__main__":
     ax.set_ylim(ymin=-0.1)
     ax.set_xlabel(r"Interatomic Distance ($\AA$)")
     ax.set_ylabel("Magnitude of Pseudo Force")
+    fig.tight_layout()
+    fig.savefig(PLOTS_OUTPUT_DIRECTORY / "repulsive_force.png")
     plt.show()

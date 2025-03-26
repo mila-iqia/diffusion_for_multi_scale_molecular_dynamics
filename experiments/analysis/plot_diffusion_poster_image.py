@@ -1,5 +1,13 @@
+"""Plotting Diffusion for Poster.
+
+This script generates images that show how diffusion works at a conceptual level. It was used to create
+a scientific poster. This is not real data or a real input to any model.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
+
+from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 if __name__ == "__main__":
     x_max = 1000
@@ -38,7 +46,7 @@ if __name__ == "__main__":
     fig1.tight_layout()
     fig2.tight_layout()
 
-    fig1.savefig("forward_diffusion.png")
-    fig2.savefig("backward_diffusion.png")
+    fig1.savefig(PLOTS_OUTPUT_DIRECTORY / "forward_diffusion.png")
+    fig2.savefig(PLOTS_OUTPUT_DIRECTORY / "backward_diffusion.png")
 
     plt.show()

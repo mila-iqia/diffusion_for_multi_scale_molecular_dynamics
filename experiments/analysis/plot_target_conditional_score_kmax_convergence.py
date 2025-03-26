@@ -1,19 +1,19 @@
-"""Target score analysis.
+"""Plot Target Conditional Score kmax convergence.
 
-This script computes and plots the target score for various values of sigma, showing
-that the 'smart' implementation converges quickly and is equal to the expected brute force value.
+This script computes and plots the target conditional score for various values of sigma, showing
+that the 'smart' implementation converges quickly with respect to kmax and is equal to the expected brute force value.
 """
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
     SIGMA_THRESHOLD, get_coordinates_sigma_normalized_score,
     get_sigma_normalized_score_brute_force)
+from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     ax2 = fig1.add_subplot(122)
 
     for sigma_factor, color in zip([0.1, 1.0, 2.0], ["r", "g", "b"]):
-        sigma = sigma_factor * SIGMA_THRESHOLD
+        sigma = sigma_factor * SIGMA_THRESHOLD.item()
 
         sigmas = torch.ones_like(relative_positions) * sigma
         list_scores_brute = np.array(
@@ -63,7 +63,8 @@ if __name__ == "__main__":
         ax.legend(loc=0)
 
     fig1.tight_layout()
-    fig1.savefig(ANALYSIS_RESULTS_DIR.joinpath("score_convergence_with_sigma.png"))
+    fig1.savefig(PLOTS_OUTPUT_DIRECTORY.joinpath("score_convergence_with_sigma.png"))
+    plt.show()
 
     # A second figure to show convergence with kmax
     fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
@@ -122,4 +123,5 @@ if __name__ == "__main__":
     ax3.set_title("Smart implementation")
     ax4.set_title("Brute force implementation")
     fig2.tight_layout()
-    fig2.savefig(ANALYSIS_RESULTS_DIR.joinpath("score_convergence_with_k.png"))
+    fig2.savefig(PLOTS_OUTPUT_DIRECTORY.joinpath("score_convergence_with_k.png"))
+    plt.show()

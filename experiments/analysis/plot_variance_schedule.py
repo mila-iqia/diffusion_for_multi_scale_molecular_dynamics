@@ -1,4 +1,4 @@
-"""Exploding variance analysis.
+"""Plot Variance Schedule.
 
 This script computes and plots the variance schedule used to noise and denoise
 the relative positions.
@@ -7,24 +7,24 @@ the relative positions.
 import matplotlib.pyplot as plt
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
-    ExplodingVarianceSampler
+    NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_coordinates_sigma_normalized_score
+from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
 if __name__ == "__main__":
 
     noise_parameters = NoiseParameters(total_time_steps=1000)
-    variance_sampler = ExplodingVarianceSampler(noise_parameters=noise_parameters)
+    noise_scheduler = NoiseScheduler(noise_parameters=noise_parameters, num_classes=1)
 
-    noise, langevin_dynamics = variance_sampler.get_all_sampling_parameters()
+    noise, langevin_dynamics = noise_scheduler.get_all_sampling_parameters()
 
     fig1 = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig1.suptitle("Noise Schedule")
@@ -75,5 +75,5 @@ if __name__ == "__main__":
     ax2.set_xlim([-0.01, 1.01])
 
     fig1.tight_layout()
-
-    fig1.savefig(ANALYSIS_RESULTS_DIR.joinpath("variance_schedule.png"))
+    fig1.savefig(PLOTS_OUTPUT_DIRECTORY / "variance_schedule.png")
+    plt.show()
