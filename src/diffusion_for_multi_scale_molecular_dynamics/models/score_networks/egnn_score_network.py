@@ -233,11 +233,11 @@ class EGNNScoreNetwork(ScoreNetwork):
             edges = get_edges_batch(n_nodes=number_of_atoms, batch_size=batch_size)
         else:
             # TODO cheap hack to avoid box collapse
-            unit_cell = batch[NOISY_AXL_COMPOSITION].L.clip(
+            lattice_parameters = batch[NOISY_AXL_COMPOSITION].L.clip(
                 min=2.2 * self.radial_cutoff
             )
-            unit_cell[:, spatial_dimension:] = 0  # TODO force orthogonal cell
-            unit_cell = map_lattice_parameters_to_unit_cell_vectors(unit_cell)
+            lattice_parameters[:, spatial_dimension:] = 0  # TODO force orthogonal cell
+            unit_cell = map_lattice_parameters_to_unit_cell_vectors(lattice_parameters)
             edges = get_edges_with_radial_cutoff(
                 relative_coordinates,
                 unit_cell,

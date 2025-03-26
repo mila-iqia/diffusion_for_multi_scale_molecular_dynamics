@@ -275,10 +275,10 @@ class ExplodingVarianceSDEPositionGenerator(AXLGenerator):
         atom_types = (
             torch.zeros(number_of_samples, self.number_of_atoms).long().to(device)
         )
-        lattice_vectors = torch.randn(
+        lattice_parameters = torch.randn(
             number_of_samples, get_number_of_lattice_parameters(self.spatial_dimension)
         ).to(device)
-        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
+        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
         return init_composition
 
     def sample(self, number_of_samples: int, device: torch.device) -> AXL:

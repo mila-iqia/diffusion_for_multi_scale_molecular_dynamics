@@ -19,7 +19,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_var
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
-    map_axl_composition_to_unit_cell, map_relative_coordinates_to_unit_cell)
+    get_number_of_lattice_parameters, map_axl_composition_to_unit_cell,
+    map_relative_coordinates_to_unit_cell)
 from diffusion_for_multi_scale_molecular_dynamics.utils.sample_trajectory import \
     SampleTrajectory
 
@@ -309,9 +310,11 @@ class ExplodingVarianceODEAXLGenerator(AXLGenerator):
         atom_types = (
             torch.zeros(number_of_samples, self.number_of_atoms).long().to(device)
         )
-        lattice_vectors = torch.randn(
+        lattice_parameters = torch.randn(
             number_of_samples,
-            int(self.spatial_dimension * (self.spatial_dimension + 1) / 2),
+            get_number_of_lattice_parameters(self.spatial_dimension),
         ).to(device)
-        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_vectors)
+        init_composition = AXL(
+            A=atom_types, X=relative_coordinates, L=lattice_parameters
+        )
         return init_composition

@@ -206,7 +206,7 @@ class SamplingVisualizationCallback(Callback):
             )
 
             torch.save(sample_lattice_parameters, lattice_parameters_output_path)
-            figs = [self._plot_lattice_parameters_histogram(  # I'M HERE
+            figs = [self._plot_lattice_parameters_histogram(
                 samples.numpy(),
                 references.numpy(),
                 lattice_index,

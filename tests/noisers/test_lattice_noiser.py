@@ -45,7 +45,7 @@ class TestLatticeNoiser:
         real_lattice_parameters,
         sigmas,
     ):
-        return lattice_noiser.get_noisy_lattice_vectors(real_lattice_parameters, sigmas)
+        return lattice_noiser.get_noisy_lattice_parameters(real_lattice_parameters, sigmas)
 
     @pytest.fixture()
     def fake_gaussian_sample(self, batch_size, num_lattice_parameters):
@@ -75,7 +75,7 @@ class TestLatticeNoiser:
             return_value=fake_gaussian_sample,
         )
 
-        computed_samples = lattice_noiser.get_noisy_lattice_vectors(
+        computed_samples = lattice_noiser.get_noisy_lattice_parameters(
             real_lattice_parameters,
             sigmas,
         )

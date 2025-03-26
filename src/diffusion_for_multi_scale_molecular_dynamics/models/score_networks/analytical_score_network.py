@@ -297,51 +297,6 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         return axl_scores
 
-    def _compute_unnormalized_log_probability(
-        self, sigmas: torch.Tensor, xt: torch.Tensor, x_eq: torch.Tensor
-    ) -> torch.Tensor:
-
-        batch_size = sigmas.shape[0]
-
-        # Recast various spatial arrays to the correct dimensions to combine them,
-        # in dimensions [batch, nd, number_of_translations]
-        effective_variance = einops.repeat(
-            sigmas**2 + self.sigma_d_square,
-            "batch 1 -> batch nd t",
-            t=self.number_of_translations,
-            nd=self.nd,
-        )
-
-        sampling_coordinates = einops.repeat(
-            xt,
-            "batch natom d -> batch (natom d) t",
-            batch=batch_size,
-            t=self.number_of_translations,
-        )
-
-        equilibrium_coordinates = einops.repeat(
-            x_eq,
-            "natom d -> batch (natom d) t",
-            batch=batch_size,
-            t=self.number_of_translations,
-        )
-
-        translations = einops.repeat(
-            self.translations_k, "t -> batch nd t", batch=batch_size, nd=self.nd
-        )
-
-        exponent = (
-            -0.5
-            * (sampling_coordinates - equilibrium_coordinates - translations) ** 2
-            / effective_variance
-        )
-        # logsumexp on lattice translation vectors, then sum on spatial indices
-        unnormalized_log_prob = torch.logsumexp(exponent, dim=2, keepdim=False).sum(
-            dim=1
-        )
-
-        return unnormalized_log_prob
-
 
 class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
     """Target Score-Based Analytical Score Network.
@@ -349,6 +304,8 @@ class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
     An analytical score network that leverages the computation of the target for the score network.
     This can only work if the permutation equivariance is turned off. This should produce exactly the same results
     as the AnalyticalScoreNetwork, but does not require gradient calculation.
+
+    TODO clean up
     """
 
     def __init__(self, hyper_params: AnalyticalScoreNetworkParameters):

@@ -124,7 +124,8 @@ class NoisingTransform:
 
         lattice_parameters_shape = l0.shape
         assert len(lattice_parameters_shape) == 2, (
-            f"the shape of the LATTICE parameters array should be [batch_size, number_of_atoms]. "
+            f"the shape of the LATTICE parameters array should be [batch_size,"
+            f"spatial_dimension * (spatial_dimension + 1) / 2]."
             f"Got shape = {lattice_parameters_shape}"
         )
 
@@ -177,9 +178,9 @@ class NoisingTransform:
         sigmas_n = scale_sigma_by_number_of_atoms(
             noise_sample.sigma.reshape(-1, 1),
             num_atoms,
-            spatial_dimension=lattice_parameters_shape[-1],
+            spatial_dimension=x0.shape[-1],
         )
-        lt = self.noisers.L.get_noisy_lattice_vectors(
+        lt = self.noisers.L.get_noisy_lattice_parameters(
             l0,
             sigmas_n,
         )

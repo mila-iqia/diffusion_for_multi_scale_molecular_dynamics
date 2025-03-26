@@ -31,7 +31,7 @@ def create_loss_calculator(loss_parameters: AXL) -> AXL:
     coordinates_loss = LOSS_BY_ALGO[coordinates_algorithm](loss_parameters.X)
     lattice_loss = LOSS_BY_ALGO[lattice_algorithm](
         loss_parameters.L
-    )  # TODO placeholder
+    )
     atom_loss = D3PMLossCalculator(loss_parameters.A)
 
     return AXL(

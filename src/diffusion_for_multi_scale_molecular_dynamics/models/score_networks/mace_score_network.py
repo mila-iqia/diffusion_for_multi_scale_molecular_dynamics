@@ -165,14 +165,14 @@ class MACEScoreNetwork(ScoreNetwork):
         """
         del conditional  # TODO implement conditional
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
-        unit_cell = batch[NOISY_AXL_COMPOSITION].L
-        clipped_unit_cell = unit_cell.clip(
+        lattice_parameters = batch[NOISY_AXL_COMPOSITION].L
+        clipped_lattice_parameters = lattice_parameters.clip(
             min=2.2 * self.r_max
         )  # TODO cheap hack to prevent collapse
-        clipped_unit_cell[:, self.spatial_dimension:] = 0
+        clipped_lattice_parameters[:, self.spatial_dimension:] = 0
         batch[NOISY_CARTESIAN_POSITIONS] = torch.bmm(
             relative_coordinates,
-            map_lattice_parameters_to_unit_cell_vectors(clipped_unit_cell),
+            map_lattice_parameters_to_unit_cell_vectors(clipped_lattice_parameters),
         )  # positions in Angstrom
         graph_input = input_to_mace(batch, radial_cutoff=self.r_max)
         mace_output = self.mace_network(
@@ -204,7 +204,7 @@ class MACEScoreNetwork(ScoreNetwork):
         clipped_basis_vectors = basis_vectors.clip(min=2.2 * self.r_max)
         clipped_basis_vectors[:, self.spatial_dimension:] = 0
         clipped_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
-            clipped_unit_cell
+            clipped_lattice_parameters
         )
         coordinates_scores = einops.einsum(
             clipped_basis_vectors,

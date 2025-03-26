@@ -457,15 +457,15 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 spatial_dimension * (spatial_dimension + 1) / 2],
             sigma_normalized_scores: output of the model - an estimate of the normalized
                 score :math:`\sigma \nabla log p(x)`.
-                Dimension: [number_of_samples, number_of_atoms, spatial_dimension]
+                Dimension: [number_of_samples, spatial_dimension * (spatial_dimension + 1) / 2]
             sigma_n_i: noise parameter for variance exploding noise scheduler scaled by the number of atoms.
                 Dimension: [number_of_samples]
             score_weight: prefactor in front of the normalized score update. Should be g2_i in the predictor step and
                 eps_i in the corrector step. Dimension: [number_of_samples]
             gaussian_noise_weight: prefactor in front of the random noise update. Should be g_i in the
                 predictor step and sqrt_2eps_i in the corrector step. Dimension: [number_of_samples]
-            z: gaussian noise used to update the coordinates. A sample drawn from the normal distribution. If None,
-                random values are drawn from a gaussian distribution. Defaults to None.
+            z: gaussian noise used to update the lattice parameters. A sample drawn from the normal distribution.
+                If None, random values are drawn from a gaussian distribution. Defaults to None.
                 Dimension: [number_of_samples, number_of_atoms, spatial_dimension * (spatial_dimension + 1) / 2].
 
         Returns:

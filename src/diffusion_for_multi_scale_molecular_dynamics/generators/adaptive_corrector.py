@@ -87,7 +87,7 @@ class AdaptiveCorrectorGenerator(LangevinGenerator):
     ) -> torch.Tensor:
         """Compute the size of the corrector step for the lattice parameters update.
 
-        The update is similar to the one for the relatice coordinates, so this method is a wrapper for the more generic
+        The update is similar to the one for the relative coordinates, so this method is a wrapper for the more generic
         one used for relative coordinates and lattice parameters.
         """
         return self._generic_corrector_step_size(

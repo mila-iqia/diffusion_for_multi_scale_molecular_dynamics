@@ -10,8 +10,11 @@ class LatticeDataParameters:
 
     TODO: this might belong elsewhere
     """
+
     spatial_dimension: int = 3
-    use_fixed_lattice_parameters: bool = False  # if True, do not noise the lattice parameters
+    use_fixed_lattice_parameters: bool = (
+        False  # if True, do not noise the lattice parameters
+    )
 
 
 class LatticeNoiser:
@@ -23,7 +26,9 @@ class LatticeNoiser:
     def __init__(self, lattice_parameters: LatticeDataParameters):
         """Init method."""
         self.spatial_dimension = lattice_parameters.spatial_dimension
-        self.use_fixed_lattice_parameters = lattice_parameters.use_fixed_lattice_parameters
+        self.use_fixed_lattice_parameters = (
+            lattice_parameters.use_fixed_lattice_parameters
+        )
 
     @staticmethod
     def _get_gaussian_noise(shape: Tuple[int]) -> torch.Tensor:
@@ -39,7 +44,7 @@ class LatticeNoiser:
         """
         return torch.randn(shape)
 
-    def get_noisy_lattice_vectors(
+    def get_noisy_lattice_parameters(
         self,
         real_lattice_parameters: torch.Tensor,
         sigmas_n: torch.Tensor,
@@ -48,11 +53,10 @@ class LatticeNoiser:
 
         We consider the lattice parameters as a tensor with 6, 3, or 1 parameters for 3D, 2D, 1D.
 
-
         Args:
-            real_lattice_parameters: lattice parameters from the sampled data. These parameters are not the lattice
-                vector, but an array of dimension [spatial_dimension * (spatial_dimension + 1) / 2] containing the size
-                of the orthogonal box and the angles.  # TODO review statement about angles
+            real_lattice_parameters: lattice parameters from the sampled data. These parameters are not the unit cell
+                basis vector, but an array of dimension [spatial_dimension * (spatial_dimension + 1) / 2] containing
+                the size of the orthogonal box and the angles.  # TODO review statement about angles
             sigmas_n: variance of the perturbation kernel rescaled by the number of atoms. Tensor is assumed to be of
                 the same shape as real_lattice_parameters.
 

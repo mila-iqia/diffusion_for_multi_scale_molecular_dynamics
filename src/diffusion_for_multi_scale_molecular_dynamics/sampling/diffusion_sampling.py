@@ -40,27 +40,27 @@ def create_batch_of_samples(
 
     list_sampled_relative_coordinates = []
     list_sampled_atom_types = []
-    list_sampled_lattice_vectors = []
+    list_sampled_lattice_parameters = []
     for sampling_batch_indices in torch.split(
         torch.arange(number_of_samples), sample_batch_size
     ):
         sampled_axl = generator.sample(len(sampling_batch_indices), device=device)
         list_sampled_atom_types.append(sampled_axl.A)
         list_sampled_relative_coordinates.append(sampled_axl.X)
-        list_sampled_lattice_vectors.append(sampled_axl.L)
+        list_sampled_lattice_parameters.append(sampled_axl.L)
 
     atom_types = torch.concat(list_sampled_atom_types)
     relative_coordinates = torch.concat(list_sampled_relative_coordinates)
-    lattice_vectors = torch.concat(list_sampled_lattice_vectors)
+    lattice_parameters = torch.concat(list_sampled_lattice_parameters)
     axl_composition = AXL(
         A=atom_types,
         X=relative_coordinates,
-        L=lattice_vectors,
+        L=lattice_parameters,
     )
 
     spatial_dimension = relative_coordinates.shape[-1]
-    lattice_vectors[..., spatial_dimension:] = 0  # TODO support non-orthogonal boxes
-    basis_vectors = map_lattice_parameters_to_unit_cell_vectors(lattice_vectors)
+    lattice_parameters[..., spatial_dimension:] = 0  # TODO support non-orthogonal boxes
+    basis_vectors = map_lattice_parameters_to_unit_cell_vectors(lattice_parameters)
     cartesian_positions = get_positions_from_coordinates(
         relative_coordinates, basis_vectors
     )

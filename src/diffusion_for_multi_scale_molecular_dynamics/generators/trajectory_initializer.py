@@ -16,6 +16,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
 @dataclass(kw_only=True)
 class TrajectoryInitializerParameters:
     """Parameters for trajectory initialization."""
+
     spatial_dimension: int = 3  # the dimension of Euclidean space where atoms live.
     num_atom_types: int  # number of atom types excluding MASK
 
@@ -31,13 +32,21 @@ class TrajectoryInitializerParameters:
     def __post_init__(self):
         """Post init."""
         if self.use_fixed_lattice_parameters:
-            assert self.fixed_lattice_parameters is not None, (
-                "If use_fixed_lattice_parameters is True, then fixed_lattice_parameters must be provided."
-            )
-            assert self.fixed_lattice_parameters.shape[0] == get_number_of_lattice_parameters(self.spatial_dimension), (
+            assert (
+                self.fixed_lattice_parameters is not None
+            ), "If use_fixed_lattice_parameters is True, then fixed_lattice_parameters must be provided."
+            assert self.fixed_lattice_parameters.shape[
+                0
+            ] == get_number_of_lattice_parameters(self.spatial_dimension), (
                 f"The fixed_lattice_parameters tensor must have shape"
                 f"[spatial_dimension * (spatial_dimension + 1) / 2]."
                 f"Got {self.fixed_lattice_parameters.shape}."
+            )
+
+        else:
+            assert self.fixed_lattice_parameters is None, (
+                "fixed_lattice_parameters must be None if "
+                "use_fixed_lattice_parameters is False."
             )
 
 
@@ -59,8 +68,12 @@ class TrajectoryInitializer(ABC):
         self.num_lattice_parameters = get_number_of_lattice_parameters(
             trajectory_initializer_parameters.spatial_dimension
         )
-        self.use_fixed_lattice_parameters = trajectory_initializer_parameters.use_fixed_lattice_parameters
-        self.fixed_lattice_parameters = trajectory_initializer_parameters.fixed_lattice_parameters
+        self.use_fixed_lattice_parameters = (
+            trajectory_initializer_parameters.use_fixed_lattice_parameters
+        )
+        self.fixed_lattice_parameters = (
+            trajectory_initializer_parameters.fixed_lattice_parameters
+        )
 
     @abstractmethod
     def initialize(self, number_of_samples: int, device: torch.device) -> AXL:
@@ -104,7 +117,9 @@ class FullRandomTrajectoryInitializer(TrajectoryInitializer):
             lattice_parameters = torch.randn(
                 number_of_samples, self.num_lattice_parameters
             ).to(device)
-        init_composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
+        init_composition = AXL(
+            A=atom_types, X=relative_coordinates, L=lattice_parameters
+        )
         return init_composition
 
     def create_start_time_step_index(self, number_of_discretization_steps: int) -> int:

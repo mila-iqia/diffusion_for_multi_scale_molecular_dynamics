@@ -185,7 +185,7 @@ def get_spatial_dimension_from_number_of_lattice_parameters(
 def map_unit_cell_to_lattice_parameters(
     unit_cell: Union[np.ndarray, torch.Tensor], engine: str = "torch"
 ) -> Union[np.ndarray, torch.Tensor]:
-    """Map an numpy array or torch tensor for the unit cell vectors to a flat lattice parameters.
+    """Map a numpy array or torch tensor for the unit cell vectors to a flat lattice parameters.
 
     TODO we are currently assuming the angles to be fixed at 90 degrees.
 
