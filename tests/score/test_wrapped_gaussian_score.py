@@ -8,7 +8,7 @@ from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score i
     _get_s1b_exponential, _get_sigma_normalized_s2,
     _get_sigma_square_times_score_1_from_exponential,
     _get_small_sigma_large_u_mask, _get_small_sigma_small_u_mask,
-    get_log_wrapped_gaussians, get_sigma_normalized_score,
+    get_coordinates_sigma_normalized_score, get_log_wrapped_gaussians,
     get_sigma_normalized_score_brute_force)
 
 
@@ -168,10 +168,14 @@ class TestExponentials:
 @pytest.mark.parametrize("kmax", [1, 5, 10])
 def test_get_wrapped_gaussian(relative_coordinates, sigmas, shape, kmax):
 
-    log_wrapped_gaussians = get_log_wrapped_gaussians(relative_coordinates, sigmas, kmax)
+    log_wrapped_gaussians = get_log_wrapped_gaussians(
+        relative_coordinates, sigmas, kmax
+    )
     assert log_wrapped_gaussians.shape == shape[:-2]
 
-    computed_wrapped_gaussians = einops.rearrange(torch.exp(log_wrapped_gaussians), " ... -> (...)")
+    computed_wrapped_gaussians = einops.rearrange(
+        torch.exp(log_wrapped_gaussians), " ... -> (...)"
+    )
 
     list_x = einops.rearrange(
         relative_coordinates, "... natoms space -> (...) (natoms space)"
@@ -233,7 +237,7 @@ def test_get_sigma_normalized_s2(list_u, list_sigma, list_k, numerical_type):
 def test_get_sigma_normalized_score(
     relative_coordinates, large_sigmas, kmax, expected_sigma_normalized_scores
 ):
-    sigma_normalized_score_small_sigma = get_sigma_normalized_score(
+    sigma_normalized_score_small_sigma = get_coordinates_sigma_normalized_score(
         relative_coordinates, large_sigmas, kmax
     )
 

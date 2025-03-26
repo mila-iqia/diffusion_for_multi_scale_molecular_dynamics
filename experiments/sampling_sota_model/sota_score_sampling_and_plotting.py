@@ -16,13 +16,13 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
-    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_position_generator import \
+    ExplodingVarianceODEAXLGenerator, ODESamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
     load_diffusion_model
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    ExplodingVariance
+    VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps import \
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     noise_parameters = NoiseParameters(
         total_time_steps=total_time_steps, sigma_min=0.001, sigma_max=0.5
     )
-    exploding_variance = ExplodingVariance(noise_parameters)
+    exploding_variance = VarianceScheduler(noise_parameters)
 
     if sampling_algorithm == "ode":
         ode_sampling_parameters = ODESamplingParameters(
@@ -97,7 +97,7 @@ if __name__ == "__main__":
             relative_solver_tolerance=1.0e-5,
         )
 
-        position_generator = ExplodingVarianceODEPositionGenerator(
+        position_generator = ExplodingVarianceODEAXLGenerator(
             noise_parameters=noise_parameters,
             sampling_parameters=ode_sampling_parameters,
             sigma_normalized_score_network=sigma_normalized_score_network,

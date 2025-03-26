@@ -18,7 +18,9 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_pr
     MaceMLPScorePredictionHeadParameters, MaceScorePredictionHeadParameters,
     instantiate_mace_prediction_head)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, TIME, UNIT_CELL)
+    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, TIME)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_lattice_parameters_to_unit_cell_vectors
 
 
 @dataclass(kw_only=True)
@@ -163,8 +165,14 @@ class MACEScoreNetwork(ScoreNetwork):
         """
         del conditional  # TODO implement conditional
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        lattice_parameters = batch[NOISY_AXL_COMPOSITION].L
+        clipped_lattice_parameters = lattice_parameters.clip(
+            min=2.2 * self.r_max
+        )  # TODO cheap hack to prevent collapse
+        clipped_lattice_parameters[:, self.spatial_dimension:] = 0
         batch[NOISY_CARTESIAN_POSITIONS] = torch.bmm(
-            relative_coordinates, batch[UNIT_CELL]
+            relative_coordinates,
+            map_lattice_parameters_to_unit_cell_vectors(clipped_lattice_parameters),
         )  # positions in Angstrom
         graph_input = input_to_mace(batch, radial_cutoff=self.r_max)
         mace_output = self.mace_network(
@@ -192,9 +200,14 @@ class MACEScoreNetwork(ScoreNetwork):
 
         # The expected output of the score network is a COORDINATE SCORE, i.e. something like nabla_x ln P.
         # Note that the basis_vectors is composed of ROWS of basis vectors
-        basis_vectors = batch[UNIT_CELL]
+        basis_vectors = batch[NOISY_AXL_COMPOSITION].L
+        clipped_basis_vectors = basis_vectors.clip(min=2.2 * self.r_max)
+        clipped_basis_vectors[:, self.spatial_dimension:] = 0
+        clipped_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
+            clipped_lattice_parameters
+        )
         coordinates_scores = einops.einsum(
-            basis_vectors,
+            clipped_basis_vectors,
             cartesian_scores,
             "batch i alpha, batch natoms alpha -> batch natoms i",
         )
@@ -210,7 +223,9 @@ class MACEScoreNetwork(ScoreNetwork):
         scores = AXL(
             A=atom_type_scores,
             X=coordinates_scores,
-            L=torch.zeros_like(atom_type_scores),  # TODO replace with real output
+            L=torch.zeros_like(
+                batch[NOISY_AXL_COMPOSITION].L
+            ),  # TODO replace with real output
         )
 
         return scores

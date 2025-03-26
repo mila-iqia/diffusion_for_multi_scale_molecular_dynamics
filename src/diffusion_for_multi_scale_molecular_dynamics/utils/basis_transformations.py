@@ -1,3 +1,6 @@
+from typing import Union
+
+import numpy as np
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
@@ -133,3 +136,121 @@ def map_axl_composition_to_unit_cell(composition: AXL, device: torch.device) -> 
         A=composition.A, X=normalized_relative_coordinates, L=composition.L
     )
     return normalized_composition
+
+
+def map_lattice_parameters_to_unit_cell_vectors(
+    lattice_parameters: torch.Tensor,
+) -> torch.Tensor:
+    """Map the lattice parameters in an AXL namedtuple back to vectors used to describe the lattice explicitly.
+
+    The lattice parameters are a set of spatial dimension x (spatial dimension + 1) / 2 variables describing the length
+    of the vectors and the angles.
+    TODO we are currently assuming the angles to be fixed at 90 degrees.
+
+    Args:
+        lattice_parameters: lattice parameters used in AXL diffusion model i.e. the vector norms and angles.
+            Dimension: [..., spatial dimension x (spatial dimension + 1) / 2]
+
+    Returns:
+        unit_cell_vectors: unit vectors. Dimension: [..., spatial dimension, spatial dimension].
+    """
+    last_dim_size = lattice_parameters.shape[-1]
+    spatial_dimension = get_spatial_dimension_from_number_of_lattice_parameters(
+        last_dim_size
+    )
+
+    # TODO we assume a diagonal map here  - we need to revisit this when we introduce angles in the lattice box
+    assert torch.allclose(
+        lattice_parameters[..., spatial_dimension:],
+        torch.zeros_like(lattice_parameters[..., spatial_dimension:]),
+    ), "Only orthogonal boxes are supported for now."
+
+    vector_lengths = lattice_parameters[..., :spatial_dimension]
+
+    return torch.diag_embed(vector_lengths)
+
+
+def get_number_of_lattice_parameters(spatial_dimension: int) -> int:
+    """Compute the number of independent lattice parameters from the spatial dimension."""
+    return int(spatial_dimension * (spatial_dimension + 1) / 2)
+
+
+def get_spatial_dimension_from_number_of_lattice_parameters(
+    number_of_lattice_parameters: int,
+) -> int:
+    """Compute the spatial dimension for the number of lattice parameters."""
+    return int((-1 + np.sqrt(1 + 8 * number_of_lattice_parameters)) / 2)
+
+
+def map_unit_cell_to_lattice_parameters(
+    unit_cell: Union[np.ndarray, torch.Tensor], engine: str = "torch"
+) -> Union[np.ndarray, torch.Tensor]:
+    """Map a numpy array or torch tensor for the unit cell vectors to a flat lattice parameters.
+
+    TODO we are currently assuming the angles to be fixed at 90 degrees.
+
+    Args:
+        unit_cell: unit cell vector from the dataset.
+            Dimension: [..., spatial dimension, spatial dimension]
+        engine (optional): torch or numpy. Defaults to torch.
+
+    Returns:
+        lattice_parameters: lattice parameters as as numpy array or torch tensor.
+            Dimension: [..., spatial dimension x (spatial dimension + 1) / 2].
+    """
+    assert engine in [
+        "torch",
+        "numpy",
+    ], f"Mapping can be done for numpy or torch. Got {engine}."
+
+    spatial_dimension = unit_cell.shape[-1]
+    num_lattice_parameters = get_number_of_lattice_parameters(spatial_dimension)
+
+    if engine == "torch":
+        lattice_parameters = torch.zeros(
+            *unit_cell.shape[:-2], num_lattice_parameters
+        ).to(unit_cell)
+        diag_unit_cell = torch.diagonal(unit_cell, dim1=-2, dim2=-1)
+
+    elif engine == "numpy":
+        lattice_parameters = np.zeros(num_lattice_parameters)
+        diag_unit_cell = np.diag(unit_cell)
+
+    lattice_parameters[..., :spatial_dimension] = diag_unit_cell
+    # TODO add angle information in the other entries in lattice_parameters
+
+    return lattice_parameters
+
+
+def map_numpy_unit_cell_to_lattice_parameters(unit_cell: np.ndarray) -> np.ndarray:
+    """Call map_unit_cell_to_lattice_parameters for numpy."""
+    return map_unit_cell_to_lattice_parameters(unit_cell, engine="numpy")
+
+
+def map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
+    lattice_parameters: torch.Tensor,
+    min_box_size: float = 4.0,
+) -> torch.Tensor:
+    """Map the lattice parameters in an AXL namedtuple back to vectors used to describe the lattice explicitly.
+
+    The lattice parameters are a set of spatial dimension x (spatial dimension + 1) / 2 variables describing the length
+    of the vectors and the angles.
+    TODO we are currently assuming the angles to be fixed at 90 degrees.
+
+    Args:
+        lattice_parameters: lattice parameters used in AXL diffusion model i.e. the vector norms and angles.
+            Dimension: [..., spatial dimension x (spatial dimension + 1) / 2]
+        min_box_size (optional): minimal box size in Angstrom. Unit cell vectors are clipped so they are at least this
+            size. Defaults to 4.0.
+
+    Returns:
+        unit_cell_vectors: unit vectors. Dimension: [..., spatial dimension, spatial dimension].
+    """
+    last_dim_size = lattice_parameters.shape[-1]
+    spatial_dimension = get_spatial_dimension_from_number_of_lattice_parameters(
+        last_dim_size
+    )
+    lattice_parameters = lattice_parameters.clip(min=min_box_size)
+    lattice_parameters[:, spatial_dimension:] = 0.0
+
+    return map_lattice_parameters_to_unit_cell_vectors(lattice_parameters)

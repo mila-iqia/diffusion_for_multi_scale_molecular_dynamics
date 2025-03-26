@@ -36,7 +36,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
     globals_dict = dict(
         max_atom=hyper_params["data"]["max_atom"],
         spatial_dimension=hyper_params.get("spatial_dimension", 3),
-        elements=elements
+        elements=elements,
     )
 
     score_network_dict = hyper_params["model"]["score_network"]
@@ -56,7 +56,9 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
 
     oracle_parameters = None
     if "oracle" in hyper_params:
-        oracle_parameters = create_energy_oracle_parameters(hyper_params["oracle"], elements)
+        oracle_parameters = create_energy_oracle_parameters(
+            hyper_params["oracle"], elements
+        )
 
     regularizer_parameters = None
     if "regularizer" in hyper_params:
@@ -70,7 +72,7 @@ def load_diffusion_model(hyper_params: Dict[AnyStr, Any]) -> AXLDiffusionLightni
         scheduler_parameters=scheduler_parameters,
         regularizer_parameters=regularizer_parameters,
         diffusion_sampling_parameters=diffusion_sampling_parameters,
-        oracle_parameters=oracle_parameters
+        oracle_parameters=oracle_parameters,
     )
 
     model = AXLDiffusionLightningModel(diffusion_params)

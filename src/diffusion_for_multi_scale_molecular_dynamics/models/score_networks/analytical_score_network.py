@@ -22,7 +22,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISE, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
-    get_log_wrapped_gaussians, get_sigma_normalized_score)
+    get_coordinates_sigma_normalized_score, get_log_wrapped_gaussians)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.symmetry_utils import \
@@ -55,12 +55,14 @@ class AnalyticalScoreNetworkParameters(ScoreNetworkParameters):
         """Post init."""
         assert self.sigma_d > 0.0, "the sigma_d parameter should be positive."
 
-        assert len(self.equilibrium_relative_coordinates) == self.number_of_atoms, \
-            "There should be exactly one list of equilibrium coordinates per atom."
+        assert (
+            len(self.equilibrium_relative_coordinates) == self.number_of_atoms
+        ), "There should be exactly one list of equilibrium coordinates per atom."
 
         for x in self.equilibrium_relative_coordinates:
-            assert len(x) == self.spatial_dimension, \
-                "The equilibrium coordinates should be consistent with the spatial dimension."
+            assert (
+                len(x) == self.spatial_dimension
+            ), "The equilibrium coordinates should be consistent with the spatial dimension."
 
 
 class AnalyticalScoreNetwork(ScoreNetwork):
@@ -96,8 +98,9 @@ class AnalyticalScoreNetwork(ScoreNetwork):
 
         self.number_of_translations = len(self.translations_k)
 
-        self.equilibrium_relative_coordinates = torch.tensor(hyper_params.equilibrium_relative_coordinates,
-                                                             dtype=torch.float)
+        self.equilibrium_relative_coordinates = torch.tensor(
+            hyper_params.equilibrium_relative_coordinates, dtype=torch.float
+        )
 
         if self.use_permutation_invariance:
             # Shape : [natom!, natoms, spatial dimension]
@@ -189,7 +192,7 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         # score. However, the normalized score thus obtained is improperly normalized.
         # the empirical scores are normalized with the time-dependent sigmas; the "data" sigma
         # are unknown (or even ill-defined) in general!
-        list_effective_sigma_normalized_scores = get_sigma_normalized_score(
+        list_effective_sigma_normalized_scores = get_coordinates_sigma_normalized_score(
             u, repeated_effective_sigmas, self.kmax
         )
         list_scores = list_effective_sigma_normalized_scores / repeated_effective_sigmas
@@ -278,6 +281,80 @@ class AnalyticalScoreNetwork(ScoreNetwork):
         )
         _, sigma_normalized_scores = self.get_probabilities_and_normalized_scores(
             relative_coordinates=xt, sigmas_t=broadcast_sigmas
+        )
+
+        # Mimic perfect predictions of single possible atomic type.
+        atomic_logits = torch.zeros(
+            batch_size, self.natoms, self.number_of_atomic_classes
+        )
+        atomic_logits[..., -1] = -torch.inf
+
+        axl_scores = AXL(
+            A=atomic_logits,
+            X=sigma_normalized_scores,
+            L=torch.zeros_like(sigma_normalized_scores),
+        )
+
+        return axl_scores
+
+
+class TargetScoreBasedAnalyticalScoreNetwork(AnalyticalScoreNetwork):
+    """Target Score-Based Analytical Score Network.
+
+    An analytical score network that leverages the computation of the target for the score network.
+    This can only work if the permutation equivariance is turned off. This should produce exactly the same results
+    as the AnalyticalScoreNetwork, but does not require gradient calculation.
+
+    TODO clean up
+    """
+
+    def __init__(self, hyper_params: AnalyticalScoreNetworkParameters):
+        """__init__.
+
+        Args:
+            hyper_params : hyper parameters from the config file.
+        """
+        super(TargetScoreBasedAnalyticalScoreNetwork, self).__init__(hyper_params)
+        assert (
+            not hyper_params.use_permutation_invariance
+        ), "This implementation is only valid in the absence of permutation equivariance."
+        self.x0 = self.all_x0[0]
+
+    def _forward_unchecked(
+        self, batch: Dict[AnyStr, Any], conditional: bool = False
+    ) -> torch.Tensor:
+        """Forward unchecked.
+
+        This method assumes that the input data has already been checked with respect to expectations
+        and computes the scores assuming that the data is in the correct format.
+
+        Args:
+            batch : dictionary containing the data to be processed by the model.
+            conditional (optional): CURRENTLY DOES NOTHING.
+
+        Returns:
+            output : the scores computed by the model as a [batch_size, n_atom, spatial_dimension] tensor.
+        """
+        sigmas = batch[NOISE]  # dimension: [batch_size, 1]
+        xt = batch[NOISY_AXL_COMPOSITION].X
+        batch_size = xt.shape[0]
+
+        broadcast_sigmas = einops.repeat(
+            sigmas,
+            "batch 1 -> batch natoms spatial_dimension",
+            natoms=self.natoms,
+            spatial_dimension=self.spatial_dimension,
+        )
+
+        broadcast_effective_sigmas = (broadcast_sigmas**2 + self.sigma_d_square).sqrt()
+
+        delta_relative_coordinates = map_relative_coordinates_to_unit_cell(xt - self.x0)
+        misnormalized_scores = get_coordinates_sigma_normalized_score(
+            delta_relative_coordinates, broadcast_effective_sigmas, kmax=self.kmax
+        )
+
+        sigma_normalized_scores = (
+            broadcast_sigmas / broadcast_effective_sigmas * misnormalized_scores
         )
 
         # Mimic perfect predictions of single possible atomic type.

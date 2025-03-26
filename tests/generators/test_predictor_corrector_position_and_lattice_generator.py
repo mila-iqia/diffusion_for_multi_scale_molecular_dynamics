@@ -31,14 +31,15 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
             spatial_dimension,
             num_atom_types,
             number_of_atoms,
-            trajectory_initializer
+            use_fixed_lattice_parameters=False,
+            fixed_lattice_parameters=None,
+            trajectory_initializer=trajectory_initializer
         )
 
     def predictor_step(
         self,
         axl_ip1: AXL,
         ip1: int,
-        unit_cell: torch.Tensor,
         forces: torch.Tensor,
     ) -> torch.Tensor:
         updated_axl = AXL(
@@ -46,17 +47,17 @@ class FakePCGenerator(PredictorCorrectorAXLGenerator):
             X=map_relative_coordinates_to_unit_cell(
                 1.2 * axl_ip1.X + 3.4 + ip1 / 111.0
             ),
-            L=axl_ip1.L,
+            L=1.2 * axl_ip1.L + 3.4 + ip1 / 111.0,
         )
         return updated_axl
 
     def corrector_step(
-        self, axl_i: torch.Tensor, i: int, unit_cell: torch.Tensor, forces: torch.Tensor
+        self, axl_i: torch.Tensor, i: int, forces: torch.Tensor
     ) -> torch.Tensor:
         updated_axl = AXL(
             A=axl_i.A,
             X=map_relative_coordinates_to_unit_cell(0.56 * axl_i.X + 7.89 + i / 117.0),
-            L=axl_i.L,
+            L=0.56 * axl_i.L + 7.89 + i / 117.0,
         )
         return updated_axl
 
@@ -77,9 +78,9 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
                 0, num_atom_types + 1, (number_of_samples, number_of_atoms)
             ),
             X=torch.rand(number_of_samples, number_of_atoms, spatial_dimension),
-            L=torch.rand(
-                number_of_samples, spatial_dimension * (spatial_dimension - 1)
-            ),  # TODO placeholder
+            L=torch.randn(
+                number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
+            ),
         )
 
     @pytest.fixture()
@@ -132,7 +133,6 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         initial_sample,
         number_of_discretization_steps,
         number_of_corrector_steps,
-        unit_cell_sample,
     ):
         list_i = list(range(number_of_discretization_steps))
         list_i.reverse()
@@ -149,7 +149,6 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
                 generator.predictor_step(
                     composition_ip1,
                     i + 1,
-                    unit_cell_sample,
                     torch.zeros_like(composition_ip1.X),
                 ),
                 torch.device("cpu"),
@@ -159,7 +158,6 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
                     generator.corrector_step(
                         composition_i,
                         i,
-                        unit_cell_sample,
                         torch.zeros_like(composition_i.X),
                     ),
                     torch.device("cpu"),
@@ -170,30 +168,40 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         return list_compositions
 
     def test_sample(
-        self, generator, number_of_samples, all_generated_compositions, unit_cell_sample
+        self,
+        generator,
+        number_of_samples,
+        all_generated_compositions,
     ):
 
         expected_samples = all_generated_compositions[-1]
         computed_samples = generator.sample(
-            number_of_samples, torch.device("cpu"), unit_cell_sample
+            number_of_samples,
+            torch.device("cpu"),
         )
 
         torch.testing.assert_close(expected_samples, computed_samples)
 
-    def test_sample_from_noisy_composition(self, generator,
-                                           initial_sample,
-                                           number_of_discretization_steps,
-                                           all_generated_compositions,
-                                           unit_cell_sample):
+    def test_sample_from_noisy_composition(
+        self,
+        generator,
+        initial_sample,
+        number_of_discretization_steps,
+        all_generated_compositions,
+        unit_cell_sample,
+    ):
 
         starting_noisy_composition = initial_sample
 
-        for idx, starting_step_index in enumerate(range(number_of_discretization_steps, 1, -1)):
+        for idx, starting_step_index in enumerate(
+            range(number_of_discretization_steps, 1, -1)
+        ):
             ending_step_index = starting_step_index - 1
-            generated_sample = generator.sample_from_noisy_composition(starting_noisy_composition,
-                                                                       starting_step_index,
-                                                                       ending_step_index,
-                                                                       unit_cell_sample)
+            generated_sample = generator.sample_from_noisy_composition(
+                starting_noisy_composition,
+                starting_step_index,
+                ending_step_index,
+            )
 
             expected_sample = all_generated_compositions[idx]
             torch.testing.assert_close(expected_sample, generated_sample)

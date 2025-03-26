@@ -128,10 +128,13 @@ def get_sigma_normalized_score_brute_force(
     return sigma_score
 
 
-def get_sigma_normalized_score(
-    relative_coordinates: torch.Tensor, sigmas: torch.Tensor, kmax: int
+def get_coordinates_sigma_normalized_score(
+    relative_coordinates: torch.Tensor,
+    sigmas: torch.Tensor,
+    kmax: int,
+    coordinates_bounded: bool = True,
 ) -> torch.Tensor:
-    """Get the sigma normalized score.
+    """Get the sigma normalized score for relative coordinates from the wrapped gaussian kernel.
 
     This method branches to different formulas depending on the values of sigma and relative coordinates
     to insures rapid convergence and numerical stability.
@@ -141,6 +144,8 @@ def get_sigma_normalized_score(
             relative_coordinates is assumed to have an arbitrary shape.
         sigmas : the values of sigma. Should have the same dimension as relative coordinates.
         kmax : largest positive integer in the sum. The sum is from -kmax to +kmax.
+        coordinates_bounded: if True, check that the relative coordinates are between 0 and 1. Ignore that check
+            otherwise. Defaults to True.
 
     Returns:
         list_sigma_normalized_score : the sigma_normalized_scores, in the same shape as
@@ -148,9 +153,10 @@ def get_sigma_normalized_score(
     """
     assert kmax >= 0, "kmax must be a non negative integer"
     assert (sigmas > 0).all(), "All values of sigma should be larger than zero."
-    assert torch.logical_and(
-        relative_coordinates >= 0, relative_coordinates < 1
-    ).all(), "the relative coordinates should all be in [0, 1)"
+    if coordinates_bounded:
+        assert torch.logical_and(
+            relative_coordinates >= 0, relative_coordinates < 1
+        ).all(), "the relative coordinates should all be in [0, 1)"
     assert (
         sigmas.shape == relative_coordinates.shape
     ), "The relative_coordinates and sigmas inputs should have the same shape"

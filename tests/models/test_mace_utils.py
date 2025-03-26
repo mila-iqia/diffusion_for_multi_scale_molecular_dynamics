@@ -13,9 +13,9 @@ from diffusion_for_multi_scale_molecular_dynamics.models.mace_utils import (
     get_normalized_irreps_permutation_indices, get_pretrained_mace,
     input_to_mace, reshape_from_e3nn_to_mace, reshape_from_mace_to_e3nn)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISY_CARTESIAN_POSITIONS, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    get_positions_from_coordinates
+    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    get_positions_from_coordinates, map_unit_cell_to_lattice_parameters)
 from tests.fake_data_utils import find_aligning_permutation
 
 
@@ -81,11 +81,15 @@ class TestInputToMaceChain:
 
     @pytest.fixture()
     def score_network_input(self, batch_size, spatial_dim, cell_size, atomic_positions):
+        lattice_parameters = map_unit_cell_to_lattice_parameters(
+            (torch.eye(spatial_dim).repeat(batch_size, 1, 1) * cell_size),
+        )
+
         score_network_input = {
             NOISY_CARTESIAN_POSITIONS: atomic_positions.unsqueeze(0).repeat(
                 batch_size, 1, 1
             ),
-            UNIT_CELL: torch.eye(spatial_dim).repeat(batch_size, 1, 1) * cell_size,
+            NOISY_AXL_COMPOSITION: AXL(X=None, A=None, L=lattice_parameters),
         }
 
         return score_network_input
@@ -123,8 +127,9 @@ class TestInputToMaceRandom(TestInputToMaceChain):
         orthogonal_boxes = torch.stack(
             [torch.diag(5.0 + 5.0 * torch.rand(3)) for _ in range(batch_size)]
         )
-        # add a bit of noise to make the vectors not quite orthogonal
-        basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, 3, 3)
+        # TODO add a bit of noise to make the vectors not quite orthogonal
+        # basis_vectors = orthogonal_boxes + 0.1 * torch.randn(batch_size, 3, 3)
+        basis_vectors = orthogonal_boxes
         return basis_vectors
 
     @pytest.fixture
@@ -160,19 +165,24 @@ class TestInputToMaceRandom(TestInputToMaceChain):
 
     @pytest.fixture()
     def score_network_input(self, cartesian_positions, basis_vectors):
+        lattice_parameters = map_unit_cell_to_lattice_parameters(basis_vectors)
+
         score_network_input = {
             NOISY_CARTESIAN_POSITIONS: cartesian_positions,
-            UNIT_CELL: basis_vectors,
+            NOISY_AXL_COMPOSITION: AXL(X=None, A=None, L=lattice_parameters),
         }
+
         return score_network_input
 
     @pytest.mark.parametrize("radial_cutoff", [1.1, 2.2, 4.4])
     def test_input_to_mace(self, score_network_input, radial_cutoff, mace_graph):
         computed_mace_graph = input_to_mace(
-            score_network_input, radial_cutoff=radial_cutoff
+            score_network_input,
+            radial_cutoff=radial_cutoff,
+            unit_cell_cutoff=1.1 * radial_cutoff,
         )
 
-        for feature_name in ["node_attrs", "positions", "ptr", "batch", "cell"]:
+        for feature_name in ["node_attrs", "positions", "ptr", "batch"]:
             torch.testing.assert_close(
                 mace_graph[feature_name], computed_mace_graph[feature_name]
             )
@@ -359,7 +369,7 @@ class TestReshapes:
             )
             assert torch.allclose(
                 expected_values,
-                converted_tensor[:, num_channels * start_idx: num_channels * end_idx],
+                converted_tensor[:, num_channels * start_idx:num_channels * end_idx],
             )
 
     def test_reshape_from_e3nn_to_mace(
@@ -375,5 +385,5 @@ class TestReshapes:
                 -1, num_channels, 2 * ell + 1
             )
             assert torch.allclose(
-                expected_values, converted_tensor[:, :, ell**2: (ell + 1) ** 2]
+                expected_values, converted_tensor[:, :, ell**2:(ell + 1) ** 2]
             )

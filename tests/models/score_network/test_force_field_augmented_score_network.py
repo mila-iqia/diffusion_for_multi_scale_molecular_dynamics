@@ -27,6 +27,7 @@ class TestForceFieldAugmentedScoreNetwork(BaseTestScoreNetwork):
             noise_embedding_dimensions_size=6,
             time_embedding_dimensions_size=6,
             atom_type_embedding_dimensions_size=12,
+            lattice_parameters_embedding_dimensions_size=6,
             n_hidden_dimensions=2,
             hidden_dimensions_size=16,
         )
@@ -66,6 +67,12 @@ class TestForceFieldAugmentedScoreNetwork(BaseTestScoreNetwork):
         return basis_vectors
 
     @pytest.fixture
+    def lattice_parameters(self, batch_size, spatial_dimension, basis_vectors):
+        lattice_params = torch.zeros(batch_size, int(spatial_dimension * (spatial_dimension + 1) / 2))
+        lattice_params[:, :spatial_dimension] = torch.diagonal(basis_vectors, dim1=-2, dim2=-1)
+        return lattice_params
+
+    @pytest.fixture
     def relative_coordinates(
         self, batch_size, number_of_atoms, spatial_dimension, basis_vectors
     ):
@@ -94,15 +101,16 @@ class TestForceFieldAugmentedScoreNetwork(BaseTestScoreNetwork):
         times,
         noises,
         basis_vectors,
+        lattice_parameters,
     ):
         return {
             NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types,
                 X=relative_coordinates,
-                L=torch.zeros_like(atom_types),  # TODO
+                L=lattice_parameters,
             ),
             TIME: times,
-            UNIT_CELL: basis_vectors,
+            UNIT_CELL: basis_vectors,  # TODO remove this
             NOISE: noises,
             CARTESIAN_FORCES: cartesian_forces,
         }
@@ -204,13 +212,13 @@ def test_specific_scenario_sanity_check():
     # Put two atoms on a straight line
     relative_coordinates = torch.tensor([[[0.35, 0.5, 0.0], [0.65, 0.5, 0.0]]])
     atom_types = torch.zeros_like(relative_coordinates[..., 0])
-    basis_vectors = torch.diag(torch.ones(spatial_dimension)).unsqueeze(0)
+    lattice_parameters = torch.ones(1, 6)
+    lattice_parameters[:, 3:] = 0
 
     batch = {
         NOISY_AXL_COMPOSITION: AXL(
-            A=atom_types, X=relative_coordinates, L=torch.zeros_like(atom_types)
+            A=atom_types, X=relative_coordinates, L=lattice_parameters
         ),
-        UNIT_CELL: basis_vectors,
     }
 
     forces = force_field_score_network.get_relative_coordinates_pseudo_force(batch)

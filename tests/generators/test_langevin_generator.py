@@ -69,10 +69,8 @@ class TestLangevinGenerator(BaseTestGenerator):
         self,
         number_of_atoms,
         spatial_dimension,
-        cell_dimensions,
         number_of_samples,
         number_of_corrector_steps,
-        unit_cell_size,
         num_atom_types,
         one_atom_type_transition_per_step,
         atom_type_greedy_sampling,
@@ -83,7 +81,6 @@ class TestLangevinGenerator(BaseTestGenerator):
             number_of_corrector_steps=number_of_corrector_steps,
             number_of_atoms=number_of_atoms,
             number_of_samples=number_of_samples,
-            cell_dimensions=cell_dimensions,
             spatial_dimension=spatial_dimension,
             num_atom_types=num_atom_types,
             one_atom_type_transition_per_step=one_atom_type_transition_per_step,
@@ -113,10 +110,13 @@ class TestLangevinGenerator(BaseTestGenerator):
         return generator
 
     def test_smoke_sample(
-        self, pc_generator, device, number_of_samples, unit_cell_sample
+        self,
+        pc_generator,
+        device,
+        number_of_samples,
     ):
         # Just a smoke test that we can sample without crashing.
-        pc_generator.sample(number_of_samples, device, unit_cell_sample)
+        pc_generator.sample(number_of_samples, device)
 
     @pytest.fixture()
     def axl_i(
@@ -134,14 +134,12 @@ class TestLangevinGenerator(BaseTestGenerator):
             X=map_relative_coordinates_to_unit_cell(
                 torch.rand(number_of_samples, number_of_atoms, spatial_dimension)
             ).to(device),
-            L=torch.zeros(
-                number_of_samples, spatial_dimension * (spatial_dimension - 1)
-            ).to(
-                device
-            ),  # TODO placeholder
+            L=torch.randn(
+                number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
+            ).to(device),
         )
 
-    def test_predictor_step_relative_coordinates(
+    def test_predictor_step_relative_coordinates_and_lattice(
         self,
         mocker,
         pc_generator,
@@ -150,19 +148,31 @@ class TestLangevinGenerator(BaseTestGenerator):
         axl_i,
         total_time_steps,
         number_of_samples,
-        unit_cell_sample,
+        number_of_atoms,
+        spatial_dimension,
     ):
         list_sigma = noise.sigma
         list_time = noise.time
         forces = torch.zeros_like(axl_i.X)
 
-        z = pc_generator._draw_gaussian_sample(number_of_samples).to(axl_i.X)
-        mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
+        z_coordinates = pc_generator._draw_coordinates_gaussian_sample(
+            number_of_samples
+        ).to(axl_i.X)
+        mocker.patch.object(
+            pc_generator,
+            "_draw_coordinates_gaussian_sample",
+            return_value=z_coordinates,
+        )
+
+        z_lattice = pc_generator._draw_lattice_gaussian_sample(number_of_samples).to(
+            axl_i.L
+        )
+        mocker.patch.object(
+            pc_generator, "_draw_lattice_gaussian_sample", return_value=z_lattice
+        )
 
         for index_i in range(1, total_time_steps + 1):
-            computed_sample = pc_generator.predictor_step(
-                axl_i, index_i, unit_cell_sample, forces
-            )
+            computed_sample = pc_generator.predictor_step(axl_i, index_i, forces)
 
             sigma_i = list_sigma[index_i - 1]
             t_i = list_time[index_i - 1]
@@ -173,19 +183,27 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             g2 = sigma_i**2 - sigma_im1**2
 
-            s_i = (
-                pc_generator._get_model_predictions(
-                    axl_i, t_i, sigma_i, unit_cell_sample, forces
-                ).X
-                / sigma_i
+            model_predictions = pc_generator._get_model_predictions(
+                axl_i, t_i, sigma_i, forces
             )
 
-            expected_coordinates = axl_i.X + g2 * s_i + torch.sqrt(g2) * z
+            s_i_coordinates = model_predictions.X / sigma_i
+
+            expected_coordinates = (
+                axl_i.X + g2 * s_i_coordinates + torch.sqrt(g2) * z_coordinates
+            )
             expected_coordinates = map_relative_coordinates_to_unit_cell(
                 expected_coordinates
             )
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
+
+            # scale back sigma_i for the number of atoms
+            sigma_i_for_lattice = sigma_i / (number_of_atoms ** (1 / spatial_dimension))
+            s_i_lattice = model_predictions.L / sigma_i_for_lattice
+            expected_lattice = axl_i.L + g2 * s_i_lattice + torch.sqrt(g2) * z_lattice
+
+            torch.testing.assert_close(computed_sample.L, expected_lattice)
 
     def test_adjust_atom_types_probabilities_for_greedy_sampling(
         self, pc_generator, number_of_atoms, num_atomic_classes
@@ -415,20 +433,16 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_atoms,
         num_atomic_classes,
         spatial_dimension,
-        unit_cell_sample,
         device,
     ):
-        zeros = torch.zeros(number_of_samples, number_of_atoms, spatial_dimension).to(
-            device
-        )
-        forces = zeros
-
         random_x = map_relative_coordinates_to_unit_cell(
             torch.rand(number_of_samples, number_of_atoms, spatial_dimension)
         ).to(device)
 
+        forces = torch.zeros_like(random_x)
+
         random_l = torch.zeros(
-            number_of_samples, spatial_dimension, spatial_dimension
+            number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
         ).to(device)
 
         # Initialize to fully masked
@@ -444,16 +458,16 @@ class TestLangevinGenerator(BaseTestGenerator):
                 number_of_samples, number_of_atoms, num_atomic_classes
             ).to(device)
             logits[:, :, -1] = -torch.inf
-            fake_model_predictions = AXL(A=logits, X=zeros, L=zeros)
+            fake_model_predictions = AXL(
+                A=logits, X=torch.zeros_like(random_x), L=torch.zeros_like(random_l)
+            )
             mocker.patch.object(
                 pc_generator,
                 "_get_model_predictions",
                 return_value=fake_model_predictions,
             )
 
-            axl_i = pc_generator.predictor_step(
-                axl_ip1, idx + 1, unit_cell_sample, forces
-            )
+            axl_i = pc_generator.predictor_step(axl_ip1, idx + 1, forces)
 
             this_is_last_time_step = idx == 0
             a_i = axl_i.A
@@ -488,8 +502,9 @@ class TestLangevinGenerator(BaseTestGenerator):
         axl_i,
         total_time_steps,
         number_of_samples,
-        unit_cell_sample,
         num_atomic_classes,
+        number_of_atoms,
+        spatial_dimension,
     ):
 
         sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes)
@@ -501,13 +516,24 @@ class TestLangevinGenerator(BaseTestGenerator):
         sigma_1 = list_sigma[0]
         forces = torch.zeros_like(axl_i.X)
 
-        z = pc_generator._draw_gaussian_sample(number_of_samples).to(axl_i.X)
-        mocker.patch.object(pc_generator, "_draw_gaussian_sample", return_value=z)
+        z_coordinates = pc_generator._draw_coordinates_gaussian_sample(
+            number_of_samples
+        ).to(axl_i.X)
+        mocker.patch.object(
+            pc_generator,
+            "_draw_coordinates_gaussian_sample",
+            return_value=z_coordinates,
+        )
+
+        z_lattice = pc_generator._draw_lattice_gaussian_sample(number_of_samples).to(
+            axl_i.L
+        )
+        mocker.patch.object(
+            pc_generator, "_draw_lattice_gaussian_sample", return_value=z_lattice
+        )
 
         for index_i in range(0, total_time_steps):
-            computed_sample = pc_generator.corrector_step(
-                axl_i, index_i, unit_cell_sample, forces
-            )
+            computed_sample = pc_generator.corrector_step(axl_i, index_i, forces)
 
             if index_i == 0:
                 sigma_i = sigma_min
@@ -518,19 +544,33 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             eps_i = 0.5 * epsilon * sigma_i**2 / sigma_1**2
 
-            s_i = (
-                pc_generator._get_model_predictions(
-                    axl_i, t_i, sigma_i, unit_cell_sample, forces
-                ).X
-                / sigma_i
+            model_predictions = pc_generator._get_model_predictions(
+                axl_i, t_i, sigma_i, forces
             )
 
-            expected_coordinates = axl_i.X + eps_i * s_i + torch.sqrt(2.0 * eps_i) * z
+            # test coordinates
+            s_i_coordinates = model_predictions.X / sigma_i
+
+            expected_coordinates = (
+                axl_i.X
+                + eps_i * s_i_coordinates
+                + torch.sqrt(2.0 * eps_i) * z_coordinates
+            )
             expected_coordinates = map_relative_coordinates_to_unit_cell(
                 expected_coordinates
             )
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
+
+            # test lattice
+            sigma_i_for_lattice = sigma_i / (number_of_atoms ** (1 / spatial_dimension))
+            s_i_lattice = model_predictions.L / sigma_i_for_lattice
+
+            expected_lattice = (
+                axl_i.L + eps_i * s_i_lattice + torch.sqrt(2.0 * eps_i) * z_lattice
+            )
+
+            torch.testing.assert_close(computed_sample.L, expected_lattice)
 
             if pc_generator.atom_type_transition_in_corrector:
                 a_i = axl_i.A

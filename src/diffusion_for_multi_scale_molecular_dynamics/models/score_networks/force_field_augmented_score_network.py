@@ -7,10 +7,11 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISY_AXL_COMPOSITION, UNIT_CELL)
+    AXL, NOISY_AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
-    get_relative_coordinates_from_cartesian_positions)
+    get_relative_coordinates_from_cartesian_positions,
+    map_noisy_axl_lattice_parameters_to_unit_cell_vectors)
 from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
     AdjacencyInfo, get_periodic_adjacency_information)
 
@@ -26,13 +27,18 @@ class ForceFieldParameters:
     The corresponding force is thus of the form
         F(r) = -nabla phi(r) = -2 strength * ( r - radial_cutoff) r_hat.
     """
+
     radial_cutoff: float  # Cutoff to the interaction, in Angstrom
     strength: float  # Strength of the repulsion
 
     def __post_init__(self):
         """Post init."""
-        assert self.radial_cutoff > 0., "the radial cutoff should be greater than zero."
-        assert self.strength > 0., "the repulsive strength should be greater than zero."
+        assert (
+            self.radial_cutoff > 0.0
+        ), "the radial cutoff should be greater than zero."
+        assert (
+            self.strength > 0.0
+        ), "the repulsive strength should be greater than zero."
 
 
 class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
@@ -113,7 +119,10 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
     def _get_adjacency_information(
         self, batch: Dict[AnyStr, torch.Tensor]
     ) -> AdjacencyInfo:
-        basis_vectors = batch[UNIT_CELL]
+        basis_vectors = map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
+            batch[NOISY_AXL_COMPOSITION].L,
+            min_box_size=1.0
+        )
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
         cartesian_positions = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
@@ -138,7 +147,10 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
         src, dst = adj_info.adjacency_matrix
 
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
-        basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L
+        basis_vectors = map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
+            batch[NOISY_AXL_COMPOSITION].L,
+            min_box_size=1.0
+        )  # TODO handle the minimal size
         cartesian_positions = get_positions_from_coordinates(
             relative_coordinates, basis_vectors
         )
@@ -212,7 +224,10 @@ class ForceFieldAugmentedScoreNetwork(torch.nn.Module):
             cartesian_pseudo_force_contributions, adj_info, batch
         )
 
-        basis_vectors = batch[UNIT_CELL]  # TODO replace with AXL L
+        basis_vectors = map_noisy_axl_lattice_parameters_to_unit_cell_vectors(
+            batch[NOISY_AXL_COMPOSITION].L,
+            min_box_size=1.0
+        )  # TODO handle minimal size
         reciprocal_basis_vectors = get_reciprocal_basis_vectors(basis_vectors)
         relative_pseudo_forces = get_relative_coordinates_from_cartesian_positions(
             cartesian_pseudo_forces, reciprocal_basis_vectors

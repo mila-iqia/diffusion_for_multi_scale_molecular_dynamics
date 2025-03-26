@@ -380,6 +380,6 @@ class EGNN(nn.Module):
         model_outputs = AXL(
             A=node_classification_logits,
             X=x,
-            L=torch.zeros_like(x),
+            L=torch.zeros_like(x),  # TODo
         )
         return model_outputs

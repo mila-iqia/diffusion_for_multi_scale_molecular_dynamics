@@ -74,6 +74,7 @@ def get_score_network(
             atom_type_embedding_dimensions_size=8,
             n_hidden_dimensions=2,
             hidden_dimensions_size=16,
+            lattice_parameters_embedding_dimensions_size=8,
         )
     elif architecture == "mace":
         score_network = dict(
@@ -139,7 +140,6 @@ def get_config(
         num_atom_types=num_atom_types,
         number_of_samples=4,
         record_samples=True,
-        cell_dimensions=[10.0, 10.0, 10.0],
     )
     if sampling_algorithm == "predictor_corrector":
         sampling_dict["number_of_corrector_steps"] = 1
@@ -164,6 +164,7 @@ def get_config(
         seed=9999,
         spatial_dimension=3,
         elements=unique_elements,
+        cell_dimensions=[10., 10., 10.],
         data=data_config,
         model=model_config,
         optimizer=optimizer_config,

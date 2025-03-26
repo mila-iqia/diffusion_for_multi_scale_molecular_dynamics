@@ -28,6 +28,7 @@ class SamplingVisualizationParameters:
     record_trajectories: bool = True
     record_energies: bool = True
     record_structure: bool = True
+    record_lattice_parameters: bool = True
 
 
 def instantiate_sampling_visualization_callback(
@@ -78,6 +79,14 @@ class SamplingVisualizationCallback(Callback):
                 output_directory, "trajectory_samples"
             )
             Path(self.sample_trajectories_output_directory).mkdir(
+                parents=True, exist_ok=True
+            )
+
+        if self.parameters.record_lattice_parameters:
+            self.lattice_parameters_output_directory = os.path.join(
+                output_directory, "lattice_parameters"
+            )
+            Path(self.lattice_parameters_output_directory).mkdir(
                 parents=True, exist_ok=True
             )
 
@@ -177,6 +186,46 @@ class SamplingVisualizationCallback(Callback):
             pl_model.generator.sample_trajectory_recorder.write_to_pickle(
                 pickle_output_path
             )
+
+        if self.parameters.record_lattice_parameters:
+            assert pl_model.lattice_parameters_ks_metrics is not None, (
+                "The lattice_parameter_ks_metric is absent. Lattice parameters calculation "
+                "must be requested in order to be visualized!"
+            )
+
+            reference_lattice_parameters = [
+                metric.reference_samples_metric.compute() for metric in pl_model.lattice_parameters_ks_metrics
+            ]
+            sample_lattice_parameters = [
+                metric.predicted_samples_metric.compute() for metric in pl_model.lattice_parameters_ks_metrics
+            ]
+
+            lattice_parameters_output_path = os.path.join(
+                self.lattice_parameters_output_directory,
+                f"lattice_parameters_sample_epoch={trainer.current_epoch}.pt",
+            )
+
+            torch.save(sample_lattice_parameters, lattice_parameters_output_path)
+            figs = [self._plot_lattice_parameters_histogram(
+                samples.numpy(),
+                references.numpy(),
+                lattice_index,
+                trainer.current_epoch,
+            ) for lattice_index, (references, samples) in enumerate(
+                zip(reference_lattice_parameters, sample_lattice_parameters)
+            )
+            ]
+
+            for pl_logger in trainer.loggers:
+                for i, fig in enumerate(figs):
+                    log_figure(
+                        figure=fig,
+                        global_step=trainer.global_step,
+                        dataset="validation",
+                        pl_logger=pl_logger,
+                        name=f"lattice_parameter_{i}",
+                    )
+                    plt.close(fig)
 
     def _compute_results_at_this_epoch(self, current_epoch: int) -> bool:
         """Check if results should be computed at this epoch."""
@@ -293,6 +342,45 @@ class SamplingVisualizationCallback(Callback):
         )
 
         ax1.set_xlabel(r"Distance ($\AA$)")
+        ax1.set_ylabel("Density")
+        ax1.legend(loc="upper right", fancybox=True, shadow=True, ncol=1, fontsize=6)
+        ax1.set_xlim(left=dmin, right=dmax)
+        fig.tight_layout()
+        return fig
+
+    @staticmethod
+    def _plot_lattice_parameters_histogram(
+        sample_parameters: np.ndarray, validation_parameters: np.array, parameter_index: int, epoch: int
+    ) -> plt.figure:
+        """Generate a plot of a lattice parameter of the samples."""
+        fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
+
+        maximum_parameter = validation_parameters.max()
+
+        dmin = 0.0
+        dmax = maximum_parameter + 0.1
+        bins = np.linspace(dmin, dmax, 251)
+
+        fig.suptitle(f"Sampling Lattice Parameter {parameter_index} Distribution\nEpoch {epoch}")
+
+        common_params = dict(density=True, bins=bins, histtype="stepfilled", alpha=0.25)
+
+        ax1 = fig.add_subplot(111)
+
+        ax1.hist(
+            sample_parameters,
+            **common_params,
+            label=f"Samples \n(total count = {len(sample_parameters)})",
+            color="red",
+        )
+        ax1.hist(
+            validation_parameters,
+            **common_params,
+            label=f"Validation Data \n(count = {len(validation_parameters)})",
+            color="green",
+        )
+
+        ax1.set_xlabel(r"Lattice parameter ($\AA$)")
         ax1.set_ylabel("Density")
         ax1.legend(loc="upper right", fancybox=True, shadow=True, ncol=1, fontsize=6)
         ax1.set_xlim(left=dmin, right=dmax)

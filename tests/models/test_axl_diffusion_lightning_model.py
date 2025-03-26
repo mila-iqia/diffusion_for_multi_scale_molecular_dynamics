@@ -24,9 +24,12 @@ from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_FORCES, RELATIVE_COORDINATES)
+    ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_FORCES, LATTICE_PARAMETERS,
+    RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
+    LatticeDataParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import (
     EnergyOracle, OracleParameters)
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import (
@@ -56,7 +59,7 @@ class FakeEnergyOracle(EnergyOracle):
         return np.random.rand(), torch.rand(*cartesian_positions.shape)
 
 
-class FakePositionsDataModule(LightningDataModule):
+class FakeAXLDataModule(LightningDataModule):
     def __init__(
         self,
         batch_size: int = 4,
@@ -80,14 +83,15 @@ class FakePositionsDataModule(LightningDataModule):
         all_atom_types = torch.randint(
             0, num_atom_types, (dataset_size, number_of_atoms)
         )
-        box = torch.rand(spatial_dimension)
+        box = torch.rand(int(spatial_dimension * (spatial_dimension + 1) / 2))
+
         raw_data = [
             {
                 RELATIVE_COORDINATES: coordinate_configuration,
                 ATOM_TYPES: atom_configuration,
-                "box": box,
+                LATTICE_PARAMETERS: box,
                 CARTESIAN_FORCES: torch.zeros_like(coordinate_configuration),
-                "potential_energy": potential_energy
+                "potential_energy": potential_energy,
             }
             for coordinate_configuration, atom_configuration, potential_energy in zip(
                 all_relative_coordinates, all_atom_types, potential_energies
@@ -178,8 +182,11 @@ class TestPositionDiffusionLightningModel:
         return 12
 
     @pytest.fixture()
-    def cell_dimensions(self, unit_cell_size, spatial_dimension):
-        return spatial_dimension * [unit_cell_size]
+    def lattice_parameters(self, spatial_dimension):
+        lattice_params = LatticeDataParameters(
+            spatial_dimension=spatial_dimension,
+        )
+        return lattice_params
 
     @pytest.fixture()
     def sampling_parameters(
@@ -187,14 +194,12 @@ class TestPositionDiffusionLightningModel:
         number_of_atoms,
         spatial_dimension,
         number_of_samples,
-        cell_dimensions,
         num_atom_types,
     ):
         sampling_parameters = PredictorCorrectorSamplingParameters(
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,
             number_of_samples=number_of_samples,
-            cell_dimensions=cell_dimensions,
             num_atom_types=num_atom_types,
         )
         return sampling_parameters
@@ -205,7 +210,8 @@ class TestPositionDiffusionLightningModel:
         metrics_parameters = SamplingMetricsParameters(
             structure_factor_max_distance=1.0,
             compute_energies=True,
-            compute_structure_factor=False)
+            compute_structure_factor=False,
+        )
         diffusion_sampling_parameters = DiffusionSamplingParameters(
             sampling_parameters=sampling_parameters,
             noise_parameters=noise_parameters,
@@ -234,11 +240,12 @@ class TestPositionDiffusionLightningModel:
             noise_embedding_dimensions_size=8,
             time_embedding_dimensions_size=8,
             atom_type_embedding_dimensions_size=8,
+            lattice_parameters_embedding_dimensions_size=8,
             hidden_dimensions_size=8,
             spatial_dimension=spatial_dimension,
         )
 
-        oracle_parameters = OracleParameters(name='test', elements=unique_elements)
+        oracle_parameters = OracleParameters(name="test", elements=unique_elements)
 
         hyper_params = AXLDiffusionParameters(
             score_network_parameters=score_network_parameters,
@@ -246,7 +253,7 @@ class TestPositionDiffusionLightningModel:
             scheduler_parameters=scheduler_parameters,
             loss_parameters=loss_parameters,
             diffusion_sampling_parameters=diffusion_sampling_parameters,
-            oracle_parameters=oracle_parameters
+            oracle_parameters=oracle_parameters,
         )
         return hyper_params
 
@@ -270,7 +277,7 @@ class TestPositionDiffusionLightningModel:
     def fake_datamodule(
         self, batch_size, number_of_atoms, spatial_dimension, num_atom_types
     ):
-        data_module = FakePositionsDataModule(
+        data_module = FakeAXLDataModule(
             batch_size=batch_size,
             number_of_atoms=number_of_atoms,
             spatial_dimension=spatial_dimension,

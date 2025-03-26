@@ -14,7 +14,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
+    get_coordinates_sigma_normalized_score
 from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     gs_squared = noise.g_squared.take(indices)
 
     for t, sigma in zip(times, sigmas):
-        target_sigma_normalized_scores = get_sigma_normalized_score(
+        target_sigma_normalized_scores = get_coordinates_sigma_normalized_score(
             relative_positions, torch.ones_like(relative_positions) * sigma, kmax=kmax
         )
         ax2.plot(

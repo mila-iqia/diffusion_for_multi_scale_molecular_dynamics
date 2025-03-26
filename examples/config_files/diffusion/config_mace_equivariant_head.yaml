@@ -16,6 +16,7 @@ data:
   batch_size: 1024
   num_workers: 0
   max_atom: 8
+  use_fixed_lattice_parameters: True
 
 # architecture
 spatial_dimension: 3

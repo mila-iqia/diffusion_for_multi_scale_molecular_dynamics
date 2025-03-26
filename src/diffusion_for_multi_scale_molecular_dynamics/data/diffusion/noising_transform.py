@@ -5,22 +5,23 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, LATTICE_PARAMETERS, NOISE, NOISY_ATOM_TYPES,
     NOISY_LATTICE_PARAMETERS, NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES,
-    Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME, TIME_INDICES,
-    UNIT_CELL)
+    Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME, TIME_INDICES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
     AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
-    LatticeNoiser
+from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import (
+    LatticeDataParameters, LatticeNoiser)
 from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
     RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
     Transporter
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
+from diffusion_for_multi_scale_molecular_dynamics.utils.noise_utils import \
+    scale_sigma_by_number_of_atoms
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
     broadcast_batch_matrix_tensor_to_all_dimensions,
     broadcast_batch_tensor_to_all_dimensions)
@@ -28,11 +29,13 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
 
 class NoisingTransform:
     """Noising Transform."""
+
     def __init__(
         self,
         noise_parameters: NoiseParameters,
         num_atom_types: int,
         spatial_dimension: int,
+        use_fixed_lattice_parameters: bool = False,
         use_optimal_transport: bool = True,
     ):
         """Noising transform.
@@ -44,6 +47,8 @@ class NoisingTransform:
             noise_parameters: noise parameters.
             num_atom_types:  number of distinct atom types.
             spatial_dimension: dimension of space.
+            use_fixed_lattice_parameters: if True, do not noise the lattice parameters, consider them as constant.
+                Defaults to False.
             use_optimal_transport: should optimal transport be used for the relative coordinates.
         """
         super().__init__()
@@ -59,7 +64,12 @@ class NoisingTransform:
         self.noisers = AXL(
             A=AtomTypesNoiser(),
             X=RelativeCoordinatesNoiser(),
-            L=LatticeNoiser(),
+            L=LatticeNoiser(
+                LatticeDataParameters(
+                    spatial_dimension=spatial_dimension,
+                    use_fixed_lattice_parameters=use_fixed_lattice_parameters,
+                )
+            ),
         )
 
         if self.use_optimal_transport:
@@ -88,6 +98,10 @@ class NoisingTransform:
             ATOM_TYPES in batch
         ), f"The field '{ATOM_TYPES}' is missing from the input."
 
+        assert (
+            LATTICE_PARAMETERS in batch
+        ), f"The field '{LATTICE_PARAMETERS}' is missing from the input."
+
         x0 = batch[RELATIVE_COORDINATES]
         shape = x0.shape
         assert len(shape) == 3, (
@@ -105,18 +119,17 @@ class NoisingTransform:
             f"the shape of the ATOM_TYPES array should be [batch_size, number_of_atoms]. "
             f"Got shape = {atom_shape}"
         )
-        # TODO: should be batch[UNIT_CELL]
-        l0 = batch["box"]
+
+        l0 = batch[LATTICE_PARAMETERS]
+
+        lattice_parameters_shape = l0.shape
+        assert len(lattice_parameters_shape) == 2, (
+            f"the shape of the LATTICE parameters array should be [batch_size,"
+            f"spatial_dimension * (spatial_dimension + 1) / 2]."
+            f"Got shape = {lattice_parameters_shape}"
+        )
 
         # the datasets library does mysterious things if we use an AXL. Let's use raw tensors.
-        augmentation_data[LATTICE_PARAMETERS] = l0
-
-        # from (batch, spatial_dim) to (batch, spatial_dim, spatial_dim)
-        unit_cell = torch.diag_embed(l0)
-
-        # TODO remove and take from AXL instead
-        augmentation_data[UNIT_CELL] = unit_cell
-
         noise_sample = self.noise_scheduler.get_random_noise_sample(batch_size)
         augmentation_data[TIME] = noise_sample.time.reshape(-1, 1)
         augmentation_data[TIME_INDICES] = noise_sample.indices
@@ -157,8 +170,20 @@ class NoisingTransform:
         a0_onehot = class_index_to_onehot(a0, self.num_atom_types + 1)
         at = self.noisers.A.get_noisy_atom_types_sample(a0_onehot, q_bar_matrices)
 
-        # TODO do the same for the lattice vectors
-        lt = self.noisers.L.get_noisy_lattice_vectors(l0)
+        # scale sigma by the number of atoms for lattice parameters noising
+        num_atoms = (
+            torch.ones_like(l0) * atom_shape[1]
+        )  # TODO should depend on data - not a constant
+        # num_atoms should be broadcasted to match sigmas_for_lattice
+        sigmas_n = scale_sigma_by_number_of_atoms(
+            noise_sample.sigma.reshape(-1, 1),
+            num_atoms,
+            spatial_dimension=x0.shape[-1],
+        )
+        lt = self.noisers.L.get_noisy_lattice_parameters(
+            l0,
+            sigmas_n,
+        )
         augmentation_data[NOISY_ATOM_TYPES] = at
         augmentation_data[NOISY_RELATIVE_COORDINATES] = xt
         augmentation_data[NOISY_LATTICE_PARAMETERS] = lt

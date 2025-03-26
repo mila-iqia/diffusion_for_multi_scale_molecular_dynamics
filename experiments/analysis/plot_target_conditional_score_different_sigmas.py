@@ -10,7 +10,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_sigma_normalized_score
+    get_coordinates_sigma_normalized_score
 from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     X = X.clone()
     SIG = SIG.clone()
 
-    sigma_normalized_scores = get_sigma_normalized_score(X, SIG, kmax=4).numpy()
+    sigma_normalized_scores = get_coordinates_sigma_normalized_score(X, SIG, kmax=4).numpy()
     sigma2_normalized_scores = SIG * sigma_normalized_scores
 
     # A first figure to compare the "smart" and the "brute force" results

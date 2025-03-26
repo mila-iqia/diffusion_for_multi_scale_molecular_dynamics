@@ -33,6 +33,7 @@ data:
   num_workers: 0
   max_atom: 2
   spatial_dimension: 1
+  use_fixed_lattice_parameters: True
 
 
 spatial_dimension: 1

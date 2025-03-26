@@ -12,7 +12,9 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISE, NOISY_AXL_COMPOSITION, UNIT_CELL)
+    AXL, NOISE, NOISY_AXL_COMPOSITION)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_lattice_parameters_to_unit_cell_vectors
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 from diffusion_for_multi_scale_molecular_dynamics.utils.lattice_utils import \
@@ -230,9 +232,15 @@ class EGNNScoreNetwork(ScoreNetwork):
         if self.edges == "fully_connected":
             edges = get_edges_batch(n_nodes=number_of_atoms, batch_size=batch_size)
         else:
+            # TODO cheap hack to avoid box collapse
+            lattice_parameters = batch[NOISY_AXL_COMPOSITION].L.clip(
+                min=2.2 * self.radial_cutoff
+            )
+            lattice_parameters[:, spatial_dimension:] = 0  # TODO force orthogonal cell
+            unit_cell = map_lattice_parameters_to_unit_cell_vectors(lattice_parameters)
             edges = get_edges_with_radial_cutoff(
                 relative_coordinates,
-                batch[UNIT_CELL],
+                unit_cell,
                 self.radial_cutoff,
                 drop_duplicate_edges=self.drop_duplicate_edges,
                 spatial_dimension=self.spatial_dimension,
@@ -289,7 +297,7 @@ class EGNNScoreNetwork(ScoreNetwork):
         axl_scores = AXL(
             A=atom_reshaped_scores,
             X=normalized_scores,
-            L=raw_normalized_score.L,
+            L=torch.zeros_like(batch[NOISY_AXL_COMPOSITION].L),
         )
 
         return axl_scores
