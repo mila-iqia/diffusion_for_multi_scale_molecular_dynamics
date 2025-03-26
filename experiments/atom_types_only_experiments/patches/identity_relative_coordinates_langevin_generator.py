@@ -2,7 +2,6 @@ import logging
 
 import einops
 import torch
-from equilibrium_structure import create_equilibrium_sige_structure
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
@@ -13,6 +12,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.reference_configurations import \
+    create_equilibrium_sige_structure
 
 logger = logging.getLogger(__name__)
 

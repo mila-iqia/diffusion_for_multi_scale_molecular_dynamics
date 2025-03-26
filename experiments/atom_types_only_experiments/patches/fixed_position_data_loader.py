@@ -4,7 +4,6 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from equilibrium_structure import create_equilibrium_sige_structure
 from torch_geometric.data import DataLoader
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import \
@@ -13,6 +12,8 @@ from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, CARTESIAN_FORCES, RELATIVE_COORDINATES)
+from diffusion_for_multi_scale_molecular_dynamics.utils.reference_configurations import \
+    create_equilibrium_sige_structure
 
 logger = logging.getLogger(__name__)
 
