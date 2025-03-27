@@ -12,6 +12,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_fi
     ForceFieldAugmentedScoreNetwork, ForceFieldParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISY_AXL_COMPOSITION, UNIT_CELL)
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_unit_cell_to_lattice_parameters
 from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
@@ -49,8 +51,9 @@ if __name__ == "__main__":
         atom_types = torch.zeros(batch_size, natoms)
 
         basis_vectors = acell * torch.diag(torch.ones(spatial_dimension)).unsqueeze(0)
+        lattice_parameters = map_unit_cell_to_lattice_parameters(basis_vectors)
         batch = {
-            NOISY_AXL_COMPOSITION: AXL(A=atom_types, X=relative_coordinates, L=UNIT_CELL),
+            NOISY_AXL_COMPOSITION: AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters),
             UNIT_CELL: basis_vectors,
         }
         forces = force_field_score_network.get_relative_coordinates_pseudo_force(batch)

@@ -2,7 +2,7 @@ import einops
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from diffusion_for_multi_scale_molecular_dynamics import ROOT_DIR
+from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import \
     PLOT_STYLE_PATH
 from diffusion_for_multi_scale_molecular_dynamics.analysis.sample_trajectory_analyser import \
@@ -20,9 +20,14 @@ setup_analysis_logger()
 
 plt.style.use(PLOT_STYLE_PATH)
 
-base_path = ROOT_DIR / "../experiments/atom_types_only_experiments/experiments"
-data_path = base_path / "output/run1/trajectory_samples"
-pickle_path = data_path / "trajectories_sample_epoch=999.pt"
+base_path = TOP_DIR / "experiments/atom_types_only_experiments/"
+
+exp_path = base_path / "experiments"
+data_path = exp_path / "output/run1/trajectory_samples"
+pickle_path = data_path / "trajectories_sample_epoch=99.pt"
+
+output_dir = base_path / "analysis/images"
+output_dir.mkdir(parents=True, exist_ok=True)
 
 elements = ["Si", "Ge"]
 
@@ -93,9 +98,6 @@ if __name__ == "__main__":
         times=ntimes,
     )
 
-    output_dir = base_path / "images"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     masked_atom_type = num_classes - 1
 
     list_colors = ["green", "blue", "red"]
@@ -162,4 +164,5 @@ if __name__ == "__main__":
         ax1.legend(loc=0)
         fig.tight_layout()
         fig.savefig(output_dir / f"traj_{traj_idx}.png")
+        plt.show()
         plt.close(fig)

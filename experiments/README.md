@@ -25,3 +25,9 @@ which solves an SDE using for a simple situation and creates plots that show tha
 SDE produces results that compare well to what is expected. This is a "sanity check" to
 validate that the code works.
 
+
+## atom_types_only_experiments
+
+This folder contains an "atom-type only" diffusion experiment. This is a nice sanity check
+that atom type diffusion works while everything else is held fixed. See the README in that folder
+for more details.
