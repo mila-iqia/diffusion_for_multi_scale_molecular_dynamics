@@ -6,7 +6,7 @@ This folder contains various experiments and analysis scripts.
 
 TODO
 
-## analysis
+## component analysis
 This folder contains scripts to plot different components used in the diffusion model. This is a good
 place to start to visualize the various ingredients that go into the construction of a model.
 
