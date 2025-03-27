@@ -8,7 +8,7 @@ import datasets
 import pytorch_lightning as pl
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR  # noqa
+from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_parameters import \
     DataModuleParameters
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
