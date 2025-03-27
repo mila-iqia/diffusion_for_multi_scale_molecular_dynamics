@@ -14,7 +14,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISY_AXL_COMPOSITION, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_unit_cell_to_lattice_parameters
-from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
+from experiments.components_analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 

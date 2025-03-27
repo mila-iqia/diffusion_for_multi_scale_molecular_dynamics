@@ -13,7 +13,7 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
     SIGMA_THRESHOLD, get_coordinates_sigma_normalized_score,
     get_sigma_normalized_score_brute_force)
-from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
+from experiments.components_analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 

@@ -9,7 +9,7 @@ from scipy.stats import norm
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
+from experiments.components_analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
