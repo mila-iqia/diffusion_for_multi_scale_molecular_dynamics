@@ -3,8 +3,6 @@
 export OMP_PATH="/opt/homebrew/opt/libomp/include/"
 export PYTORCH_ENABLE_MPS_FALLBACK=1
 
-# This example assumes that the dataset 'Si_diffusion_1x1x1' is present locally in the DATA folder.
-
 
 CONFIG=config_mlp.yaml
 DATA_DIR=./
