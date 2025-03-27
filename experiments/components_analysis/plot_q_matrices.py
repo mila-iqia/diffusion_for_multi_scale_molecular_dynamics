@@ -11,7 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
-from experiments.analysis import PLOTS_OUTPUT_DIRECTORY
+from experiments.components_analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
