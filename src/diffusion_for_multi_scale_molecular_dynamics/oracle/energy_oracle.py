@@ -101,10 +101,10 @@ class EnergyOracle:
             )
             if lattice_parameters[:spatial_dimension].min() < 0:
                 warnings.warn(
-                    "Got a negative lattice parameter. Clipping to 4.0 Angstrom"
+                    "Got a negative lattice parameter. Clipping to 1.0 Angstrom"
                 )
                 lattice_parameters[:spatial_dimension] = np.clip(
-                    lattice_parameters[:spatial_dimension], a_min=4.0, a_max=None
+                    lattice_parameters[:spatial_dimension], a_min=1.0, a_max=None
                 )
             basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
                 lattice_parameters

@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
@@ -120,6 +121,14 @@ class LammpsEnergyOracle(EnergyOracle):
             box, np.diag(np.diag(box))
         ), "only orthogonal LAMMPS box are valid"
 
+        if np.diag(box).min() < 3.0:
+            warnings.warn(
+                "Got a box with a side length smaller than 3.0 Angstrom in LAMMPS. Skipping this example."
+            )
+            return 0, pd.DataFrame(
+                np.zeros_like(cartesian_positions), columns=["fx", "fy", "fz"]
+            )
+
         # create a lammps run, turning off logging
         lmp = lammps.lammps(
             cmdargs=["-log", "none", "-echo", "none", "-screen", "none"]
@@ -161,6 +170,6 @@ class LammpsEnergyOracle(EnergyOracle):
                 cartesian_positions, basis_vectors, atom_types, dump_file_path
             )
             # clean up!
-            dump_file_path.unlink()
+            dump_file_path.unlink(missing_ok=True)
 
         return energy, forces[["fx", "fy", "fz"]].to_numpy()
