@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics import ROOT_DIR
+from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.trajectory_io import \
     create_cif_files
 from diffusion_for_multi_scale_molecular_dynamics.analysis.sample_trajectory_analyser import \
@@ -9,15 +9,21 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis.sample_trajectory_ana
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_lattice_parameters_to_unit_cell_vectors
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
 
 setup_analysis_logger()
 
-base_path = ROOT_DIR / "../experiments/atom_types_only_experiments/experiments"
-data_path = base_path / "output/run1/trajectory_samples"
-pickle_path = data_path / "trajectories_sample_epoch=999.pt"
-visualization_artifacts_path = data_path / "trajectory_cif_files"
+base_path = TOP_DIR / "experiments/atom_types_only_experiments/"
+
+exp_path = base_path / "experiments/"
+data_path = exp_path / "output/run1/trajectory_samples"
+pickle_path = data_path / "trajectories_sample_epoch=99.pt"
+
+visualization_artifacts_path = base_path / "analysis/trajectory_cif_files"
+visualization_artifacts_path.mkdir(parents=True, exist_ok=True)
 
 elements = ["Si", "Ge"]
 num_classes = len(elements) + 1
@@ -38,10 +44,13 @@ if __name__ == "__main__":
     new_a = torch.from_numpy(a.numpy()[:, reverse_order])
     x = trajectory_axl.X
     new_x = torch.from_numpy(x.numpy()[:, reverse_order])
-    lattice = trajectory_axl.L
-    new_l = torch.from_numpy(lattice.numpy()[:, reverse_order])
+    lattice_parameters = trajectory_axl.L
 
-    reverse_time_order_trajectory_axl = AXL(A=new_a, X=new_x, L=new_l)
+    new_lattice_parameters = torch.from_numpy(lattice_parameters.numpy()[:, reverse_order])
+
+    basis_vectors = map_lattice_parameters_to_unit_cell_vectors(new_lattice_parameters)
+
+    reverse_time_order_trajectory_axl = AXL(A=new_a, X=new_x, L=basis_vectors)
 
     for trajectory_index in trajectory_indices:
         create_cif_files(
