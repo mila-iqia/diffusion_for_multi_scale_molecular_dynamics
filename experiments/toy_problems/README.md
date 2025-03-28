@@ -75,8 +75,10 @@ by learning to be consistent. Advances in Neural Information Processing Systems,
 This is the main analysis script. It will generate diffusion samples and
 a video of the score vector field, which can be visualized because the toy problem only has 2 dimensions!
 
-The variable "experiment_name" in the script should be modified to the desired experiment to analyse.
+The script goes through a list of all the "experiment_name", assuming all experiments have been executed.
+The script should be modified if only a subset of experiments are ready for analysis.
 
+Note that
 - For experiment_name = "analytical", no experiment actually need to have been executed: the analytical solution
   is used.
 - for any other experiment_name, the script assumes that an experiment has already been executed: 
