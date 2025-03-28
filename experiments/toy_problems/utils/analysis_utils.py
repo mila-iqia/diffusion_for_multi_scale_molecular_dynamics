@@ -1,4 +1,5 @@
 import dataclasses
+import glob
 import os
 import sys
 import tempfile
@@ -32,13 +33,38 @@ from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score i
 sys.path.append(str(TOP_DIR / "experiments")) # noqa
 
 from toy_problems import EXPERIMENTS_DIR, RESULTS_DIR  # noqa
-from toy_problems.utils import TOY_MODEL_PARAMETERS  # noqa
 from toy_problems.utils.visualization_utils import (  # noqa
     generate_vector_field_video, plot_2d_samples)
+
+TOY_MODEL_PARAMETERS = dict(number_of_atoms=2,
+                            spatial_dimension=1,
+                            num_atom_types=1,
+                            cell_dimensions=[[1.0]],
+                            sigma_min=0.001,
+                            sigma_max=0.2,
+                            x0_1=0.25,
+                            x0_2=0.75,
+                            sigma_d=0.01,
+                            kmax=5)
 
 InputParameters = namedtuple("InputParameters",
                              ["algorithm", "total_time_steps", "number_of_corrector_steps",
                               "corrector_r", "number_of_samples", "record_samples"])
+
+
+def get_checkpoint_path(experiment_name: str, run_name: str):
+    """Get checkpoint path."""
+    if experiment_name == "analytical":
+        return "analytical"
+
+    checkpoint_top_path = EXPERIMENTS_DIR / experiment_name / "output" / run_name
+    assert checkpoint_top_path.is_dir(), \
+        (f"The experiment folder {checkpoint_top_path} does not exist. "
+         f"Did you execute the experiment prior to trying to analyse it?")
+
+    template_checkpoint_path = str(checkpoint_top_path / "**/best_model*.ckpt")
+    checkpoint_path = glob.glob(template_checkpoint_path, recursive=True)[0]
+    return checkpoint_path
 
 
 def get_noise_parameters(input_parameters: InputParameters):
