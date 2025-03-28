@@ -1,0 +1,11 @@
+exp_name: fokker_planck_regularizer
+
+regularizer:
+    type: fokker_planck
+    use_hte_approximation: False
+    number_of_hte_terms: 0
+    number_of_burn_in_epochs: 0
+    regularizer_lambda_weight: 1.0e-5
+    batch_size: 64
+    sigma_min: 0.001
+    sigma_max: 0.2

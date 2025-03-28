@@ -61,6 +61,10 @@ pyace = [
     "tensorpotential",
 ]
 
+[project.scripts]
+train_diffusion = "diffusion_for_multi_scale_molecular_dynamics.train_diffusion:main"
+sample_diffusion = "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

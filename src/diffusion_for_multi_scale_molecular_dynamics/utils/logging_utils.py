@@ -11,12 +11,12 @@ from pip._internal.operations import freeze
 logger = logging.getLogger(__name__)
 
 
-def setup_console_logger(experiment_dir: str):
-    """Set up the console logger.
+def configure_logging(experiment_dir: str, log_to_console: bool = False):
+    """Configure logging.
 
-    This method sets up logging for analysis scripts. It is very opinionated about how to log:
+    This method sets up logging. It is very opinionated about how to log:
         - Always log to a file, with a fixed name, in the experiment_dir folder.
-        - Always log to console as well.
+        - optionally log to console as well.
 
     Args:
         experiment_dir : directory where the logging file will be written.
@@ -42,9 +42,11 @@ def setup_console_logger(experiment_dir: str):
     formatter = logging.Formatter(logging_format)
 
     file_handler = WatchedFileHandler(console_log_file)
-    stream_handler = StreamHandler(stream=sys.stdout)
 
-    list_handlers = [file_handler, stream_handler]
+    list_handlers = [file_handler]
+    if log_to_console:
+        stream_handler = StreamHandler(stream=sys.stdout)
+        list_handlers.append(stream_handler)
 
     for handler in list_handlers:
         handler.setFormatter(formatter)

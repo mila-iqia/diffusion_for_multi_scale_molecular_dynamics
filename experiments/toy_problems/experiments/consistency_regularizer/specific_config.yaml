@@ -1,0 +1,20 @@
+exp_name: consistency_regularizer
+
+regularizer:
+    type: consistency
+    maximum_number_of_steps: 5
+    number_of_burn_in_epochs: 0
+    regularizer_lambda_weight: 0.001
+
+    noise:
+      total_time_steps: 100
+      sigma_min: 0.001
+      sigma_max: 0.2
+
+    sampling:
+      num_atom_types: 1
+      number_of_atoms: 2
+      number_of_samples: 64
+      spatial_dimension: 1
+      number_of_corrector_steps: 0
+      cell_dimensions: [[1.0]]
