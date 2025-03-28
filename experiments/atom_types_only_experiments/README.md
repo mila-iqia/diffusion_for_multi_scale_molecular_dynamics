@@ -3,7 +3,7 @@
 This folder contains code to execute a simple experiment where  the lattice parameters and the 
 relative coordinates are held fixed and only the atom types diffuse.
 
-The system consider is Si-Ge 1x1x1 (8 atoms in total) where the atoms are
+The system considered is Si-Ge 1x1x1 (8 atoms in total) where the atoms are
 on the crystalline lattice. 
 
 This is a "sanity check" experiment. It is meant to show that the discrete atom type
