@@ -23,7 +23,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_m
 from diffusion_for_multi_scale_molecular_dynamics.utils.hp_utils import \
     check_and_log_hp
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
-    log_exp_details, setup_console_logger)
+    configure_logging, log_exp_details)
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import (
     MetricResult, get_crash_metric_result, get_optimized_metric_name_and_mode,
     load_and_backup_hyperparameters, report_to_orion_if_on)
@@ -94,7 +94,7 @@ def main(args: typing.Optional[typing.Any] = None):
         os.makedirs(args.output)
 
     # Very opinionated logger, which writes to the output folder.
-    setup_console_logger(experiment_dir=args.output)
+    configure_logging(experiment_dir=args.output)
     logger.info(first_logging_message)
     log_exp_details(os.path.realpath(__file__), args)
 
