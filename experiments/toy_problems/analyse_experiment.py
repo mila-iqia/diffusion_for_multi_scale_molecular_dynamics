@@ -1,4 +1,3 @@
-# Parameters
 import logging
 import sys
 
@@ -20,12 +19,9 @@ from toy_problems.utils.analysis_utils import plot_samples  # noqa
 logger = logging.getLogger(__name__)
 setup_analysis_logger()
 
-experiment_name = "no_regularizer"
-# experiment_name = "analytical"
-run_name = "run1"
 
-
-if __name__ == "__main__":
+def analyse(experiment_name: str, run_name: str):
+    """Conduct all the analyses for a given experiment."""
     logger.info(f"Starting analysis of experiment {experiment_name} / {run_name}")
 
     checkpoint_path = get_checkpoint_path(experiment_name, run_name)
@@ -56,3 +52,19 @@ if __name__ == "__main__":
     get_vector_field_movie(input_parameters, checkpoint_path, output_video_path)
 
     logger.info("Done!")
+
+
+# Choose which experiments to analyse. They must have been trained first!
+list_experiment_names = ["analytical",
+                         "no_regularizer",
+                         "fokker_planck_regularizer",
+                         "consistency_with_analytical_guide_regularizer",
+                         "consistency_regularizer",
+                         "equivariant_analytical_regression_regularizer no_regularizer"]
+run_name = "run1"
+
+
+if __name__ == "__main__":
+    for experiment_name in list_experiment_names:
+        logger.info(f"Doing {experiment_name}")
+        analyse(experiment_name, run_name)
