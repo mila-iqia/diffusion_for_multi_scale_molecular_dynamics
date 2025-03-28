@@ -27,7 +27,7 @@ data:
     - [0.75]
   train_dataset_size: 8_192
   valid_dataset_size: 1_024
-  batch_size:  256
+  batch_size:  512
   num_workers: 0
   noise:
     total_time_steps: 100
@@ -55,10 +55,10 @@ model:
     number_of_atoms: 2
     num_atom_types: 1
     n_hidden_dimensions: 3
-    hidden_dimensions_size: 128
-    relative_coordinates_embedding_dimensions_size: 64
-    noise_embedding_dimensions_size: 32
-    time_embedding_dimensions_size: 32
+    hidden_dimensions_size: 64
+    relative_coordinates_embedding_dimensions_size: 32
+    noise_embedding_dimensions_size: 16
+    time_embedding_dimensions_size: 16
     atom_type_embedding_dimensions_size: 1
     condition_embedding_size: 1
     lattice_parameters_embedding_dimensions_size: 1
@@ -66,8 +66,8 @@ model:
 
 optimizer:
   name: adamw
-  learning_rate: 0.0001
-  weight_decay: 5.0e-6
+  learning_rate: 0.001
+  weight_decay: 5.0e-8
 
 
 scheduler:
