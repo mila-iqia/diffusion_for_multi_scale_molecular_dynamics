@@ -57,10 +57,10 @@ def analyse(experiment_name: str, run_name: str):
 # Choose which experiments to analyse. They must have been trained first!
 list_experiment_names = ["analytical",
                          "no_regularizer",
+                         "equivariant_analytical_regression_regularizer"
                          "fokker_planck_regularizer",
-                         "consistency_with_analytical_guide_regularizer",
                          "consistency_regularizer",
-                         "equivariant_analytical_regression_regularizer no_regularizer"]
+                         "consistency_with_analytical_guide_regularizer"]
 run_name = "run1"
 
 
