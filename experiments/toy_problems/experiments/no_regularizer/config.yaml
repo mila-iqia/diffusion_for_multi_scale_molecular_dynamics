@@ -8,40 +8,47 @@ log_every_n_steps: 1
 gradient_clipping: 0.0
 accumulate_grad_batches: 1  
 
-elements: [A]
+elements: [A] # A dummy name for the single "element" present.
+spatial_dimension: 1
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
 seed: 1234
 
-# Data: a fake dataloader will recreate the same example over and over.
 data:
   data_source: gaussian
   random_seed: 42
+  max_atom: 2
   number_of_atoms: 2
+  spatial_dimension: 1
   sigma_d: 0.01
+  use_optimal_transport: False
   equilibrium_relative_coordinates: 
     - [0.25]
     - [0.75]
-
   train_dataset_size: 8_192
   valid_dataset_size: 1_024
+  batch_size:  256
+  num_workers: 8
+  noise:
+    total_time_steps: 100
+    schedule_type: linear
+    sigma_min: 0.001
+    sigma_max: 0.2
 
-  batch_size:  64 # batch size for everyone
-  num_workers: 0
-  max_atom: 2
-  spatial_dimension: 1
-
-# architecture
-spatial_dimension: 1
 
 model:
-  loss:
-    coordinates_algorithm: mse
-    atom_types_ce_weight: 0.0
-    atom_types_lambda_weight: 0.0
-    relative_coordinates_lambda_weight: 1.0
-    lattice_lambda_weight: 0.0  
+  loss: # Only the relative coordinates loss will matter.
+    coordinates:
+      algorithm: mse
+      lambda_weight: 1.0
+    atom_types:
+      algorithm: d3pm
+      lambda_weight: 0.0
+      ce_weight: 1.0
+    lattice_parameters:
+      algorithm: mse
+      lambda_weight: 0.0
   score_network:
     architecture: mlp
     use_permutation_invariance: True
@@ -49,22 +56,19 @@ model:
     number_of_atoms: 2
     num_atom_types: 1
     n_hidden_dimensions: 3
-    hidden_dimensions_size: 64
-    relative_coordinates_embedding_dimensions_size: 32
-    noise_embedding_dimensions_size: 16
-    time_embedding_dimensions_size: 16
-    atom_type_embedding_dimensions_size: 8
-    condition_embedding_size: 8
-  noise:
-    total_time_steps: 100
-    sigma_min: 0.001 
-    sigma_max: 0.2
+    hidden_dimensions_size: 128
+    relative_coordinates_embedding_dimensions_size: 64
+    noise_embedding_dimensions_size: 32
+    time_embedding_dimensions_size: 32
+    atom_type_embedding_dimensions_size: 1
+    condition_embedding_size: 1
+    lattice_parameters_embedding_dimensions_size: 1
 
-# optimizer and scheduler
+
 optimizer:
   name: adamw
-  learning_rate: 0.001
-  weight_decay: 5.0e-8
+  learning_rate: 0.0001
+  weight_decay: 5.0e-6
 
 
 scheduler:
@@ -72,11 +76,11 @@ scheduler:
   T_max: 1000
   eta_min: 0.0
 
-# early stopping
+
 early_stopping:
   metric: validation_epoch_loss
   mode: min
-  patience: 1000
+  patience: 20
 
 model_checkpoint:
   monitor: validation_epoch_loss
@@ -86,6 +90,7 @@ score_viewer:
   record_every_n_epochs: 1
 
   score_viewer_parameters: 
+    schedule_type: linear
     sigma_min: 0.001 
     sigma_max: 0.2
     number_of_space_steps: 100
