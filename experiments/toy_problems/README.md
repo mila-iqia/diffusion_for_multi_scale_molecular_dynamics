@@ -43,7 +43,7 @@ The experiments are
 ### **no_regularizer** 
 no regularization is applied. Only score matching!
 
-### **equivariant_analytical_regression_regularizer**
+### **analytical_regression_regularizer**
 This is an *oracle* regularization scheme, where we use regression to the known 
 solution. This would not be available in general; this is a sanity check that the score network can learn the right answer.
 
