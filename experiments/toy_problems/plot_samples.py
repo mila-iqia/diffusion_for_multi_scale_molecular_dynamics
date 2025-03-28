@@ -3,9 +3,8 @@ from matplotlib import pyplot as plt
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import \
     AXL_COMPOSITION
-from experiments.regularization_toy_problem import RESULTS_DIR
-from experiments.regularization_toy_problem.visualization_utils import \
-    plot_2d_samples
+from experiments.toy_problems import RESULTS_DIR
+from experiments.toy_problems.visualization_utils import plot_2d_samples
 
 if __name__ == "__main__":
 
