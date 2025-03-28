@@ -1,20 +1,31 @@
-exp_name: consistency_regularizer
+exp_name: consistency_with_analytical_guide_regularizer 
 
 regularizer:
     type: consistency
     maximum_number_of_steps: 5
     number_of_burn_in_epochs: 0
     regularizer_lambda_weight: 0.001
-
     noise:
       total_time_steps: 100
       sigma_min: 0.001
       sigma_max: 0.2
-
     sampling:
       num_atom_types: 1
       number_of_atoms: 2
       number_of_samples: 64
       spatial_dimension: 1
       number_of_corrector_steps: 0
+      use_fixed_lattice_parameters: True
       cell_dimensions: [[1.0]]
+
+    analytical_score_network:
+      architecture: "analytical"
+      spatial_dimension: 1
+      number_of_atoms: 2
+      num_atom_types: 1
+      kmax: 5
+      equilibrium_relative_coordinates:
+        - [0.25]
+        - [0.75]
+      sigma_d: 0.01
+      use_permutation_invariance: True
