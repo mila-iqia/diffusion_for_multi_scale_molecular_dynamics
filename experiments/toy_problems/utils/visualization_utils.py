@@ -21,8 +21,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_var
     VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell, map_unit_cell_to_lattice_parameters)
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -77,11 +77,12 @@ def generate_vector_field_video(
         sigma_t = sigma * torch.ones(batch_size, 1)
         times = time * torch.ones(batch_size, 1)
         unit_cell = torch.ones(batch_size, 1, 1)
+        lattice_parameters = map_unit_cell_to_lattice_parameters(unit_cell)
 
         composition = AXL(
             A=atom_types,
             X=relative_coordinates,
-            L=torch.zeros_like(relative_coordinates),
+            L=lattice_parameters,
         )
 
         batch = {
@@ -194,8 +195,8 @@ def get_2d_vector_field_figure(
     figsize = (PLEASANT_FIG_SIZE[0], PLEASANT_FIG_SIZE[0])
     fig = plt.figure(figsize=figsize)
     fig.suptitle(
-        f"Normalized Score Vector Field at t = {time:3.2f}"
-        r"\n$\sqrt{\sigma_d^2 + \sigma_t^2}$ =" + f"{effective_sigma:5.3f}, "
+        f"Normalized Score Vector Field at t = {time:3.2f}\n"
+        r"$\sqrt{\sigma_d^2 + \sigma_t^2}$ =" + f"{effective_sigma:5.3f}, "
         r"$\sigma_t$ = " + f"{sigma_t:5.3f}, "
         r"MAX[|$\sigma_t {\bf s}_\theta({\bf x}, t)$|] ="
         + f"{max_normalized_score_norm:5.3f}"
