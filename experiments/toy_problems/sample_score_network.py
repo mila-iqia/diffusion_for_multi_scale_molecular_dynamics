@@ -13,7 +13,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytic
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import main
-from experiments.regularization_toy_problem import EXPERIMENTS_DIR, RESULTS_DIR
+from experiments.toy_problems import EXPERIMENTS_DIR, RESULTS_DIR
 
 
 def create_samples(input_parameters: dict, output_directory: str, checkpoint_path: str):

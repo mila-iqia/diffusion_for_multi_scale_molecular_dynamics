@@ -13,8 +13,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_log_wrapped_gaussians
-from experiments.regularization_toy_problem import RESULTS_DIR
-from experiments.regularization_toy_problem.visualization_utils import \
+from experiments.toy_problems import RESULTS_DIR
+from experiments.toy_problems.visualization_utils import \
     generate_vector_field_video
 
 plt.style.use(PLOT_STYLE_PATH)

@@ -11,8 +11,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import \
     get_axl_network
-from experiments.regularization_toy_problem import EXPERIMENTS_DIR, RESULTS_DIR
-from experiments.regularization_toy_problem.visualization_utils import \
+from experiments.toy_problems import EXPERIMENTS_DIR, RESULTS_DIR
+from experiments.toy_problems.visualization_utils import \
     generate_vector_field_video
 
 plt.style.use(PLOT_STYLE_PATH)
