@@ -194,10 +194,14 @@ class SamplingVisualizationCallback(Callback):
             )
 
             reference_lattice_parameters = [
-                metric.reference_samples_metric.compute() for metric in pl_model.lattice_parameters_ks_metrics
+                metric.reference_samples_metric.compute()
+                for metric in pl_model.lattice_parameters_ks_metrics
+                if metric is not None
             ]
             sample_lattice_parameters = [
-                metric.predicted_samples_metric.compute() for metric in pl_model.lattice_parameters_ks_metrics
+                metric.predicted_samples_metric.compute()
+                for metric in pl_model.lattice_parameters_ks_metrics
+                if metric is not None
             ]
 
             lattice_parameters_output_path = os.path.join(
@@ -206,14 +210,16 @@ class SamplingVisualizationCallback(Callback):
             )
 
             torch.save(sample_lattice_parameters, lattice_parameters_output_path)
-            figs = [self._plot_lattice_parameters_histogram(
-                samples.numpy(),
-                references.numpy(),
-                lattice_index,
-                trainer.current_epoch,
-            ) for lattice_index, (references, samples) in enumerate(
-                zip(reference_lattice_parameters, sample_lattice_parameters)
-            )
+            figs = [
+                self._plot_lattice_parameters_histogram(
+                    samples.numpy(),
+                    references.numpy(),
+                    lattice_index,
+                    trainer.current_epoch,
+                )
+                for lattice_index, (references, samples) in enumerate(
+                    zip(reference_lattice_parameters, sample_lattice_parameters)
+                )
             ]
 
             for pl_logger in trainer.loggers:
@@ -350,7 +356,10 @@ class SamplingVisualizationCallback(Callback):
 
     @staticmethod
     def _plot_lattice_parameters_histogram(
-        sample_parameters: np.ndarray, validation_parameters: np.array, parameter_index: int, epoch: int
+        sample_parameters: np.ndarray,
+        validation_parameters: np.array,
+        parameter_index: int,
+        epoch: int,
     ) -> plt.figure:
         """Generate a plot of a lattice parameter of the samples."""
         fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
@@ -361,7 +370,9 @@ class SamplingVisualizationCallback(Callback):
         dmax = maximum_parameter + 0.1
         bins = np.linspace(dmin, dmax, 251)
 
-        fig.suptitle(f"Sampling Lattice Parameter {parameter_index} Distribution\nEpoch {epoch}")
+        fig.suptitle(
+            f"Sampling Lattice Parameter {parameter_index} Distribution\nEpoch {epoch}"
+        )
 
         common_params = dict(density=True, bins=bins, histtype="stepfilled", alpha=0.25)
 

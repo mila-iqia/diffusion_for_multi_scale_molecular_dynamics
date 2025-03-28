@@ -18,6 +18,11 @@ data:
   num_workers: 8
   max_atom: 8
   use_fixed_lattice_parameters: True
+  noise:
+    total_time_steps: 100
+    sigma_min: 0.0001
+    sigma_max: 0.2
+    corrector_step_epsilon: 2.0e-7
 
 # architecture
 spatial_dimension: 3
@@ -40,11 +45,6 @@ model:
     residual: True
     tanh: False
     edges: fully_connected
-  noise:
-    total_time_steps: 100
-    sigma_min: 0.0001
-    sigma_max: 0.2
-    corrector_step_epsilon: 2.0e-7
 
 # optimizer and scheduler
 optimizer:
@@ -84,6 +84,7 @@ diffusion_sampling:
     number_of_atoms: 8
     number_of_samples: 32
     record_samples: False
+    use_fixed_lattice_parameters: True
     cell_dimensions: [5.43, 5.43, 5.43]
   metrics:
     compute_energies: True

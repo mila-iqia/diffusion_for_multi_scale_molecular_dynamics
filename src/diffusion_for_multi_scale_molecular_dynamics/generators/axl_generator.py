@@ -32,25 +32,38 @@ class SamplingParameters:
         False  # should the predictor and corrector steps be recorded to a file
     )
     record_samples_corrector_steps: bool = False
-    record_atom_type_update: bool = False  # record the information pertaining to generating atom types.
+    record_atom_type_update: bool = (
+        False  # record the information pertaining to generating atom types.
+    )
 
     def __post_init__(self):
         """Post init."""
         if self.use_fixed_lattice_parameters:
-            assert self.cell_dimensions is not None, (
-                "If use_fixed_lattice_parameters is True, then cell_dimensions must be provided."
-            )
+            assert (
+                self.cell_dimensions is not None
+            ), "If use_fixed_lattice_parameters is True, then cell_dimensions must be provided."
             cell_dimensions = torch.tensor(self.cell_dimensions)
-            assert cell_dimensions.dim() == 2, (f"Provided cell_dimensions must be a 2D tensor. "
-                                                f"Got {cell_dimensions.shape}.")
-            assert cell_dimensions.shape[0] == cell_dimensions.shape[1] == self.spatial_dimension, (
-                "The cell_dimensions tensor must have shape [spatial_dimension, spatial_dimension]."
+            if (
+                cell_dimensions.dim() == 1
+            ):  # if we provide a list of int, we assume the vectors are orthogonal
+                cell_dimensions = torch.diag(cell_dimensions)
+            assert cell_dimensions.dim() == 2, (
+                f"Provided cell_dimensions must be a 2D tensor. "
+                f"Got {cell_dimensions.shape}."
             )
+            assert (
+                cell_dimensions.shape[0]
+                == cell_dimensions.shape[1]
+                == self.spatial_dimension
+            ), "The cell_dimensions tensor must have shape [spatial_dimension, spatial_dimension]."
             self.fixed_lattice_parameters = map_unit_cell_to_lattice_parameters(
-                cell_dimensions)
+                cell_dimensions
+            )
         else:
             if not self.use_fixed_lattice_parameters:
-                warnings.warn("Using diffusion on lattice parameters. This is experimental and not fully tested.")
+                warnings.warn(
+                    "Using diffusion on lattice parameters. This is experimental and not fully tested."
+                )
             self.fixed_lattice_parameters = None
 
 
@@ -59,7 +72,9 @@ class AXLGenerator(ABC):
 
     @abstractmethod
     def sample(
-        self, number_of_samples: int, device: torch.device,
+        self,
+        number_of_samples: int,
+        device: torch.device,
     ) -> AXL:
         """Sample.
 
