@@ -6,8 +6,9 @@ which are `[[0.25], [0.75]]`, i.e., the first atom at 0.25 and the second atom  
 Gaussian is controlled by the parameter "sigma_d".
 
 The two great advantages of such a simplified system are :
-    - we can solve analytically for what the score vector field should be
-    - it is straightforward to visualize the score field.
+ * we can solve analytically for what the score vector field should be
+ * it is straightforward to visualize the score field.
+
 This helps us gain insights into the diffusion process.
 
 Various regularization strategies are tested on this simple toy problem.
