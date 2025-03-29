@@ -184,7 +184,7 @@ def plot_samples_radial_distribution(output_samples_path: Path, experiment_name:
     ax.legend(loc=0)
     ax.set_xlabel("Radial Distance To Closest Equilibrium Position")
     ax.set_ylabel("Count Density")
-    fig.savefig(output_samples_path.parent / "samples.png")
+    fig.savefig(output_samples_path.parent / "samples_radial_distribution.png")
     plt.close(fig)
 
 
