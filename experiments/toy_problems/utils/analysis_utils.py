@@ -42,6 +42,7 @@ TOY_MODEL_PARAMETERS = dict(number_of_atoms=2,
                             cell_dimensions=[[1.0]],
                             sigma_min=0.001,
                             sigma_max=0.2,
+                            schedule_type="exponential",
                             x0_1=0.25,
                             x0_2=0.75,
                             sigma_d=0.01,
@@ -73,6 +74,7 @@ def get_noise_parameters(input_parameters: InputParameters):
         total_time_steps=input_parameters.total_time_steps,
         sigma_min=TOY_MODEL_PARAMETERS["sigma_min"],
         sigma_max=TOY_MODEL_PARAMETERS["sigma_max"],
+        schedule_type=TOY_MODEL_PARAMETERS["schedule_type"],
         corrector_step_epsilon=input_parameters.corrector_step_epsilon,
     )
     return noise_parameters

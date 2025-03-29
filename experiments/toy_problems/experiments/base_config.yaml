@@ -30,8 +30,8 @@ data:
   batch_size:  512
   num_workers: 0
   noise:
-    total_time_steps: 100
-    schedule_type: linear
+    total_time_steps: 50
+    schedule_type: exponential
     sigma_min: 0.001
     sigma_max: 0.2
 
@@ -89,8 +89,8 @@ score_viewer:
   record_every_n_epochs: 1
 
   score_viewer_parameters: 
-    schedule_type: linear
-    sigma_min: 0.001 
+    schedule_type: exponential
+    sigma_min: 0.001
     sigma_max: 0.2
     number_of_space_steps: 100
     starting_relative_coordinates: 

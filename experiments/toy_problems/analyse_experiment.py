@@ -31,7 +31,7 @@ def analyse(experiment_name: str, run_name: str):
     logger.info(f"  checkpoint is  {checkpoint_path}")
 
     input_parameters = InputParameters(algorithm="predictor_corrector",
-                                       total_time_steps=500,
+                                       total_time_steps=50,
                                        number_of_corrector_steps=2,
                                        corrector_step_epsilon=2.5e-8,
                                        number_of_samples=10_000,
