@@ -49,7 +49,7 @@ TOY_MODEL_PARAMETERS = dict(number_of_atoms=2,
 
 InputParameters = namedtuple("InputParameters",
                              ["algorithm", "total_time_steps", "number_of_corrector_steps",
-                              "corrector_r", "number_of_samples", "record_samples"])
+                              "corrector_step_epsilon", "number_of_samples", "record_samples"])
 
 
 def get_checkpoint_path(experiment_name: str, run_name: str):
@@ -73,7 +73,7 @@ def get_noise_parameters(input_parameters: InputParameters):
         total_time_steps=input_parameters.total_time_steps,
         sigma_min=TOY_MODEL_PARAMETERS["sigma_min"],
         sigma_max=TOY_MODEL_PARAMETERS["sigma_max"],
-        corrector_r=input_parameters.corrector_r,
+        corrector_step_epsilon=input_parameters.corrector_step_epsilon,
     )
     return noise_parameters
 
@@ -147,6 +147,44 @@ def plot_samples(output_samples_path: Path, experiment_name: str):
     fig = plot_2d_samples(relative_coordinates)
     fig.suptitle(f"Samples drawn with {experiment_name} Score Network")
     fig.savefig(output_samples_path.parent / "score_samples.png")
+    plt.close(fig)
+
+
+def plot_samples_radial_distribution(output_samples_path: Path, experiment_name: str):
+    """Plot samples radial distribution."""
+    samples = torch.load(output_samples_path / "samples.pt")
+    relative_coordinates = samples[AXL_COMPOSITION].X
+
+    sigma_d = TOY_MODEL_PARAMETERS['sigma_d']
+
+    list_r = torch.linspace(0, 5 * sigma_d, 1001)
+
+    expected_distribution = list_r / sigma_d**2 * torch.exp(- 0.5 * list_r**2 / sigma_d**2)
+
+    x0_1 = TOY_MODEL_PARAMETERS['x0_1']
+    x0_2 = TOY_MODEL_PARAMETERS['x0_2']
+    mu1 = torch.tensor([[[x0_1], [x0_2]]])
+    mu2 = torch.tensor([[[x0_2], [x0_1]]])
+
+    distances1 = torch.sqrt(((relative_coordinates - mu1)**2).squeeze().sum(dim=-1))
+    distances2 = torch.sqrt(((relative_coordinates - mu2)**2).squeeze().sum(dim=-1))
+
+    radial_distances = einops.rearrange([distances1, distances2], "c n -> n c").min(dim=1).values
+
+    fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
+
+    ax = fig.add_subplot(111)
+
+    common_params = dict(density=True, bins=100, histtype="stepfilled", alpha=0.25)
+    fig.suptitle(f"Samples drawn with {experiment_name} Score Network")
+    ax.plot(list_r, expected_distribution, 'g-', label='Expected distribution')
+    ax.hist(radial_distances, **common_params, color='red', label=experiment_name)
+
+    ax.set_xlim(xmin=-0.01)
+    ax.legend(loc=0)
+    ax.set_xlabel("Radial Distance To Closest Equilibrium Position")
+    ax.set_ylabel("Count Density")
+    fig.savefig(output_samples_path.parent / "samples.png")
     plt.close(fig)
 
 
