@@ -4,8 +4,6 @@ import sys
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
-from experiments.toy_problems.utils.analysis_utils import \
-    plot_samples_radial_distribution
 
 sys.path.append(str(TOP_DIR / "experiments")) # noqa
 
@@ -17,6 +15,8 @@ from toy_problems.utils.analysis_utils import get_vector_field_movie  # noqa
 from toy_problems.utils.analysis_utils import \
     plot_marginal_distribution  # noqa
 from toy_problems.utils.analysis_utils import plot_samples  # noqa
+from toy_problems.utils.analysis_utils import \
+    plot_samples_radial_distribution  # noqa
 
 logger = logging.getLogger(__name__)
 setup_analysis_logger()
