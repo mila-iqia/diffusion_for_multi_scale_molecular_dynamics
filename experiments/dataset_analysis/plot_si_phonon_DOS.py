@@ -8,9 +8,9 @@ to see if the energy scales match up.
 import matplotlib.pyplot as plt
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics import ANALYSIS_RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from experiments.dataset_analysis import RESULTS_DIR
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -31,8 +31,7 @@ acell = 5.43
 dataset_name_2x2x2 = "si_diffusion_2x2x2"
 dataset_name_1x1x1 = "si_diffusion_1x1x1"
 
-output_dir = ANALYSIS_RESULTS_DIR / "covariances"
-output_dir.mkdir(exist_ok=True)
+covariance_dir = RESULTS_DIR / "covariances"
 
 
 if __name__ == "__main__":
@@ -44,14 +43,14 @@ if __name__ == "__main__":
     constant_1x1x1 = M * a**2 / kBT / Ha_in_meV**2
     constant_2x2x2 = M * (2.0 * a) ** 2 / kBT / Ha_in_meV**2
 
-    covariance_file_1x1x1 = output_dir / f"covariance_{dataset_name_1x1x1}.pkl"
+    covariance_file_1x1x1 = covariance_dir / f"covariance_{dataset_name_1x1x1}.pkl"
     sigma_1x1x1 = torch.load(covariance_file_1x1x1)
     sigma_inv_1x1x1 = torch.linalg.pinv(sigma_1x1x1)
     Omega_1x1x1 = sigma_inv_1x1x1 / constant_1x1x1
     omega2_1x1x1 = torch.linalg.eigvalsh(Omega_1x1x1)
     list_omega_in_meV_1x1x1 = torch.sqrt(torch.abs(omega2_1x1x1))
 
-    covariance_file_2x2x2 = output_dir / f"covariance_{dataset_name_2x2x2}.pkl"
+    covariance_file_2x2x2 = covariance_dir / f"covariance_{dataset_name_2x2x2}.pkl"
     sigma_2x2x2 = torch.load(covariance_file_2x2x2)
     sigma_inv_2x2x2 = torch.linalg.pinv(sigma_2x2x2)
     Omega_2x2x2 = sigma_inv_2x2x2 / constant_2x2x2
