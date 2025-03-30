@@ -42,7 +42,7 @@ def get_data_module(dataset_name: str):
 
     cache_dir = lammps_run_dir / "cache"
 
-    data_params = LammpsDataModuleParameters(batch_size=128,
+    data_params = LammpsDataModuleParameters(batch_size=1024,
                                              max_atom=max_atom,
                                              noise_parameters=NoiseParameters(total_time_steps=1),
                                              use_optimal_transport=False,
