@@ -1,10 +1,11 @@
 """Convert results of LAMMPS simulation into dataloader friendly format."""
-
+import glob
 import itertools
 import logging
 import os
 import warnings
 from functools import partial
+from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -24,29 +25,55 @@ logger = logging.getLogger(__name__)
 class LammpsProcessorForDiffusion:
     """Prepare data from LAMMPS for a diffusion model."""
 
-    def __init__(self, raw_data_dir: str, processed_data_dir: str):
+    def __init__(self, raw_data_dir: Union[str, Path], processed_data_dir: Union[str, Path]):
         """Read LAMMPS experiment directory and write a processed version to disk.
 
         Args:
             raw_data_dir: path to LAMMPS runs outputs
             processed_data_dir: path where processed files are saved
         """
-        if not os.path.exists(processed_data_dir):
-            os.makedirs(processed_data_dir)  # create the dir if it doesn't exist
-        self.data_dir = processed_data_dir
-        # TODO revisit data splits
-        self.train_files = self.prepare_data(raw_data_dir, mode="train")
-        self.valid_files = self.prepare_data(raw_data_dir, mode="valid")
+        self.raw_data_dir = str(raw_data_dir)
+        self.data_dir = str(processed_data_dir)
 
-    def prepare_data(self, raw_data_dir: str, mode: str = "train") -> List[str]:
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
+
+        # If there are raw data files in the raw_data_dir directory, turn them into parquet files.
+        self.create_parquet_data_files(self.raw_data_dir, mode="train")
+        self.create_parquet_data_files(self.raw_data_dir, mode="valid")
+
+        # Read in the parquet files in data_dir. Note that these could be prexisting parquet files, or
+        # files generated in the step above.
+        self.train_files = self.get_paths_to_parquet_data_files(self.data_dir, mode="train")
+        self.valid_files = self.get_paths_to_parquet_data_files(self.data_dir, mode="valid")
+
+    def get_paths_to_parquet_data_files(self, data_dir: str, mode: str = "train") -> List[str]:
+        """Read data in raw_data_dir and write to a parquet file for Datasets.
+
+        Args:
+            data_dir: folder where parquet files are located.
+            mode: train, valid or test split
+
+        Returns:
+            list_files: list of file paths to processed dataframe in parquet format.
+        """
+        # we assume that raw_data_dir contains subdirectories named train_run_N for N>=1
+        # get the list of runs to parse
+        assert mode in [
+            "train",
+            "valid",
+            "test",
+        ], f"Mode should be train, valid or test. Got {mode}."
+        list_files = glob.glob(os.path.join(data_dir, f"{mode}_*.parquet"))
+        logging.info(f"Parquet data directory already exists. Loading data from paths {list_files}")
+        return list_files
+
+    def create_parquet_data_files(self, raw_data_dir: str, mode: str = "train"):
         """Read data in raw_data_dir and write to a parquet file for Datasets.
 
         Args:
             raw_data_dir: folder where LAMMPS runs are located.
             mode: train, valid or test split
-
-        Returns:
-            list of processed dataframe in parquet files
         """
         # TODO split is assumed from data generation. We might revisit this.
         # we assume that raw_data_dir contains subdirectories named train_run_N for N>=1
@@ -62,7 +89,6 @@ class LammpsProcessorForDiffusion:
             if os.path.isdir(os.path.join(raw_data_dir, d))
             and d.startswith(f"{mode}_run")
         ]
-        list_files = []
         for count, d in enumerate(list_runs, 1):
             logging.info(
                 f"Processing run directory {d} ({count} of {len(list_runs)})..."
@@ -77,9 +103,6 @@ class LammpsProcessorForDiffusion:
                         engine="pyarrow",
                         index=False,
                     )
-            if f"{d}.parquet" in os.listdir(self.data_dir):
-                list_files.append(os.path.join(self.data_dir, f"{d}.parquet"))
-        return list_files
 
     @staticmethod
     def _convert_coords_to_relative(row: pd.Series) -> List[float]:
