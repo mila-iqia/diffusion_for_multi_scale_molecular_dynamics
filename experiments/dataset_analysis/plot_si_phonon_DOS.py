@@ -28,11 +28,16 @@ THz_in_meV = 4.136
 acell = 5.43
 
 
-dataset_name_2x2x2 = "si_diffusion_2x2x2"
-dataset_name_1x1x1 = "si_diffusion_1x1x1"
+dataset_name_3x3x3 = "Si_diffusion_3x3x3"
+dataset_name_2x2x2 = "Si_diffusion_2x2x2"
+dataset_name_1x1x1 = "Si_diffusion_1x1x1"
+
+list_dataset_names = [dataset_name_1x1x1, dataset_name_2x2x2, dataset_name_3x3x3]
+list_scale_factor = [1, 2, 3]
+
+list_colors = ['red', 'green', 'blue']
 
 covariance_dir = RESULTS_DIR / "covariances"
-
 
 if __name__ == "__main__":
     kBT = kelvin_in_Ha * T_in_kelvin
@@ -40,26 +45,21 @@ if __name__ == "__main__":
 
     M = Si_mass * proton_mass
 
-    constant_1x1x1 = M * a**2 / kBT / Ha_in_meV**2
-    constant_2x2x2 = M * (2.0 * a) ** 2 / kBT / Ha_in_meV**2
+    list_omegas = []
 
-    covariance_file_1x1x1 = covariance_dir / f"covariance_{dataset_name_1x1x1}.pkl"
-    sigma_1x1x1 = torch.load(covariance_file_1x1x1)
-    sigma_inv_1x1x1 = torch.linalg.pinv(sigma_1x1x1)
-    Omega_1x1x1 = sigma_inv_1x1x1 / constant_1x1x1
-    omega2_1x1x1 = torch.linalg.eigvalsh(Omega_1x1x1)
-    list_omega_in_meV_1x1x1 = torch.sqrt(torch.abs(omega2_1x1x1))
+    for scale_factor, dataset_name in zip(list_scale_factor, list_dataset_names):
+        constant = M * (scale_factor * a) ** 2 / kBT / Ha_in_meV ** 2
+        covariance_file = covariance_dir / f"covariance_{dataset_name}.pkl"
+        sigma = torch.load(covariance_file)
+        sigma_inv = torch.linalg.pinv(sigma)
+        Omega = sigma_inv / constant
+        omega2 = torch.linalg.eigvalsh(Omega)
+        omega_in_meV = torch.sqrt(torch.abs(omega2))
+        list_omegas.append(omega_in_meV)
 
-    covariance_file_2x2x2 = covariance_dir / f"covariance_{dataset_name_2x2x2}.pkl"
-    sigma_2x2x2 = torch.load(covariance_file_2x2x2)
-    sigma_inv_2x2x2 = torch.linalg.pinv(sigma_2x2x2)
-    Omega_2x2x2 = sigma_inv_2x2x2 / constant_2x2x2
-    omega2_2x2x2 = torch.linalg.eigvalsh(Omega_2x2x2)
-    list_omega_in_meV_2x2x2 = torch.sqrt(torch.abs(omega2_2x2x2))
+    max_hw = torch.max(torch.cat(list_omegas).max()) / THz_in_meV
 
-    max_hw = torch.max(list_omega_in_meV_2x2x2) / THz_in_meV
-
-    bins = torch.linspace(0.0, max_hw, 50)
+    bins = torch.linspace(0.0, max_hw, 100)
 
     fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
     fig.suptitle("Eigenvalues of Dynamical Matrix, from Displacement Covariance")
@@ -67,21 +67,19 @@ if __name__ == "__main__":
 
     ax.set_xlim(0, max_hw + 1)
     ax.set_xlabel(r"$\hbar \omega$ (THz)")
-    ax.set_ylabel("Count")
+    ax.set_ylabel("Density")
 
-    ax.hist(
-        list_omega_in_meV_1x1x1 / THz_in_meV,
-        bins=bins,
-        label="Si 1x1x1",
-        color="green",
-        alpha=0.5,
-    )
-    ax.hist(
-        list_omega_in_meV_2x2x2 / THz_in_meV,
-        bins=bins,
-        label="Si 2x2x2",
-        color="blue",
-        alpha=0.25,
-    )
+    for omega_in_meV, dataset_name, color in zip(list_omegas, list_dataset_names, list_colors):
+        ax.hist(
+            omega_in_meV / THz_in_meV,
+            bins=bins,
+            label=dataset_name,
+            color=color,
+            alpha=0.25,
+            histtype="stepfilled",
+            density=True
+        )
+
     ax.legend(loc=0)
+    fig.savefig(RESULTS_DIR / "phonons_DOS.png")
     plt.show()

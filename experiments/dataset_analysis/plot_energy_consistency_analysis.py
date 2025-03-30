@@ -11,6 +11,7 @@ import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
@@ -29,54 +30,57 @@ from experiments.dataset_analysis.compute_dataset_covariance import \
 plt.style.use(PLOT_STYLE_PATH)
 
 logger = logging.getLogger(__name__)
-dataset_name = "si_diffusion_1x1x1"
+setup_analysis_logger()
+
+dataset_name_3x3x3 = "Si_diffusion_3x3x3"
+dataset_name_2x2x2 = "Si_diffusion_2x2x2"
+dataset_name_1x1x1 = "Si_diffusion_1x1x1"
+
+list_dataset_names = [dataset_name_1x1x1, dataset_name_2x2x2, dataset_name_3x3x3]
 
 if __name__ == "__main__":
-    setup_analysis_logger()
 
-    logging.info(f"Starting {dataset_name} analysis")
+    for dataset_name in list_dataset_names:
+        logging.info(f"Starting {dataset_name} analysis")
 
-    datamodule = get_data_module(dataset_name)
+        datamodule = get_data_module(dataset_name)
 
-    oracle_parameters = LammpsOracleParameters(elements=['Si'],
-                                               sw_coeff_filename='Si.sw')
-    oracle = LammpsEnergyOracle(oracle_parameters)
+        oracle_parameters = LammpsOracleParameters(elements=['Si'],
+                                                   sw_coeff_filename='Si.sw')
+        oracle = LammpsEnergyOracle(oracle_parameters)
 
-    dataset_potential_energies = np.array([])
-    oracle_energies = np.array([])
-    logger.info("Compute energy from Oracle")
-    for batch in datamodule.train_dataloader():
-        dataset_potential_energies = np.concatenate([dataset_potential_energies,
-                                                     batch['potential_energy'].numpy()])
+        dataset_potential_energies = np.array([])
+        oracle_energies = np.array([])
+        logger.info("Compute energy from Oracle")
+        for batch in tqdm(datamodule.train_dataloader(), "ENERGY"):
+            dataset_potential_energies = np.concatenate([dataset_potential_energies,
+                                                         batch['potential_energy'].numpy()])
 
-        samples = {AXL_COMPOSITION: AXL(A=batch['atom_types'],
-                                        X=batch['relative_coordinates'],
-                                        L=batch['lattice_parameters'])}
+            samples = {AXL_COMPOSITION: AXL(A=batch['atom_types'],
+                                            X=batch['relative_coordinates'],
+                                            L=batch['lattice_parameters'])}
 
-        energies, _ = oracle.compute_oracle_energies_and_forces(samples)
-        oracle_energies = np.concatenate([oracle_energies, energies.numpy()])
+            energies, _ = oracle.compute_oracle_energies_and_forces(samples)
+            oracle_energies = np.concatenate([oracle_energies, energies.numpy()])
 
-        # Do a single batch to go quick
-        break
+        fig = SamplingVisualizationCallback._plot_energy_histogram(
+            oracle_energies, dataset_potential_energies, epoch=0)
+        fig.savefig(RESULTS_DIR / f"{dataset_name}_energy_distribution.png")
+        plt.show()
+        plt.close(fig)
 
-    fig = SamplingVisualizationCallback._plot_energy_histogram(
-        oracle_energies, dataset_potential_energies, epoch=0)
-    fig.savefig(RESULTS_DIR / "energy_distribution.png")
-    plt.show()
-    plt.close(fig)
+        fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
+        ax2 = fig2.add_subplot(111)
 
-    fig2 = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    ax2 = fig2.add_subplot(111)
+        errors = oracle_energies - dataset_potential_energies
 
-    errors = oracle_energies - dataset_potential_energies
-
-    fig2.suptitle("Error Distribution between Dataset and Oracle")
-    ax2.hist(
-        errors, density=True, bins=20, histtype="stepfilled", alpha=0.25, color="red"
-    )
-    ax2.set_xlabel("Energy (eV)")
-    ax2.set_ylabel("Density")
-    fig2.tight_layout()
-    fig2.savefig(RESULTS_DIR / "energy_errors.png")
-    plt.show()
-    plt.close(fig2)
+        fig2.suptitle("Error Distribution between Dataset and Oracle")
+        ax2.hist(
+            errors, density=True, bins=20, histtype="stepfilled", alpha=0.25, color="red"
+        )
+        ax2.set_xlabel("Energy (eV)")
+        ax2.set_ylabel("Density")
+        fig2.tight_layout()
+        fig2.savefig(RESULTS_DIR / f"{dataset_name}_energy_errors.png")
+        plt.show()
+        plt.close(fig2)
