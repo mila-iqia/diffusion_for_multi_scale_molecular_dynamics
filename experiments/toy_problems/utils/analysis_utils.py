@@ -12,7 +12,6 @@ import torch
 import yaml
 from matplotlib import pyplot as plt
 
-from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import \
     PLEASANT_FIG_SIZE
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
@@ -29,11 +28,8 @@ from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import (
     get_axl_network, main)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_log_wrapped_gaussians
-
-sys.path.append(str(TOP_DIR / "experiments")) # noqa
-
-from toy_problems import EXPERIMENTS_DIR, RESULTS_DIR  # noqa
-from toy_problems.utils.visualization_utils import (  # noqa
+from experiments.toy_problems import EXPERIMENTS_DIR
+from experiments.toy_problems.utils.visualization_utils import (
     generate_vector_field_video, plot_2d_samples)
 
 TOY_MODEL_PARAMETERS = dict(number_of_atoms=2,
