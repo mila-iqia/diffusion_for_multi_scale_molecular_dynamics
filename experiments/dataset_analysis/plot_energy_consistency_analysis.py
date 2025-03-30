@@ -37,7 +37,6 @@ dataset_name_2x2x2 = "Si_diffusion_2x2x2"
 dataset_name_1x1x1 = "Si_diffusion_1x1x1"
 
 list_dataset_names = [dataset_name_1x1x1, dataset_name_2x2x2, dataset_name_3x3x3]
-list_dataset_names = [dataset_name_2x2x2]
 
 if __name__ == "__main__":
 
@@ -63,6 +62,8 @@ if __name__ == "__main__":
 
             energies, _ = oracle.compute_oracle_energies_and_forces(samples)
             oracle_energies = np.concatenate([oracle_energies, energies.numpy()])
+            # To a single batch to keep this quick
+            break
 
         fig = SamplingVisualizationCallback._plot_energy_histogram(
             oracle_energies, dataset_potential_energies, epoch=0)
