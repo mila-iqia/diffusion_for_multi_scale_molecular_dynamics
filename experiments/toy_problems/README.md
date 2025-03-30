@@ -15,7 +15,7 @@ Various regularization strategies are tested on this simple toy problem.
 
 # Directory content
 
-## experiments/
+## training/
 this is where the various training experiments are defined. They are simple enough to run 
 on a laptop and do not require external datasets. Try them!
 

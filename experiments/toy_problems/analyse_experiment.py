@@ -1,25 +1,12 @@
 import logging
-import sys
 
-from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
-    setup_analysis_logger
-
-sys.path.append(str(TOP_DIR / "experiments")) # noqa
-
-from toy_problems import RESULTS_DIR  # noqa
-from toy_problems.utils.analysis_utils import InputParameters  # noqa
-from toy_problems.utils.analysis_utils import create_samples  # noqa
-from toy_problems.utils.analysis_utils import get_checkpoint_path  # noqa
-from toy_problems.utils.analysis_utils import get_vector_field_movie  # noqa
-from toy_problems.utils.analysis_utils import \
-    plot_marginal_distribution  # noqa
-from toy_problems.utils.analysis_utils import plot_samples  # noqa
-from toy_problems.utils.analysis_utils import \
-    plot_samples_radial_distribution  # noqa
+from experiments.toy_problems import RESULTS_DIR
+from experiments.toy_problems.utils.analysis_utils import (
+    InputParameters, create_samples, get_checkpoint_path,
+    get_vector_field_movie, plot_marginal_distribution, plot_samples,
+    plot_samples_radial_distribution)
 
 logger = logging.getLogger(__name__)
-setup_analysis_logger()
 
 
 def analyse(experiment_name: str, run_name: str):
