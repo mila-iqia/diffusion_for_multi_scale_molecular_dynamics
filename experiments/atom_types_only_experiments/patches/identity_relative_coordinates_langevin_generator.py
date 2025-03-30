@@ -1,8 +1,7 @@
-import sys
-
 import torch
+from fixed_starting_point_trajectory_initializer import \
+    FixedStartingPointTrajectoryInitializer
 
-from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
@@ -13,11 +12,6 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-
-sys.path.append(str(TOP_DIR / "experiments/atom_types_only_experiments/patches")) # noqa
-
-from fixed_starting_point_trajectory_initializer import \
-    FixedStartingPointTrajectoryInitializer  # noqa
 
 
 class IdentityRelativeCoordinatesUpdateLangevinGenerator(LangevinGenerator):

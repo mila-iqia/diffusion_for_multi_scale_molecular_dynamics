@@ -1,6 +1,5 @@
-import sys
+from identity_noiser import IdentityRelativeCoordinatesNoiser
 
-from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
     NoisingTransform
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
@@ -10,12 +9,6 @@ from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser impo
     AtomTypesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import (
     LatticeDataParameters, LatticeNoiser)
-
-sys.path.append(
-    str(TOP_DIR / "experiments/atom_types_only_experiments/patches")
-)  # noqa
-
-from identity_noiser import IdentityRelativeCoordinatesNoiser  # noqa
 
 
 class FixedPositionNoisingTransform(NoisingTransform):

@@ -33,7 +33,7 @@ This is where various classes and methods are implemented to patch the main code
 the artificial use case. We deliberately choose to avoid having this complexity in the main code base
 (the `src/` folder).
 
-### experiments/
+### training/
 Here we define a configuration file and a driving bash script to execute the atom type-only diffusion.
 Start here to run this experiment.
 

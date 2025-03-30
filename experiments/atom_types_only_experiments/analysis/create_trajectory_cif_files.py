@@ -18,7 +18,7 @@ setup_analysis_logger()
 
 base_path = TOP_DIR / "experiments/atom_types_only_experiments/"
 
-exp_path = base_path / "experiments/"
+exp_path = base_path / "training/"
 data_path = exp_path / "output/run1/trajectory_samples"
 pickle_path = data_path / "trajectories_sample_epoch=99.pt"
 

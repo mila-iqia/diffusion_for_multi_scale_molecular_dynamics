@@ -1,14 +1,13 @@
 import argparse
 import logging
-import sys
 from dataclasses import dataclass, field
 from typing import Any, AnyStr, Dict, Optional
 
 import datasets
 import pytorch_lightning as pl
 import torch
+from fixed_position_noising_transform import FixedPositionNoisingTransform
 
-from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_parameters import \
     DataModuleParameters
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
@@ -23,10 +22,6 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_unit_cell_to_lattice_parameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.reference_configurations import \
     create_equilibrium_sige_structure
-
-sys.path.append(str(TOP_DIR / "experiments/atom_types_only_experiments/patches"))  # noqa
-from fixed_position_noising_transform import \
-    FixedPositionNoisingTransform  # noqa
 
 logger = logging.getLogger(__name__)
 

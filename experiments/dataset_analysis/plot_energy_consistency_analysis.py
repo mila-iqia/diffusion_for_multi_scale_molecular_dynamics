@@ -37,6 +37,7 @@ dataset_name_2x2x2 = "Si_diffusion_2x2x2"
 dataset_name_1x1x1 = "Si_diffusion_1x1x1"
 
 list_dataset_names = [dataset_name_1x1x1, dataset_name_2x2x2, dataset_name_3x3x3]
+list_dataset_names = [dataset_name_2x2x2]
 
 if __name__ == "__main__":
 

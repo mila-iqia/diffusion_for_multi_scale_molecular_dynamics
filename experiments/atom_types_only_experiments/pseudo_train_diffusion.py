@@ -1,19 +1,11 @@
-import sys  # noqa
-from unittest.mock import patch  # noqa
+from unittest.mock import patch
 
-from diffusion_for_multi_scale_molecular_dynamics import ROOT_DIR  # noqa
-from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-
-sys.path.append(str(TOP_DIR / "experiments/atom_types_only_experiments/patches")) # noqa
-
-from fixed_position_data_module import FixedPositionDataModule  # noqa
-from fixed_position_data_module import load_fixed_position_data_module  # noqa
-from identity_noiser import IdentityRelativeCoordinatesNoiser  # noqa
-from identity_relative_coordinates_langevin_generator import \
-    instantiate_identity_relative_coordinates_generator  # noqa
+from patches.fixed_position_data_module import load_fixed_position_data_module
+from patches.identity_relative_coordinates_langevin_generator import \
+    instantiate_identity_relative_coordinates_generator
 
 from diffusion_for_multi_scale_molecular_dynamics.train_diffusion import \
-    main as train_diffusion_main  # noqa
+    main as train_diffusion_main
 
 if __name__ == "__main__":
     # We must patch 'where the class is looked up', not where it is defined.
