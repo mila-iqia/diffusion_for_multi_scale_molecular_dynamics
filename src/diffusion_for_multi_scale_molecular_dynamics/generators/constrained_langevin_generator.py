@@ -1,13 +1,16 @@
 from dataclasses import dataclass
+from typing import Optional
 
-import numpy as np
 import torch
-from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
+    SamplingConstraint
+from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
+    TrajectoryInitializer
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
@@ -20,11 +23,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_n
 @dataclass(kw_only=True)
 class ConstrainedLangevinGeneratorParameters(PredictorCorrectorSamplingParameters):
     """Hyper-parameters for diffusion sampling with the predictor-corrector algorithm."""
-
     algorithm: str = "constrained_langevin"
-    constrained_relative_coordinates: (
-        np.ndarray
-    )  # the positions that must be satisfied at the end of sampling.
 
 
 class ConstrainedLangevinGenerator(LangevinGenerator):
@@ -34,58 +33,125 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
     paper
         "RePaint: Inpainting using Denoising Diffusion Probabilistic Models".
     """
-
     def __init__(
         self,
         noise_parameters: NoiseParameters,
-        sampling_parameters: ConstrainedLangevinGeneratorParameters,
+        sampling_parameters: PredictorCorrectorSamplingParameters,
         axl_network: ScoreNetwork,
+        sampling_constraints: SamplingConstraint,
+        trajectory_initializer: Optional[TrajectoryInitializer] = None,
     ):
         """Init method."""
-        super().__init__(noise_parameters, sampling_parameters, axl_network)
+        super().__init__(noise_parameters=noise_parameters,
+                         sampling_parameters=sampling_parameters,
+                         axl_network=axl_network,
+                         trajectory_initializer=trajectory_initializer)
 
-        self.constraint_relative_coordinates = torch.from_numpy(
-            sampling_parameters.constrained_relative_coordinates
-        )  # TODO constraint the atom type as well
-
-        assert (
-            len(self.constraint_relative_coordinates.shape) == 2
-        ), "The constrained relative coordinates have the wrong shape"
+        self.sampling_constraints = sampling_constraints
 
         number_of_constraints, spatial_dimensions = (
-            self.constraint_relative_coordinates.shape
+            self.sampling_constraints.constrained_relative_coordinates.shape
         )
         assert (
             number_of_constraints <= self.number_of_atoms
         ), "There are more constrained positions than atoms!"
         assert (
             spatial_dimensions <= self.spatial_dimension
-        ), "The spatial dimension of the constrained positions is inconsistent"
+        ), "The spatial dimension of the constrained relative coordinates is inconsistent"
 
-        # Without loss of generality, we impose that the first positions are constrained.
-        # This should have no consequence for a permutation equivariant model.
-        self.constraint_mask = torch.zeros(self.number_of_atoms, dtype=bool)
-        self.constraint_mask[:number_of_constraints] = True
+        if self.sampling_constraints.constrained_indices is None:
+            # We impose that the first positions are constrained.
+            # This should have no consequence for a permutation equivariant model.
+            self.constraint_indices = torch.arange(number_of_constraints)
+        else:
+            self.constraint_indices = self.sampling_constraints.constrained_indices
 
         self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
+        # TODO: noise the atom types as well
 
     def _apply_constraint(self, composition: AXL, device: torch.device) -> AXL:
         """This method applies the coordinate constraint on the input configuration."""
         x = composition.X
-        x[:, self.constraint_mask] = self.constraint_relative_coordinates.to(device)
-        updated_axl = AXL(
-            A=composition.A,
-            X=x,
-            L=composition.L,
-        )
+        a = composition.A
+        x[:, self.constraint_indices] = self.sampling_constraints.constrained_relative_coordinates.to(device)
+        a[:, self.constraint_indices] = self.sampling_constraints.constrained_atom_types.to(device)
+
+        updated_axl = AXL(A=a, X=x, L=composition.L)
         return updated_axl
+
+    def _get_composition0_known(self, number_of_samples: int, device: torch.device) -> AXL:
+        """Get composition0_known.
+
+        Initialize a configuration that satisfy the constraint, but is otherwise random.
+        Since the noising process is 'atom-per-atom', the non-constrained terms should have no impact.
+        """
+        composition0_known = self.initialize(number_of_samples, device)
+        composition0_known = self._apply_constraint(composition0_known, device)
+        return composition0_known
+
+    def predictor_step(
+        self,
+        composition_i: AXL,
+        index_i: int,
+        cartesian_forces: torch.Tensor,
+    ) -> AXL:
+        """Predictor step.
+
+        We overload the base class predictor_step to apply REPAINT.
+
+        Args:
+            composition_i : sampled composition (atom types, relative coordinates, lattice vectors), at time step i.
+            index_i : index of the time step.
+            cartesian_forces: forces conditioning the sampling process
+
+        Returns:
+            composition_im1 : sampled composition, at time step i - 1.
+        """
+        raw_composition_im1 = super().predictor_step(composition_i=composition_i,
+                                                     index_i=index_i,
+                                                     cartesian_forces=cartesian_forces)
+
+        composition_im1 = self._repaint_composition(raw_composition_i=raw_composition_im1,
+                                                    index_i=index_i - 1)
+        return composition_im1
+
+    def _repaint_composition(self, raw_composition_i: AXL, index_i: int):
+        """Repaint composition.
+
+        Args:
+            raw_composition_i: an AXL composition for index i
+            index_i: the diffusion time index i.
+
+        Returns:
+            repainted_composition_i: an AXL composition for index i, with applied constraints.
+        """
+        x_i = raw_composition_i.X
+        device = x_i.device
+        number_of_samples = x_i.shape[0]
+
+        composition0_known = self._get_composition0_known(number_of_samples, device)
+
+        sigma_i = self.noise.sigma[index_i]
+        broadcast_sigmas_i = sigma_i * torch.ones_like(x_i)
+
+        # Noise an example satisfying the constraints from t_0 to t_i
+        x_i_known = (
+            self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
+                composition0_known.X, broadcast_sigmas_i
+            )
+        )
+        # TODO: noise A as well.
+        # Combine the known and unknown
+        x_i[:, self.constraint_indices] = x_i_known[:, self.constraint_indices]
+        composition_im1 = AXL(A=raw_composition_i.A, X=x_i, L=raw_composition_i.L)
+        return composition_im1
 
     def sample(
         self, number_of_samples: int, device: torch.device,
     ) -> AXL:
         """Sample.
 
-        This method draws  samples, imposing the satisfaction of positional constraints.
+        This method draws samples, imposing the satisfaction of positional constraints.
 
         Args:
             number_of_samples : number of samples to draw.
@@ -94,45 +160,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         Returns:
             samples: composition samples as AXL namedtuple (atom types, reduced coordinates, lattice vectors)
         """
-        # Initialize a configuration that satisfy the constraint, but is otherwise random.
-        # Since the noising process is 'atom-per-atom', the non-constrained position should have no impact.
-        composition0_known = self.initialize(number_of_samples, device)
-        # this is an AXL objet
-
-        composition0_known = self._apply_constraint(composition0_known, device)
-
-        composition_ip1 = self.initialize(number_of_samples, device)
-        forces = torch.zeros_like(composition_ip1.X)
-
-        coordinates_broadcasting = torch.ones(
-            number_of_samples, self.number_of_atoms, self.spatial_dimension
-        ).to(device)
-
-        for i in tqdm(range(self.number_of_discretization_steps - 1, -1, -1)):
-            sigma_i = self.noise.sigma[i]
-            broadcast_sigmas_i = sigma_i * coordinates_broadcasting
-            # Noise an example satisfying the constraints from t_0 to t_i
-            x_i_known = (
-                self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
-                    composition0_known.X, broadcast_sigmas_i
-                )
-            )
-            # Denoise from t_{i+1} to t_i
-            composition_i = self.predictor_step(
-                composition_ip1, i + 1, forces
-            )
-
-            # Combine the known and unknown
-            x_i = composition_i.X
-            x_i[:, self.constraint_mask] = x_i_known[:, self.constraint_mask]
-            composition_i = AXL(A=composition_i.A, X=x_i, L=composition_i.L)
-
-            for _ in range(self.number_of_corrector_steps):
-                composition_i = self.corrector_step(composition_i, i, forces)
-
-            composition_ip1 = composition_i
-
+        composition_i = super().sample(number_of_samples=number_of_samples, device=device)
         # apply the constraint one last time
         composition_i = self._apply_constraint(composition_i, device)
-
         return composition_i
