@@ -23,7 +23,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_m
 from diffusion_for_multi_scale_molecular_dynamics.utils.hp_utils import \
     check_and_log_hp
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
-    log_exp_details, setup_console_logger)
+    configure_logging, log_exp_details)
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import (
     MetricResult, get_crash_metric_result, get_optimized_metric_name_and_mode,
     load_and_backup_hyperparameters, report_to_orion_if_on)
@@ -94,7 +94,7 @@ def main(args: typing.Optional[typing.Any] = None):
         os.makedirs(args.output)
 
     # Very opinionated logger, which writes to the output folder.
-    setup_console_logger(experiment_dir=args.output)
+    configure_logging(experiment_dir=args.output)
     logger.info(first_logging_message)
     log_exp_details(os.path.realpath(__file__), args)
 
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     # Uncomment the following in order to use Pycharm's Remote Debugging server, which allows to
     # launch python commands through a bash script (and through Orion!). VERY useful for debugging.
     # This requires a professional edition of Pycharm and installing the pydevd_pycharm package with pip.
-    # The debug server stopped workin in 2024.3. There is a workaround. See:
+    # The debug server stopped working in 2024.3. There is a workaround. See:
     #   https://www.reddit.com/r/pycharm/comments/1gs1lgk/python_debug_server_issues/
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=56636, stdoutToServer=True, stderrToServer=True)

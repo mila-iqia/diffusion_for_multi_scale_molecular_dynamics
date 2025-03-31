@@ -22,7 +22,8 @@ class TestLammpsProcessorForDiffusion(TestDiffusionDataBase):
     def test_prepare_train_data(
         self, processor, paths, train_configuration_runs, number_of_train_runs
     ):
-        list_files = processor.prepare_data(paths["raw_data_dir"], mode="train")
+        processor.create_parquet_data_files(paths["raw_data_dir"], mode="train")
+        list_files = processor.get_paths_to_parquet_data_files(paths["processed_data_dir"], mode="train")
         assert len(list_files) == number_of_train_runs
 
         for run_number, configurations in enumerate(train_configuration_runs, 1):
@@ -38,7 +39,8 @@ class TestLammpsProcessorForDiffusion(TestDiffusionDataBase):
     def test_prepare_valid_data(
         self, processor, paths, valid_configuration_runs, number_of_valid_runs
     ):
-        list_files = processor.prepare_data(paths["raw_data_dir"], mode="valid")
+        processor.create_parquet_data_files(paths["raw_data_dir"], mode="valid")
+        list_files = processor.get_paths_to_parquet_data_files(paths["processed_data_dir"], mode="valid")
         assert len(list_files) == number_of_valid_runs
 
         for run_number, configurations in enumerate(valid_configuration_runs, 1):

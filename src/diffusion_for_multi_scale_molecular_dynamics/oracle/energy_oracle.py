@@ -89,7 +89,7 @@ class EnergyOracle:
         if isinstance(batched_atom_types, torch.Tensor):
             batched_atom_types = batched_atom_types.detach().cpu()
 
-        logger.info("Compute energy from Oracle")
+        logger.debug("Compute energy from Oracle")
         list_energy = []
         list_forces = []
         spatial_dimension = batched_relative_coordinates.shape[-1]
@@ -118,7 +118,7 @@ class EnergyOracle:
             )
             list_energy.append(energy)
             list_forces.append(forces)
-        logger.info("Done computing energies from Oracle")
+        logger.debug("Done computing energies from Oracle")
 
         if return_type == torch.Tensor:
             forces = torch.tensor(np.stack(list_forces))

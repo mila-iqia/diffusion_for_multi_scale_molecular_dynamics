@@ -40,7 +40,7 @@ from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory i
 from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
     create_batch_of_samples
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
-    get_git_hash, setup_console_logger)
+    configure_logging, get_git_hash)
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
     load_and_backup_hyperparameters
 
@@ -80,7 +80,7 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     else:
         os.makedirs(args.output)
 
-    setup_console_logger(experiment_dir=args.output)
+    configure_logging(experiment_dir=args.output)
 
     if axl_network is None:
         assert os.path.exists(

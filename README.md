@@ -7,6 +7,7 @@ from a costly oracle such as Density Functional Theory (DFT). The generative mod
 few-atom configurations that are computationally tractable for the costly oracle by inpainting 
 around problematic atomic configurations. 
 
+
 # Instructions to set up the project 
 
 ## Creating a Virtual Environment
@@ -50,6 +51,36 @@ environment, the tests can be executed with the command
 The argument `--quick` is optional; a few tests are a bit slow and will be skipped if this flag is present.
 The argument `-n auto` is optional; if toggled, the tests will run in parallel and go a little faster. 
 
+# Getting Started
+
+Once the environment is set up and the tests pass, the `tutorials` folder is a good place to start. There, 
+Jupyter-notebooks give a quick tour of what the code base can do. These are designed to be lightweight and to 
+run locally on a laptop: no need for extra datasets or GPUs. 
+
+Next, the `experiments`[TODO: rename this] folder provides many mini-experiments that give insight into the inner workings of the
+code. Again, these are self-contained and lightweight enough to run on a laptop. Try them! A README in that folder
+provides more information.
+
+Finally, run a fully-fledged experiment. To use [Comet](https://www.comet.com/) as an experiment logger, an account 
+must be available and a global configuration file must be created at `$HOME/.comet.config` with content of the form
+
+    [comet]
+    api_key=YOUR_API_KEY
+
+A simple experiment is described in the configuration file
+
+    examples/config_files/diffusion/config_diffusion_mlp.yaml
+
+To run the experiment described in this file, a dataset must first be created by executing the script
+
+    data/Si_diffusion_1x1x1/create_data.sh
+
+Then, the experiment itself can be executed by running the script
+
+    examples/local/diffusion/run_diffusion.sh
+
+
+# For Developers
 
 ## Setting up the Development Tools
 Various automated tools are used in order to maintain a high quality code base. These must be set up
@@ -90,23 +121,3 @@ CI will run the following:
 Since the various tests are relatively costly, the CI actions will only be executed for 
 pull requests to the `main` branch.
 
-# Instructions to run an example experiment
-
-To use [Comet](https://www.comet.com/) as an experiment logger, an account must be available and a global configuration file must be 
-created at `$HOME/.comet.config` with content of the form
-
-    [comet]
-    api_key=YOUR_API_KEY
-
-
-A simple experiment is described in the configuration file
-
-    examples/config_files/diffusion/config_diffusion_mlp.yaml
-
-To run the experiment described in this file, a dataset must first be created by executing the script
-
-    data/si_diffusion_1x1x1/create_data.sh
-
-Then, the experiment itself can be executed by running the script
-
-    examples/local/diffusion/run_diffusion.sh

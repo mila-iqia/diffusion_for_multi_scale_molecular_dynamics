@@ -18,8 +18,8 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_var
     VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    map_relative_coordinates_to_unit_cell
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    map_relative_coordinates_to_unit_cell, map_unit_cell_to_lattice_parameters)
 from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
     get_orthogonal_basis_vectors
 
@@ -138,13 +138,15 @@ class ScoreViewer:
 
         unit_cells = get_orthogonal_basis_vectors(batch_size, self.cell_dimensions).to(device)
 
+        lattice_parameters = map_unit_cell_to_lattice_parameters(unit_cells)
+
         forces = torch.zeros_like(self.relative_coordinates).to(device)
         atom_types = torch.zeros(batch_size, self.natoms, dtype=torch.int64).to(device)
 
         composition = AXL(
             A=atom_types,
             X=self.relative_coordinates.to(device),
-            L=torch.zeros_like(self.relative_coordinates).to(device),
+            L=lattice_parameters,
         )
 
         batch = {

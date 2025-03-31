@@ -1,0 +1,16 @@
+exp_name: nalytical_regression_regularizer
+
+regularizer:
+    type: regression
+    regularizer_lambda_weight: 1.0
+    score_network:
+      architecture: analytical
+      spatial_dimension: 1
+      number_of_atoms: 2
+      num_atom_types: 1
+      kmax: 5
+      equilibrium_relative_coordinates:
+        - [0.25]
+        - [0.75]
+      sigma_d: 0.01
+      use_permutation_invariance: True
