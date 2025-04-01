@@ -82,6 +82,12 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
             ),
         )
 
+    @pytest.fixture()
+    def repaint_is_used(self):
+        # Since we are repainting the atom types, there can be many changes in one pass, and
+        # masking can be changed.
+        return True
+
     def test_apply_constraint(
         self, pc_generator, composition, sampling_constraint, device
     ):
@@ -101,8 +107,8 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
         torch.testing.assert_close(constrained_a, constrained_composition.A[:, sampling_constraint.constrained_indices])
         torch.testing.assert_close(constrained_x, constrained_composition.X[:, sampling_constraint.constrained_indices])
 
-    def test_get_composition0_known(self, pc_generator, number_of_samples, sampling_constraint, device) -> AXL:
-        composition0_known = pc_generator._get_composition0_known(number_of_samples, device)
+    def test_get_composition_0_known(self, pc_generator, number_of_samples, sampling_constraint, device) -> AXL:
+        composition0_known = pc_generator._get_composition_0_known(number_of_samples, device)
 
         batch_size = composition0_known.X.shape[0]
 

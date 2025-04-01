@@ -3,6 +3,8 @@ from typing import Optional
 
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
+    NoisingTransform
 from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
@@ -13,7 +15,9 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initiali
     TrajectoryInitializer
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    ATOM_TYPES, AXL, LATTICE_PARAMETERS, NOISY_ATOM_TYPES,
+    RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
@@ -49,14 +53,18 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
 
         self.sampling_constraints = sampling_constraints
 
-        number_of_constraints, spatial_dimensions = (
+        number_of_constraints, spatial_dimension = (
             self.sampling_constraints.constrained_relative_coordinates.shape
         )
+
+        assert len(sampling_constraints.elements) == sampling_parameters.num_atom_types, \
+            "Inconsistent number of atom types vs. elements list"
+
         assert (
             number_of_constraints <= self.number_of_atoms
         ), "There are more constrained positions than atoms!"
         assert (
-            spatial_dimensions <= self.spatial_dimension
+            spatial_dimension <= self.spatial_dimension
         ), "The spatial dimension of the constrained relative coordinates is inconsistent"
 
         if self.sampling_constraints.constrained_indices is None:
@@ -65,6 +73,12 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
             self.constraint_indices = torch.arange(number_of_constraints)
         else:
             self.constraint_indices = self.sampling_constraints.constrained_indices
+
+        self.noising_transform = NoisingTransform(noise_parameters=noise_parameters,
+                                                  num_atom_types=sampling_parameters.num_atom_types,
+                                                  spatial_dimension=sampling_parameters.spatial_dimension,
+                                                  use_fixed_lattice_parameters=True,
+                                                  use_optimal_transport=False)
 
         self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
         # TODO: noise the atom types as well
@@ -79,7 +93,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         updated_axl = AXL(A=a, X=x, L=composition.L)
         return updated_axl
 
-    def _get_composition0_known(self, number_of_samples: int, device: torch.device) -> AXL:
+    def _get_composition_0_known(self, number_of_samples: int, device: torch.device) -> AXL:
         """Get composition0_known.
 
         Initialize a configuration that satisfy the constraint, but is otherwise random.
@@ -115,7 +129,23 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
                                                     index_i=index_i - 1)
         return composition_im1
 
-    def _repaint_composition(self, raw_composition_i: AXL, index_i: int):
+    def _noise_composition(self, input_composition: AXL, index_i: int) -> AXL:
+        """This method applies noise to the input composition."""
+        if index_i == 0:
+            # This must be the final denoising step, and the composition is already at t=0. Do not noise!
+            return input_composition
+
+        input_batch = {ATOM_TYPES: input_composition.A,
+                       RELATIVE_COORDINATES: input_composition.X,
+                       LATTICE_PARAMETERS: input_composition.L}
+
+        output_batch = self.noising_transform.transform_given_time_index(input_batch, index_i)
+        noised_composition_i = AXL(A=output_batch[NOISY_ATOM_TYPES],
+                                   X=output_batch[RELATIVE_COORDINATES],
+                                   L=input_composition.L)
+        return noised_composition_i
+
+    def _repaint_composition(self, raw_composition_i: AXL, index_i: int) -> AXL:
         """Repaint composition.
 
         Args:
@@ -126,24 +156,22 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
             repainted_composition_i: an AXL composition for index i, with applied constraints.
         """
         x_i = raw_composition_i.X
+        a_i = raw_composition_i.A
+
         device = x_i.device
         number_of_samples = x_i.shape[0]
 
-        composition0_known = self._get_composition0_known(number_of_samples, device)
+        composition_0_known = self._get_composition_0_known(number_of_samples, device)
 
-        sigma_i = self.noise.sigma[index_i]
-        broadcast_sigmas_i = sigma_i * torch.ones_like(x_i)
+        # Noise a composition satisfying the constraints from t_0 to t_i
+        composition_i_known = self._noise_composition(input_composition=composition_0_known,
+                                                      index_i=index_i)
 
-        # Noise an example satisfying the constraints from t_0 to t_i
-        x_i_known = (
-            self.relative_coordinates_noiser.get_noisy_relative_coordinates_sample(
-                composition0_known.X, broadcast_sigmas_i
-            )
-        )
-        # TODO: noise A as well.
         # Combine the known and unknown
-        x_i[:, self.constraint_indices] = x_i_known[:, self.constraint_indices]
-        composition_im1 = AXL(A=raw_composition_i.A, X=x_i, L=raw_composition_i.L)
+        x_i[:, self.constraint_indices] = composition_i_known.X[:, self.constraint_indices]
+        a_i[:, self.constraint_indices] = composition_i_known.A[:, self.constraint_indices]
+
+        composition_im1 = AXL(A=a_i, X=x_i, L=raw_composition_i.L)
         return composition_im1
 
     def sample(
