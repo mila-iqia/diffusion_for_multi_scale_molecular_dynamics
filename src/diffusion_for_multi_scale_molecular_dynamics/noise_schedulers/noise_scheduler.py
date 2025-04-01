@@ -86,6 +86,27 @@ class NoiseScheduler(torch.nn.Module):
 
             .. math::
                 \bar{Q}_t = \prod_{i=i}^t Q_t
+
+
+    A note about indices:
+    ---------------------
+    we define an abstract index "i" that goes from 1 to N, where N is the total number of time steps.
+    As described above, we have t_1 = delta, ..., t_N = t_{max}.
+
+    We store various diffusion-relevant quantities in python arrays. Python indexing is zero-based. Thus,
+    we store most data following the convention:
+
+        t_i ---> time[i-1]  for i =1,..., N.
+
+    There are two exceptions:
+        epsilon_i      ---> eps[i] for i=0,..., N-1.
+        sqrt_epsilon_i ---> sqrt_2_eps[i] for i=0,..., N-1.
+    These quantities are only relevant for the corrector step.
+
+    Note also that we implicitly define t_0 = 0, sigma_0=sigma_min. This should not be confused with time[i=0]
+    or sigma[i=0].
+
+    -> CARE MUST BE EXERCISED WHEN FETCHING DATA FROM THE VARIOUS INTERNAL ARRAYS OF THE NOISE SCHEDULER.
     """
 
     def __init__(self, noise_parameters: NoiseParameters, num_classes: int):
@@ -281,9 +302,23 @@ class NoiseScheduler(torch.nn.Module):
         Returns:
             noise_sample: a collection of all the noise parameters (t, sigma, sigma^2, g, g^2, beta, alpha_bar,
                 Q, Qbar, Qbar at time t-1 and indices) for some random indices. All the arrays are of dimension
-                [batch_size] expect Q, Qbar, Qbar t-1 which are [batch_size, num_classes, num_classes].
+                [batch_size] except Q, Qbar, Qbar t-1 which are [batch_size, num_classes, num_classes].
         """
         indices = self._get_random_time_step_indices((batch_size,))
+        return self.get_noise_from_indices(indices)
+
+    def get_noise_from_indices(self, indices):
+        """Get noise from indices.
+
+        Args:
+            indices: an array of time step indices. The output will have the same shape.
+
+        Returns:
+            noise_sample: a collection of all the noise parameters (t, sigma, sigma^2, g, g^2, beta, alpha_bar,
+                Q, Qbar, Qbar at time t-1 and indices) for some random indices. All the arrays are of dimension
+                [batch_size] expect Q, Qbar, Qbar t-1 which are [batch_size, num_classes, num_classes].
+
+        """
         times = self._time_array.take(indices)
         sigmas = self._sigma_array.take(indices)
         sigmas_squared = self._sigma_squared_array.take(indices)
@@ -296,7 +331,6 @@ class NoiseScheduler(torch.nn.Module):
         q_bar_tm1_matrices = self._q_bar_tm1_matrix_array.index_select(
             dim=0, index=indices
         )
-
         return Noise(
             time=times,
             sigma=sigmas,
