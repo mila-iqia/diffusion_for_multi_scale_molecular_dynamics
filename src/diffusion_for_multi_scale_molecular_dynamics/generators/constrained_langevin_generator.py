@@ -17,7 +17,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, LATTICE_PARAMETERS, NOISY_ATOM_TYPES,
-    RELATIVE_COORDINATES)
+    NOISY_RELATIVE_COORDINATES, RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
@@ -141,7 +141,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
 
         output_batch = self.noising_transform.transform_given_time_index(input_batch, index_i)
         noised_composition_i = AXL(A=output_batch[NOISY_ATOM_TYPES],
-                                   X=output_batch[RELATIVE_COORDINATES],
+                                   X=output_batch[NOISY_RELATIVE_COORDINATES],
                                    L=input_composition.L)
         return noised_composition_i
 
