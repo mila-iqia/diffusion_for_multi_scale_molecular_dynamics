@@ -1,7 +1,7 @@
 import logging
 
-from experiments.toy_problems import RESULTS_DIR
-from experiments.toy_problems.utils.analysis_utils import (
+from analysis_and_sanity_checks.toy_problems import RESULTS_DIR
+from analysis_and_sanity_checks.toy_problems.utils.analysis_utils import (
     InputParameters, create_samples, get_checkpoint_path,
     get_vector_field_movie, plot_marginal_distribution, plot_samples,
     plot_samples_radial_distribution)

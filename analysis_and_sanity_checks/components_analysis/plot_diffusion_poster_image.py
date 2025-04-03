@@ -7,7 +7,8 @@ a scientific poster. This is not real data or a real input to any model.
 import matplotlib.pyplot as plt
 import numpy as np
 
-from experiments.components_analysis import PLOTS_OUTPUT_DIRECTORY
+from analysis_and_sanity_checks.components_analysis import \
+    PLOTS_OUTPUT_DIRECTORY
 
 if __name__ == "__main__":
     x_max = 1000

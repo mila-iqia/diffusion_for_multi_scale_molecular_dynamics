@@ -7,9 +7,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import norm
 
+from analysis_and_sanity_checks.components_analysis import \
+    PLOTS_OUTPUT_DIRECTORY
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from experiments.components_analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 

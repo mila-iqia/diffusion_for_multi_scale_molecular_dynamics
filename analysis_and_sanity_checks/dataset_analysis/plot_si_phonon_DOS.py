@@ -8,9 +8,9 @@ to see if the energy scales match up.
 import matplotlib.pyplot as plt
 import torch
 
+from analysis_and_sanity_checks.dataset_analysis import RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from experiments.dataset_analysis import RESULTS_DIR
 
 plt.style.use(PLOT_STYLE_PATH)
 

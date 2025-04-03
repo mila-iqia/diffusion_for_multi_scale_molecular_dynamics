@@ -10,6 +10,7 @@ import einops
 import torch
 from tqdm import tqdm
 
+from analysis_and_sanity_checks.dataset_analysis import RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsDataModuleParameters, LammpsForDiffusionDataModule)
@@ -19,7 +20,6 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
-from experiments.dataset_analysis import RESULTS_DIR
 
 setup_analysis_logger()
 logger = logging.getLogger(__name__)

@@ -13,6 +13,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
+from analysis_and_sanity_checks.dataset_analysis import RESULTS_DIR
+from analysis_and_sanity_checks.dataset_analysis.compute_dataset_covariance import \
+    get_data_module
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
@@ -23,9 +26,6 @@ from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_energy_oracle im
     LammpsEnergyOracle, LammpsOracleParameters)
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
-from experiments.dataset_analysis import RESULTS_DIR
-from experiments.dataset_analysis.compute_dataset_covariance import \
-    get_data_module
 
 plt.style.use(PLOT_STYLE_PATH)
 

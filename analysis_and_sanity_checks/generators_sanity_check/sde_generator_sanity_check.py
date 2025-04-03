@@ -7,6 +7,10 @@ import einops
 import torch
 from matplotlib import pyplot as plt
 
+from analysis_and_sanity_checks.generators_sanity_check import \
+    PLOTS_OUTPUT_DIRECTORY
+from analysis_and_sanity_checks.generators_sanity_check.utils import (
+    DisplacementCalculator, standardize_sde_trajectory_data)
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.gaussian_data_module import (
@@ -17,9 +21,6 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytic
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from experiments.generators_sanity_check import PLOTS_OUTPUT_DIRECTORY
-from experiments.generators_sanity_check.utils import (
-    DisplacementCalculator, standardize_sde_trajectory_data)
 
 plt.style.use(PLOT_STYLE_PATH)
 

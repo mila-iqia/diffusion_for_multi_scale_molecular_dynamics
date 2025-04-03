@@ -5,13 +5,14 @@ This script plots the relevant terms making up the Q matrices, used for atom typ
 
 from matplotlib import pyplot as plt
 
+from analysis_and_sanity_checks.components_analysis import \
+    PLOTS_OUTPUT_DIRECTORY
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
-from experiments.components_analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 

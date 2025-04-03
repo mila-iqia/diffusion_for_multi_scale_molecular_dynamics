@@ -6,6 +6,8 @@ This script plots the repulsive force field that can be used to prevent atoms ov
 import torch
 from matplotlib import pyplot as plt
 
+from analysis_and_sanity_checks.components_analysis import \
+    PLOTS_OUTPUT_DIRECTORY
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import (
@@ -14,7 +16,6 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISY_AXL_COMPOSITION, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_unit_cell_to_lattice_parameters
-from experiments.components_analysis import PLOTS_OUTPUT_DIRECTORY
 
 plt.style.use(PLOT_STYLE_PATH)
 
