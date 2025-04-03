@@ -10,8 +10,18 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from tests.fake_data_utils import generate_random_string
 from tests.generators.test_langevin_generator import TestLangevinGenerator
 
+_available_devices = [torch.device("cpu")]
+
+if torch.cuda.is_available():
+    _available_devices.append(torch.device("cuda"))
+
 
 class TestConstrainedLangevinGenerator(TestLangevinGenerator):
+
+    # Overload the device to not include MPS. Something in how we noise the arrays isn't available in MPS.
+    @pytest.fixture(params=_available_devices)
+    def device(self, request):
+        return request.param
 
     @pytest.fixture()
     def elements(self, num_atom_types):
