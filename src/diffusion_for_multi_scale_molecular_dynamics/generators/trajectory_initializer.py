@@ -27,7 +27,7 @@ class TrajectoryInitializerParameters:
     number_of_atoms: int
 
     # Path to a pickle file that contains starting configuration information.
-    path_to_constraint_data_pickle: Optional[str] = None
+    path_to_starting_configuration_data_pickle: Optional[str] = None
 
     def __post_init__(self):
         """Post init."""
@@ -131,11 +131,10 @@ class FullRandomTrajectoryInitializer(TrajectoryInitializer):
         return 0
 
 
-class StartFromConstraintTrajectoryInitializer(TrajectoryInitializer):
-    """Full Random Trajectory Initializer.
+class StartFromGivenConfigurationTrajectoryInitializer(TrajectoryInitializer):
+    """Start from Given Configuration Trajectory Initializer.
 
-    This class initializes a trajectory with a random configuration.
-    It represents a full trajectory over all time steps.
+    This class initializes a trajectory with a provided configuration, and starts diffusion at the given start time.
     """
 
     def __init__(
@@ -145,17 +144,17 @@ class StartFromConstraintTrajectoryInitializer(TrajectoryInitializer):
         super().__init__(trajectory_initializer_parameters)
         self.start_time_step_index, self.noisy_starting_composition = (
             self._read_pickle_data(
-                trajectory_initializer_parameters.path_to_constraint_data_pickle
+                trajectory_initializer_parameters.path_to_starting_configuration_data_pickle
             )
         )
 
-    def _read_pickle_data(self, path_to_constraint_data_pickle: str):
+    def _read_pickle_data(self, path_to_starting_configuration_data_pickle: str):
         """Read a pickle data file that contains the starting index and the starting composition."""
         assert os.path.isfile(
-            path_to_constraint_data_pickle
-        ), f"The file {path_to_constraint_data_pickle} does not exist. Review input."
+            path_to_starting_configuration_data_pickle
+        ), f"The file {path_to_starting_configuration_data_pickle} does not exist. Review input."
 
-        data = torch.load(path_to_constraint_data_pickle)
+        data = torch.load(path_to_starting_configuration_data_pickle)
 
         noisy_starting_composition = data[NOISY_AXL_COMPOSITION]
         start_time_step_index = data["start_time_step_index"]
@@ -166,7 +165,7 @@ class StartFromConstraintTrajectoryInitializer(TrajectoryInitializer):
         batch_size = self.noisy_starting_composition.X.shape[0]
         assert number_of_samples == batch_size, (
             "The number of samples requested is inconsistent with the number of "
-            "constrained configurations in the data pickle. "
+            "starting configurations in the data pickle. "
             "Something is probably inconsistent: stopping here, review inputs."
         )
 
@@ -189,13 +188,13 @@ class StartFromConstraintTrajectoryInitializer(TrajectoryInitializer):
 
 def instantiate_trajectory_initializer(
     sampling_parameters: SamplingParameters,
-    path_to_constraint_data_pickle: Union[str, None] = None,
+    path_to_starting_configuration_data_pickle: Union[str, None] = None,
 ) -> TrajectoryInitializer:
     """Instantiate a trajectory initializer.
 
     Args:
         sampling_parameters: Sampling parameters
-        path_to_constraint_data_pickle: path to constraint data pickle
+        path_to_starting_configuration_data_pickle: path to starting configuration data pickle
 
     Returns:
         TrajectoryInitializer: a trajectory initializer object.
@@ -206,10 +205,10 @@ def instantiate_trajectory_initializer(
         number_of_atoms=sampling_parameters.number_of_atoms,
         use_fixed_lattice_parameters=sampling_parameters.use_fixed_lattice_parameters,
         fixed_lattice_parameters=sampling_parameters.fixed_lattice_parameters,
-        path_to_constraint_data_pickle=path_to_constraint_data_pickle,
+        path_to_starting_configuration_data_pickle=path_to_starting_configuration_data_pickle,
     )
 
-    if path_to_constraint_data_pickle:
-        return StartFromConstraintTrajectoryInitializer(params)
+    if path_to_starting_configuration_data_pickle:
+        return StartFromGivenConfigurationTrajectoryInitializer(params)
     else:
         return FullRandomTrajectoryInitializer(params)

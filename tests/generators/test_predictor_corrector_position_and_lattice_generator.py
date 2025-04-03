@@ -4,7 +4,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorAXLGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import (
-    StartFromConstraintTrajectoryInitializer, TrajectoryInitializer,
+    StartFromGivenConfigurationTrajectoryInitializer, TrajectoryInitializer,
     TrajectoryInitializerParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, NOISY_AXL_COMPOSITION)
@@ -84,8 +84,8 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
         )
 
     @pytest.fixture()
-    def path_to_constraint_data_pickle(self, initial_sample, number_of_discretization_steps, tmp_path):
-        path = str(tmp_path / "constraint.pickle")
+    def path_to_starting_configuration_data_pickle(self, initial_sample, number_of_discretization_steps, tmp_path):
+        path = str(tmp_path / "starting_configurations.pickle")
         data = {NOISY_AXL_COMPOSITION: initial_sample,
                 'start_time_step_index': number_of_discretization_steps}
 
@@ -97,13 +97,14 @@ class TestPredictorCorrectorPositionGenerator(BaseTestGenerator):
                                spatial_dimension,
                                num_atom_types,
                                number_of_atoms,
-                               path_to_constraint_data_pickle):
-        params = TrajectoryInitializerParameters(spatial_dimension=spatial_dimension,
-                                                 num_atom_types=num_atom_types,
-                                                 number_of_atoms=number_of_atoms,
-                                                 path_to_constraint_data_pickle=path_to_constraint_data_pickle)
+                               path_to_starting_configuration_data_pickle):
+        params = TrajectoryInitializerParameters(
+            spatial_dimension=spatial_dimension,
+            num_atom_types=num_atom_types,
+            number_of_atoms=number_of_atoms,
+            path_to_starting_configuration_data_pickle=path_to_starting_configuration_data_pickle)
 
-        trajectory_initializer = StartFromConstraintTrajectoryInitializer(params)
+        trajectory_initializer = StartFromGivenConfigurationTrajectoryInitializer(params)
         return trajectory_initializer
 
     @pytest.fixture
