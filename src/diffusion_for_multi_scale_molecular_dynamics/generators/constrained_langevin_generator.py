@@ -20,8 +20,6 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISY_RELATIVE_COORDINATES, RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
-    RelativeCoordinatesNoiser
 
 
 @dataclass(kw_only=True)
@@ -79,9 +77,6 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
                                                   spatial_dimension=sampling_parameters.spatial_dimension,
                                                   use_fixed_lattice_parameters=True,
                                                   use_optimal_transport=False)
-
-        self.relative_coordinates_noiser = RelativeCoordinatesNoiser()
-        # TODO: noise the atom types as well
 
     def _apply_constraint(self, composition: AXL, device: torch.device) -> AXL:
         """This method applies the coordinate constraint on the input configuration."""
