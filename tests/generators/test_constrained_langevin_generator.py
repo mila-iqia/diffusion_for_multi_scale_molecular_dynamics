@@ -1,12 +1,10 @@
-import dataclasses
-
 import einops
 import pytest
 import torch
 from fake_data_utils import generate_random_string
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevin_generator import (
-    ConstrainedLangevinGenerator, ConstrainedLangevinGeneratorParameters)
+from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevin_generator import \
+    ConstrainedLangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
     SamplingConstraint
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
@@ -44,16 +42,10 @@ class TestConstrainedLangevinGenerator(TestLangevinGenerator):
                                   constrained_indices=constrained_indices)
 
     @pytest.fixture()
-    def constrained_sampling_parameters(self, sampling_parameters):
-        sampling_parameters_dict = dataclasses.asdict(sampling_parameters)
-        sampling_parameters_dict.pop("algorithm")
-        return ConstrainedLangevinGeneratorParameters(**sampling_parameters_dict)
-
-    @pytest.fixture()
-    def pc_generator(self, noise_parameters, constrained_sampling_parameters, axl_network, sampling_constraint):
+    def pc_generator(self, noise_parameters, sampling_parameters, axl_network, sampling_constraint):
         generator = ConstrainedLangevinGenerator(
             noise_parameters=noise_parameters,
-            sampling_parameters=constrained_sampling_parameters,
+            sampling_parameters=sampling_parameters,
             axl_network=axl_network,
             sampling_constraints=sampling_constraint
         )

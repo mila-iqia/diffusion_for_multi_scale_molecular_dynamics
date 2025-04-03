@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Optional
 
 import torch
@@ -20,12 +19,6 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     NOISY_RELATIVE_COORDINATES, RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-
-
-@dataclass(kw_only=True)
-class ConstrainedLangevinGeneratorParameters(PredictorCorrectorSamplingParameters):
-    """Hyper-parameters for diffusion sampling with the predictor-corrector algorithm."""
-    algorithm: str = "constrained_langevin"
 
 
 class ConstrainedLangevinGenerator(LangevinGenerator):
