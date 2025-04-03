@@ -1,13 +1,13 @@
 import einops
 import pytest
 import torch
-from fake_data_utils import generate_random_string
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevin_generator import \
     ConstrainedLangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
     SamplingConstraint
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from tests.fake_data_utils import generate_random_string
 from tests.generators.test_langevin_generator import TestLangevinGenerator
 
 
