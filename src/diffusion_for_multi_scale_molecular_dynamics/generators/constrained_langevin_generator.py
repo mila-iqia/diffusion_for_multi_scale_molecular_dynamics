@@ -82,7 +82,7 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
         return updated_axl
 
     def _get_composition_0_known(self, number_of_samples: int, device: torch.device) -> AXL:
-        """Get composition0_known.
+        """Get composition_0_known.
 
         Initialize configurations that satisfy the constraint, but are otherwise random.
         Since the noising process is 'atom-per-atom', the non-constrained terms should have no impact.
