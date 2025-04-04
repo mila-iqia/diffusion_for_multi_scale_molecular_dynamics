@@ -26,22 +26,32 @@ data:
 # architecture
 spatial_dimension: 3
 model:
-  loss:
-    coordinates_algorithm: mse
+  loss: # Only the relative coordinates loss will matter.
+    coordinates:
+      algorithm: mse
+      lambda_weight: 1.0
+    atom_types:
+      algorithm: d3pm
+      lambda_weight: 0.0
+      ce_weight: 1.0
+    lattice_parameters:
+      algorithm: mse
+      lambda_weight: 0.0
   score_network:
     architecture: mlp
+    spatial_dimension: 3
     num_atom_types: 1
     number_of_atoms: 8
     n_hidden_dimensions: 'orion~choices([1, 2, 3, 4])'
     hidden_dimensions_size: 'orion~choices([16, 32, 64])'
     noise_embedding_dimensions_size: 16
     atom_type_embedding_dimensions_size: 16
-    relative_coordinates_embedding_dimensions_size: 8
-    time_embedding_dimensions_size: 8
+    relative_coordinates_embedding_dimensions_size: 32
+    time_embedding_dimensions_size: 16
     lattice_parameters_embedding_dimensions_size: 8
     conditional_prob: 'orion~choices([0.0, 0.25, 0.5])'
-    conditional_gamma: 2
     condition_embedding_size: 'orion~choices([32, 64])'
+    use_permutation_invariance: False
 
 
 # optimizer and scheduler

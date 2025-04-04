@@ -10,7 +10,7 @@ log_every_n_steps: 1
 gradient_clipping: 0.0
 accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
 
-elements: [A]
+elements: [A] # just some dummy name; we are not using "real" atoms.
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
@@ -35,16 +35,20 @@ data:
   spatial_dimension: 1
   use_fixed_lattice_parameters: True
 
-
 spatial_dimension: 1
 
 model:
-  loss:
-    coordinates_algorithm: mse
-    atom_types_ce_weight: 0.0
-    atom_types_lambda_weight: 0.0
-    relative_coordinates_lambda_weight: 1.0
-    lattice_lambda_weight: 0.0  
+  loss: # Only the relative coordinates loss will matter.
+    coordinates:
+      algorithm: mse
+      lambda_weight: 1.0
+    atom_types:
+      algorithm: d3pm
+      lambda_weight: 0.0
+      ce_weight: 1.0
+    lattice_parameters:
+      algorithm: mse
+      lambda_weight: 0.0
   score_network:
     architecture: egnn
     spatial_dimension: 1

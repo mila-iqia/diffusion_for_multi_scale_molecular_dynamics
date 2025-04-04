@@ -1,47 +1,63 @@
-exp_name: dev_debug
+#================================================================================
+# Configuration file for a diffusion experiment for Si 1x1x1, with the EGNN model
+#================================================================================
+exp_name: put_experiment_name_here
 run_name: run1
-max_epoch: 50
+
+max_epoch: 100
 log_every_n_steps: 1
 gradient_clipping: 0.0
-accumulate_grad_batches: 1  # make this number of forward passes before doing a backprop step
+accumulate_grad_batches: 1
 
+elements: [Si]
 
 # set to null to avoid setting a seed (can speed up GPU computation, but
 # results will not be reproducible)
 seed: 1234
 
-elements: [Si]
-
 # data
 data:
-  batch_size: 128
+  batch_size: 32
   num_workers: 8
   max_atom: 8
   use_fixed_lattice_parameters: True
   noise:
-    total_time_steps: 100
+    total_time_steps: 500
     sigma_min: 0.0001
     sigma_max: 0.2
-    corrector_step_epsilon: 2.0e-7
+    schedule_type: linear
+    corrector_step_epsilon: 2.5e-8
+  use_optimal_transport: False
 
 # architecture
 spatial_dimension: 3
+
 model:
-  loss:
-    coordinates_algorithm: mse
+  loss: # Only the relative coordinates loss will matter.
+    coordinates:
+      algorithm: mse
+      lambda_weight: 1.0
+    atom_types:
+      algorithm: d3pm
+      lambda_weight: 0.0
+      ce_weight: 1.0
+    lattice_parameters:
+      algorithm: mse
+      lambda_weight: 0.0
   score_network:
     architecture: egnn
     num_atom_types: 1
     n_layers: 4
-    coordinate_hidden_dimensions_size: 128
+    coordinate_hidden_dimensions_size: 256
     coordinate_n_hidden_dimensions: 4
     coords_agg: "mean"
-    message_hidden_dimensions_size: 128
+    message_hidden_dimensions_size: 256
     message_n_hidden_dimensions: 4
-    node_hidden_dimensions_size: 128
+    message_agg: "mean"
+    node_hidden_dimensions_size: 256
     node_n_hidden_dimensions: 4
     attention: False
-    normalize: True
+    normalize: False
     residual: True
     tanh: False
     edges: fully_connected
@@ -49,40 +65,42 @@ model:
 # optimizer and scheduler
 optimizer:
   name: adamw
-  learning_rate: 0.001
+  learning_rate: 0.0001
   weight_decay: 5.0e-8
 
-
 scheduler:
-  name: CosineAnnealingLR
-  T_max: 50
-  eta_min: 0.0
+  name: ReduceLROnPlateau
+  patience: 10
+  factor: 0.9
 
 # early stopping
 early_stopping:
   metric: validation_epoch_loss
   mode: min
-  patience: 100
+  patience: 25
 
 model_checkpoint:
-  monitor: validation_ks_distance_structure
+  monitor: validation_epoch_loss
   mode: min
 
-# Sampling from the generative model
 diffusion_sampling:
   noise:
-    total_time_steps: 100
+    total_time_steps: 500
     sigma_min: 0.0001
     sigma_max: 0.2
-    corrector_step_epsilon: 2.0e-7
+    schedule_type: linear
+    corrector_step_epsilon: 2.5e-8
   sampling:
     algorithm: predictor_corrector
     num_atom_types: 1
-    sample_batchsize: 128
-    spatial_dimension: 3
-    number_of_corrector_steps: 1
     number_of_atoms: 8
-    number_of_samples: 32
+    sample_batchsize: 256
+    spatial_dimension: 3
+    number_of_corrector_steps: 2
+    one_atom_type_transition_per_step: False
+    atom_type_greedy_sampling: False
+    atom_type_transition_in_corrector: False
+    number_of_samples: 256
     record_samples: False
     use_fixed_lattice_parameters: True
     cell_dimensions: [5.43, 5.43, 5.43]
@@ -93,7 +111,7 @@ diffusion_sampling:
 
 sampling_visualization:
   record_every_n_epochs:  1
-  first_record_epoch: 1
+  first_record_epoch: 0
   record_trajectories: False
   record_energies: True
   record_structure: True
@@ -101,7 +119,6 @@ sampling_visualization:
 oracle:
   name: lammps
   sw_coeff_filename: Si.sw
-    
 
 logging:
   - comet

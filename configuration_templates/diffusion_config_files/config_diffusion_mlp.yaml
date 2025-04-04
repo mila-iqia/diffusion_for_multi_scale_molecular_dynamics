@@ -26,20 +26,31 @@ data:
 # architecture
 spatial_dimension: 3
 model:
-  loss:
-    coordinates_algorithm: mse
+  loss: # Only the relative coordinates loss will matter.
+    coordinates:
+      algorithm: mse
+      lambda_weight: 1.0
+    atom_types:
+      algorithm: d3pm
+      lambda_weight: 0.0
+      ce_weight: 1.0
+    lattice_parameters:
+      algorithm: mse
+      lambda_weight: 0.0
   score_network:
     architecture: mlp
-    num_atom_types: 1
-    number_of_atoms: 8
-    n_hidden_dimensions: 2
-    hidden_dimensions_size: 64
-
-    conditional_prob: 0.0
-    conditional_gamma: 2
-    condition_embedding_size: 64
-    use_time_dependent_prefactor: False
     use_permutation_invariance: False
+    spatial_dimension: 1
+    number_of_atoms: 2
+    num_atom_types: 1
+    n_hidden_dimensions: 3
+    hidden_dimensions_size: 64
+    relative_coordinates_embedding_dimensions_size: 32
+    noise_embedding_dimensions_size: 16
+    time_embedding_dimensions_size: 16
+    atom_type_embedding_dimensions_size: 1
+    condition_embedding_size: 64
+    lattice_parameters_embedding_dimensions_size: 1
 
 # Sampling from the generative model
 diffusion_sampling:
