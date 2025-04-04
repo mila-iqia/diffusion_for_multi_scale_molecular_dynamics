@@ -39,6 +39,8 @@ To follow the experiment's progress, use tensorboard,
 The model used is a simple MLP that is made permutation equivariant. This lets us investigate the impact of 
 equivariance on the model. Note that this model is not translation invariant, or equivariant to spatial symmetries.
 
+We describe the experments next.
+
 ### **no_regularizer** 
 no regularization is applied. Only score matching!
 
