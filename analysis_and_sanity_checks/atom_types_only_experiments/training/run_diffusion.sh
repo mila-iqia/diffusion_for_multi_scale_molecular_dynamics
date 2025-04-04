@@ -16,4 +16,4 @@ python ../pseudo_train_diffusion.py \
     --data $DATA_DIR \
     --processed_datadir $PROCESSED_DATA \
     --dataset_working_dir $DATA_WORK_DIR \
-    --output $OUTPUT # > log.txt 2>&1 
+    --output $OUTPUT
