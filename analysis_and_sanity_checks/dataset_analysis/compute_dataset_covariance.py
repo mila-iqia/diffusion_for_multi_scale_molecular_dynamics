@@ -5,12 +5,12 @@ actual datasets, that is, the standard deviation of the displacement
 from equilibrium, in fractional coordinates.
 """
 import logging
+from pathlib import Path
 
 import einops
 import torch
 from tqdm import tqdm
 
-from analysis_and_sanity_checks.dataset_analysis import RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
     LammpsDataModuleParameters, LammpsForDiffusionDataModule)
@@ -23,6 +23,9 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
 
 setup_analysis_logger()
 logger = logging.getLogger(__name__)
+
+RESULTS_DIR = Path(__file__).parent / "generated_artifacts"
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_data_module(dataset_name: str):
