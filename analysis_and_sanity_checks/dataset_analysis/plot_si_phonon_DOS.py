@@ -7,8 +7,8 @@ to see if the energy scales match up.
 
 import matplotlib.pyplot as plt
 import torch
+from utilities import RESULTS_DIR
 
-from analysis_and_sanity_checks.dataset_analysis import RESULTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 
@@ -27,17 +27,12 @@ THz_in_meV = 4.136
 
 acell = 5.43
 
-
-dataset_name_3x3x3 = "Si_diffusion_3x3x3"
-dataset_name_2x2x2 = "Si_diffusion_2x2x2"
-dataset_name_1x1x1 = "Si_diffusion_1x1x1"
-
-list_dataset_names = [dataset_name_1x1x1, dataset_name_2x2x2, dataset_name_3x3x3]
+list_dataset_names = ["Si_diffusion_1x1x1", "Si_diffusion_2x2x2", "Si_diffusion_3x3x3"]
 list_scale_factor = [1, 2, 3]
 
 list_colors = ['red', 'green', 'blue']
 
-covariance_dir = RESULTS_DIR / "covariances"
+covariance_dir = RESULTS_DIR
 
 if __name__ == "__main__":
     kBT = kelvin_in_Ha * T_in_kelvin
