@@ -6,11 +6,10 @@ This script solves the SDE for various values of the sigma_d parameter and creat
 import einops
 import torch
 from matplotlib import pyplot as plt
+from utilities import PLOTS_OUTPUT_DIRECTORY
+from utilities.utils import (DisplacementCalculator,
+                             standardize_sde_trajectory_data)
 
-from analysis_and_sanity_checks.generators_sanity_check import \
-    PLOTS_OUTPUT_DIRECTORY
-from analysis_and_sanity_checks.generators_sanity_check.utils import (
-    DisplacementCalculator, standardize_sde_trajectory_data)
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.gaussian_data_module import (
