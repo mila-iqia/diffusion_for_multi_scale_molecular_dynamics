@@ -4,11 +4,13 @@ This script generates images that show how diffusion works at a conceptual level
 a scientific poster. This is not real data or a real input to any model.
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
-from analysis_and_sanity_checks.components_analysis import \
-    PLOTS_OUTPUT_DIRECTORY
+PLOTS_OUTPUT_DIRECTORY = Path(__file__).parent / "images"
+PLOTS_OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
 if __name__ == "__main__":
     x_max = 1000

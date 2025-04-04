@@ -2,15 +2,18 @@
 
 This script plots a comparison between a 1D Gaussian centered at 0.5 and the sum of its periodic images.
 """
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import norm
 
-from analysis_and_sanity_checks.components_analysis import \
-    PLOTS_OUTPUT_DIRECTORY
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+
+PLOTS_OUTPUT_DIRECTORY = Path(__file__).parent / "images"
+PLOTS_OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+
 
 plt.style.use(PLOT_STYLE_PATH)
 

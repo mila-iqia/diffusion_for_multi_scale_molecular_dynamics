@@ -3,12 +3,11 @@
 This script computes and plots the variance schedule used to noise and denoise
 the relative positions.
 """
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import torch
 
-from analysis_and_sanity_checks.components_analysis import \
-    PLOTS_OUTPUT_DIRECTORY
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
@@ -17,6 +16,9 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_schedul
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_coordinates_sigma_normalized_score
+
+PLOTS_OUTPUT_DIRECTORY = Path(__file__).parent / "images"
+PLOTS_OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
 plt.style.use(PLOT_STYLE_PATH)
 

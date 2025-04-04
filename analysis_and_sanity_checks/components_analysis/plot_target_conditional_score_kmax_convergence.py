@@ -3,18 +3,20 @@
 This script computes and plots the target conditional score for various values of sigma, showing
 that the 'smart' implementation converges quickly with respect to kmax and is equal to the expected brute force value.
 """
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from analysis_and_sanity_checks.components_analysis import \
-    PLOTS_OUTPUT_DIRECTORY
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
     SIGMA_THRESHOLD, get_coordinates_sigma_normalized_score,
     get_sigma_normalized_score_brute_force)
+
+PLOTS_OUTPUT_DIRECTORY = Path(__file__).parent / "images"
+PLOTS_OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
 plt.style.use(PLOT_STYLE_PATH)
 
