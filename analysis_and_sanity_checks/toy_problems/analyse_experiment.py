@@ -1,10 +1,10 @@
 import logging
 
-from analysis_and_sanity_checks.toy_problems import RESULTS_DIR
-from analysis_and_sanity_checks.toy_problems.utils.analysis_utils import (
-    InputParameters, create_samples, get_checkpoint_path,
-    get_vector_field_movie, plot_marginal_distribution, plot_samples,
-    plot_samples_radial_distribution)
+from utils import RESULTS_DIR
+from utils.analysis_utils import (InputParameters, create_samples,
+                                  get_checkpoint_path, get_vector_field_movie,
+                                  plot_marginal_distribution, plot_samples,
+                                  plot_samples_radial_distribution)
 
 logger = logging.getLogger(__name__)
 

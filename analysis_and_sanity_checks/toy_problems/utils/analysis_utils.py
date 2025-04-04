@@ -12,9 +12,6 @@ import torch
 import yaml
 from matplotlib import pyplot as plt
 
-from analysis_and_sanity_checks.toy_problems import EXPERIMENTS_DIR
-from analysis_and_sanity_checks.toy_problems.utils.visualization_utils import (
-    generate_vector_field_video, plot_2d_samples)
 from diffusion_for_multi_scale_molecular_dynamics.analysis import \
     PLEASANT_FIG_SIZE
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
@@ -31,6 +28,9 @@ from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import (
     get_axl_network, main)
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_log_wrapped_gaussians
+
+from . import EXPERIMENTS_DIR
+from .visualization_utils import generate_vector_field_video, plot_2d_samples
 
 TOY_MODEL_PARAMETERS = dict(number_of_atoms=2,
                             spatial_dimension=1,
