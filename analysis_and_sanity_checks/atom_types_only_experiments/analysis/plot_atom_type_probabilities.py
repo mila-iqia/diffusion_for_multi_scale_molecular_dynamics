@@ -20,7 +20,8 @@ setup_analysis_logger()
 
 plt.style.use(PLOT_STYLE_PATH)
 
-base_path = TOP_DIR / "experiments/atom_types_only_experiments/"
+base_path = TOP_DIR / "analysis_and_sanity_checks/atom_types_only_experiments/"
+
 
 exp_path = base_path / "training"
 data_path = exp_path / "output/run1/trajectory_samples"
