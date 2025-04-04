@@ -5,9 +5,9 @@ analysis_results/
 
 mlip-3/ 
 
-examples/data/
-examples/*/output/
-examples/*/lightning_logs/
+configuration_templates/data/
+configuration_templates/*/output/
+configuration_templates/*/lightning_logs/
 
 **/train_run*/
 **/valid_run*/

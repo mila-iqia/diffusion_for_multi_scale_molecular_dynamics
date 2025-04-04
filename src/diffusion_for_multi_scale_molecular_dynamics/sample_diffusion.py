@@ -66,8 +66,8 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     )
 
     parser.add_argument(
-        "--path_to_constraint_data_pickle", default=None,
-        help="Path to a pickle that contains reference compositions and starting time index."
+        "--path_to_starting_configuration_data_pickle", default=None,
+        help="Path to a pickle that specifies starting compositions and starting time index."
     )
 
     parser.add_argument(
@@ -96,8 +96,8 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     logger.info(f"  Git Hash : {git_hash}")
     logger.info(f"  Checkpoint : {args.checkpoint}")
     logger.info(f"  Device   : {device}")
-    if args.path_to_constraint_data_pickle:
-        logger.info(f"  Constraint Pickle : {args.path_to_constraint_data_pickle}")
+    if args.path_to_starting_configuration_data_pickle:
+        logger.info(f"  Starting Configurations Pickle : {args.path_to_starting_configuration_data_pickle}")
 
     hyper_params = load_and_backup_hyperparameters(
         config_file_path=args.config, output_directory=args.output
@@ -134,7 +134,7 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     logger.info("Instantiate generator...")
     trajectory_initializer = instantiate_trajectory_initializer(
         sampling_parameters=sampling_parameters,
-        path_to_constraint_data_pickle=args.path_to_constraint_data_pickle)
+        path_to_starting_configuration_data_pickle=args.path_to_starting_configuration_data_pickle)
 
     generator = instantiate_generator(
         sampling_parameters=sampling_parameters,

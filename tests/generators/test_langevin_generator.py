@@ -424,6 +424,10 @@ class TestLangevinGenerator(BaseTestGenerator):
         # Test that no MASKED states remain
         assert not (a_i == pc_generator.masked_atom_type_index).any()
 
+    @pytest.fixture()
+    def repaint_is_used(self):
+        return False
+
     def test_predictor_step_atom_types(
         self,
         mocker,
@@ -433,6 +437,7 @@ class TestLangevinGenerator(BaseTestGenerator):
         number_of_atoms,
         num_atomic_classes,
         spatial_dimension,
+        repaint_is_used,
         device,
     ):
         random_x = map_relative_coordinates_to_unit_cell(
@@ -475,17 +480,20 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             difference_mask = a_ip1 != a_i
 
-            # Test that the changes are from MASK to not-MASK
-            assert (a_ip1[difference_mask] == pc_generator.masked_atom_type_index).all()
-            assert (a_i[difference_mask] != pc_generator.masked_atom_type_index).all()
+            if not repaint_is_used:
+                # Test that the changes are from MASK to not-MASK
+                # This is not applicable if atom types are repainted.
+                assert (a_ip1[difference_mask] == pc_generator.masked_atom_type_index).all()
+                assert (a_i[difference_mask] != pc_generator.masked_atom_type_index).all()
 
             one_atom_type_transition_per_step = (
                 pc_generator.one_atom_type_transition_per_step
                 and not this_is_last_time_step
             )
 
-            if one_atom_type_transition_per_step:
-                # Test that there is at most one change
+            if one_atom_type_transition_per_step and not repaint_is_used:
+                # Test that there is at most one change. This is not applicable if
+                # atom types are repainted.
                 assert torch.all(difference_mask.sum(dim=-1) <= 1.0)
 
             axl_ip1 = AXL(A=a_i, X=random_x, L=random_l)
