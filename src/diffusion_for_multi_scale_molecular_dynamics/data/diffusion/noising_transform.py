@@ -8,8 +8,8 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME, TIME_INDICES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
-    NoiseScheduler
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import (
+    Noise, NoiseScheduler)
 from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
     AtomTypesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import (
@@ -90,47 +90,55 @@ class NoisingTransform:
         Returns:
             augmented_batch: batch augmented with noised data for score matching.
         """
-        assert (
-            RELATIVE_COORDINATES in batch
-        ), f"The field '{RELATIVE_COORDINATES}' is missing from the input."
+        self._check_batch(batch)
+        batch_size = batch[RELATIVE_COORDINATES].shape[0]
+        noise_sample = self.noise_scheduler.get_random_noise_sample(batch_size)
+        return self._transform_from_noise_sample(batch, noise_sample)
 
-        assert (
-            ATOM_TYPES in batch
-        ), f"The field '{ATOM_TYPES}' is missing from the input."
+    def transform_given_time_index(self, batch: Dict, index_i: int) -> Dict:
+        """Transform given time index.
 
-        assert (
-            LATTICE_PARAMETERS in batch
-        ), f"The field '{LATTICE_PARAMETERS}' is missing from the input."
+        This method restricts all the noise parameters to correspond to the input time index.
 
-        x0 = batch[RELATIVE_COORDINATES]
-        shape = x0.shape
-        assert len(shape) == 3, (
-            f"the shape of the RELATIVE_COORDINATES array should be [batch_size, number_of_atoms, spatial_dimensions]. "
-            f"Got shape = {shape}."
-        )
-        batch_size = shape[0]
+        Args:
+            batch: dataset data.
+            index_i: time index for all the noise elements. CAREFUL! This index should correspond to the
+                one-based indexing scheme for time, where t_1= delta,..., t_N=t_{max}.
 
+        Returns:
+            augmented_batch: batch augmented with noised data
+        """
+        assert index_i > 0, "The time index should never be smaller than 1."
+
+        idx = index_i - 1  # python starts indices at zero
+        self._check_batch(batch)
+        batch_size = batch[RELATIVE_COORDINATES].shape[0]
+        device = batch[RELATIVE_COORDINATES].device
+        indices = torch.ones(batch_size, dtype=torch.long, device=device) * idx
+        self.noise_scheduler.to(device)
+        noise_sample = self.noise_scheduler.get_noise_from_indices(indices)
+        return self._transform_from_noise_sample(batch, noise_sample)
+
+    def _transform_from_noise_sample(self, batch: Dict, noise_sample: Noise) -> Dict:
+        """Transform from a noise sample.
+
+        This method noise all composition elements based on the noise sample.
+
+        Args:
+            batch: dataset data.
+
+        Returns:
+            augmented_batch: batch augmented with noised data for score matching.
+        """
         augmentation_data = dict()
 
+        x0 = batch[RELATIVE_COORDINATES]
         a0 = batch[ATOM_TYPES]
-
-        atom_shape = a0.shape
-        assert len(atom_shape) == 2, (
-            f"the shape of the ATOM_TYPES array should be [batch_size, number_of_atoms]. "
-            f"Got shape = {atom_shape}"
-        )
-
         l0 = batch[LATTICE_PARAMETERS]
-
-        lattice_parameters_shape = l0.shape
-        assert len(lattice_parameters_shape) == 2, (
-            f"the shape of the LATTICE parameters array should be [batch_size,"
-            f"spatial_dimension * (spatial_dimension + 1) / 2]."
-            f"Got shape = {lattice_parameters_shape}"
-        )
+        shape = x0.shape
+        atom_shape = a0.shape
 
         # the datasets library does mysterious things if we use an AXL. Let's use raw tensors.
-        noise_sample = self.noise_scheduler.get_random_noise_sample(batch_size)
         augmentation_data[TIME] = noise_sample.time.reshape(-1, 1)
         augmentation_data[TIME_INDICES] = noise_sample.indices
         augmentation_data[NOISE] = noise_sample.sigma.reshape(-1, 1)
@@ -190,3 +198,35 @@ class NoisingTransform:
 
         batch.update(augmentation_data)
         return batch
+
+    def _check_batch(self, batch):
+        assert (
+            RELATIVE_COORDINATES in batch
+        ), f"The field '{RELATIVE_COORDINATES}' is missing from the input."
+        assert (
+            ATOM_TYPES in batch
+        ), f"The field '{ATOM_TYPES}' is missing from the input."
+        assert (
+            LATTICE_PARAMETERS in batch
+        ), f"The field '{LATTICE_PARAMETERS}' is missing from the input."
+        x0 = batch[RELATIVE_COORDINATES]
+        shape = x0.shape
+        assert len(shape) == 3, (
+            f"the shape of the RELATIVE_COORDINATES array should be [batch_size, number_of_atoms, spatial_dimensions]. "
+            f"Got shape = {shape}."
+        )
+
+        a0 = batch[ATOM_TYPES]
+        atom_shape = a0.shape
+        assert len(atom_shape) == 2, (
+            f"the shape of the ATOM_TYPES array should be [batch_size, number_of_atoms]. "
+            f"Got shape = {atom_shape}"
+        )
+
+        l0 = batch[LATTICE_PARAMETERS]
+        lattice_parameters_shape = l0.shape
+        assert len(lattice_parameters_shape) == 2, (
+            f"the shape of the LATTICE parameters array should be [batch_size,"
+            f"spatial_dimension * (spatial_dimension + 1) / 2]."
+            f"Got shape = {lattice_parameters_shape}"
+        )
