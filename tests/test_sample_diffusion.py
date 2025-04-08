@@ -4,7 +4,6 @@ import einops
 import pytest
 import torch
 import yaml
-from fake_data_utils import generate_random_string
 
 from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
@@ -25,6 +24,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import \
     AXL_COMPOSITION
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from tests.fake_data_utils import generate_random_string
 
 
 @pytest.fixture()
