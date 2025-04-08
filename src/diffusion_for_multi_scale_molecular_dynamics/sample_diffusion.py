@@ -231,7 +231,7 @@ def create_samples_and_write_to_disk(
     if oracle_parameters:
         logger.info("Compute energy from Oracle...")
         oracle = create_energy_oracle(oracle_parameters)
-        sample_energies = oracle.compute_oracle_energies(samples_batch)
+        sample_energies, _ = oracle.compute_oracle_energies_and_forces(samples_batch)
 
         logger.info("Writing energies to disk...")
         with open(output_directory / "energies.pt", "wb") as fd:
