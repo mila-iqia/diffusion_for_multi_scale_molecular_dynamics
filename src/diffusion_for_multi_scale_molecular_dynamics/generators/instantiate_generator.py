@@ -27,7 +27,7 @@ def instantiate_generator(
     noise_parameters: NoiseParameters,
     axl_network: ScoreNetwork,
     trajectory_initializer: TrajectoryInitializer,
-    sampling_constraints: Optional[SamplingConstraint]
+    sampling_constraints: Optional[SamplingConstraint] = None
 ):
     """Instantiate generator."""
     assert sampling_parameters.algorithm in [
