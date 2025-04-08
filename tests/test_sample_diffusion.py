@@ -1,12 +1,16 @@
 import dataclasses
 
+import einops
 import pytest
 import torch
 import yaml
+from fake_data_utils import generate_random_string
 
 from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import (
+    SamplingConstraint, write_sampling_constraint)
 from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
     create_loss_parameters
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
@@ -64,6 +68,34 @@ def force_field_parameters(radial_cutoff):
         return ForceFieldParameters(radial_cutoff=radial_cutoff, strength=0.1)
     else:
         return None
+
+
+@pytest.fixture()
+def sampling_constraint(num_atom_types, number_of_atoms, spatial_dimension):
+
+    number_of_constraints = number_of_atoms // 2
+
+    sampling_constraint = SamplingConstraint(
+        elements=generate_random_string(size=num_atom_types),
+        constrained_relative_coordinates=torch.rand(number_of_constraints, spatial_dimension),
+        constrained_atom_types=torch.randint(0, num_atom_types, (number_of_constraints,))
+    )
+    return sampling_constraint
+
+
+@pytest.fixture(params=[True, False])
+def use_sampling_constraint(request):
+    return request.param
+
+
+@pytest.fixture()
+def sampling_constraint_data_pickle_path(use_sampling_constraint, sampling_constraint, tmp_path):
+    output_path = None
+    if use_sampling_constraint:
+        output_path = tmp_path / "test_sampling_constraints.pkl"
+        write_sampling_constraint(sampling_constraint, output_path)
+
+    return output_path
 
 
 @pytest.fixture()
@@ -147,7 +179,7 @@ def output_path(tmp_path):
 
 
 @pytest.fixture()
-def args(config_path, checkpoint_path, output_path):
+def args(config_path, checkpoint_path, output_path, sampling_constraint_data_pickle_path, use_sampling_constraint):
     """Input arguments for main."""
     input_args = [
         f"--config={config_path}",
@@ -155,6 +187,9 @@ def args(config_path, checkpoint_path, output_path):
         f"--output={output_path}",
         "--device=cpu",
     ]
+
+    if use_sampling_constraint:
+        input_args.append(f"--path_to_sampling_constraint_data_pickle={sampling_constraint_data_pickle_path}")
 
     return input_args
 
@@ -168,6 +203,8 @@ def test_sample_diffusion(
     number_of_atoms,
     spatial_dimension,
     record_samples,
+    sampling_constraint,
+    use_sampling_constraint,
 ):
     mocker.patch(
         "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion.get_axl_network",
@@ -178,14 +215,23 @@ def test_sample_diffusion(
 
     assert (output_path / "samples.pt").exists()
     samples = torch.load(output_path / "samples.pt")
-    assert samples[AXL_COMPOSITION].X.shape == (
-        number_of_samples,
-        number_of_atoms,
-        spatial_dimension,
-    )
-    assert samples[AXL_COMPOSITION].A.shape == (
-        number_of_samples,
-        number_of_atoms,
-    )
+
+    x = samples[AXL_COMPOSITION].X
+    a = samples[AXL_COMPOSITION].A
+
+    assert x.shape == (number_of_samples, number_of_atoms, spatial_dimension)
+    assert a.shape == (number_of_samples, number_of_atoms)
 
     assert (output_path / "trajectories.pt").exists() == record_samples
+
+    if use_sampling_constraint:
+        constrained_x = sampling_constraint.constrained_relative_coordinates
+        constrained_a = sampling_constraint.constrained_atom_types
+
+        number_of_constraints = len(constrained_a)
+
+        batch_constrained_x = einops.repeat(constrained_x, "... -> b ...", b=number_of_samples)
+        batch_constrained_a = einops.repeat(constrained_a, "... -> b ...", b=number_of_samples)
+
+        torch.testing.assert_close(x[:, :number_of_constraints], batch_constrained_x)
+        torch.testing.assert_close(a[:, :number_of_constraints], batch_constrained_a)

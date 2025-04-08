@@ -23,6 +23,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator 
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
     load_sampling_parameters
+from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
+    read_sampling_constraint
 from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
     instantiate_trajectory_initializer
 from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
@@ -68,6 +70,11 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     parser.add_argument(
         "--path_to_starting_configuration_data_pickle", default=None,
         help="Path to a pickle that specifies starting compositions and starting time index."
+    )
+
+    parser.add_argument(
+        "--path_to_sampling_constraint_data_pickle", default=None,
+        help="Path to a pickle that specifies the REPAINT sampling constraints."
     )
 
     parser.add_argument(
@@ -136,11 +143,17 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
         sampling_parameters=sampling_parameters,
         path_to_starting_configuration_data_pickle=args.path_to_starting_configuration_data_pickle)
 
+    if args.path_to_sampling_constraint_data_pickle is not None:
+        sampling_constraints = read_sampling_constraint(args.path_to_sampling_constraint_data_pickle)
+    else:
+        sampling_constraints = None
+
     generator = instantiate_generator(
         sampling_parameters=sampling_parameters,
         noise_parameters=noise_parameters,
         axl_network=axl_network,
-        trajectory_initializer=trajectory_initializer
+        trajectory_initializer=trajectory_initializer,
+        sampling_constraints=sampling_constraints
     )
 
     create_samples_and_write_to_disk(
