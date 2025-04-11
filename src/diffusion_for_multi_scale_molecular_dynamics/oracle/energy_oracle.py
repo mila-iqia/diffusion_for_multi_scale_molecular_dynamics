@@ -53,6 +53,7 @@ class EnergyOracle:
 
         Returns:
             energies: a numpy array with the computed energies.
+            forces: a numpy array with the computed forces.
         """
         assert (
             LATTICE_PARAMETERS in samples or AXL_COMPOSITION in samples
