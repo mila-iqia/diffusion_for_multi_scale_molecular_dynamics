@@ -7,7 +7,7 @@ from functools import partial
 from typing import Dict, Optional
 
 import datasets
-import pytorch_lightning as pl
+import lightning as pl
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader

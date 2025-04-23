@@ -6,8 +6,8 @@ from typing import Any, AnyStr, Dict
 
 import numpy as np
 import torch
+from lightning import Callback, LightningModule, Trainer
 from matplotlib import pyplot as plt
-from pytorch_lightning import Callback, LightningModule, Trainer
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)

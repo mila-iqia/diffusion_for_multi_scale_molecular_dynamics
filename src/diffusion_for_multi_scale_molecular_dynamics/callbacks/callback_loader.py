@@ -1,7 +1,7 @@
 from typing import Any, AnyStr, Dict
 
-from pytorch_lightning import Callback
-from pytorch_lightning.callbacks import LearningRateMonitor
+from lightning import Callback
+from lightning.pytorch.callbacks import LearningRateMonitor
 
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.loss_monitoring_callback import \
     instantiate_loss_monitoring_callback

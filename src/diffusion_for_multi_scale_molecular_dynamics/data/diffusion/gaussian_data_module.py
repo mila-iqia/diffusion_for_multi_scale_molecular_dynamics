@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import einops
-import pytorch_lightning as pl
+import lightning as pl
 import torch
 from torch.utils.data import DataLoader
 

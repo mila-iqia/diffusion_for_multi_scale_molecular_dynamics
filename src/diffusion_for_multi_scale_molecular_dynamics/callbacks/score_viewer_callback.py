@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, AnyStr, Dict
 
+from lightning import Callback, LightningModule, Trainer
 from matplotlib import pyplot as plt
-from pytorch_lightning import Callback, LightningModule, Trainer
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis.score_viewer import (
     ScoreViewer, ScoreViewerParameters)

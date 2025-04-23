@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import einops
-import pytorch_lightning as pl
+import lightning as pl
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
