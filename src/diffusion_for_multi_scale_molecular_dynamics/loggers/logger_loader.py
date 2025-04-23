@@ -5,9 +5,9 @@ from typing import Any, AnyStr, Dict, List, Union
 
 import orion
 import yaml
-from matplotlib import pyplot as plt
-from pytorch_lightning.loggers import (CometLogger, CSVLogger, Logger,
+from lightning.pytorch.loggers import (CometLogger, CSVLogger, Logger,
                                        TensorBoardLogger)
+from matplotlib import pyplot as plt
 
 
 def get_run_name(hyper_params: Dict[AnyStr, Any]) -> str:

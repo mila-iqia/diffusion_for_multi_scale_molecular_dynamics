@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, AnyStr, Dict, Optional
 
 import datasets
-import pytorch_lightning as pl
+import lightning as pl
 import torch
 from fixed_position_noising_transform import FixedPositionNoisingTransform
 

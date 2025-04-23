@@ -3,7 +3,7 @@ import argparse
 import logging
 from typing import Any, AnyStr, Dict
 
-import pytorch_lightning as pl
+import lightning as pl
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.gaussian_data_module import (
     GaussianDataModule, GaussianDataModuleParameters)

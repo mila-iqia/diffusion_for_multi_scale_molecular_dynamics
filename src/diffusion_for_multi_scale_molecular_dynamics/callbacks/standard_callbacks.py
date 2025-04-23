@@ -2,8 +2,8 @@ import logging
 import os
 from typing import Any, AnyStr, Dict
 
-from pytorch_lightning import Callback
-from pytorch_lightning.callbacks import (EarlyStopping, ModelCheckpoint,
+from lightning import Callback
+from lightning.pytorch.callbacks import (EarlyStopping, ModelCheckpoint,
                                          RichProgressBar)
 
 logger = logging.getLogger(__name__)

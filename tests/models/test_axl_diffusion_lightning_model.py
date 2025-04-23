@@ -4,7 +4,7 @@ from typing import Tuple
 import numpy as np
 import pytest
 import torch
-from pytorch_lightning import LightningDataModule, Trainer
+from lightning import LightningDataModule, Trainer
 from torch.utils.data import DataLoader, default_collate, random_split
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \

@@ -6,8 +6,7 @@ import os
 import shutil
 import typing
 
-import pytorch_lightning
-import pytorch_lightning as pl
+import lightning as pl
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics.callbacks.callback_loader import \
@@ -123,7 +122,7 @@ def run(args: argparse.Namespace, output_dir, hyper_params):
     # __TODO__ change the hparam that are used from the training algorithm
     # (and NOT the model - these will be specified in the model itself)
     if hyper_params["seed"] is not None:
-        pytorch_lightning.seed_everything(hyper_params["seed"])
+        pl.seed_everything(hyper_params["seed"])
 
     ElementTypes.validate_elements(hyper_params["elements"])
 
