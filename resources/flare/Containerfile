@@ -114,7 +114,8 @@ USER flare_user
 
 # build lammps with all the mods above.
 WORKDIR $LAMMPS_BUILD_DIR
-RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && cmake ../cmake -DPKG_KOKKOS=ON -DKokkos_ENABLE_OPENMP=ON -DPKG_MANYBODY=ON"
+RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && cmake ../cmake -DPKG_KOKKOS=ON -DKokkos_ENABLE_OPENMP=ON -DPKG_MANYBODY=ON -DPKG_EXTRA-DUMP=ON"
+
 RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && make -j 4"
 
 #--------------------
