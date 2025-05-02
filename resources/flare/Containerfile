@@ -58,22 +58,33 @@ ENV CC=gcc-9
 ENV CXX=g++-9
 
 ARG USER_HOME=/home/flare_user
-ARG FLARE_DIR=$USER_HOME/flare
-ARG FLARE_BUILD_DIR=$FLARE_DIR/build
-ARG LAMMPS_BUILD_DIR=$FLARE_DIR/lammps/build
 
-WORKDIR $USER_HOME
-RUN git clone -b master https://github.com/mir-group/flare.git
+ARG SOURCES_DIR=$USER_HOME/sources
+
+ARG FLARE_DIR=$SOURCES_DIR/flare
+ARG FLARE_BUILD_DIR=$FLARE_DIR/build
+
+ARG LAMMPS_DIR=$SOURCES_DIR/lammps
+ARG LAMMPS_BUILD_DIR=$LAMMPS_DIR/build
+
+RUN mkdir -p $SOURCES_DIR
+
+RUN git clone -b master https://github.com/mir-group/flare.git $FLARE_DIR
+RUN git clone --depth 1 --branch release https://github.com/lammps/lammps.git $LAMMPS_DIR
 
 RUN mkdir -p $FLARE_BUILD_DIR
+RUN mkdir -p $LAMMPS_BUILD_DIR
 
-#-----------------------------------
-# Install the python package with uv
-#-----------------------------------
+# install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+#-----------------------------------------
+# Install the flare python package with uv
+#-----------------------------------------
 WORKDIR $FLARE_DIR
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-RUN bash -c "source $USER_HOME/.local/bin/env && uv venv && uv pip install -e .[tests]"
+# force the version of numpy because there is a conflict between the ASE version and numpy >= 2.0
+RUN bash -c "source $USER_HOME/.local/bin/env && uv venv && uv pip install -e .[tests] 'numpy==1.26.4'"
 
 #-----------------------------
 # Build the C++ part of FLARE
@@ -90,10 +101,9 @@ RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/act
 # Build a FLARE-adapated LAMMPS
 #-------------------------------
 WORKDIR $FLARE_DIR
-RUN git clone --depth 1 --branch release https://github.com/lammps/lammps.git lammps
 
 WORKDIR $FLARE_DIR/lammps_plugins
-RUN ./install.sh $FLARE_DIR/lammps
+RUN ./install.sh $LAMMPS_DIR
 
 # The build configuration for lammps is complex. The FLARE instructions copy
 # dependencies to a standard location: presumably, this is because it is not transparent 
@@ -103,9 +113,7 @@ RUN cp -r $FLARE_BUILD_DIR/External/Eigen3/Eigen /usr/include
 USER flare_user
 
 # build lammps with all the mods above.
-RUN mkdir -p $LAMMPS_BUILD_DIR
 WORKDIR $LAMMPS_BUILD_DIR
-
 RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && cmake ../cmake -DPKG_KOKKOS=ON -DKokkos_ENABLE_OPENMP=ON -DPKG_MANYBODY=ON"
 RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && make -j 4"
 
@@ -126,6 +134,7 @@ RUN sed -i 's/line.startswith(_custom_thermo_mark)/line.strip\(\).startswith\("S
 USER root
 # Expose the SSH port
 EXPOSE 22
+
 RUN mkdir -p /run/sshd
 
 CMD ["/usr/sbin/sshd", "-D"]
