@@ -1,0 +1,141 @@
+# Use a base image 
+FROM ubuntu:22.04
+
+# Turn off the tzdata interactive configuration dialogue
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+RUN echo "$TZ" > /etc/timezone && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
+
+# There is an issue with the datetime inside the container.
+# Work around from https://askubuntu.com/questions/1096930/sudo-apt-update-error-release-file-is-not-yet-valid
+RUN apt -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update
+
+# Install necessary packages (Python, SSH server, etc.)
+RUN apt install -y openssh-server python3 python3-pip software-properties-common gcc-9 g++-9 make cmake liblapacke liblapacke-dev libopenmpi-dev curl git vim python3 pip ninja-build wget
+
+#================================================================================
+# Insure that the user can ssh into the container.
+#================================================================================
+# Create a new user and grant it ssh access.
+ARG SSH_USER=flare_user
+ARG SSH_GROUP=flare_user
+
+ARG SSH_UID=1000
+ARG SSH_GID=1000
+RUN groupadd --gid $SSH_GID $SSH_GROUP && useradd --uid $SSH_UID --gid $SSH_GID -m -s /bin/bash $SSH_USER
+
+# Generate SSH key pair for the new user
+RUN mkdir -p /home/$SSH_USER/.ssh && ssh-keygen -t rsa -N "" -f /home/$SSH_USER/.ssh/id_rsa
+
+# Copy the public key to authorized_keys
+RUN cat /home/$SSH_USER/.ssh/id_rsa.pub >> /home/$SSH_USER/.ssh/authorized_keys
+
+# Set permissions
+RUN chown -R $SSH_USER:$SSH_GROUP /home/$SSH_USER/.ssh && \
+    chmod 700 /home/$SSH_USER/.ssh && \
+    chmod 600 /home/$SSH_USER/.ssh/authorized_keys
+
+# Configure SSH server
+RUN sed -i 's/^#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+RUN sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
+RUN sed -i "s/^#AuthorizedKeysFile.*/AuthorizedKeysFile \/home\/$SSH_USER\/.ssh\/authorized_keys/" /etc/ssh/sshd_config
+RUN sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+#======================================================================================================
+# Build FLARE
+#
+#  The recipe below is inspired from a variety of sources:
+#   - the github CI file: https://github.com/mir-group/flare/blob/master/.github/workflows/flare.yml
+#   - the installation instructions : https://mir-group.github.io/flare/installation/install.html
+#
+# It is modified here to use uv and to compile a complete version of lammps, not just a minimal
+# set of potentials related to FLARE.
+#======================================================================================================
+
+USER flare_user
+
+ENV CC=gcc-9
+ENV CXX=g++-9
+
+ARG USER_HOME=/home/flare_user
+
+ARG SOURCES_DIR=$USER_HOME/sources
+
+ARG FLARE_DIR=$SOURCES_DIR/flare
+ARG FLARE_BUILD_DIR=$FLARE_DIR/build
+
+ARG LAMMPS_DIR=$SOURCES_DIR/lammps
+ARG LAMMPS_BUILD_DIR=$LAMMPS_DIR/build
+
+RUN mkdir -p $SOURCES_DIR
+
+RUN git clone -b master https://github.com/mir-group/flare.git $FLARE_DIR
+RUN git clone --depth 1 --branch release https://github.com/lammps/lammps.git $LAMMPS_DIR
+
+RUN mkdir -p $FLARE_BUILD_DIR
+RUN mkdir -p $LAMMPS_BUILD_DIR
+
+# install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+#-----------------------------------------
+# Install the flare python package with uv
+#-----------------------------------------
+WORKDIR $FLARE_DIR
+
+# force the version of numpy because there is a conflict between the ASE version and numpy >= 2.0
+RUN bash -c "source $USER_HOME/.local/bin/env && uv venv && uv pip install -e .[tests] 'numpy==1.26.4'"
+
+#-----------------------------
+# Build the C++ part of FLARE
+#-----------------------------
+WORKDIR $FLARE_BUILD_DIR
+
+# run cmake within the appropriate python environment
+RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && cmake  .."
+
+# build
+RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && cmake --build ."
+
+#-------------------------------
+# Build a FLARE-adapated LAMMPS
+#-------------------------------
+WORKDIR $FLARE_DIR
+
+WORKDIR $FLARE_DIR/lammps_plugins
+RUN ./install.sh $LAMMPS_DIR
+
+# The build configuration for lammps is complex. The FLARE instructions copy
+# dependencies to a standard location: presumably, this is because it is not transparent 
+# how to communicate the original location of the dependencies to this complex cmake / build process.
+USER root
+RUN cp -r $FLARE_BUILD_DIR/External/Eigen3/Eigen /usr/include
+USER flare_user
+
+# build lammps with all the mods above.
+WORKDIR $LAMMPS_BUILD_DIR
+RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && cmake ../cmake -DPKG_KOKKOS=ON -DKokkos_ENABLE_OPENMP=ON -DPKG_MANYBODY=ON -DPKG_EXTRA-DUMP=ON"
+
+RUN bash -c "source $USER_HOME/.local/bin/env && source $FLARE_DIR/.venv/bin/activate && make -j 4"
+
+#--------------------
+# idiosyncratic steps
+#--------------------
+WORKDIR $FLARE_DIR
+
+# move the shared library to where the python code expects to find it.
+RUN cp  $FLARE_BUILD_DIR/_C_flare.*.so $FLARE_DIR/flare/bffs/sgp/
+
+# patch ASE in place to align with FLARE's parsing expectations.
+RUN sed -i 's/line.startswith(_custom_thermo_mark)/line.strip\(\).startswith\("Step"\)/g' `find . -wholename '*/calculators/lammpsrun.py'`
+
+#================================================================================
+# Start the SSH service when the container runs
+#================================================================================
+USER root
+# Expose the SSH port
+EXPOSE 22
+
+RUN mkdir -p /run/sshd
+
+CMD ["/usr/sbin/sshd", "-D"]
