@@ -35,7 +35,7 @@ We will explicitly specify this architecture in what follows.
 To create the image, create a directory (say, `build_podman`) and put the `ContainerFile` in it.
 The image can then be created with the following command.
 
-    podman build --arch x86_64  -t flare ./build_podman
+    podman build --arch x86_64  -t flare -f ./build_podman/ContainerFile
 
 This takes quite a bit of time.
 
