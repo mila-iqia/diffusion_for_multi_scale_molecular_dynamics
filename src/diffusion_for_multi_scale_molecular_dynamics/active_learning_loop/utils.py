@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 
 
@@ -63,6 +64,8 @@ def extract_target_region(
 ) -> pd.DataFrame:
     """Extract the atom with the worst evaluation criteria and all the atoms within a distance extraction_radious.
 
+    This is obsolete. The excisor methods should be used instead.
+
     Args:
         structure_df: dataframe with the atomic positions and the evaluation criteria (e.g. MaxVol value)
         extraction_radius: include all atoms within this distance of the targeted atom
@@ -81,6 +84,29 @@ def extract_target_region(
         axis=1,
     )
     atom_positions = structure_df.loc[
-        structure_df["distance_squared"] <= extraction_radius**2, ["x", "y", "z", "species"]
+        structure_df["distance_squared"] <= extraction_radius**2,
+        ["x", "y", "z", "species"],
     ]
     return atom_positions
+
+
+def get_distances_from_reference_point(
+    atom_positions: np.ndarray, reference_point: np.array, lattice_parameters: np.array
+) -> np.ndarray:
+    """Find the distance between a point and a reference point, taking into account periodicity.
+
+    Args:
+        atom_positions: atom positions as a (natom, spatial dimension) array
+        reference_point: reference point as a (spatial dimension, ) array
+        lattice_parameters: lattice parameters. The lattice is assumed to be orthogonal. (spatial dimension, ) array
+
+    Returns:
+        distances as a (natom, ) array
+    """
+    lattice_parameters = lattice_parameters[np.newaxis, :]
+    distances = atom_positions - reference_point
+    distances_squared = np.minimum(distances**2, (distances - lattice_parameters) ** 2)
+    distances_squared = np.minimum(
+        distances_squared, (distances + lattice_parameters) ** 2
+    )
+    return np.sqrt(distances_squared.sum(axis=-1))
