@@ -49,7 +49,8 @@ class TestBaseEnvironmentExcision:
                 atom_idx.append(idx)
                 uncertainties.append(u)
         # sort on uncertainty (highest to lowest)
-        _, expected_atom_idx = zip(*sorted(zip(uncertainties, atom_idx), reverse=True))
+        sorted_pairs = sorted(zip(uncertainties, atom_idx), key=lambda item: item[0], reverse=True)
+        expected_atom_idx = [item[1] for item in sorted_pairs]
 
         base_excisor = NoOpEnvironmentExcision(excisor_threshold_arguments)
         calculated_atom_idx = base_excisor.select_central_atoms(uncertainty_per_atom)
