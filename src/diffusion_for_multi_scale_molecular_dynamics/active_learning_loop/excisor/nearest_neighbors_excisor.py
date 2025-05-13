@@ -11,6 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 @dataclass(kw_only=True)
 class NearestNeighborsExcisionArguments(BaseEnvironmentExcisionArguments):
+    """Arguments for a selection of nearest atoms around a target atom."""
     algorithm: str = "nearest_neighbors"
     number_of_neighbors: int = (
         4  # number of nearest neighbors to the pivot atom to keep in the excised region
@@ -21,6 +22,7 @@ class NearestNeighborsExcision(BaseEnvironmentExcision):
     """Extract the N nearest neighbors to the pivot atom."""
 
     def __init__(self, excision_arguments: NearestNeighborsExcisionArguments):
+        """Init method."""
         super().__init__(excision_arguments)
         self.number_of_neighbors = excision_arguments.number_of_neighbors
         assert (

@@ -20,6 +20,7 @@ class BaseEnvironmentExcisionArguments:
     )
 
     def __post_init__(self):
+        """Post init."""
         assert (
             self.uncertainty_threshold is not None
             or self.excise_top_k_environment is not None
@@ -37,7 +38,9 @@ class BaseEnvironmentExcisionArguments:
 
 
 class BaseEnvironmentExcision(ABC):
+    """Base class for atomic environment excision."""
     def __init__(self, excision_arguments: BaseEnvironmentExcisionArguments):
+        """Init method."""
         self.arguments = excision_arguments
         if excision_arguments.uncertainty_threshold is None:
             self.atom_selection_method = "topk"
@@ -135,6 +138,7 @@ class BaseEnvironmentExcision(ABC):
 
 @dataclass(kw_only=True)
 class NoOpEnvironmentExcisionArguments(BaseEnvironmentExcisionArguments):
+    """Parameters for a trivial excision method."""
     algorithm = "NoOpExcision"
 
 

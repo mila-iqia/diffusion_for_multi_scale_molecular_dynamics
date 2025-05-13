@@ -11,6 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 @dataclass(kw_only=True)
 class SphericalExcisionArguments(BaseEnvironmentExcisionArguments):
+    """Arguments for a spherical cutoff around a target atom."""
     algorithm: str = "radial_excision"
     radial_cutoff: float = 3.0  # radial cutoff in Angstrom
 
@@ -19,6 +20,7 @@ class SphericalExcision(BaseEnvironmentExcision):
     """Extract all atoms within a given distance of the pivot atom."""
 
     def __init__(self, excision_arguments: SphericalExcisionArguments):
+        """Init method."""
         super().__init__(excision_arguments)
         self.radial_cutoff = excision_arguments.radial_cutoff
         assert (
