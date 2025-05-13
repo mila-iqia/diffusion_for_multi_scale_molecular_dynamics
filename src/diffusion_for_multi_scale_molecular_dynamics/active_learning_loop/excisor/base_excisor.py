@@ -47,7 +47,7 @@ class BaseEnvironmentExcision(ABC):
             self.atom_selection_threshold = excision_arguments.uncertainty_threshold
 
     @abstractmethod
-    def excise_environment(
+    def excise_environments(
         self, structure: AXL, uncertainty_per_atom: np.array
     ) -> List[AXL]:
         """Excise the relevant atomic environments based on the uncertainty criteria related to each atom.
@@ -124,21 +124,7 @@ class NoOpEnvironmentExcisionArguments(BaseEnvironmentExcisionArguments):
 class NoOpEnvironmentExcision(BaseEnvironmentExcision):
     """Trivial environment excision method that returns the full environment without modifications."""
 
-    def excise_environment(
+    def excise_environments(
         self, structure: AXL, uncertainty_per_atom: np.array
     ) -> List[AXL]:
         return [structure]
-
-
-@dataclass(kw_only=True)
-class RadialEnvironmentExcisionArguments(BaseEnvironmentExcisionArguments):
-    name: str = "radial_excision"
-    radial_cutoff: float = 3.0  # radial cutoff in Angstrom
-
-
-class RadialEnvironmentExcision(BaseEnvironmentExcision):
-    """Extract all atoms given"""
-
-    def __init__(self, excision_arguments: RadialEnvironmentExcisionArguments):
-        super().__init__(self, excision_arguments)
-        self.radial_cutoff = excision_arguments.radial_cutoff
