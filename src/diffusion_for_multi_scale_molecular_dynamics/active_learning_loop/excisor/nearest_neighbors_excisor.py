@@ -10,23 +10,25 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 
 @dataclass(kw_only=True)
-class SphericalExcisionArguments(BaseEnvironmentExcisionArguments):
-    algorithm: str = "radial_excision"
-    radial_cutoff: float = 3.0  # radial cutoff in Angstrom
+class NearestNeighborsExcisionArguments(BaseEnvironmentExcisionArguments):
+    algorithm: str = "nearest_neighbors"
+    number_of_neighbors: int = (
+        4  # number of nearest neighbors to the pivot atom to keep in the excised region
+    )
 
 
-class SphericalExcision(BaseEnvironmentExcision):
-    """Extract all atoms within a given distance of the pivot atom."""
+class NearestNeighborsExcision(BaseEnvironmentExcision):
+    """Extract the N nearest neighbors to the pivot atom."""
 
-    def __init__(self, excision_arguments: SphericalExcisionArguments):
+    def __init__(self, excision_arguments: NearestNeighborsExcisionArguments):
         super().__init__(excision_arguments)
-        self.radial_cutoff = excision_arguments.radial_cutoff
+        self.number_of_neighbors = excision_arguments.number_of_neighbors
         assert (
-            self.radial_cutoff > 0
-        ), f"Radial cutoff is expected to be positive. Got {self.radial_cutoff}"
+            self.number_of_neighbors > 0
+        ), f"Number of neighbors to include is expected to be positive. Got {self.number_of_neighbors}"
 
     def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> AXL:
-        """Excise the atoms within a distance radial_cutoff from a central atom.
+        """Excise the N nearest atoms within a distance radial_cutoff from a central atom.
 
         Args:
             structure: complete structure to excise from
@@ -39,12 +41,14 @@ class SphericalExcision(BaseEnvironmentExcision):
         distances_from_central_atom = get_distances_from_reference_point(
             structure.X, central_atom_position, structure.L
         )
-        indices_closer_than_threshold = np.where(
-            distances_from_central_atom < self.radial_cutoff
-        )[0]
+        # find the indices sorting the distances in reverse order
+        sorted_indices = np.argsort(distances_from_central_atom)
+        # the N nearest are the nearest neighbor. Add 1 to include the central atom itself.
+        nearest_neighbor_indices = sorted_indices[: self.number_of_neighbors + 1]
+
         excised_substructure = AXL(
-            A=structure.A[indices_closer_than_threshold],
-            X=structure.X[indices_closer_than_threshold, :],
+            A=structure.A[nearest_neighbor_indices],
+            X=structure.X[nearest_neighbor_indices, :],
             L=structure.L,
         )
         return excised_substructure

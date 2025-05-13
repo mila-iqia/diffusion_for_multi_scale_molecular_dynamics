@@ -46,23 +46,6 @@ class BaseEnvironmentExcision(ABC):
             self.atom_selection_method = "threshold"
             self.atom_selection_threshold = excision_arguments.uncertainty_threshold
 
-    @abstractmethod
-    def excise_environments(
-        self, structure: AXL, uncertainty_per_atom: np.array
-    ) -> List[AXL]:
-        """Excise the relevant atomic environments based on the uncertainty criteria related to each atom.
-
-        Args:
-            structure : crystal structure, including atomic species, coordinates and lattice parameters
-            uncertainty_per_atom: uncertainty associated to each atom. The order is assumed to be the same as those in
-                the structure variable.
-
-        Returns:
-            AXL environments: list of atomic environment matching the criteria of the excision method. If no environment
-                match the criteria, an empty list is returned.
-        """
-        pass
-
     def select_central_atoms(self, uncertainty_per_atom: np.array) -> np.array:
         """Select the central atoms to define the problematic environments.
 
@@ -115,6 +98,40 @@ class BaseEnvironmentExcision(ABC):
         ]
         return sorted_indices
 
+    def excise_environments(
+        self, structure: AXL, uncertainty_per_atom: np.array
+    ) -> List[AXL]:
+        """Extract all environments around the atoms satisfying the uncertainty constraints.
+
+        This calls the method _excise_one_environment for each atom with a high enough uncertainty.
+
+        Args:
+            structure: crystal structure, including atomic species, coordinates and lattice parameters
+            uncertainty_per_atom: uncertainty associated to each atom. The order is assumed to be the same as those in
+                the structure variable.
+
+        Returns:
+            environments: list of excised spheres around the highest uncertainties atoms as a list of AXL.
+        """
+        central_atoms = self.select_central_atoms(uncertainty_per_atom)
+        environments = [
+            self._excise_one_environment(structure, atom) for atom in central_atoms
+        ]
+        return environments
+
+    @abstractmethod
+    def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> AXL:
+        """Excise the relevant atomic environment around the central atom.
+
+        Args:
+            structure: complete structure to excise from
+            central_atom_idx: atom at the center of the excised region
+
+        Returns:
+            excised_substructure: all atoms within a distance radial_cutoff of the central atom (including itself).
+        """
+        pass
+
 
 @dataclass(kw_only=True)
 class NoOpEnvironmentExcisionArguments(BaseEnvironmentExcisionArguments):
@@ -124,7 +141,9 @@ class NoOpEnvironmentExcisionArguments(BaseEnvironmentExcisionArguments):
 class NoOpEnvironmentExcision(BaseEnvironmentExcision):
     """Trivial environment excision method that returns the full environment without modifications."""
 
-    def excise_environments(
-        self, structure: AXL, uncertainty_per_atom: np.array
-    ) -> List[AXL]:
-        return [structure]
+    def _excise_one_environment(
+        self,
+        structure: AXL,
+        central_atom_idx: int,
+    ) -> AXL:
+        return structure
