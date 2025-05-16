@@ -6,7 +6,7 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.n
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 
-class TestSphericalExcision:
+class TestNearestNeighborsExcision:
     @pytest.fixture(params=[1, 5, 10])
     def number_of_neighbors(self, request):
         return request.param
@@ -52,6 +52,10 @@ class TestSphericalExcision:
     @pytest.fixture
     def atom_relative_positions(self, number_of_atoms, spatial_dimension):
         return np.random.random((number_of_atoms, spatial_dimension))
+
+    @pytest.fixture
+    def atom_cartesian_positions(self, atom_relative_positions, basis_vectors):
+        return np.matmul(atom_relative_positions, basis_vectors)
 
     @pytest.fixture
     def atom_species(self, number_of_atoms):
