@@ -12,10 +12,17 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 @dataclass(kw_only=True)
 class NearestNeighborsExcisionArguments(BaseEnvironmentExcisionArguments):
     """Arguments for a selection of nearest atoms around a target atom."""
+
     algorithm: str = "nearest_neighbors"
     number_of_neighbors: int = (
         4  # number of nearest neighbors to the pivot atom to keep in the excised region
     )
+
+    def __post_init__(self):
+        super().__post_init__()
+        assert (
+            self.number_of_neighbors > 0
+        ), f"Number of neighbors to include is expected to be positive. Got {self.number_of_neighbors}"
 
 
 class NearestNeighborsExcision(BaseEnvironmentExcision):
@@ -25,9 +32,6 @@ class NearestNeighborsExcision(BaseEnvironmentExcision):
         """Init method."""
         super().__init__(excision_arguments)
         self.number_of_neighbors = excision_arguments.number_of_neighbors
-        assert (
-            self.number_of_neighbors > 0
-        ), f"Number of neighbors to include is expected to be positive. Got {self.number_of_neighbors}"
 
     def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> AXL:
         """Excise the N nearest atoms within a distance radial_cutoff from a central atom.
@@ -43,7 +47,7 @@ class NearestNeighborsExcision(BaseEnvironmentExcision):
         distances_from_central_atom = get_distances_from_reference_point(
             structure.X, central_atom_position, structure.L
         )
-        # find the indices sorting the distances in reverse order
+        # find the indices sorting the distances from closer to most distant
         sorted_indices = np.argsort(distances_from_central_atom)
         # the N nearest are the nearest neighbor. Add 1 to include the central atom itself.
         nearest_neighbor_indices = sorted_indices[: self.number_of_neighbors + 1]

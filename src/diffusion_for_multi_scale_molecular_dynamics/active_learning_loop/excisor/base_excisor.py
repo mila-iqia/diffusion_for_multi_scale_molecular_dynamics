@@ -39,6 +39,7 @@ class BaseEnvironmentExcisionArguments:
 
 class BaseEnvironmentExcision(ABC):
     """Base class for atomic environment excision."""
+
     def __init__(self, excision_arguments: BaseEnvironmentExcisionArguments):
         """Init method."""
         self.arguments = excision_arguments
@@ -109,16 +110,17 @@ class BaseEnvironmentExcision(ABC):
         This calls the method _excise_one_environment for each atom with a high enough uncertainty.
 
         Args:
-            structure: crystal structure, including atomic species, coordinates and lattice parameters
+            structure: crystal structure, including atomic species, relative coordinates and lattice parameters
             uncertainty_per_atom: uncertainty associated to each atom. The order is assumed to be the same as those in
                 the structure variable.
 
         Returns:
             environments: list of excised spheres around the highest uncertainties atoms as a list of AXL.
         """
-        central_atoms = self.select_central_atoms(uncertainty_per_atom)
+        central_atoms_indices = self.select_central_atoms(uncertainty_per_atom)
         environments = [
-            self._excise_one_environment(structure, atom) for atom in central_atoms
+            self._excise_one_environment(structure, atom)
+            for atom in central_atoms_indices
         ]
         return environments
 
@@ -139,6 +141,7 @@ class BaseEnvironmentExcision(ABC):
 @dataclass(kw_only=True)
 class NoOpEnvironmentExcisionArguments(BaseEnvironmentExcisionArguments):
     """Parameters for a trivial excision method."""
+
     algorithm = "NoOpExcision"
 
 

@@ -2,6 +2,11 @@ from typing import List, Optional
 
 import numpy as np
 import pandas as pd
+import torch
+
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    get_positions_from_coordinates,
+    map_lattice_parameters_to_unit_cell_vectors)
 
 
 def get_structures_for_retraining(
@@ -91,22 +96,40 @@ def extract_target_region(
 
 
 def get_distances_from_reference_point(
-    atom_positions: np.ndarray, reference_point: np.array, lattice_parameters: np.array
+    atom_relative_positions: np.ndarray,
+    reference_point_relative_coordinates: np.array,
+    lattice_parameters: np.array,
 ) -> np.ndarray:
     """Find the distance between a point and a reference point, taking into account periodicity.
 
     Args:
-        atom_positions: atom positions as a (natom, spatial dimension) array
-        reference_point: reference point as a (spatial dimension, ) array
+        atom_relative_positions: atom relative positions as a (natom, spatial dimension) array
+        reference_point_relative_coordinates: reference point as a (spatial dimension, ) array
         lattice_parameters: lattice parameters. The lattice is assumed to be orthogonal. (spatial dimension, ) array
 
     Returns:
         distances as a (natom, ) array
     """
-    lattice_parameters = lattice_parameters[np.newaxis, :]
-    distances = atom_positions - reference_point
-    distances_squared = np.minimum(distances**2, (distances - lattice_parameters) ** 2)
+    basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
+        torch.tensor(lattice_parameters)
+    )
+    cartesian_positions = get_positions_from_coordinates(
+        torch.tensor(atom_relative_positions), basis_vectors
+    )
+
+    reference_point_cartesian_coordinates = get_positions_from_coordinates(
+        torch.tensor(reference_point_relative_coordinates).unsqueeze(0), basis_vectors
+    )
+
+    # TODO we assume an orthogonal box here
+    box_distances_parameters = torch.diag(basis_vectors).numpy()
+    distances = (
+        cartesian_positions.numpy() - reference_point_cartesian_coordinates.numpy()
+    )
     distances_squared = np.minimum(
-        distances_squared, (distances + lattice_parameters) ** 2
+        distances**2, (distances - box_distances_parameters) ** 2
+    )
+    distances_squared = np.minimum(
+        distances_squared, (distances + box_distances_parameters) ** 2
     )
     return np.sqrt(distances_squared.sum(axis=-1))

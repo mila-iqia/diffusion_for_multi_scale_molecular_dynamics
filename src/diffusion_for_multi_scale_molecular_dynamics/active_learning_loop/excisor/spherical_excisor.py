@@ -12,8 +12,15 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 @dataclass(kw_only=True)
 class SphericalExcisionArguments(BaseEnvironmentExcisionArguments):
     """Arguments for a spherical cutoff around a target atom."""
+
     algorithm: str = "radial_excision"
     radial_cutoff: float = 3.0  # radial cutoff in Angstrom
+
+    def __post_init__(self):
+        super().__post_init__()
+        assert (
+            self.radial_cutoff > 0
+        ), f"Radial cutoff is expected to be positive. Got {self.radial_cutoff}"
 
 
 class SphericalExcision(BaseEnvironmentExcision):
@@ -23,9 +30,6 @@ class SphericalExcision(BaseEnvironmentExcision):
         """Init method."""
         super().__init__(excision_arguments)
         self.radial_cutoff = excision_arguments.radial_cutoff
-        assert (
-            self.radial_cutoff > 0
-        ), f"Radial cutoff is expected to be positive. Got {self.radial_cutoff}"
 
     def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> AXL:
         """Excise the atoms within a distance radial_cutoff from a central atom.
@@ -37,9 +41,9 @@ class SphericalExcision(BaseEnvironmentExcision):
         Returns:
             excised_substructure: all atoms within a distance radial_cutoff of the central atom (including itself).
         """
-        central_atom_position = structure.X[central_atom_idx, :]
+        central_atom_relative_position = structure.X[central_atom_idx, :]
         distances_from_central_atom = get_distances_from_reference_point(
-            structure.X, central_atom_position, structure.L
+            structure.X, central_atom_relative_position, structure.L
         )
         indices_closer_than_threshold = np.where(
             distances_from_central_atom < self.radial_cutoff
