@@ -17,6 +17,7 @@ class SphericalExcisionArguments(BaseEnvironmentExcisionArguments):
     radial_cutoff: float = 3.0  # radial cutoff in Angstrom
 
     def __post_init__(self):
+        """Post init."""
         super().__post_init__()
         assert (
             self.radial_cutoff > 0
