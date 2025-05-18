@@ -1,0 +1,105 @@
+
+# Using pARTn with FIRE minimization 
+# MAMMASMIAS, 2022
+
+
+# Define the threshold for round 1
+variable threshold equal 0.1
+
+# ---------- Initialize Simulation --------------------- 
+clear 
+units       metal 
+dimension   3 
+boundary    p p p 
+atom_style  atomic 
+atom_modify sort 0 1
+
+
+# ---------- Read one of the input structure files --------------------- 
+
+##
+## smaller simulation box, single vacancy defect
+##
+
+read_data   conf.sw
+
+
+##
+## larger simulation box, single vacancy defect
+## NOTE: if you use the larger box, make according change also in artn.in
+##
+
+#read_data   conf_big.sw
+
+
+# ---------- Define Interatomic Potential --------------------- 
+
+pair_style flare
+
+pair_coeff * * /home/user/experiments/flare_experiment/recorded_models/lmp6.flare
+compute unc all flare/std/atom /home/user/experiments/flare_experiment/recorded_models/map_unc_lmp6.flare
+
+
+compute max_unc_all all reduce max c_unc
+
+#run 0
+variable max_unc equal c_max_unc_all
+
+
+mass 	    1 28.0855
+
+neighbor     2.0 bin 
+neigh_modify delay 10 check yes 
+
+# balance atoms per cpu
+comm_style tiled
+balance 1.1 rcb
+
+
+#  ----------- Define interruption variable
+variable continue_run equal "v_max_unc < v_threshold"
+
+
+# stop simulation if the threshold is violated
+fix extreme_extrapolation all halt 1 v_continue_run != 1
+
+
+# ----------- OUTPUT DUMP
+dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz c_unc
+dump_modify dump_id thermo yes
+dump_modify dump_id element Si 
+
+thermo 1
+thermo_style custom step pe v_max_unc
+
+dump uncertain_dump_id all yaml 1 uncertain_dump.yaml id element x y z fx fy fz c_unc
+dump_modify uncertain_dump_id thermo yes
+dump_modify uncertain_dump_id element Si 
+
+dump_modify uncertain_dump_id skip v_continue_run 
+
+
+# ----------- ARTn
+plugin load /home/user/sources/artn/Files_LAMMPS/libartn-lmp.so
+
+fix             10 all artn dmax 5.0
+#fix             10 all artn alpha0 0.1 alphashrink 0.99 dtshrink 0.5 dmax 0.5 tmax 20 tmin 0.02
+
+timestep 0.001
+
+
+# ---------- Run Minimization --------------------- 
+reset_timestep 0 
+#fix 1 all box/relax iso 0.0 vmax 0.001
+
+min_style fire 
+
+#min_modify: dmax or delaystep or dtgrow or dtshrink or alpha0 or alphahrink or...
+#            tmax or tmin or halfstepback or initialdelay or vdfmax or line or...
+#            norm or discrete_factor or integrator or tmax  
+#            alpha_damp: does not work anymore
+
+
+## ------ launch
+minimize 1e-3 1e-5 5000 10000 
+
