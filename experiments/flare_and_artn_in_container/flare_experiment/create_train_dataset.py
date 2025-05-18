@@ -2,7 +2,6 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-
 from flare_experiment.utilities.labelled_structure import LabelledStructure
 from flare_experiment.utilities.utils import parse_lammps_dump
 

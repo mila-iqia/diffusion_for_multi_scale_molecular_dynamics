@@ -10,14 +10,13 @@ from flare.bffs.sgp._C_flare import (B2, NormalizedDotProduct, SparseGP,
 from flare.bffs.sgp.calculator import SGP_Calculator
 from flare.bffs.sgp.sparse_gp import (compute_negative_likelihood_grad_stable,
                                       optimize_hyperparameters)
-from matplotlib import pyplot as plt
-
 from flare_experiment.utilities import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from flare_experiment.utilities.analysis_utils import linear_fit_and_r2
 from flare_experiment.utilities.hyperparameter_trainer import \
     HyperparametersTrainer
 from flare_experiment.utilities.single_point_calculator import \
     FlareSinglePointCalculator
+from matplotlib import pyplot as plt
 
 plt.style.use(PLOT_STYLE_PATH)
 

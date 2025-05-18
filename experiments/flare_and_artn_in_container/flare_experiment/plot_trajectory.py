@@ -2,10 +2,9 @@ from pathlib import Path
 
 import numpy as np
 import yaml
-from matplotlib import pyplot as plt
-
 from flare_experiment.utilities import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from flare_experiment.utilities.utils import parse_thermo_fields
+from matplotlib import pyplot as plt
 
 plt.style.use(PLOT_STYLE_PATH)
 

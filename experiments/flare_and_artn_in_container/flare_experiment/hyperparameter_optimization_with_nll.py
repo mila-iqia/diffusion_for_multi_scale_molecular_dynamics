@@ -10,11 +10,10 @@ from flare.bffs.sgp.calculator import SGP_Calculator
 from flare.bffs.sgp.sparse_gp import (compute_negative_likelihood,
                                       compute_negative_likelihood_grad_stable,
                                       optimize_hyperparameters)
-from matplotlib import pyplot as plt
-
 from flare_experiment.utilities import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from flare_experiment.utilities.hyperparameter_trainer import \
     HyperparametersTrainer
+from matplotlib import pyplot as plt
 
 plt.style.use(PLOT_STYLE_PATH)
 

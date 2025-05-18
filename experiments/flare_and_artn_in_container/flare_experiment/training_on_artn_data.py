@@ -6,13 +6,12 @@ from flare.bffs.sgp._C_flare import B2, NormalizedDotProduct
 from flare.bffs.sgp.calculator import SGP_Calculator
 from flare.bffs.sgp.sparse_gp import (compute_negative_likelihood_grad_stable,
                                       optimize_hyperparameters)
-from matplotlib import pyplot as plt
-
 from flare_experiment.utilities import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from flare_experiment.utilities.labelled_structure import LabelledStructure
 from flare_experiment.utilities.single_point_calculator import \
     FlareSinglePointCalculator
 from flare_experiment.utilities.utils import parse_lammps_dump
+from matplotlib import pyplot as plt
 
 plt.style.use(PLOT_STYLE_PATH)
 

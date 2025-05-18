@@ -5,13 +5,12 @@ from pathlib import Path
 
 import numpy as np
 from flare.bffs.sgp import SGP_Wrapper
-from matplotlib import pyplot as plt
-
 from flare_experiment.utilities import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from flare_experiment.utilities.analysis_utils import linear_fit_and_r2
 from flare_experiment.utilities.single_point_calculator import (
     FlareSinglePointCalculator, MappedFlareSinglePointCalculator,
     StillingerWeberSinglePointCalculator)
+from matplotlib import pyplot as plt
 
 plt.style.use(PLOT_STYLE_PATH)
 

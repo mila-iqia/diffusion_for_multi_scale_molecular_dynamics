@@ -1,10 +1,9 @@
 import numpy as np
 from ase import Atoms
-from matplotlib import pyplot as plt
-
 from flare_experiment.utilities import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from flare_experiment.utilities.single_point_calculator import \
     StillingerWeberSinglePointCalculator
+from matplotlib import pyplot as plt
 
 plt.style.use(PLOT_STYLE_PATH)
 
