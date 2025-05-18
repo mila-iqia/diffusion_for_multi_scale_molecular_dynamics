@@ -3,18 +3,21 @@ import pickle
 import shutil
 from pathlib import Path
 
-from flare.bffs.sgp import SGP_Wrapper
-from flare.bffs.sgp.sparse_gp import optimize_hyperparameters, compute_negative_likelihood_grad_stable
-from flare.bffs.sgp.calculator import SGP_Calculator
-from flare.bffs.sgp._C_flare import B2, NormalizedDotProduct, SparseGP, Structure
-from matplotlib import pyplot as plt
-
 import numpy as np
+from flare.bffs.sgp import SGP_Wrapper
+from flare.bffs.sgp._C_flare import (B2, NormalizedDotProduct, SparseGP,
+                                     Structure)
+from flare.bffs.sgp.calculator import SGP_Calculator
+from flare.bffs.sgp.sparse_gp import (compute_negative_likelihood_grad_stable,
+                                      optimize_hyperparameters)
+from matplotlib import pyplot as plt
 
 from flare_experiment.utilities import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
 from flare_experiment.utilities.analysis_utils import linear_fit_and_r2
-from flare_experiment.utilities.hyperparameter_trainer import HyperparametersTrainer
-from flare_experiment.utilities.single_point_calculator import FlareSinglePointCalculator
+from flare_experiment.utilities.hyperparameter_trainer import \
+    HyperparametersTrainer
+from flare_experiment.utilities.single_point_calculator import \
+    FlareSinglePointCalculator
 
 plt.style.use(PLOT_STYLE_PATH)
 

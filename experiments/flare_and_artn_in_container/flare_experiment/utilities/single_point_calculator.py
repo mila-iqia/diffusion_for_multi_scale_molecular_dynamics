@@ -3,17 +3,15 @@ import tempfile
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Dict
-
-import yaml
-from flare.bffs.sgp import SGP_Wrapper
-from flare.bffs.sgp.calculator import SGP_Calculator
+from typing import Dict, List, Optional
 
 import numpy as np
+import yaml
 from ase import Atoms
-from yaml import CLoader
-
+from flare.bffs.sgp import SGP_Wrapper
+from flare.bffs.sgp.calculator import SGP_Calculator
 from flare_experiment.utilities.utils import parse_lammps_dump
+from yaml import CLoader
 
 
 @dataclass(kw_only=True)

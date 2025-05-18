@@ -7,9 +7,9 @@ from flare.bffs.sgp import SGP_Wrapper
 from flare.bffs.sgp.calculator import SGP_Calculator
 from matplotlib import pyplot as plt
 
-from flare_experiment.utilities import PLOT_STYLE_PATH, PLEASANT_FIG_SIZE
-from flare_experiment.utilities.single_point_calculator import StillingerWeberSinglePointCalculator, \
-    MappedFlareSinglePointCalculator
+from flare_experiment.utilities import PLEASANT_FIG_SIZE, PLOT_STYLE_PATH
+from flare_experiment.utilities.single_point_calculator import (
+    MappedFlareSinglePointCalculator, StillingerWeberSinglePointCalculator)
 from flare_experiment.utilities.utils import parse_lammps_dump
 
 plt.style.use(PLOT_STYLE_PATH)

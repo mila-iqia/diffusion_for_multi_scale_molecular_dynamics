@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from ase import Atoms
 import numpy as np
+from ase import Atoms
 
 
 @dataclass(kw_only=True)

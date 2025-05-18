@@ -1,11 +1,11 @@
 from typing import Dict
 
-from flare.bffs.sgp import SGP_Wrapper
-from flare.bffs.sgp.sparse_gp import compute_negative_likelihood_grad_stable, compute_negative_likelihood
-
 import numpy as np
-
+from flare.bffs.sgp import SGP_Wrapper
+from flare.bffs.sgp.sparse_gp import (compute_negative_likelihood,
+                                      compute_negative_likelihood_grad_stable)
 from scipy.optimize import minimize
+
 
 class OptimizationTracker:
     def __init__(self):

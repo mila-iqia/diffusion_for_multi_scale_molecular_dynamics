@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def linear_fit_and_r2(x: np.ndarray, y: np.ndarray):
 
     coeffs = np.polyfit(x, y, deg=1)
