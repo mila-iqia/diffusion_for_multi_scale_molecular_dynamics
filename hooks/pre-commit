@@ -3,13 +3,11 @@
 # exit at the first error
 set -e
 
-IGNORE=experiments/flare_and_artn_in_container
+IGNORE=experiments/flare_and_artn_in_container/
 
 # linting
-flake8 
-
-flake8 --ignore D,W503 --max-line-length=120 .  --exclude $IGNORE # Check everything but docstrings
-flake8 --select D --ignore D104,D100,D401 --docstring-convention google --exclude $IGNORE,tests/  # Check only the docstrings
+flake8 --ignore D,W503 --max-line-length=120 --exclude "$IGNORE" .  # Check everything but docstrings
+flake8 --select D --ignore D104,D100,D401 --docstring-convention google --exclude "$IGNORE",tests   # Check only the docstrings
 isort --check .  # Check imports
 
 # Raise error if any staged notebooks contain outputs
