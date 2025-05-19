@@ -50,21 +50,21 @@ class TestNearestNeighborsExcision:
         return lp
 
     @pytest.fixture
-    def atom_relative_positions(self, number_of_atoms, spatial_dimension):
+    def atom_relative_coordinates(self, number_of_atoms, spatial_dimension):
         return np.random.random((number_of_atoms, spatial_dimension))
 
     @pytest.fixture
-    def atom_cartesian_positions(self, atom_relative_positions, basis_vectors):
-        return np.matmul(atom_relative_positions, basis_vectors)
+    def atom_cartesian_positions(self, atom_relative_coordinates, basis_vectors):
+        return np.matmul(atom_relative_coordinates, basis_vectors)
 
     @pytest.fixture
     def atom_species(self, number_of_atoms):
         return np.arange(number_of_atoms)
 
     @pytest.fixture
-    def structure_axl(self, atom_species, atom_relative_positions, lattice_parameters):
+    def structure_axl(self, atom_species, atom_relative_coordinates, lattice_parameters):
         struct_axl = AXL(
-            A=atom_species, X=atom_relative_positions, L=lattice_parameters
+            A=atom_species, X=atom_relative_coordinates, L=lattice_parameters
         )
         return struct_axl
 
@@ -84,7 +84,7 @@ class TestNearestNeighborsExcision:
     ):
         central_atom_position = atom_cartesian_positions[central_atom_idx, :]
         box_dimensions = np.diag(basis_vectors)[np.newaxis, :]
-        atoms_relative_positions_in_environment = []
+        atoms_relative_coordinates_in_environment = []
         atoms_species_in_environment = []
         distances_squared = []
         for idx, atom_position in enumerate(atom_cartesian_positions):
@@ -104,11 +104,11 @@ class TestNearestNeighborsExcision:
         )
         closest_atoms = closest_atoms[: number_of_neighbors + 1]
         for idx in closest_atoms:
-            atoms_relative_positions_in_environment.append(structure_axl.X[idx, :])
+            atoms_relative_coordinates_in_environment.append(structure_axl.X[idx, :])
             atoms_species_in_environment.append(structure_axl.A[idx])
         expected_environment = AXL(
             A=np.stack(atoms_species_in_environment),
-            X=np.stack(atoms_relative_positions_in_environment),
+            X=np.stack(atoms_relative_coordinates_in_environment),
             L=structure_axl.L,
         )
 

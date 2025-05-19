@@ -44,9 +44,9 @@ class NearestNeighborsExcision(BaseEnvironmentExcision):
         Returns:
             excised_substructure: all atoms within a distance radial_cutoff of the central atom (including itself).
         """
-        central_atom_position = structure.X[central_atom_idx, :]
+        central_atom_relative_coordinates = structure.X[central_atom_idx, :]
         distances_from_central_atom = get_distances_from_reference_point(
-            structure.X, central_atom_position, structure.L
+            structure.X, central_atom_relative_coordinates, structure.L
         )
         # find the indices sorting the distances from closer to most distant
         sorted_indices = np.argsort(distances_from_central_atom)
