@@ -1,6 +1,12 @@
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
+import torch
+
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
+    get_positions_from_coordinates,
+    map_lattice_parameters_to_unit_cell_vectors)
 
 
 def get_structures_for_retraining(
@@ -63,6 +69,8 @@ def extract_target_region(
 ) -> pd.DataFrame:
     """Extract the atom with the worst evaluation criteria and all the atoms within a distance extraction_radious.
 
+    This is obsolete. The excisor methods should be used instead.
+
     Args:
         structure_df: dataframe with the atomic positions and the evaluation criteria (e.g. MaxVol value)
         extraction_radius: include all atoms within this distance of the targeted atom
@@ -81,6 +89,47 @@ def extract_target_region(
         axis=1,
     )
     atom_positions = structure_df.loc[
-        structure_df["distance_squared"] <= extraction_radius**2, ["x", "y", "z", "species"]
+        structure_df["distance_squared"] <= extraction_radius**2,
+        ["x", "y", "z", "species"],
     ]
     return atom_positions
+
+
+def get_distances_from_reference_point(
+    atom_relative_coordinates: np.ndarray,
+    reference_point_relative_coordinates: np.array,
+    lattice_parameters: np.array,
+) -> np.ndarray:
+    """Find the distance between a point and a reference point, taking into account periodicity.
+
+    Args:
+        atom_relative_coordinates: atom relative coordinates as a (natom, spatial dimension) array
+        reference_point_relative_coordinates: reference point as a (spatial dimension, ) array
+        lattice_parameters: lattice parameters. The lattice is assumed to be orthogonal. (spatial dimension, ) array
+
+    Returns:
+        distances as a (natom, ) array
+    """
+    basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
+        torch.tensor(lattice_parameters)
+    )
+    cartesian_positions = get_positions_from_coordinates(
+        torch.tensor(atom_relative_coordinates), basis_vectors
+    )
+
+    reference_point_cartesian_positions = get_positions_from_coordinates(
+        torch.tensor(reference_point_relative_coordinates).unsqueeze(0), basis_vectors
+    )
+
+    # TODO we assume an orthogonal box here
+    box_distances_parameters = torch.diag(basis_vectors).numpy()
+    distances = (
+        cartesian_positions.numpy() - reference_point_cartesian_positions.numpy()
+    )
+    distances_squared = np.minimum(
+        distances**2, (distances - box_distances_parameters) ** 2
+    )
+    distances_squared = np.minimum(
+        distances_squared, (distances + box_distances_parameters) ** 2
+    )
+    return np.sqrt(distances_squared.sum(axis=-1))
