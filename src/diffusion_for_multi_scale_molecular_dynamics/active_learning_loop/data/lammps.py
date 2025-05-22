@@ -1,4 +1,4 @@
-""" LAMMPS.
+"""LAMMPS.
 
 This module implements methods to read LAMMPS dump output. It is assumed that the dump files are in the
 yaml format, and that the thermo data is included in the same file.
@@ -7,15 +7,13 @@ The aim of this module is to extract single point calculations for further proce
 different from what is done in src/diffusion_for_multi_scale_molecular_dynamics/data/parse_lammps_outputs.py,
 where there the goal is to combine the data into a parquet archive for training a generative model.
 """
-
-from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Tuple, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import yaml
-from pymatgen.core import Structure, Lattice
+from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 from yaml import CLoader
 
@@ -64,7 +62,7 @@ def _parse_thermo_fields(yaml_document: Dict) -> Dict:
     assert 'thermo' in yaml_document, "The input document does not have the keyword thermo"
     keywords = yaml_document['thermo'][0]['keywords']
     data = yaml_document['thermo'][1]['data']
-    results = {k:v for k,v in zip(keywords, data)}
+    results = {k: v for k, v in zip(keywords, data)}
     return results
 
 
@@ -83,10 +81,10 @@ def _get_structure_from_atoms_dataframe(atoms_df: pd.DataFrame, cell_dimensions:
     lattice = Lattice(matrix=np.diag(cell_dimensions), pbc=(True, True, True))
 
     structure = Structure(lattice=lattice,
-        species=atoms_df[_ELEMENT_FIELD].values,
-        coords=atoms_df[_POSITIONS_FIELDS].values,
-        coords_are_cartesian=True,
-    )
+                          species=atoms_df[_ELEMENT_FIELD].values,
+                          coords=atoms_df[_POSITIONS_FIELDS].values,
+                          coords_are_cartesian=True,
+                          )
 
     return structure
 
@@ -96,33 +94,18 @@ def _get_forces_from_atoms_dataframe(atoms_df: pd.DataFrame) -> np.ndarray:
     return atoms_df[_FORCES_FIELDS].values
 
 
+def extract_structures_forces_and_energies_from_dump(lammps_dump_path: Path) -> (
+        Tuple)[List[Structure], List[np.ndarray], List[float]]:
+    """Extract structures, forces and energies from lammps dump.
 
+    Args:
+        lammps_dump_path: path to a lammps dump file, in yaml format, assumed to also contain the thermo data.
 
-"""
-def get_atoms(df, cell):
-    expected_keywords = {"element", "x", "y", "z"}
-    assert expected_keywords.issubset(set(df.columns))
-    symbols = df['element'].values
-    positions = df[['x', 'y', 'z']].values
-    atoms = Atoms(positions=positions, symbols=symbols, cell=cell, pbc=[True, True, True])
-    return atoms
-
-def get_forces(df):
-    expected_keywords = {"fx", "fy", "fz"}
-    assert expected_keywords.issubset(set(df.columns))
-    forces = df[['fx', 'fy', 'fz']].values
-    return forces
-
-def get_uncertainty(df):
-    expected_keywords = {"c_unc"}
-    assert expected_keywords.issubset(set(df.columns))
-    uncertainties = df["c_unc"].values
-    return uncertainties
-"""
-
-
-def extract_structures_forces_and_energies_from_dump(lammps_dump_path: Path) -> Tuple[List[Structure], List[np.ndarray], List[float]]:
-    """Extract structures from dump."""
+    Returns:
+        list_structures: the structures in the dump file.
+        list_forces: the forces in the dump file, in the same order as the structures.
+        list_energies: the energies in the dump file, in the same order as the structures.
+    """
     list_structures = []
     list_forces = []
     list_energies = []
@@ -139,5 +122,3 @@ def extract_structures_forces_and_energies_from_dump(lammps_dump_path: Path) -> 
             list_energies.append(global_data_dict[_ENERGY_FIELD])
 
     return list_structures, list_forces, list_energies
-
-
