@@ -103,7 +103,7 @@ class BaseEnvironmentExcision(ABC):
         return sorted_indices
 
     def excise_environments(
-        self, structure: AXL, uncertainty_per_atom: np.array
+        self, structure: AXL, uncertainty_per_atom: np.array, center_atoms: bool = True
     ) -> List[AXL]:
         """Extract all environments around the atoms satisfying the uncertainty constraints.
 
@@ -113,16 +113,45 @@ class BaseEnvironmentExcision(ABC):
             structure: crystal structure, including atomic species, relative coordinates and lattice parameters
             uncertainty_per_atom: uncertainty associated to each atom. The order is assumed to be the same as those in
                 the structure variable.
+            center_atoms: if True, apply a translation to all atoms such that the central atom is in the middle of the
+                box. Defaults to True.
 
         Returns:
             environments: list of excised spheres around the highest uncertainties atoms as a list of AXL.
         """
         central_atoms_indices = self.select_central_atoms(uncertainty_per_atom)
         environments = [
-            self._excise_one_environment(structure, atom)
-            for atom in central_atoms_indices
+            self._excise_one_environment(structure, atom_index)
+            for atom_index in central_atoms_indices
         ]
+        if center_atoms:
+            environments = [self.center_structure(environment, atom_index) for environment, atom_index in
+                            zip(environments, central_atoms_indices)]
         return environments
+
+    @staticmethod
+    def center_structure(
+        structure: AXL,
+        atom_index: int
+    ) -> AXL:
+        """Center the atom around which the excision occurred.
+
+        Args:
+            structure: crystal structure, including atomic species, relative coordinates and lattice parameters
+            atom_index: index around which the excision occurred. This atom will be translated to the center of the box.
+
+        Returns:
+            translated_structure: structure translated so that atom denoted with atom_index is at the center of the box
+        """
+        central_atom_relative_coordinates = structure.X[atom_index, :]
+        translation_to_apply = np.ones_like(central_atom_relative_coordinates) * 0.5 - central_atom_relative_coordinates
+        translated_relative_coordinates = np.mod(structure.X - translation_to_apply, 1)
+        translated_structure = AXL(
+            A=structure.A,
+            X=translated_relative_coordinates,
+            L=structure.L
+        )
+        return translated_structure
 
     @abstractmethod
     def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> AXL:
@@ -142,7 +171,8 @@ class BaseEnvironmentExcision(ABC):
 class NoOpEnvironmentExcisionArguments(BaseEnvironmentExcisionArguments):
     """Parameters for a trivial excision method."""
 
-    algorithm = "NoOpExcision"
+    algorithm: str = "NoOpExcision"
+    excise_top_k_environment: int = 1  # set a value to pass the post_init checks
 
 
 class NoOpEnvironmentExcision(BaseEnvironmentExcision):
