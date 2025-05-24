@@ -124,28 +124,29 @@ class BaseEnvironmentExcision(ABC):
             self._excise_one_environment(structure, atom_index)
             for atom_index in central_atoms_indices
         ]
+
         if center_atoms:
-            environments = [self.center_structure(environment, atom_index) for environment, atom_index in
-                            zip(environments, central_atoms_indices)]
+            environments = [self.center_structure(environment) for environment in environments]
         return environments
 
     @staticmethod
     def center_structure(
         structure: AXL,
-        atom_index: int
+        atom_index: int = 0
     ) -> AXL:
         """Center the atom around which the excision occurred.
 
         Args:
             structure: crystal structure, including atomic species, relative coordinates and lattice parameters
             atom_index: index around which the excision occurred. This atom will be translated to the center of the box.
+                Defaults to 0.
 
         Returns:
             translated_structure: structure translated so that atom denoted with atom_index is at the center of the box
         """
         central_atom_relative_coordinates = structure.X[atom_index, :]
         translation_to_apply = np.ones_like(central_atom_relative_coordinates) * 0.5 - central_atom_relative_coordinates
-        translated_relative_coordinates = np.mod(structure.X - translation_to_apply, 1)
+        translated_relative_coordinates = np.mod(structure.X + translation_to_apply, 1)
         translated_structure = AXL(
             A=structure.A,
             X=translated_relative_coordinates,

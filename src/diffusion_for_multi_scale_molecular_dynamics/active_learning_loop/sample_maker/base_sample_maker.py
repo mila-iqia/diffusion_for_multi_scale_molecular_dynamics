@@ -151,11 +151,11 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         """
         # get the basis vectors for the large box
         original_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
-            torch.tensor(structure_with_centered_atoms.L)
+            torch.tensor(structure_with_centered_atoms.L).float()
         )
         # basis vectors for the small box
         new_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
-            torch.tensor(new_lattice_parameters)
+            torch.tensor(new_lattice_parameters).float()
         )
 
         # atoms are centered in the box - so the central atom coordinates should be (0.5, 0.5, ...) by definition
@@ -165,7 +165,7 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         reduced_coordinates_as_vector_translation = reduced_coordinates_in_large_box - np.ones_like(reduced_coordinates_in_large_box) * 0.5
         # we can make those vector to vectors in the cartesian positions space
         cartesian_positions_as_vector_translation = get_positions_from_coordinates(
-            torch.tensor(reduced_coordinates_as_vector_translation),
+            torch.tensor(reduced_coordinates_as_vector_translation).float(),  # have to cast to float explicitly
             basis_vectors=original_basis_vectors
         )
 

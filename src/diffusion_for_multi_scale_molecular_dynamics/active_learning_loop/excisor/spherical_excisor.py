@@ -46,12 +46,19 @@ class SphericalExcision(BaseEnvironmentExcision):
         distances_from_central_atom = get_distances_from_reference_point(
             structure.X, central_atom_relative_coordinates, structure.L
         )
+        # get all atom indices closer than the threshold
         indices_closer_than_threshold = np.where(
             distances_from_central_atom < self.radial_cutoff
         )[0]
+        # sort the indices from closest (the central atom index) to the most distant
+        distances_under_cutoff = distances_from_central_atom[indices_closer_than_threshold]
+        sorted_in_subset = np.argsort(distances_under_cutoff)
+        sorted_indices_closer_than_threshold = indices_closer_than_threshold[sorted_in_subset]
+
+        # slice the AXL accordingly
         excised_substructure = AXL(
-            A=structure.A[indices_closer_than_threshold],
-            X=structure.X[indices_closer_than_threshold, :],
+            A=structure.A[sorted_indices_closer_than_threshold],
+            X=structure.X[sorted_indices_closer_than_threshold, :],
             L=structure.L,
         )
         return excised_substructure
