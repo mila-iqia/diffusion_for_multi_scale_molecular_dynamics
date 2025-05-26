@@ -6,8 +6,8 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
     NoOpEnvironmentExcision, NoOpEnvironmentExcisionArguments)
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_repaint_sample_maker \
-    import ExciseAndRepaintSampleMaker, ExciseAndRepaintSampleMakerArguments
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_repaint_sample_maker import (  # noqa
+    ExciseAndRepaintSampleMaker, ExciseAndRepaintSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
