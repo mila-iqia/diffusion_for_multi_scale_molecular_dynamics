@@ -47,6 +47,12 @@ class BaseSampleMaker(ABC):
     def __init__(
         self, sample_maker_arguments: BaseSampleMakerArguments, device: str = "cpu"
     ):
+        """Init method.
+
+        Args:
+            sample_maker_arguments: arguments defining the sample maker method
+            device: device for the score network model. Defaults to cpu.
+        """
         self.arguments = sample_maker_arguments
         self.sample_box_strategy = sample_maker_arguments.sample_box_strategy
         self.device = torch.device(device)
@@ -57,10 +63,27 @@ class BaseSampleMaker(ABC):
         structure: AXL,
         uncertainty_per_atom: np.array,
     ) -> List[AXL]:
+        """Create samples based on the provided structure.
+
+        Args:
+            structure: initial atomic configuration as an AXL object
+            uncertainty_per_atom: uncertainty for each atom in the structure AXL.
+
+        Returns:
+            list of generated structure
+        """
         pass
 
     @abstractmethod
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
+        """Rules for rejecting samples.
+
+        Args:
+            structures: list of generates samples as AXL
+
+        Returns:
+            filtered list of samples as AXL
+        """
         pass
 
     def make_filtered_samples(
@@ -68,11 +91,30 @@ class BaseSampleMaker(ABC):
         structure: AXL,
         uncertainty_per_atom: np.array,
     ) -> List[AXL]:
+        """Generate a list of samples and filter them.
+
+        This combines the make_samples and filter_made_samples in a single call.
+
+        Args:
+            structure: initial atomic configuration as an AXL object
+            uncertainty_per_atom: uncertainty for each atom in the structure AXL.
+
+        Returns:
+             filtered list of samples as AXL
+        """
         unfiltered_samples = self.make_samples(structure, uncertainty_per_atom)
         filtered_samples = self.filter_made_samples(unfiltered_samples)
         return filtered_samples
 
     def make_new_lattice_parameters(self, structure: AXL) -> np.array:
+        """Get the lattice parameters for a generated structure given the initial one.
+
+        Args:
+            structure: initial atomic configuration as an AXL object
+
+        Returns:
+            lattice parameters for the generated structure
+        """
         match self.arguments.sample_box_strategy:
             case "noop":
                 return structure.L
@@ -98,9 +140,11 @@ class NoOpSampleMaker(BaseSampleMaker):
         structure: AXL,
         uncertainty_per_atom: np.array,
     ) -> List[AXL]:
+        """Noop make samples."""
         return [structure]
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
+        """Noop filter samples."""
         return structures
 
 
@@ -124,6 +168,7 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         sample_maker_arguments: BaseExciseSampleMakerArguments,
         environment_excisor: BaseEnvironmentExcision,
     ):
+        """Init method."""
         super().__init__(sample_maker_arguments)
         self.environment_excisor = environment_excisor
 
@@ -301,4 +346,5 @@ class NoOpExciseSampleMaker(BaseExciseSampleMaker):
         return [substructure] * num_samples
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
+        """Return identical structures."""
         return structures

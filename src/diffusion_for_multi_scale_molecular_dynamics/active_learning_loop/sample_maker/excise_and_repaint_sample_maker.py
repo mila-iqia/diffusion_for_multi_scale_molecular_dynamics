@@ -22,10 +22,16 @@ from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling im
 
 @dataclass(kw_only=True)
 class ExciseAndRepaintSampleMakerArguments(BaseExciseSampleMakerArguments):
+    """Arguments for a sample generator based on the excise and repaint approach."""
     algorithm: str = "excise_and_repaint"
 
 
 class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
+    """Sample maker for the excise and repaint approach.
+
+    An excisor extract atomic environments with high uncertainties and a diffusion model is used to repaint around
+    them.
+    """
     def __init__(
         self,
         sample_maker_arguments: ExciseAndRepaintSampleMakerArguments,
@@ -34,6 +40,15 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         sampling_parameters: SamplingParameters,
         diffusion_model: ScoreNetwork,
     ):
+        """Init method.
+
+        Args:
+            sample_maker_arguments: arguments for the excise and repaint sample maker
+            environment_excisor: atomic environment excisor
+            noise_parameters: noise parameters used for the diffusion model
+            sampling_parameters: sampling parameters used for the diffusion model
+            diffusion_model: score network used for constrained generation (repainting)
+        """
         super().__init__(sample_maker_arguments, environment_excisor)
         self.sample_noise_parameters = noise_parameters
         self.sampling_parameters = sampling_parameters
@@ -62,6 +77,14 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
 
     @staticmethod
     def torch_batch_axl_to_list_of_numpy_axl(axl_structure: AXL):
+        """Convert an AXL of torch.tensor with a batch_size dimension to a list of numpy AXL.
+
+        Args:
+            axl_structure: AXL with torch.tensor. The first dimension for A, X and L is the batch_size.
+
+        Returns:
+            list of batch_size AXL with numpy array without a batch dimension.
+        """
         atoms_type = axl_structure.A.cpu().numpy()  # (batch, natom)
         relative_coordinates = (
             axl_structure.X.cpu().numpy()
@@ -111,4 +134,5 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         return new_structures
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
+        """Return identical structures."""
         return structures
