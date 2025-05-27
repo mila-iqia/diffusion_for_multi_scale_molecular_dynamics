@@ -68,15 +68,12 @@ train_diffusion = "diffusion_for_multi_scale_molecular_dynamics.train_diffusion:
 sample_diffusion = "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion:main"
 
 
-# TODO: create a proper build-system entry 
-#[build-system]
-#requires = [
-#    "scikit-build-core>=0.7.0",  # Core build system
-#    "pybind11>=2.11.0",        # For pybind11 headers and CMake helpers
-#]
-#build-backend = "scikit_build_core.build"
-#backend-path = ["."]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+allow-direct-references = true # This is necessary for the FLARE optional dependency
 
 [tool.pytest.ini_options]
 testpaths = ["tests/"]

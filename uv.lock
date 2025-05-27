@@ -810,7 +810,7 @@ wheels = [
 [[package]]
 name = "diffusion-for-multi-scale-molecular-dynamics"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "black" },
     { name = "comet-ml" },
