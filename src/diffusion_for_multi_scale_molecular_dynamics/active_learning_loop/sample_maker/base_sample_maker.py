@@ -163,6 +163,7 @@ class BaseExciseSampleMakerArguments(BaseSampleMakerArguments):
 
     def __post_init__(self):
         """Post init checks."""
+        super().__post_init__()
         assert (
             self.max_constrained_substructure == _UNLIMITED_CONSTRAINED_STRUCTURE
             or self.max_constrained_substructure > 0
