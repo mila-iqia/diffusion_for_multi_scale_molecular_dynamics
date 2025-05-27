@@ -14,6 +14,8 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_lattice_parameters_to_unit_cell_vectors,
     map_numpy_unit_cell_to_lattice_parameters)
 
+_UNLIMITED_CONSTRAINED_STRUCTURE = -1
+
 
 @dataclass(kw_only=True)
 class BaseSampleMakerArguments:
@@ -44,18 +46,15 @@ class BaseSampleMakerArguments:
 class BaseSampleMaker(ABC):
     """Base class for the method making new samples."""
 
-    def __init__(
-        self, sample_maker_arguments: BaseSampleMakerArguments, device: str = "cpu"
-    ):
+    def __init__(self, sample_maker_arguments: BaseSampleMakerArguments, **kwargs):
         """Init method.
 
         Args:
             sample_maker_arguments: arguments defining the sample maker method
-            device: device for the score network model. Defaults to cpu.
+            kwargs: optional arguments.
         """
         self.arguments = sample_maker_arguments
         self.sample_box_strategy = sample_maker_arguments.sample_box_strategy
-        self.device = torch.device(device)
 
     @abstractmethod
     def make_samples(
@@ -121,7 +120,9 @@ class BaseSampleMaker(ABC):
             case "fixed":
                 return self.arguments.new_box_lattice_parameters
             case _:  # something went wrong, an invalid box making strategy is used
-                return None
+                raise NotImplementedError(
+                    f"{self.arguments.sample_box_strategy} is an invalid box making strategy."
+                )
 
 
 @dataclass(kw_only=True)
@@ -153,11 +154,23 @@ class BaseExciseSampleMakerArguments(BaseSampleMakerArguments):
     """Parameters for a sample maker relying on an excision method to find the constrained atoms."""
 
     max_constrained_substructure: int = (
-        -1
-    )  # max number of problematic environment to consider. -1 means no limit.
+        _UNLIMITED_CONSTRAINED_STRUCTURE  # max number of problematic environment to consider. If the value is
+        # _UNLIMITED_CONSTRAINED_STRUCTURE (-1), then no limits are assumed.
+    )
     number_of_samples_per_substructure: int = (
         1  # number of samples to make for each sub-environment excised
     )
+
+    def __post_init__(self):
+        """Post init checks."""
+        assert (
+            self.max_constrained_substructure == _UNLIMITED_CONSTRAINED_STRUCTURE
+            or self.max_constrained_substructure > 0
+        ), (
+            "max_constrained_substructure should be greater than 0 or be "
+            f"equal to {_UNLIMITED_CONSTRAINED_STRUCTURE}."
+            f"Got {self.max_constrained_substructure}"
+        )
 
 
 class BaseExciseSampleMaker(BaseSampleMaker):
@@ -216,28 +229,28 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         )
 
         # atoms are centered in the box - so the central atom coordinates should be (0.5, 0.5, ...) by definition
-        reduced_coordinates_in_large_box = structure_with_centered_atoms.X
+        relative_coordinates_in_large_box = structure_with_centered_atoms.X
 
         # we can redefine the coordinates of an atom as a translation vector from the center of the box
-        reduced_coordinates_as_vector_translation = (
-            reduced_coordinates_in_large_box
-            - np.ones_like(reduced_coordinates_in_large_box) * 0.5
+        relative_coordinates_as_vector_translation = (
+            relative_coordinates_in_large_box
+            - np.ones_like(relative_coordinates_in_large_box) * 0.5
         )
-        # we can make those vector to vectors in the cartesian positions space
+        # we can map those vector as translation vectors in the cartesian positions space
         cartesian_positions_as_vector_translation = get_positions_from_coordinates(
             torch.tensor(
-                reduced_coordinates_as_vector_translation
+                relative_coordinates_as_vector_translation
             ).float(),  # have to cast to float explicitly
             basis_vectors=original_basis_vectors,
         )
 
         # we will place those atoms around the center of the new box
-        spatial_dimension = reduced_coordinates_in_large_box.shape[-1]
-        new_box_center_point_reduced_coordinates = (
+        spatial_dimension = relative_coordinates_in_large_box.shape[-1]
+        new_box_center_point_relative_coordinates = (
             torch.ones(1, spatial_dimension) * 0.5
         )
         new_box_center_point_cartesian_positions = get_positions_from_coordinates(
-            new_box_center_point_reduced_coordinates, basis_vectors=new_basis_vectors
+            new_box_center_point_relative_coordinates, basis_vectors=new_basis_vectors
         )
 
         # place the atoms around the center of the new box
@@ -280,7 +293,8 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         """Make new samples based on the excised substructures created using the uncertainties.
 
         Args:
-            structure: crystal structure, including atomic species, relative coordinates and lattice parameters
+            structure: crystal structure, including atomic species, relative coordinates and lattice parameters.
+                The AXL elements are expected to be numpy arrays.
             uncertainty_per_atom: uncertainty associated to each atom. The order is assumed to be the same as those in
                 the structure variable.
 
@@ -293,8 +307,10 @@ class BaseExciseSampleMaker(BaseSampleMaker):
             )
         )
         if (
-            0
-            < self.arguments.max_constrained_substructure
+            self.arguments.max_constrained_substructure
+            != _UNLIMITED_CONSTRAINED_STRUCTURE
+        ) and (
+            self.arguments.max_constrained_substructure
             < len(constrained_environments_after_excision)
         ):
             constrained_environments_after_excision = (

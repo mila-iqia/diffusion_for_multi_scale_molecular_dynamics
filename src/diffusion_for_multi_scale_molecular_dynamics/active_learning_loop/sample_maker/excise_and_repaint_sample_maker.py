@@ -23,6 +23,7 @@ from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling im
 @dataclass(kw_only=True)
 class ExciseAndRepaintSampleMakerArguments(BaseExciseSampleMakerArguments):
     """Arguments for a sample generator based on the excise and repaint approach."""
+
     algorithm: str = "excise_and_repaint"
 
 
@@ -32,6 +33,7 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
     An excisor extract atomic environments with high uncertainties and a diffusion model is used to repaint around
     them.
     """
+
     def __init__(
         self,
         sample_maker_arguments: ExciseAndRepaintSampleMakerArguments,
@@ -39,6 +41,7 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         noise_parameters: NoiseParameters,
         sampling_parameters: SamplingParameters,
         diffusion_model: ScoreNetwork,
+        device: str = "cpu",
     ):
         """Init method.
 
@@ -48,11 +51,13 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
             noise_parameters: noise parameters used for the diffusion model
             sampling_parameters: sampling parameters used for the diffusion model
             diffusion_model: score network used for constrained generation (repainting)
+            device: torch device to use for the diffusion model. Defaults to cpu.
         """
         super().__init__(sample_maker_arguments, environment_excisor)
         self.sample_noise_parameters = noise_parameters
         self.sampling_parameters = sampling_parameters
         self.diffusion_model = diffusion_model
+        self.device = torch.device(device)
 
     def create_sampling_constraints(
         self,
@@ -105,7 +110,8 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
     ) -> List[AXL]:
         """Create new samples using a constrained structure using a diffusion model to repaint non-constrained atoms.
 
-        This method assumes the constrained structure the lattice parameters are already rescaled (box size is reduced).
+        This method assumes the lattice parameters in the constrained structure are already rescaled
+        (box size is reduced).
 
         Args:
             constrained_structure: excised substructure
