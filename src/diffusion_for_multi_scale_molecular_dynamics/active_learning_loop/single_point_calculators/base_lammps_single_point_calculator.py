@@ -1,13 +1,15 @@
+import subprocess
+import tempfile
 from abc import abstractmethod
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
-import yaml
 from pymatgen.core import Structure
-from yaml import CLoader
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import \
-    BaseSinglePointCalculator  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.data.lammps import \
+    extract_all_fields_from_dump
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import (  # noqa
+    BaseSinglePointCalculator, SinglePointCalculation)
 
 
 class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
@@ -30,6 +32,7 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
     def __init__(self, lammps_executable_path: Path, **kwargs):
         """Init method."""
         super().__init__(self)
+        self._calculation_type = 'LAMMPS'
         assert (
             lammps_executable_path.is_file()
         ), f"The path {lammps_executable_path} does not exist."
@@ -50,17 +53,51 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
             self._input_file_name,
         ]
 
-    def _get_dump_document(self, working_directory: str) -> Dict:
-        with open(Path(working_directory) / "dump.yaml", "r") as fd:
-            dump_yaml = yaml.load_all(fd, Loader=CLoader)
-            list_docs = list(dump_yaml)
-            assert (
-                len(list_docs) == 1
-            ), "There is more than one frame in the dump file. This is not 'single point'!"
+    def _extract_calculation_results(self, tmp_work_dir: str) -> SinglePointCalculation:
+        lammps_dump_path = Path(tmp_work_dir) / "dump.yaml"
 
-            dump_doc = list_docs[0]
+        list_structures, list_forces, list_energies, list_uncertainties = extract_all_fields_from_dump(lammps_dump_path)
+        assert len(list_structures) == 1, "There is more than one frame in the dump file. This is not 'single point'!"
 
-        return dump_doc
+        result = SinglePointCalculation(
+            calculation_type=self._calculation_type,
+            structure=list_structures[0],
+            forces=list_forces[0],
+            energy=list_energies[0],
+            uncertainties=list_uncertainties[0])
+
+        return result
+
+    def calculate(self, structure: Structure) -> SinglePointCalculation:
+        """Calculate.
+
+        Drive LAMMPS execution.
+
+
+        Args:
+            structure: pymatgen structure.
+
+        Returns:
+            calculation_results: the parsed LAMMPS output.
+        """
+        lammps_script_content = self._generate_lammps_script(structure)
+
+        with tempfile.TemporaryDirectory() as tmp_work_dir:
+            with open(Path(tmp_work_dir) / self._input_file_name, "w") as fd:
+                fd.write(lammps_script_content)
+
+            subprocess.run(
+                self._commands,
+                cwd=tmp_work_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,  # Decode stdout and stderr as text
+                check=True  # Raise a CalledProcessError for non-zero exit codes
+            )
+
+            calculation_result = self._extract_calculation_results(tmp_work_dir)
+
+        return calculation_result
 
     def _generate_lammps_script(self, structure: Structure) -> str:
         """Generate LAMMPS script."""
@@ -77,7 +114,7 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
             atomic_number = element.Z
             list_unique_atomic_numbers.append(atomic_number)
             group_id_map[atomic_number] = group_id
-            mass_map[atomic_number] = element.atomic_mass
+            mass_map[atomic_number] = element.atomic_mass.real
             symbol_map[atomic_number] = element.symbol
 
         number_of_atom_types = len(list_unique_atomic_numbers)
