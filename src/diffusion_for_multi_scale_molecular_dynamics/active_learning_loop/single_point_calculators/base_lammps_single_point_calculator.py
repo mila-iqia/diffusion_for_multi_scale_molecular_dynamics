@@ -12,6 +12,8 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps im
     PATH_TO_SINGLE_POINT_CALCULATION_TEMPLATE
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.outputs import \
     extract_all_fields_from_dump
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.ordered_elements import \
+    sort_elements_by_atomic_mass
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import (  # noqa
     BaseSinglePointCalculator, SinglePointCalculation)
 
@@ -92,6 +94,8 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
         list_symbols = []
         for element in structure.elements:
             list_symbols.append(element.symbol)
+
+        list_symbols = sort_elements_by_atomic_mass(list_symbols)
 
         return " ".join(list_symbols)
 
