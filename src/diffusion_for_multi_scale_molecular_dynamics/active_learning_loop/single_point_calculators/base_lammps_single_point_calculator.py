@@ -2,11 +2,15 @@ import subprocess
 import tempfile
 from abc import abstractmethod
 from pathlib import Path
-from typing import List
+from typing import Dict, Union
 
 from pymatgen.core import Structure
+from pymatgen.io.lammps.data import LammpsData
+from pymatgen.io.lammps.inputs import LammpsTemplateGen
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.data.lammps import \
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps import \
+    PATH_TO_SINGLE_POINT_CALCULATION_TEMPLATE
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.outputs import \
     extract_all_fields_from_dump
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import (  # noqa
     BaseSinglePointCalculator, SinglePointCalculation)
@@ -18,33 +22,41 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
     This base class implements generic interactions with LAMMPS, which is assumed to
     be available through an executable.
 
+    Interacting with LAMMPS rely on the pymatgen.io.lammps module to transform Structure
+    objects into a LAMMPS readable file and to drive the generation of the LAMMPS input script.
+
     The specific potential to be used must be implemented in a child class.
     """
 
     @abstractmethod
-    def _generate_pair_style_commands(self, elements_string: str) -> List[str]:
+    def _generate_pair_coeff_command(self, elements_string: str) -> str:
         raise NotImplementedError("must be implemented in child class.")
 
     @abstractmethod
-    def _generate_dump_commands(self, elements_string: str) -> List[str]:
+    def _generate_pair_style_command(self) -> str:
+        raise NotImplementedError("must be implemented in child class.")
+
+    @abstractmethod
+    def _generate_uncertainty_variable_string(self) -> str:
         raise NotImplementedError("must be implemented in child class.")
 
     def __init__(self, lammps_executable_path: Path, **kwargs):
         """Init method."""
         super().__init__(self)
-        self._calculation_type = 'LAMMPS'
+        self._calculation_type = "LAMMPS"
         assert (
             lammps_executable_path.is_file()
         ), f"The path {lammps_executable_path} does not exist."
         self._lammps_executable_path = lammps_executable_path
 
-        self._input_file_name = "in.lammps"
+        self._input_file_name = "lammps.in"
+        self._data_filename = "configuration.dat"
 
-        # Extra flags to keep LAMMPS quiet.
+        # There is a class in pymatgen, pymatgen.io.lammps.utils.LammpsRunner, to drive LAMMPS.
+        # Here we prefer to keep more control over the execution. In particular, we may want to use
+        # mpirun, or to not have lammps in the path.
         self._commands = [
             f"{self._lammps_executable_path}",
-            "-log",
-            "none",
             "-echo",
             "none",
             "-screen",
@@ -53,26 +65,96 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
             self._input_file_name,
         ]
 
-    def _extract_calculation_results(self, tmp_work_dir: str) -> SinglePointCalculation:
-        lammps_dump_path = Path(tmp_work_dir) / "dump.yaml"
+    def _extract_calculation_results(
+        self, working_directory: str
+    ) -> SinglePointCalculation:
+        lammps_dump_path = Path(working_directory) / "dump.yaml"
 
-        list_structures, list_forces, list_energies, list_uncertainties = extract_all_fields_from_dump(lammps_dump_path)
-        assert len(list_structures) == 1, "There is more than one frame in the dump file. This is not 'single point'!"
+        list_structures, list_forces, list_energies, list_uncertainties = (
+            extract_all_fields_from_dump(lammps_dump_path)
+        )
+        assert (
+            len(list_structures) == 1
+        ), "There is more than one frame in the dump file. This is not 'single point'!"
 
         result = SinglePointCalculation(
             calculation_type=self._calculation_type,
             structure=list_structures[0],
             forces=list_forces[0],
             energy=list_energies[0],
-            uncertainties=list_uncertainties[0])
+            uncertainties=list_uncertainties[0],
+        )
 
         return result
+
+    def _generate_elements_string(self, structure: Structure) -> str:
+        """Generate a string which is an ordered list of the unique elements in the structure."""
+        list_symbols = []
+        for element in structure.elements:
+            list_symbols.append(element.symbol)
+
+        return " ".join(list_symbols)
+
+    def _generate_settings_dictionary(self, structure: Structure) -> Dict:
+        """Generate the settings dictionary needed by Pymatgen's templating method."""
+        elements_string = self._generate_elements_string(structure)
+
+        settings = dict(
+            configuration_file_path=self._data_filename,
+            pair_style_command=self._generate_pair_style_command(),
+            pair_coeff_command=self._generate_pair_coeff_command(elements_string),
+            uncertainty_variable_name=self._generate_uncertainty_variable_string(),
+            elements_string=elements_string,
+        )
+
+        return settings
+
+    def calculate_in_work_directory(
+        self, structure: Structure, work_directory: Union[Path, str]
+    ) -> SinglePointCalculation:
+        """Calculate in work directory.
+
+        Drive LAMMPS execution in a given working directory.
+
+        Args:
+            structure: pymatgen structure.
+            work_directory: work directory where inputs and outputs will be recorded..
+
+        Returns:
+            calculation_results: the parsed LAMMPS output.
+        """
+        Path(work_directory).mkdir(parents=True, exist_ok=True)
+
+        settings = self._generate_settings_dictionary(structure)
+        lammps_data = LammpsData.from_structure(structure, atom_style="atomic")
+
+        input_set = LammpsTemplateGen().get_input_set(
+            script_template=PATH_TO_SINGLE_POINT_CALCULATION_TEMPLATE,
+            settings=settings,
+            script_filename=self._input_file_name,
+            data=lammps_data,
+            data_filename=self._data_filename,
+        )
+
+        input_set.write_input(work_directory)
+
+        subprocess.run(
+            self._commands,
+            cwd=work_directory,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,  # Decode stdout and stderr as text
+            check=True,  # Raise a CalledProcessError for non-zero exit codes
+        )
+
+        calculation_result = self._extract_calculation_results(work_directory)
+
+        return calculation_result
 
     def calculate(self, structure: Structure) -> SinglePointCalculation:
         """Calculate.
 
         Drive LAMMPS execution.
-
 
         Args:
             structure: pymatgen structure.
@@ -80,76 +162,9 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
         Returns:
             calculation_results: the parsed LAMMPS output.
         """
-        lammps_script_content = self._generate_lammps_script(structure)
-
         with tempfile.TemporaryDirectory() as tmp_work_dir:
-            with open(Path(tmp_work_dir) / self._input_file_name, "w") as fd:
-                fd.write(lammps_script_content)
-
-            subprocess.run(
-                self._commands,
-                cwd=tmp_work_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,  # Decode stdout and stderr as text
-                check=True  # Raise a CalledProcessError for non-zero exit codes
+            calculation_result = self.calculate_in_work_directory(
+                structure, tmp_work_dir
             )
 
-            calculation_result = self._extract_calculation_results(tmp_work_dir)
-
         return calculation_result
-
-    def _generate_lammps_script(self, structure: Structure) -> str:
-        """Generate LAMMPS script."""
-        a1, a2, a3 = structure.lattice.abc
-        cartesian_positions = structure.cart_coords
-        all_atomic_numbers = [site.specie.Z for site in structure.sites]
-
-        group_id_map = dict()
-        mass_map = dict()
-        symbol_map = dict()
-
-        list_unique_atomic_numbers = []
-        for group_id, element in enumerate(structure.elements, 1):
-            atomic_number = element.Z
-            list_unique_atomic_numbers.append(atomic_number)
-            group_id_map[atomic_number] = group_id
-            mass_map[atomic_number] = element.atomic_mass.real
-            symbol_map[atomic_number] = element.symbol
-
-        number_of_atom_types = len(list_unique_atomic_numbers)
-
-        commands = []
-        commands.append("units metal")
-        commands.append("atom_style atomic")
-        commands.append(f"region simbox block 0 {a1} 0 {a2} 0 {a3}")
-        commands.append(f"create_box {number_of_atom_types} simbox")
-
-        elements_string = ""
-        for atomic_number in list_unique_atomic_numbers:
-            group_id = group_id_map[atomic_number]
-            symbol = symbol_map[atomic_number]
-            mass = mass_map[atomic_number]
-
-            elements_string += f" {symbol}"
-            commands.append(f"group {symbol} type {group_id}")
-            commands.append(f"mass {group_id} {mass}")
-
-        pair_style_commands = self._generate_pair_style_commands(elements_string)
-        commands.extend(pair_style_commands)
-
-        for atomic_number, cartesian_position in zip(
-            all_atomic_numbers, cartesian_positions
-        ):
-            group_id = group_id_map[atomic_number]
-            positions_string = " ".join(map(str, cartesian_position))
-            commands.append(f"create_atoms {group_id} single {positions_string}")
-
-        dump_commands = self._generate_dump_commands(elements_string)
-
-        commands.extend(dump_commands)
-
-        commands.append("run 0")
-
-        lammps_script_content = "\n".join(commands)
-        return lammps_script_content
