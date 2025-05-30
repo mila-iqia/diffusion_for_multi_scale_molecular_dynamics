@@ -86,6 +86,7 @@ class TestSphericalExcision:
         box_dimensions = np.diag(basis_vectors)[np.newaxis, :]
         atoms_positions_in_environment = []
         atoms_species_in_environment = []
+        all_distances_squared = []
         for idx, atom_position in enumerate(atom_cartesian_positions):
             separation_between_atoms = atom_position - central_atom_position
             separation_squared_between_atoms = np.minimum(
@@ -98,11 +99,13 @@ class TestSphericalExcision:
             )
             distance_squared = separation_squared_between_atoms.sum(axis=-1)
             if distance_squared < radial_cutoff**2:
+                all_distances_squared.append(distance_squared.item())
                 atoms_positions_in_environment.append(structure_axl.X[idx])
                 atoms_species_in_environment.append(structure_axl.A[idx])
+        sorted_idx = np.argsort(all_distances_squared).tolist()
         expected_environment = AXL(
-            A=np.stack(atoms_species_in_environment),
-            X=np.stack(atoms_positions_in_environment),
+            A=np.stack(np.array(atoms_species_in_environment)[sorted_idx]),
+            X=np.stack(np.array(atoms_positions_in_environment)[sorted_idx]),
             L=structure_axl.L,
         )
 
