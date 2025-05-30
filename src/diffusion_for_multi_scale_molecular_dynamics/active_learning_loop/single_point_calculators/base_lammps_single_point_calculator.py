@@ -145,8 +145,6 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
             positions_string = " ".join(map(str, cartesian_position))
             commands.append(f"create_atoms {group_id} single {positions_string}")
 
-        commands.append("fix 1 all nvt temp 300 300 0.01")
-
         dump_commands = self._generate_dump_commands(elements_string)
 
         commands.extend(dump_commands)
