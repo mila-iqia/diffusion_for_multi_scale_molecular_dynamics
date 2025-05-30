@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import yaml
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.data.lammps import \
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.outputs import \
     extract_all_fields_from_dump
 from tests.fake_data_utils import (create_dump_single_record,
                                    generate_fake_configuration)
