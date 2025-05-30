@@ -1,0 +1,30 @@
+# LAMMPS input script generated from a template.
+
+# ---------- Initialize Simulation ---------------------
+units metal
+atom_style atomic
+
+
+# ---------- Read configuration data ---------------------
+read_data $configuration_file_path
+
+
+# ---------- Define Pair Style ---------------------
+$pair_style_command
+$pair_coeff_command
+
+
+# ---------- Output atoms and thermo properties ----
+dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz $uncertainty_variable_name
+dump_modify dump_id element  $elements_string
+dump_modify dump_id thermo yes
+
+# output thermo field at every step
+thermo 1
+
+# output the potential energy, in field PotEng
+thermo_style custom pe
+
+
+# ---------- Perform Single Point Calculation -----------
+run 0
