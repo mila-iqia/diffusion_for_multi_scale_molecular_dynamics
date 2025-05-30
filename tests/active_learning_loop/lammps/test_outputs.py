@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 import yaml
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.namespace import (
+    ENERGY_FIELD, UNCERTAINTY_FIELD)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.outputs import \
     extract_all_fields_from_dump
 from tests.fake_data_utils import (create_dump_single_record,
@@ -13,7 +15,7 @@ from tests.fake_data_utils import (create_dump_single_record,
 def inject_uncertainty_field_in_yaml_document(
     doc: Dict, uncertainties: np.array
 ) -> Dict:
-    doc["keywords"].append("c_uncertainty")
+    doc["keywords"].append(UNCERTAINTY_FIELD)
     old_data = doc["data"]
     new_data = []
     for row, u in zip(old_data, uncertainties):
@@ -88,7 +90,7 @@ def yaml_documents(configurations, use_uncertainty, list_expected_uncertainties)
         doc = create_dump_single_record(configuration, timestep)
         # Inject the thermo data in the document.
         doc["thermo"] = [
-            dict(keywords=["Step", "PotEng"]),
+            dict(keywords=["Step", ENERGY_FIELD]),
             dict(data=[timestep, configuration.potential_energy]),
         ]
 

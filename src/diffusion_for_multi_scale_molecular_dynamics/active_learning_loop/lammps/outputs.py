@@ -18,13 +18,9 @@ from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 from yaml import CLoader
 
-_ID_FIELD = "id"  # the atom id
-_ELEMENT_FIELD = "element"
-_POSITIONS_FIELDS = ["x", "y", "z"]  # the atomic cartesian positions
-_FORCES_FIELDS = ["fx", "fy", "fz"]  # the atomic forces
-_BOX_FIELD = "box"
-_ENERGY_FIELD = "PotEng"
-_UNCERTAINTY_FIELD = "c_uncertainty"  # the prefix "c_" is a LAMMPS idiosyncrasy.
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.namespace import (
+    BOX_FIELD, ELEMENT_FIELD, ENERGY_FIELD, FORCES_FIELDS, ID_FIELD,
+    POSITIONS_FIELDS, UNCERTAINTY_FIELD)
 
 
 def _extract_data_from_yaml_document(yaml_document: dict) -> Tuple[pd.DataFrame, Dict]:
@@ -42,12 +38,12 @@ def _extract_data_from_yaml_document(yaml_document: dict) -> Tuple[pd.DataFrame,
     """
     columns = yaml_document["keywords"]
     data = yaml_document["data"]
-    atoms_df = pd.DataFrame(data=data, columns=columns).sort_values(by=_ID_FIELD)
+    atoms_df = pd.DataFrame(data=data, columns=columns).sort_values(by=ID_FIELD)
 
     global_dict = _parse_thermo_fields(yaml_document)
     # We assume an orthogonal cell
     global_dict["cell_dimensions"] = np.array(
-        [bounds[1] for bounds in yaml_document[_BOX_FIELD]]
+        [bounds[1] for bounds in yaml_document[BOX_FIELD]]
     )
 
     return atoms_df, global_dict
@@ -90,8 +86,8 @@ def _get_structure_from_atoms_dataframe(
 
     structure = Structure(
         lattice=lattice,
-        species=atoms_df[_ELEMENT_FIELD].values,
-        coords=atoms_df[_POSITIONS_FIELDS].values,
+        species=atoms_df[ELEMENT_FIELD].values,
+        coords=atoms_df[POSITIONS_FIELDS].values,
         coords_are_cartesian=True,
     )
 
@@ -100,15 +96,15 @@ def _get_structure_from_atoms_dataframe(
 
 def _get_forces_from_atoms_dataframe(atoms_df: pd.DataFrame) -> np.ndarray:
     """Get forces from atoms dataframe."""
-    return atoms_df[_FORCES_FIELDS].values
+    return atoms_df[FORCES_FIELDS].values
 
 
 def _get_uncertainties_from_atoms_dataframe(
     atoms_df: pd.DataFrame,
 ) -> Union[np.ndarray, None]:
     """Get uncertainties from atoms dataframe."""
-    if _UNCERTAINTY_FIELD in atoms_df.columns:
-        return atoms_df[_UNCERTAINTY_FIELD].values
+    if UNCERTAINTY_FIELD in atoms_df.columns:
+        return atoms_df[UNCERTAINTY_FIELD].values
     else:
         return None
 
@@ -145,7 +141,7 @@ def extract_all_fields_from_dump(
             forces = _get_forces_from_atoms_dataframe(atoms_df)
             list_forces.append(forces)
 
-            list_energies.append(global_data_dict[_ENERGY_FIELD])
+            list_energies.append(global_data_dict[ENERGY_FIELD])
             list_uncertainties.append(_get_uncertainties_from_atoms_dataframe(atoms_df))
 
     return list_structures, list_forces, list_energies, list_uncertainties
