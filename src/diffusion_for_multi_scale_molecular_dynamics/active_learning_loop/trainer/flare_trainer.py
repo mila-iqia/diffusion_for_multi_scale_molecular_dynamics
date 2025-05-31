@@ -86,6 +86,8 @@ class FlareTrainer:
         self._dot_product_kernel = NormalizedDotProduct(sigma, power)
 
         # TODO: Consider using the field 'single_atom_energies' if and when we do more serious DFT calculations.
+        # The wrapper does not make internal copies of the various input C++ objects like B2, etc...
+        # These objects must not get garbage collected; otherwise we get mysterious segfaults.
         self.sgp_model = SGP_Wrapper(kernels=[self._dot_product_kernel],
                                      descriptor_calculators=self._descriptor_calculators,
                                      cutoff=flare_configuration.cutoff,
