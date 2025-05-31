@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
+    LammpsRunner
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.namespace import \
     UNCERTAINTY_FIELD
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_lammps_single_point_calculator import \
@@ -9,9 +11,9 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_po
 class MappedFlareSinglePointCalculator(BaseLAMMPSSinglePointCalculator):
     """Mapped FLARE Single Point Calculator."""
 
-    def __init__(self, lammps_executable_path: Path, pair_coeff_file_path: Path, mapped_uncertainty_file_path: Path):
+    def __init__(self, lammps_runner: LammpsRunner, pair_coeff_file_path: Path, mapped_uncertainty_file_path: Path):
         """Init method."""
-        super().__init__(lammps_executable_path)
+        super().__init__(lammps_runner)
         self._calculation_type = "mapped_flare"
 
         assert pair_coeff_file_path.is_file(), \

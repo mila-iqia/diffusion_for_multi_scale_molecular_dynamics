@@ -1,4 +1,3 @@
-import subprocess
 import tempfile
 from abc import abstractmethod
 from pathlib import Path
@@ -10,6 +9,8 @@ from pymatgen.io.lammps.inputs import LammpsTemplateGen
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps import \
     PATH_TO_SINGLE_POINT_CALCULATION_TEMPLATE
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
+    LammpsRunner
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.outputs import \
     extract_all_fields_from_dump
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.ordered_elements import \
@@ -42,30 +43,14 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
     def _generate_uncertainty_variable_string(self) -> str:
         raise NotImplementedError("must be implemented in child class.")
 
-    def __init__(self, lammps_executable_path: Path, **kwargs):
+    def __init__(self, lammps_runner: LammpsRunner, **kwargs):
         """Init method."""
         super().__init__(self)
         self._calculation_type = "LAMMPS"
-        assert (
-            lammps_executable_path.is_file()
-        ), f"The path {lammps_executable_path} does not exist."
-        self._lammps_executable_path = lammps_executable_path
+        self._lammps_runner = lammps_runner
 
         self._input_file_name = "lammps.in"
         self._data_filename = "configuration.dat"
-
-        # There is a class in pymatgen, pymatgen.io.lammps.utils.LammpsRunner, to drive LAMMPS.
-        # Here we prefer to keep more control over the execution. In particular, we may want to use
-        # mpirun, or to not have lammps in the path.
-        self._commands = [
-            f"{self._lammps_executable_path}",
-            "-echo",
-            "none",
-            "-screen",
-            "none",
-            "-i",
-            self._input_file_name,
-        ]
 
     def _extract_calculation_results(
         self, working_directory: str
@@ -142,14 +127,8 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
 
         input_set.write_input(work_directory)
 
-        subprocess.run(
-            self._commands,
-            cwd=work_directory,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,  # Decode stdout and stderr as text
-            check=True,  # Raise a CalledProcessError for non-zero exit codes
-        )
+        self._lammps_runner.run_lammps(working_directory=work_directory,
+                                       lammps_input_file_name=self._input_file_name)
 
         calculation_result = self._extract_calculation_results(work_directory)
 
