@@ -8,6 +8,10 @@ atom_style atomic
 # ---------- Read configuration data ---------------------
 read_data $configuration_file_path
 
+$group_block
+
+$mass_block
+
 
 # ---------- Define Pair Style ---------------------
 $pair_style_command

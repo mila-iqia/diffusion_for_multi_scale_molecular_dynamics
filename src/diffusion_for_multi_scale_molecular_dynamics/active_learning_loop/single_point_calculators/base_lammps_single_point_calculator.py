@@ -9,12 +9,12 @@ from pymatgen.io.lammps.inputs import LammpsTemplateGen
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps import \
     PATH_TO_SINGLE_POINT_CALCULATION_TEMPLATE
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.inputs import \
+    generate_named_elements_blocks
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
     LammpsRunner
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.outputs import \
     extract_all_fields_from_dump
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.ordered_elements import \
-    sort_elements_by_atomic_mass
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import (  # noqa
     BaseSinglePointCalculator, SinglePointCalculation)
 
@@ -74,25 +74,17 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
 
         return result
 
-    def _generate_elements_string(self, structure: Structure) -> str:
-        """Generate a string which is an ordered list of the unique elements in the structure."""
-        list_symbols = []
-        for element in structure.elements:
-            list_symbols.append(element.symbol)
-
-        list_symbols = sort_elements_by_atomic_mass(list_symbols)
-
-        return " ".join(list_symbols)
-
     def _generate_settings_dictionary(self, structure: Structure) -> Dict:
         """Generate the settings dictionary needed by Pymatgen's templating method."""
-        elements_string = self._generate_elements_string(structure)
+        group_block, mass_block, elements_string = generate_named_elements_blocks(structure)
 
         settings = dict(
             configuration_file_path=self._data_filename,
             pair_style_command=self._generate_pair_style_command(),
             pair_coeff_command=self._generate_pair_coeff_command(elements_string),
             uncertainty_variable_name=self._generate_uncertainty_variable_string(),
+            group_block=group_block,
+            mass_block=mass_block,
             elements_string=elements_string,
         )
 
