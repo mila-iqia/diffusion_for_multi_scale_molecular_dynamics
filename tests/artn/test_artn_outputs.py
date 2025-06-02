@@ -1,10 +1,10 @@
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.calculation_state import \
-    CalculationState
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.outputs import (
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.artn_outputs import (
     INTERRUPTION_MESSAGE, SUCCESS_MESSAGE,
     get_calculation_state_from_artn_output)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.calculation_state import \
+    CalculationState
 from tests.fake_data_utils import generate_random_string
 
 
@@ -27,7 +27,10 @@ def artn_output(job_status):
         lines.append(generate_random_string(36))
 
     if job_status == 'success':
-        lines.append("some stuff " + SUCCESS_MESSAGE + " some more stuff")
+        # We have to fiddle the string because "|" looks like a pipe for regex.
+        success_message = SUCCESS_MESSAGE.replace("\\", "")
+
+        lines.append("some stuff " + success_message + " some more stuff")
 
     return '\n'.join(lines)
 

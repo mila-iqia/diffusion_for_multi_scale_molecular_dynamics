@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from pymatgen.core import Lattice, Structure
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.utils import (
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.conversion_utils import (
     convert_axl_to_structure, convert_structure_to_axl)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
