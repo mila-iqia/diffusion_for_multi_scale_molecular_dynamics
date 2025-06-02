@@ -1,6 +1,6 @@
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.ordered_elements import \
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.inputs import \
     sort_elements_by_atomic_mass
 
 
