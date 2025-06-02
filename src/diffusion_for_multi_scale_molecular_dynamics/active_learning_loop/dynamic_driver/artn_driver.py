@@ -1,11 +1,16 @@
 import logging
 import shutil
+import time
 from pathlib import Path
 from string import Template
 
 from pymatgen.core import Structure
 from pymatgen.io.lammps.data import LammpsData
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.calculation_state import \
+    CalculationState
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.outputs import \
+    get_calculation_state_from_artn_output
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_driver import \
     PATH_TO_LAMMPS_ARTN_TEMPLATE
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.inputs import \
@@ -70,7 +75,7 @@ class ArtnDriver:
         return structure
 
     def run(self, working_directory: Path, uncertainty_threshold: float,
-            pair_coeff_file_path: Path, mapped_uncertainty_file_path: Path):
+            pair_coeff_file_path: Path, mapped_uncertainty_file_path: Path) -> CalculationState:
         """Run the ARTn simulation.
 
         Args:
@@ -78,6 +83,9 @@ class ArtnDriver:
             uncertainty_threshold: uncertainty threshold for stopping simulation.
             pair_coeff_file_path: path to the mapped FLARE coefficients.
             mapped_uncertainty_file_path: path to the mapped uncertainty FLARE coefficients.
+
+        Returns:
+            calculation_state: status of the ARTn calculation.
         """
         assert not working_directory.is_dir(), \
             f"The working directory {working_directory} already exists! Exiting to avoid writing over existing data."
@@ -117,5 +125,16 @@ class ArtnDriver:
             fd.write(script_content)
 
         logger.info("Launching LAMMPS")
+        time1 = time.time()
         self._lammps_runner.run_lammps(working_directory=working_directory,
                                        lammps_input_file_name=self._lammps_input_filename)
+        time2 = time.time()
+        logger.info(f"LAMMPS execution has finished. Execution Time: {time2-time1: 6.3e} sec.")
+
+        artn_output_file_path = working_directory / "artn.out"
+        assert artn_output_file_path.is_file(), "The artn output file, 'artn.out', is missing. Something went wrong."
+
+        with open(artn_output_file_path, "r") as fd:
+            artn_output = fd.read()
+
+        return get_calculation_state_from_artn_output(artn_output)
