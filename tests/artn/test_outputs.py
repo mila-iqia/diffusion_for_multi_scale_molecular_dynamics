@@ -1,9 +1,10 @@
 import pytest
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.calculation_state import \
+    CalculationState
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.outputs import (
     INTERRUPTION_MESSAGE, SUCCESS_MESSAGE,
     get_calculation_state_from_artn_output)
-from tests.artn.calculation_state import CalculationState
 from tests.fake_data_utils import generate_random_string
 
 

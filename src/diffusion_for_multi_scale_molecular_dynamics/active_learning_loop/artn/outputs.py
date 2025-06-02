@@ -1,7 +1,8 @@
 
 import re
 
-from tests.artn.calculation_state import CalculationState
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.calculation_state import \
+    CalculationState
 
 INTERRUPTION_MESSAGE = "Failure message: ARTn RESEARCH STOP BEFORE THE END"
 
