@@ -7,10 +7,10 @@ from string import Template
 from pymatgen.core import Structure
 from pymatgen.io.lammps.data import LammpsData
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.artn_outputs import \
+    get_calculation_state_from_artn_output
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.calculation_state import \
     CalculationState
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.outputs import \
-    get_calculation_state_from_artn_output
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_driver import \
     PATH_TO_LAMMPS_ARTN_TEMPLATE
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.inputs import \
