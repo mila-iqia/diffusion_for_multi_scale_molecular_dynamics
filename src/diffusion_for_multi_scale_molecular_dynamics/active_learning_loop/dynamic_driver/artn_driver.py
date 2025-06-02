@@ -92,9 +92,10 @@ class ArtnDriver:
 
         working_directory.mkdir(parents=True, exist_ok=True)
 
-        configure_logging(str(working_directory))
-        logger = logging.getLogger()
-        logger.info("Starting ARTn simulation")
+        logger = logging.getLogger('artn_run')
+        configure_logging(experiment_dir=str(working_directory),
+                          logger=logger,
+                          log_to_console=False)
 
         logger.info("Copying the reference artn.in file to the working directory.")
         shutil.copy(self._reference_artn_in_file_path, str(working_directory / "artn.in"))
@@ -137,4 +138,5 @@ class ArtnDriver:
         with open(artn_output_file_path, "r") as fd:
             artn_output = fd.read()
 
+        del logger
         return get_calculation_state_from_artn_output(artn_output)
