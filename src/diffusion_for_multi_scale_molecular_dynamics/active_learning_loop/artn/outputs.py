@@ -6,7 +6,7 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.calc
 
 INTERRUPTION_MESSAGE = "Failure message: ARTn RESEARCH STOP BEFORE THE END"
 
-SUCCESS_MESSAGE = "!> CLEANING ARTn | Fail: 0"
+SUCCESS_MESSAGE = r"!> CLEANING ARTn \| Fail: 0"
 
 
 def get_calculation_state_from_artn_output(artn_output: str) -> CalculationState:
