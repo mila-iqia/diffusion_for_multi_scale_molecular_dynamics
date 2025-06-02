@@ -15,7 +15,7 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.ou
     extract_all_fields_from_dump
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import \
     BaseSampleMaker
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.utils import (
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.conversion_utils import (
     convert_axl_to_structure, convert_structure_to_axl)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import (  # noqa
     BaseSinglePointCalculator, SinglePointCalculation)
