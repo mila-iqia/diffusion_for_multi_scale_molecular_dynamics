@@ -1,14 +1,14 @@
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pymatgen
 from flare.bffs.sgp import SGP_Wrapper
 from flare.bffs.sgp.calculator import SGP_Calculator
 from flare_pp import B2, NormalizedDotProduct
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.ordered_elements import \
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.inputs import \
     sort_elements_by_atomic_mass
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import \
     SinglePointCalculation  # noqa
@@ -123,11 +123,14 @@ class FlareTrainer:
                                  custom_range=list(active_environment_indices)
                                  )
 
-    def _get_species_numbers_map(self, list_elements: List[str]) -> Dict[int, int]:
+    def _get_species_numbers_map(self, list_element_symbols: List[str]) -> Dict[int, int]:
         """Get a map where the key is the atomic number and the value is the integer label."""
         species_numbers_map = dict()
-        for idx, symbol in enumerate(sort_elements_by_atomic_mass(list_elements)):
-            element = pymatgen.core.Element(symbol)
+
+        list_elements = [pymatgen.core.Element(symbol) for symbol in list_element_symbols]
+        list_sorted_elements = sort_elements_by_atomic_mass(list_elements)
+
+        for idx, element in enumerate(list_sorted_elements):
             species_numbers_map[element.number] = idx
         return species_numbers_map
 
@@ -135,14 +138,22 @@ class FlareTrainer:
         """Fit hyperparameters."""
         self.sgp_model.train()
 
-    def write_mapped_model_to_disk(self, mapped_coefficients_directory: Path, version: int):
+    def write_mapped_model_to_disk(self, mapped_coefficients_directory: Path, version: int) -> Tuple[Path, Path]:
         """Write mapped model to disk."""
-        coeff_filename = f"lmp{version}.flare"
-        uncertainty_filename = f"map_unc_{coeff_filename}"
-        SGP_Calculator(self.sgp_model, use_mapping=True).build_map(filename=coeff_filename,
+        pair_coeff_filename = f"lmp{version}.flare"
+        mapped_uncertainty_filename = f"map_unc_{pair_coeff_filename}"
+        SGP_Calculator(self.sgp_model, use_mapping=True).build_map(filename=pair_coeff_filename,
                                                                    contributor="Version 0",
                                                                    map_uncertainty=True)
         mapped_coefficients_directory.mkdir(parents=True, exist_ok=True)
 
-        for filename in [coeff_filename, uncertainty_filename]:
-            shutil.move(filename, str(mapped_coefficients_directory / filename))
+        pair_coeff_file_path = mapped_coefficients_directory / pair_coeff_filename
+        mapped_uncertainty_file_path = mapped_coefficients_directory / mapped_uncertainty_filename
+
+        list_src = [pair_coeff_filename, mapped_uncertainty_filename]
+        list_dst = [pair_coeff_file_path, mapped_uncertainty_file_path]
+
+        for src, dst in zip(list_src, list_dst):
+            shutil.move(src, str(dst))
+
+        return pair_coeff_file_path, mapped_uncertainty_file_path
