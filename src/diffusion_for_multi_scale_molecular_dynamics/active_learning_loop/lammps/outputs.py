@@ -87,7 +87,7 @@ def _get_structure_from_atoms_dataframe(
     structure = Structure(
         lattice=lattice,
         species=atoms_df[ELEMENT_FIELD].values,
-        coords=atoms_df[POSITIONS_FIELDS].values,
+        coords=atoms_df[POSITIONS_FIELDS].astype(float).values,
         coords_are_cartesian=True,
     )
 
@@ -96,7 +96,7 @@ def _get_structure_from_atoms_dataframe(
 
 def _get_forces_from_atoms_dataframe(atoms_df: pd.DataFrame) -> np.ndarray:
     """Get forces from atoms dataframe."""
-    return atoms_df[FORCES_FIELDS].values
+    return atoms_df[FORCES_FIELDS].astype(float).values
 
 
 def _get_uncertainties_from_atoms_dataframe(
@@ -104,7 +104,7 @@ def _get_uncertainties_from_atoms_dataframe(
 ) -> Union[np.ndarray, None]:
     """Get uncertainties from atoms dataframe."""
     if UNCERTAINTY_FIELD in atoms_df.columns:
-        return atoms_df[UNCERTAINTY_FIELD].values
+        return atoms_df[UNCERTAINTY_FIELD].astype(float).values
     else:
         return None
 
