@@ -3,14 +3,15 @@ import importlib.util
 import numpy as np
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import \
-    SinglePointCalculation  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.flare_single_point_calculator import \
-    FlareSinglePointCalculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
-    FlareTrainer  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
-    FlareConfiguration
+if importlib.util.find_spec("flare_pp") is not None:
+    from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import \
+        SinglePointCalculation  # noqa
+    from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.flare_single_point_calculator import \
+        FlareSinglePointCalculator  # noqa
+    from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
+        FlareTrainer  # noqa
+    from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
+        FlareConfiguration
 
 
 @pytest.mark.skipif(importlib.util.find_spec("flare_pp") is None, reason="FLARE is not installed")
