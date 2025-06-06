@@ -142,6 +142,31 @@ class ActiveLearning:
         df = pd.DataFrame(data=rows)
         return df
 
+    def _determine_active_environment_indices(self, sample_info: Dict, uncertainty_threshold: float) -> List[int]:
+        """Determine active environment indices.
+
+        This method identifies which environments are "active" (or "high uncertainty") based on information
+        in the sample_info dictionary. The environments are represented by their central atom.
+
+        Args:
+            sample_info: sample information dictionary.
+            It is assumed to contain a field named 'uncertainty_per_atom'. It is also assumed that this array
+            is sorted in the same way as the corresponding atoms in their respective structures.
+            uncertainty_threshold: uncertainty threshold for determining uncertain environments.
+
+        Returns:
+            active_environment_indices: atomic indices of the active environments present.
+        """
+        # TODO: this is heavily geared towards the NoOp sample maker. Review and generalize when
+        #   non-trivial sample makers are implemented.
+        assert 'uncertainty_per_atom' in sample_info, \
+            "The field 'uncertainty_per_atom' is missing. Something is wrong."
+
+        uncertainty_per_atom = sample_info['uncertainty_per_atom']
+        mask = np.where(uncertainty_per_atom > uncertainty_threshold)[0]
+        active_environment_indices = list(np.arange(len(uncertainty_per_atom))[mask])
+        return active_environment_indices
+
     def run_campaign(
         self,
         uncertainty_threshold: float,
@@ -252,14 +277,9 @@ class ActiveLearning:
             oracle_df.to_pickle(output_file)
 
             logger.info("  Adding samples and uncertain environment to FLARE.")
-            for single_point_calculation in list_single_point_calculations:
-                # TODO: We need a mechanism to identify WHICH environment indices to add!
-                #   This may not be trivial when using a sample maker. For now, since
-                #   I "know" it's NoOp, I can use the right indices.
-                mask = np.where(uncertainty_per_atom > uncertainty_threshold)[0]
-                active_environment_indices = list(
-                    np.arange(len(uncertainty_per_atom))[mask]
-                )
+            for single_point_calculation, sample_info in zip(list_single_point_calculations, list_sample_information):
+                active_environment_indices = self._determine_active_environment_indices(sample_info,
+                                                                                        uncertainty_threshold)
                 flare_trainer.add_labelled_structure(
                     single_point_calculation,
                     active_environment_indices=active_environment_indices,
