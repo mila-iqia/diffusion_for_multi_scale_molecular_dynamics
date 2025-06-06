@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.namespace import CENTRAL_ATOM_INDEX
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.namespace import \
+    CENTRAL_ATOM_INDEX
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 
@@ -133,7 +134,9 @@ class BaseEnvironmentExcision(ABC):
                 self.center_structure(environment, 0) for environment in environments
             ]
 
-        central_atoms_indices_as_dict = [{CENTRAL_ATOM_INDEX: atom_index} for atom_index in central_atoms_indices]
+        central_atoms_indices_as_dict = [
+            {CENTRAL_ATOM_INDEX: atom_index} for atom_index in central_atoms_indices
+        ]
         return environments, central_atoms_indices_as_dict
 
     @staticmethod
