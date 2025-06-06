@@ -31,8 +31,8 @@ reference_directory = experiment_dir / "reference"
 
 element_list = ['Si']
 
-active_learning_directory = experiment_dir / "active_learning_campaign_1"
-uncertainty_threshold = 0.01
+list_uncertainty_thresholds = [0.1**pow for pow in np.arange(2, 6)]
+list_campaign_ids = list(range(1, len(list_uncertainty_thresholds) + 1))
 
 variance_type = 'local'
 
@@ -86,7 +86,11 @@ if __name__ == '__main__':
                                          active_environment_indices=active_environment_indices)
     flare_trainer.fit_hyperparameters()
 
-    # Run active learning
-    active_learning.run_campaign(uncertainty_threshold=uncertainty_threshold,
-                                 flare_trainer=flare_trainer,
-                                 working_directory=active_learning_directory)
+    # Run multiple campaigns with progressively more stringent uncertainty thresholds to train and refine
+    # the FLARE model.
+    for campaign_id, uncertainty_threshold in zip(list_campaign_ids, list_uncertainty_thresholds):
+        active_learning_directory = experiment_dir / f"active_learning_campaign_{campaign_id}"
+
+        active_learning.run_campaign(uncertainty_threshold=uncertainty_threshold,
+                                     flare_trainer=flare_trainer,
+                                     working_directory=active_learning_directory)
