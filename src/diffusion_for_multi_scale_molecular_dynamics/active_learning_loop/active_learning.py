@@ -113,7 +113,7 @@ class ActiveLearning:
             new_structures: additional information about a sample in a dictionary with AXL as Structure
         """
         converted_info = {}
-        for k, v in sample_additional_information:
+        for k, v in sample_additional_information.items():
             if k in [AXL_STRUCTURE_IN_ORIGINAL_BOX, AXL_STRUCTURE_IN_NEW_BOX]:
                 converted_info[k] = convert_axl_to_structure(v)
             else:
