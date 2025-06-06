@@ -308,12 +308,12 @@ class ActiveLearning:
             history_df.to_pickle(hyperparameter_optimization_log / "optimization_log.pkl")
 
         sigma, sigma_e, sigma_f, sigma_s = optimization_result.x
-        campaign_details = dict(uncertainty_threshold=uncertainty_threshold,
-                                final_round=round_number,
-                                sigma=sigma,
-                                sigma_e=sigma_e,
-                                sigma_f=sigma_f,
-                                sigma_s=sigma_s)
+        campaign_details = dict(uncertainty_threshold=float(uncertainty_threshold),
+                                final_round=int(round_number),
+                                sigma=float(sigma),
+                                sigma_e=float(sigma_e),
+                                sigma_f=float(sigma_f),
+                                sigma_s=float(sigma_s))
 
         # Delete the logger to avoid overlogging across campaigns.
         del logger
