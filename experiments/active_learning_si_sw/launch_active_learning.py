@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     sample_maker = NoOpSampleMaker(sample_maker_arguments=sample_maker_arguments)
 
-    active_learning = ActiveLearning(oracle_single_point_claculator=oracle_calculator,
+    active_learning = ActiveLearning(oracle_single_point_calculator=oracle_calculator,
                                      sample_maker=sample_maker,
                                      artn_driver=artn_driver)
 
