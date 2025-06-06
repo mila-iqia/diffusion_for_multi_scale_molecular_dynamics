@@ -1,7 +1,4 @@
-import glob
-from pathlib import Path
-
-import numpy as np
+import yaml
 from matplotlib import pyplot as plt
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
@@ -16,9 +13,7 @@ plt.style.use(PLOT_STYLE_PATH)
 experiment_dir = TOP_DIR / "experiments/active_learning_si_sw"
 reference_artn_output_file = experiment_dir / "Si-vac_sw_potential/artn.out"
 
-
-list_uncertainty_thresholds = [0.1**pow for pow in np.arange(2, 5)]
-list_campaign_ids = list(range(1, len(list_uncertainty_thresholds) + 1))
+list_campaign_ids = [1, 2, 3]
 
 
 if __name__ == "__main__":
@@ -29,18 +24,16 @@ if __name__ == "__main__":
     list_thresholds = []
     list_E = []
 
-    for threshold, campaign_id in zip(list_uncertainty_thresholds, list_campaign_ids):
+    for campaign_id in list_campaign_ids:
         campaign_dir = experiment_dir / f"active_learning_campaign_{campaign_id}"
 
-        # Find the last round
-        list_rounds = []
-        for round_directory in glob.glob(str(campaign_dir / "round_*")):
-            round = int(Path(round_directory).name.replace('round_', ''))
-            list_rounds.append(round)
+        with open(campaign_dir / "campaign_details.yaml", "r") as fd:
+            campaign_details = yaml.load(fd, Loader=yaml.FullLoader)
 
-        final_round = np.max(list_rounds)
+        final_round = campaign_details['final_round']
+        threshold = campaign_details['uncertainty_threshold']
+
         final_round_dir = campaign_dir / f"round_{final_round}"
-
         artn_output_file = final_round_dir / "lammps_artn/artn.out"
         try:
             with open(artn_output_file, "r") as fd:

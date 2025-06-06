@@ -315,6 +315,7 @@ class ActiveLearning:
                                 sigma_f=float(sigma_f),
                                 sigma_s=float(sigma_s))
 
+        # TODO: there is still overlogging across campaign... Figure that out.
         # Delete the logger to avoid overlogging across campaigns.
         del logger
         self._log_campaign_details(campaign_working_directory_path=working_directory,
