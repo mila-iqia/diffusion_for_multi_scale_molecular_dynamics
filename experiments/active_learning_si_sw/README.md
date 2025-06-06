@@ -11,8 +11,6 @@ It is assumed that these various components are available and compatible.
 
 Compute the reference ARTn saddle energy by going to folder `Si-vac_sw_potential`.
 
-Adapt the `lammps.in` file to make sure the correct path for the Si.sw potential is specified.
-
 Adapt the `run.sh` script to point to the correct LAMMPS executable, and run. 
 
 This should produce an ARTn trajectory which identifies the "ground truth" saddle energy.
