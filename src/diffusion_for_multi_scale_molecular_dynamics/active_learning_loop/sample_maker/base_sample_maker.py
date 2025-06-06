@@ -144,7 +144,7 @@ class NoOpSampleMaker(BaseSampleMaker):
         uncertainty_per_atom: np.array,
     ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
         """Noop make samples."""
-        return [structure], [{}]
+        return [structure], [{'uncertainty_per_atom': uncertainty_per_atom}]
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Noop filter samples."""
