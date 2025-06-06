@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict, Any
 
 import numpy as np
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.namespace import CENTRAL_ATOM_INDEX
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
@@ -104,7 +105,7 @@ class BaseEnvironmentExcision(ABC):
 
     def excise_environments(
         self, structure: AXL, uncertainty_per_atom: np.array, center_atoms: bool = True
-    ) -> List[AXL]:
+    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
         """Extract all environments around the atoms satisfying the uncertainty constraints.
 
         This calls the method _excise_one_environment for each atom with a high enough uncertainty.
@@ -118,6 +119,8 @@ class BaseEnvironmentExcision(ABC):
 
         Returns:
             environments: list of excised spheres around the highest uncertainties atoms as a list of AXL.
+            central_atoms_indices_as_dict: list of dictionary containing the index of the central atom in the original
+                structure
         """
         central_atoms_indices = self.select_central_atoms(uncertainty_per_atom)
         environments = [
@@ -129,7 +132,9 @@ class BaseEnvironmentExcision(ABC):
             environments = [
                 self.center_structure(environment, 0) for environment in environments
             ]
-        return environments
+
+        central_atoms_indices_as_dict = [{CENTRAL_ATOM_INDEX: atom_index} for atom_index in central_atoms_indices]
+        return environments, central_atoms_indices_as_dict
 
     @staticmethod
     def center_structure(structure: AXL, atom_index: int) -> AXL:
