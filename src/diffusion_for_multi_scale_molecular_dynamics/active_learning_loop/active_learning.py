@@ -179,5 +179,17 @@ class ActiveLearning:
                 flare_trainer.add_labelled_structure(single_point_calculation,
                                                      active_environment_indices=active_environment_indices)
 
-            logger.info("  Fitting the FLARE hyperparameters")
-            flare_trainer.fit_hyperparameters()
+            logger.info("  Fitting the FLARE hyperparameters...")
+            optimization_result, history_df = flare_trainer.fit_hyperparameters()
+            logger.info(f"  Optimization status : {optimization_result.success}")
+            logger.info(f"  Optimization message : {optimization_result.message}")
+            logger.info("  The SGP hyperparameters are now : ")
+            sigma, sigma_e, sigma_f, sigma_s = optimization_result.x
+            logger.info(f"       sigma   = {sigma: 12.8f}")
+            logger.info(f"       sigma_e = {sigma_e: 12.8f}")
+            logger.info(f"       sigma_f = {sigma_f: 12.8f}")
+            logger.info(f"       sigma_s = {sigma_s: 12.8f}")
+
+            hyperparameter_optimization_log = current_sub_directory / "hyperparameter_optimization_logs"
+            hyperparameter_optimization_log.mkdir(parents=True, exist_ok=True)
+            history_df.to_pickle(hyperparameter_optimization_log / "optimization_log.pkl")
