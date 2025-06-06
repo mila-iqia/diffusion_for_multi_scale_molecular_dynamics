@@ -140,7 +140,12 @@ class ActiveLearning:
             logger.info(f"  ARTn state is {calculation_state}")
 
             if calculation_state == CalculationState.SUCCESS:
-                logger.info("Active Learning Campaign is Complete. Exiting.")
+                logger.info("Active Learning Campaign is Complete.")
+
+                logger.info("Writing FLARE model checkpoint.")
+                checkpoint_path = working_directory / "trained_flare.json"
+                flare_trainer.write_checkpoint_to_disk(checkpoint_path)
+                logger.info("Exiting.")
                 break
 
             logger.info("  Extracting uncertain structure from ARTn work directory...")
