@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+import yaml
 from pymatgen.core import Structure
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.calculation_state import \
@@ -167,6 +168,12 @@ class ActiveLearning:
         active_environment_indices = list(np.arange(len(uncertainty_per_atom))[mask])
         return active_environment_indices
 
+    def _log_campaign_details(self, campaign_working_directory_path: Path, campaign_details: Dict):
+        """Log campaign details."""
+        output_file = campaign_working_directory_path / "campaign_details.yaml"
+        with open(str(output_file), "w") as fd:
+            yaml.dump(campaign_details, fd)
+
     def run_campaign(
         self,
         uncertainty_threshold: float,
@@ -299,3 +306,16 @@ class ActiveLearning:
             hyperparameter_optimization_log = current_sub_directory / "hyperparameter_optimization_logs"
             hyperparameter_optimization_log.mkdir(parents=True, exist_ok=True)
             history_df.to_pickle(hyperparameter_optimization_log / "optimization_log.pkl")
+
+        sigma, sigma_e, sigma_f, sigma_s = optimization_result.x
+        campaign_details = dict(uncertainty_threshold=uncertainty_threshold,
+                                final_round=round_number,
+                                sigma=sigma,
+                                sigma_e=sigma_e,
+                                sigma_f=sigma_f,
+                                sigma_s=sigma_s)
+
+        # Delete the logger to avoid overlogging across campaigns.
+        del logger
+        self._log_campaign_details(campaign_working_directory_path=working_directory,
+                                   campaign_details=campaign_details)
