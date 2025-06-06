@@ -1,0 +1,79 @@
+# LAMMPS input script generated from a template.
+# Modified from pARTn with FIRE minimization, MAMMASMIAS, 2022
+
+variable threshold equal $uncertainty_threshold
+
+# ---------- Initialize Simulation --------------------- 
+clear 
+units       metal 
+dimension   3 
+boundary    p p p 
+atom_style  atomic 
+
+
+# ---------- Read in the starting configuration --------------------- 
+read_data $configuration_file_path
+
+$group_block
+
+$mass_block
+
+
+# ---------- Define Pair Style ---------------------
+pair_style flare
+pair_coeff * * $pair_coeff_file_path
+compute unc all flare/std/atom $mapped_uncertainty_file_path
+
+
+# ---------- Define Interatomic Potential --------------------- 
+compute max_unc_all all reduce max c_unc
+variable max_unc equal c_max_unc_all
+
+
+neighbor     2.0 bin 
+neigh_modify delay 10 check yes 
+
+# balance atoms per cpu
+comm_style tiled
+balance 1.1 rcb
+
+
+#  ----------- Define interruption variable
+variable continue_run equal "v_max_unc < v_threshold"
+
+
+# stop simulation if the threshold is violated
+fix extreme_extrapolation all halt 1 v_continue_run != 1
+
+
+# ----------- OUTPUT DUMP
+dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz c_unc
+dump_modify dump_id thermo yes
+dump_modify dump_id element $elements_string
+
+thermo 1
+thermo_style custom step pe v_max_unc
+
+dump uncertain_dump_id all yaml 1 uncertain_dump.yaml id element x y z fx fy fz c_unc
+dump_modify uncertain_dump_id thermo yes
+dump_modify uncertain_dump_id element $elements_string
+
+dump_modify uncertain_dump_id skip v_continue_run 
+
+
+# ----------- ARTn
+plugin load $artn_library_plugin_path
+
+fix artn_fix_id all artn dmax 5.0
+
+timestep 0.001
+
+
+# ---------- Run Minimization --------------------- 
+reset_timestep 0 
+
+min_style fire 
+
+
+## ------ launch
+minimize 1e-3 1e-5 5000 10000 

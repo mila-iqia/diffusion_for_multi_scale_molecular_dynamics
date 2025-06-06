@@ -4,6 +4,7 @@ import socket
 import sys
 from logging import StreamHandler
 from logging.handlers import WatchedFileHandler
+from typing import Optional
 
 from git import InvalidGitRepositoryError, Repo
 from pip._internal.operations import freeze
@@ -11,7 +12,7 @@ from pip._internal.operations import freeze
 logger = logging.getLogger(__name__)
 
 
-def configure_logging(experiment_dir: str, log_to_console: bool = False):
+def configure_logging(experiment_dir: str, logger: Optional[logging.Logger] = None, log_to_console: bool = False):
     """Configure logging.
 
     This method sets up logging. It is very opinionated about how to log:
@@ -24,19 +25,21 @@ def configure_logging(experiment_dir: str, log_to_console: bool = False):
     Returns:
         no output.
     """
+    if logger is None:
+        logger = logging.getLogger()
+
     logging.captureWarnings(capture=True)
 
     logging_format = (
         "%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s"
     )
-    root = logging.getLogger()
-    root.setLevel(logging.INFO)
+    logger.setLevel(logging.INFO)
 
     # Remove stale handlers. Stale handlers can occur when this setup method is called multiple times,
     # in tests for examples.
-    for handler in root.handlers:
+    for handler in logger.handlers:
         if type(handler) is WatchedFileHandler or type(handler) is StreamHandler:
-            root.removeHandler(handler)
+            logger.removeHandler(handler)
 
     console_log_file = os.path.join(experiment_dir, "console.log")
     formatter = logging.Formatter(logging_format)
@@ -50,7 +53,7 @@ def configure_logging(experiment_dir: str, log_to_console: bool = False):
 
     for handler in list_handlers:
         handler.setFormatter(formatter)
-        root.addHandler(handler)
+        logger.addHandler(handler)
 
 
 def setup_analysis_logger():

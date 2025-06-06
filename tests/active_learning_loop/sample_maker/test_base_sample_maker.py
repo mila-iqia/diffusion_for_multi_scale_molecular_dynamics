@@ -21,7 +21,7 @@ class TestBaseExciseSampleMaker:
 
     @staticmethod
     def trivial_make_samples_from_constraints_method(substructure, num_samples):
-        return [substructure] * num_samples
+        return [substructure] * num_samples, [{}] * num_samples
 
     @pytest.fixture(params=[1, 2, 3])
     def spatial_dimension(self, request):
@@ -93,7 +93,7 @@ class TestBaseExciseSampleMaker:
         uncertainty_per_atom,
         num_samples,
     ):
-        made_samples = noop_base_excise_sample_maker.make_samples(
+        made_samples, _ = noop_base_excise_sample_maker.make_samples(
             structure_axl, uncertainty_per_atom
         )
         assert (

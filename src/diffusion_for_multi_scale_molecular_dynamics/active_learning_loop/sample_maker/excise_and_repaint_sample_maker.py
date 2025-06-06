@@ -137,7 +137,11 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         new_structures = self.torch_batch_axl_to_list_of_numpy_axl(
             generated_samples["original_axl"]
         )
-        return new_structures
+
+        # additional information on generated structures can be passed here
+        additional_information_on_new_structures = [{}] * len(new_structures)
+
+        return new_structures, additional_information_on_new_structures
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Return identical structures."""
