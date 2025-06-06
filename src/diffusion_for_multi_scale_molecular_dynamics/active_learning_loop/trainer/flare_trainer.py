@@ -5,16 +5,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import pandas as pd
 import pymatgen
 from flare.bffs.sgp import SGP_Wrapper
 from flare.bffs.sgp.calculator import SGP_Calculator
 from flare.utils import NumpyEncoder
 from flare_pp import B2, NormalizedDotProduct
+from scipy.optimize import OptimizeResult
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.inputs import \
     sort_elements_by_atomic_mass
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import \
     SinglePointCalculation  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import \
+    FlareHyperparametersOptimizer
 
 
 @dataclass(kw_only=True)
@@ -138,9 +142,25 @@ class FlareTrainer:
             species_numbers_map[element.number] = idx
         return species_numbers_map
 
-    def fit_hyperparameters(self):
-        """Fit hyperparameters."""
-        self.sgp_model.train()
+    def fit_hyperparameters(self) -> Tuple[OptimizeResult, pd.DataFrame]:
+        """Fit hyperparameters.
+
+        This method drives the selection of the sparse GP's hyperparameters, namely the various
+        "sigma" parameters.
+
+        Returns:
+            optimization_result: the scipy.minimize result object from the HP fitting process.
+            history_df: a dataframe containing the negative log likelihood and the various sigma values
+                during the optimization iterative process.
+        """
+        # We hardcode some sensible decisions here to avoid expositing to many obscure choices to the user.
+        minimize_options = {"disp": False,  # 'display': the algorithm shouldn't print to terminal.
+                            "ftol": 1e-8,
+                            "gtol": 1e-8,
+                            "maxiter": self.flare_configuration.max_bfgs_iterations}
+        optimizer = FlareHyperparametersOptimizer(method="BFGS", minimize_options=minimize_options)
+        optimization_result, history_df = optimizer.train(self.sgp_model)
+        return optimization_result, history_df
 
     def write_mapped_model_to_disk(self, mapped_coefficients_directory: Path, version: int) -> Tuple[Path, Path]:
         """Write mapped model to disk."""
