@@ -1,18 +1,12 @@
-import importlib.util
-
 import numpy as np
-import pytest
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.flare_single_point_calculator import \
+    FlareSinglePointCalculator  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
+    FlareTrainer  # noqa
 from tests.active_learning_loop.trainer.base_test_flare import BaseTestFlare
 
-if importlib.util.find_spec("flare_pp") is not None:
-    from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.flare_single_point_calculator import \
-        FlareSinglePointCalculator  # noqa
-    from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
-        FlareTrainer  # noqa
 
-
-@pytest.mark.skipif(importlib.util.find_spec("flare_pp") is None, reason="FLARE is not installed")
 class TestFlareTrainer(BaseTestFlare):
 
     def test_smoke_test_flare_trainer(self, flare_configuration, labelled_structure, active_environment_indices):

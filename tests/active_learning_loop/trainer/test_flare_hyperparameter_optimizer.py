@@ -1,5 +1,3 @@
-import importlib.util
-
 import pytest
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import \
@@ -7,7 +5,6 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.f
 from tests.active_learning_loop.trainer.base_test_flare import BaseTestFlare
 
 
-@pytest.mark.skipif(importlib.util.find_spec("flare_pp") is None, reason="FLARE is not installed")
 class TestFlareHyperparameterOptimizer(BaseTestFlare):
 
     @pytest.fixture(params=["BFGS", "L-BFGS-B", "nelder-mead"])
