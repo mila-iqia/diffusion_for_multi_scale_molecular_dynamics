@@ -31,7 +31,7 @@ reference_directory = experiment_dir / "reference"
 
 element_list = ['Si']
 
-list_uncertainty_thresholds = [0.1**pow for pow in np.arange(2, 6)]
+list_uncertainty_thresholds = [0.1**pow for pow in np.arange(2, 5)]
 list_campaign_ids = list(range(1, len(list_uncertainty_thresholds) + 1))
 
 variance_type = 'local'

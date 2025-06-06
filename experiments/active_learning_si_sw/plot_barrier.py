@@ -17,7 +17,7 @@ experiment_dir = TOP_DIR / "experiments/active_learning_si_sw"
 reference_artn_output_file = experiment_dir / "Si-vac_sw_potential/artn.out"
 
 
-list_uncertainty_thresholds = [0.1**pow for pow in np.arange(2, 6)]
+list_uncertainty_thresholds = [0.1**pow for pow in np.arange(2, 5)]
 list_campaign_ids = list(range(1, len(list_uncertainty_thresholds) + 1))
 
 
