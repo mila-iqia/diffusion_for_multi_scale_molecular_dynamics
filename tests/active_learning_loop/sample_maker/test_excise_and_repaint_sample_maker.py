@@ -225,8 +225,10 @@ class TestExciseAndRepaintSampleMaker:
             "excise_and_repaint_sample_maker.create_batch_of_samples",
             new=mock_create_batch_of_samples,
         ):
-            calculated_new_samples = excise_and_repaint_sample_maker.make_samples_from_constrained_substructure(
-                constrained_axl
+            calculated_new_samples, _ = (
+                excise_and_repaint_sample_maker.make_samples_from_constrained_substructure(
+                    constrained_axl
+                )
             )
 
         mock_create_batch_of_samples.assert_called_once()
