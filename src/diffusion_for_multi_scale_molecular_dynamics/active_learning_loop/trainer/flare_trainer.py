@@ -35,6 +35,7 @@ class FlareConfiguration:
     variance_type: str
 
     # Define the initial GP hyperparameters
+    initial_sigma: float = 1.00
     initial_sigma_e: float = 0.01
     initial_sigma_f: float = 0.001
     initial_sigma_s: float = 0.1
@@ -89,7 +90,7 @@ class FlareTrainer:
         self._descriptor_calculators = [self._B2_descriptor]
 
         # Define kernel function.
-        sigma = 1.0
+        sigma = self.flare_configuration.initial_sigma
         power = 2
         self._dot_product_kernel = NormalizedDotProduct(sigma, power)
 
