@@ -40,8 +40,9 @@ class FlareConfiguration:
     initial_sigma_f: float = 0.001
     initial_sigma_s: float = 0.1
 
-    # Maximum number of iterations when optimizing the hyperparameters with BFGS.
-    max_bfgs_iterations: int = 100
+    # Maximum number of iterations when optimizing the hyperparameters.
+    minimization_method: str = "nelder-mead"
+    max_iterations: int = 100
 
     def __post_init__(self):
         """Post init."""
@@ -94,6 +95,8 @@ class FlareTrainer:
         power = 2
         self._dot_product_kernel = NormalizedDotProduct(sigma, power)
 
+        self._minimization_method = flare_configuration.minimization_method
+
         # TODO: Consider using the field 'single_atom_energies' if and when we do more serious DFT calculations.
         # The wrapper does not make internal copies of the various input C++ objects like B2, etc...
         # These objects must not get garbage collected; otherwise we get mysterious segfaults.
@@ -109,8 +112,8 @@ class FlareTrainer:
                                      force_training=True,
                                      stress_training=False,
                                      single_atom_energies=None,
-                                     max_iterations=flare_configuration.max_bfgs_iterations,
-                                     opt_method="BFGS")
+                                     max_iterations=flare_configuration.max_iterations,
+                                     opt_method=self._minimization_method)
 
     def add_labelled_structure(self, single_point_calculation: SinglePointCalculation,
                                active_environment_indices: List[int]):
@@ -158,8 +161,8 @@ class FlareTrainer:
         minimize_options = {"disp": False,  # 'display': the algorithm shouldn't print to terminal.
                             "ftol": 1e-8,
                             "gtol": 1e-8,
-                            "maxiter": self.flare_configuration.max_bfgs_iterations}
-        optimizer = FlareHyperparametersOptimizer(method="BFGS", minimize_options=minimize_options)
+                            "maxiter": self.flare_configuration.max_iterations}
+        optimizer = FlareHyperparametersOptimizer(method=self._minimization_method, minimize_options=minimize_options)
         optimization_result, history_df = optimizer.train(self.sgp_model)
         return optimization_result, history_df
 

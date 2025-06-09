@@ -40,6 +40,12 @@ flare_configuration = FlareConfiguration(cutoff=5.0,
                                          elements=element_list,
                                          n_radial=12,
                                          lmax=3,
+                                         initial_sigma=100.0,
+                                         initial_sigma_e=1.0,
+                                         initial_sigma_f=0.001,
+                                         initial_sigma_s=1.0,
+                                         minimization_method="nelder-mead",
+                                         max_iterations=100,
                                          variance_type=variance_type)
 
 if __name__ == '__main__':
