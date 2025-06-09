@@ -1,0 +1,37 @@
+&ARTN_PARAMETERS
+
+  !! Units definition::(eV,Ang,ps)  
+  engine_units='lammps/metal'
+  verbose = 2
+
+  ninit = 2
+  lpush_final = .true. 
+  nsmooth = 2
+
+  forc_thr = 0.01
+
+  !! parameters for the push
+  push_step_size = 0.1
+  push_mode = 'list'
+
+
+  !! in the smaller simulation box "conf.sw", atom index is 441
+  push_ids = 441
+  push_add_const(:,441) = 1.0, -1.0, -1.0, 20
+
+
+  !! when using the larger simulation box "conf_big.sw", atom index is 4343
+  !push_ids = 4343
+  !push_add_const(:,4343) = 1.0, -1.0, 1.0, 20.0
+
+
+  !! lanczos parameters
+  lanczos_disp = 1.0D-4
+  lanczos_max_size = 10
+  lanczos_min_size = 3
+  lanczos_eval_conv_thr = 1e-2
+
+  !! eigenpush parms
+  eigen_step_size = 0.1
+  push_over=2.0
+/

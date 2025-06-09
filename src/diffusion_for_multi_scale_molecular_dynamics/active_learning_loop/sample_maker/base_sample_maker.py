@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import \
     BaseEnvironmentExcision
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.namespace import (
+    AXL_STRUCTURE_IN_NEW_BOX, AXL_STRUCTURE_IN_ORIGINAL_BOX)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
@@ -61,7 +63,7 @@ class BaseSampleMaker(ABC):
         self,
         structure: AXL,
         uncertainty_per_atom: np.array,
-    ) -> List[AXL]:
+    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
         """Create samples based on the provided structure.
 
         Args:
@@ -140,9 +142,9 @@ class NoOpSampleMaker(BaseSampleMaker):
         self,
         structure: AXL,
         uncertainty_per_atom: np.array,
-    ) -> List[AXL]:
+    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
         """Noop make samples."""
-        return [structure]
+        return [structure], [{'uncertainty_per_atom': uncertainty_per_atom}]
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Noop filter samples."""
@@ -191,7 +193,7 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         self,
         substructure: AXL,
         num_samples: int = 1,
-    ) -> List[AXL]:
+    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
         """Create new samples using a constrained structure.
 
         Args:
@@ -200,6 +202,7 @@ class BaseExciseSampleMaker(BaseSampleMaker):
 
         Returns:
             list of samples created. The length of the list should match num_samples.
+            list of samples additional information.
         """
         pass
 
@@ -290,7 +293,7 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         self,
         structure: AXL,
         uncertainty_per_atom: np.array,
-    ) -> List[AXL]:
+    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
         """Make new samples based on the excised substructures created using the uncertainties.
 
         Args:
@@ -301,12 +304,17 @@ class BaseExciseSampleMaker(BaseSampleMaker):
 
         Returns:
             created_samples: list of generated samples as AXL structures
+            created_samples_info: list of dictionary with additional information on the created samples
         """
-        constrained_environments_after_excision = (
+        constrained_environments_after_excision, central_atom_indices = (
             self.environment_excisor.excise_environments(
                 structure, uncertainty_per_atom, center_atoms=True
             )
         )
+        assert len(constrained_environments_after_excision) == len(
+            central_atom_indices
+        ), "Number of excised environment do not match the number of central atom index. Something went wrong."
+
         if (
             self.arguments.max_constrained_substructure
             != _UNLIMITED_CONSTRAINED_STRUCTURE
@@ -319,8 +327,14 @@ class BaseExciseSampleMaker(BaseSampleMaker):
                     : self.arguments.max_constrained_substructure
                 ]
             )
+            central_atom_indices = central_atom_indices[
+                : self.arguments.max_constrained_substructure
+            ]
         created_samples = []
-        for constrained_environment in constrained_environments_after_excision:
+        created_samples_info = []
+        for constrained_environment, central_atom_index in zip(
+            constrained_environments_after_excision, central_atom_indices
+        ):
             if self.sample_box_strategy == "fixed":
                 constrained_environment_in_new_box = self.embed_structure_in_new_box(
                     constrained_environment, self.arguments.new_box_lattice_parameters
@@ -328,12 +342,26 @@ class BaseExciseSampleMaker(BaseSampleMaker):
             # TODO use the L diffusion to get a new box
             else:  # noop
                 constrained_environment_in_new_box = constrained_environment
-            new_samples = self.make_samples_from_constrained_substructure(
-                constrained_environment_in_new_box,
-                self.arguments.number_of_samples_per_substructure,
+            new_samples, new_samples_info = (
+                self.make_samples_from_constrained_substructure(
+                    constrained_environment_in_new_box,
+                    self.arguments.number_of_samples_per_substructure,
+                )
             )
             created_samples += new_samples
-        return created_samples
+
+            new_samples_info_updated = []
+            for sample_info in new_samples_info:
+                sample_info.update(central_atom_index)
+                sample_info.update(
+                    {
+                        AXL_STRUCTURE_IN_ORIGINAL_BOX: constrained_environment,
+                        AXL_STRUCTURE_IN_NEW_BOX: constrained_environment_in_new_box,
+                    }
+                )
+                new_samples_info_updated.append(sample_info)
+            created_samples_info += new_samples_info_updated
+        return created_samples, created_samples_info
 
 
 @dataclass(kw_only=True)
@@ -359,8 +387,9 @@ class NoOpExciseSampleMaker(BaseExciseSampleMaker):
 
         Returns:
             list of samples created. The length of the list should match num_samples.
+            list of additional information on samples created.
         """
-        return [substructure] * num_samples
+        return [substructure] * num_samples, [{}] * num_samples
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Return identical structures."""
