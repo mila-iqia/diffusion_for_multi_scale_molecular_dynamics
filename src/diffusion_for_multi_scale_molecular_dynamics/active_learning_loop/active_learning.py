@@ -292,6 +292,7 @@ class ActiveLearning:
                     active_environment_indices=active_environment_indices,
                 )
 
+            # TODO: this logging could be encapsulated better in a FLARE object.
             logger.info("  Fitting the FLARE hyperparameters...")
             optimization_result, history_df = flare_trainer.fit_hyperparameters()
             logger.info(f"  Optimization status : {optimization_result.success}")
