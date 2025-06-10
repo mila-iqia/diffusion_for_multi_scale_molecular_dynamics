@@ -72,11 +72,7 @@ if __name__ == '__main__':
 
     flare_optimizer = FlareHyperparametersOptimizer(optimizer_configuration)
 
-    # TODO: something is wrong  with the class inheritance.. I have to specify arguments that
-    #   should already be there. There is something funky going on with the @dataclass...
-    sample_maker_arguments = NoOpSampleMakerArguments(element_list=element_list,
-                                                      algorithm="NoOpSampleMaker",
-                                                      sample_box_strategy="noop")
+    sample_maker_arguments = NoOpSampleMakerArguments(element_list=element_list)
 
     sample_maker = NoOpSampleMaker(sample_maker_arguments=sample_maker_arguments)
 

@@ -130,9 +130,10 @@ class BaseSampleMaker(ABC):
 @dataclass(kw_only=True)
 class NoOpSampleMakerArguments(BaseSampleMakerArguments):
     """Parameters for a trivial sample maker method."""
-
-    algorithm = "NoOpSampleMaker"
-    sample_box_strategy = "noop"
+    # Note that the fields must be TYPED exactly the same was as in the base class, or else the
+    # inheritance breaks.
+    algorithm: str = "NoOpSampleMaker"
+    sample_box_strategy: str = "noop"
 
 
 class NoOpSampleMaker(BaseSampleMaker):
