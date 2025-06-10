@@ -40,10 +40,6 @@ class FlareConfiguration:
     initial_sigma_f: float = 0.001
     initial_sigma_s: float = 0.1
 
-    # Maximum number of iterations when optimizing the hyperparameters.
-    minimization_method: str = "nelder-mead"
-    max_iterations: int = 100
-
     def __post_init__(self):
         """Post init."""
         assert self.cutoff > 0.0, "The cutoff should be positive."
@@ -95,8 +91,6 @@ class FlareTrainer:
         power = 2
         self._dot_product_kernel = NormalizedDotProduct(sigma, power)
 
-        self._minimization_method = flare_configuration.minimization_method
-
         # TODO: Consider using the field 'single_atom_energies' if and when we do more serious DFT calculations.
         # The wrapper does not make internal copies of the various input C++ objects like B2, etc...
         # These objects must not get garbage collected; otherwise we get mysterious segfaults.
@@ -111,9 +105,7 @@ class FlareTrainer:
                                      energy_training=True,
                                      force_training=True,
                                      stress_training=False,
-                                     single_atom_energies=None,
-                                     max_iterations=flare_configuration.max_iterations,
-                                     opt_method=self._minimization_method)
+                                     single_atom_energies=None)
 
     def add_labelled_structure(self, single_point_calculation: SinglePointCalculation,
                                active_environment_indices: List[int]):
