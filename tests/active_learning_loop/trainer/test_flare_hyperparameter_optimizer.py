@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import pytest
 
@@ -7,23 +9,38 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.f
 from tests.active_learning_loop.trainer.base_test_flare import BaseTestFlare
 
 
+def get_all_flag_combinations():
+    """Get all possible combinations of training flag, except 'all false'"""
+    list_combinations = []
+    flags = [True, False]
+    for combination in itertools.product(flags, flags, flags, flags):
+        if np.sum(combination) != 0:
+            list_combinations.append(list(combination))
+
+    return list_combinations
+
+
 class TestFlareHyperparameterOptimizer(BaseTestFlare):
 
-    @pytest.fixture(params=[True])
-    def optimize_sigma(self, request):
+    @pytest.fixture(params=get_all_flag_combinations())
+    def training_flags(self, request):
         return request.param
 
-    @pytest.fixture(params=[True, False])
-    def optimize_sigma_e(self, request):
-        return request.param
+    @pytest.fixture()
+    def optimize_sigma(self, training_flags):
+        return training_flags[0]
 
-    @pytest.fixture(params=[True, False])
-    def optimize_sigma_f(self, request):
-        return request.param
+    @pytest.fixture()
+    def optimize_sigma_e(self, training_flags):
+        return training_flags[1]
 
-    @pytest.fixture(params=[True, False])
-    def optimize_sigma_s(self, request):
-        return request.param
+    @pytest.fixture()
+    def optimize_sigma_f(self, training_flags):
+        return training_flags[2]
+
+    @pytest.fixture()
+    def optimize_sigma_s(self, training_flags):
+        return training_flags[3]
 
     @pytest.fixture()
     def number_of_parameters_to_optimize(self, optimize_sigma, optimize_sigma_e, optimize_sigma_f, optimize_sigma_s):

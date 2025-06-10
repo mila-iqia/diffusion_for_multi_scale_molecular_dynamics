@@ -34,9 +34,6 @@ class FlareOptimizerConfiguration:
 
         assert self.max_optimization_iterations >= 0, "The number of iterations should be non-negative."
 
-        assert self.optimize_sigma + self.optimize_sigma_e + self.optimize_sigma_f + self.optimize_sigma_s != 0, \
-            "All trainable parameters are set to FALSE. No training can take place! Review input."
-
 
 class FlareHyperparametersOptimizer:
     """Class to drive the training of a FLARE sparse GP."""
