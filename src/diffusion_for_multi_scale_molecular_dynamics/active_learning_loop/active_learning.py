@@ -1,4 +1,3 @@
-import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -14,6 +13,8 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_d
     ArtnDriver
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.outputs import \
     extract_all_fields_from_dump
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.logging import (
+    clean_up_campaign_logger, set_up_campaign_logger)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import \
     BaseSampleMaker
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.conversion_utils import (
@@ -26,8 +27,6 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.f
     FlareHyperparametersOptimizer
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
     FlareTrainer
-from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
-    configure_logging
 
 
 class ActiveLearning:
@@ -203,10 +202,8 @@ class ActiveLearning:
             not working_directory.is_dir()
         ), f"The directory {working_directory} already exists! Stopping now to avoid overwriting results."
         working_directory.mkdir(parents=True, exist_ok=True)
-        logger = logging.getLogger("campaign")
-        configure_logging(
-            experiment_dir=str(working_directory), logger=logger, log_to_console=True
-        )
+
+        logger = set_up_campaign_logger(working_directory)
         logger.info("Starting Active Learning Simulation")
 
         round_number = 0
@@ -323,8 +320,7 @@ class ActiveLearning:
                                 sigma_f=float(sigma_f),
                                 sigma_s=float(sigma_s))
 
-        # TODO: there is still overlogging across campaign... Figure that out.
-        # Delete the logger to avoid overlogging across campaigns.
-        del logger
         self._log_campaign_details(campaign_working_directory_path=working_directory,
                                    campaign_details=campaign_details)
+        # Delete the logger to avoid overlogging across campaigns.
+        clean_up_campaign_logger(logger)
