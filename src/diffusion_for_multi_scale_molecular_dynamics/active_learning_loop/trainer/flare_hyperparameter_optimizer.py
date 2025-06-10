@@ -38,6 +38,11 @@ class FlareOptimizerConfiguration:
 class FlareHyperparametersOptimizer:
     """Class to drive the training of a FLARE sparse GP."""
 
+    @property
+    def is_inactive(self) -> bool:
+        """Are all trainable flags set to false?"""
+        return np.sum(self._ordered_training_flags) == 0
+
     def __init__(self, flare_optimizer_configuration: FlareOptimizerConfiguration):
         """Init method."""
         self.flare_optimizer_configuration = flare_optimizer_configuration
