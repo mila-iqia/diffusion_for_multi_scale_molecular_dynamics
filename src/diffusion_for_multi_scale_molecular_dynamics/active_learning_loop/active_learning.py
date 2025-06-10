@@ -292,7 +292,6 @@ class ActiveLearning:
                     active_environment_indices=active_environment_indices,
                 )
 
-            # TODO: this logging could be encapsulated better in a FLARE object.
             if self.optimizer.is_inactive:
                 logger.info("  The optimizer is inactive: no hyperparameter training is done.")
 
@@ -305,6 +304,7 @@ class ActiveLearning:
                 hyperparameter_optimization_log.mkdir(parents=True, exist_ok=True)
                 history_df.to_pickle(hyperparameter_optimization_log / "optimization_log.pkl")
 
+            # TODO: this logging could be encapsulated better in a FLARE object.
             logger.info("  The SGP hyperparameters are now : ")
             sigma, sigma_e, sigma_f, sigma_s = flare_trainer.sgp_model.sparse_gp.hyperparameters
             logger.info(f"       sigma   = {sigma: 12.8f}")
