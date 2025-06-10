@@ -14,6 +14,8 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_ma
     NoOpSampleMaker, NoOpSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.stillinger_weber_single_point_calculator import \
     StillingerWeberSinglePointCalculator  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import (
+    FlareHyperparametersOptimizer, FlareOptimizerConfiguration)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import (
     FlareConfiguration, FlareTrainer)
 
@@ -40,13 +42,20 @@ flare_configuration = FlareConfiguration(cutoff=5.0,
                                          elements=element_list,
                                          n_radial=12,
                                          lmax=3,
-                                         initial_sigma=100.0,
+                                         initial_sigma=1000.0,
                                          initial_sigma_e=1.0,
                                          initial_sigma_f=0.001,
                                          initial_sigma_s=1.0,
-                                         minimization_method="nelder-mead",
-                                         max_iterations=100,
                                          variance_type=variance_type)
+
+optimizer_configuration = FlareOptimizerConfiguration(optimization_method="nelder-mead",
+                                                      max_optimization_iterations=10,
+                                                      optimize_sigma=False,
+                                                      optimize_sigma_e=False,
+                                                      optimize_sigma_f=False,
+                                                      optimize_sigma_s=False,
+                                                      print=False)
+
 
 if __name__ == '__main__':
 
@@ -61,6 +70,8 @@ if __name__ == '__main__':
     oracle_calculator = StillingerWeberSinglePointCalculator(lammps_runner,
                                                              sw_coefficients_file_path)
 
+    flare_optimizer = FlareHyperparametersOptimizer(optimizer_configuration)
+
     # TODO: something is wrong  with the class inheritance.. I have to specify arguments that
     #   should already be there. There is something funky going on with the @dataclass...
     sample_maker_arguments = NoOpSampleMakerArguments(element_list=element_list,
@@ -71,7 +82,8 @@ if __name__ == '__main__':
 
     active_learning = ActiveLearning(oracle_single_point_calculator=oracle_calculator,
                                      sample_maker=sample_maker,
-                                     artn_driver=artn_driver)
+                                     artn_driver=artn_driver,
+                                     flare_hyperparameters_optimizer=flare_optimizer)
 
     flare_trainer = FlareTrainer(flare_configuration)
 
@@ -90,7 +102,6 @@ if __name__ == '__main__':
 
     flare_trainer.add_labelled_structure(labelled_structure,
                                          active_environment_indices=active_environment_indices)
-    flare_trainer.fit_hyperparameters()
 
     # Run multiple campaigns with progressively more stringent uncertainty thresholds to train and refine
     # the FLARE model.
