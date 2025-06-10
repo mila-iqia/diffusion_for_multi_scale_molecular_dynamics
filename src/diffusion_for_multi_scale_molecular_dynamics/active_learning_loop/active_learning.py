@@ -22,6 +22,8 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_ma
     AXL_STRUCTURE_IN_NEW_BOX, AXL_STRUCTURE_IN_ORIGINAL_BOX)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import (  # noqa
     BaseSinglePointCalculator, SinglePointCalculation)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import \
+    FlareHyperparametersOptimizer
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
     FlareTrainer
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
@@ -49,6 +51,7 @@ class ActiveLearning:
         oracle_single_point_calculator: BaseSinglePointCalculator,
         sample_maker: BaseSampleMaker,
         artn_driver: ArtnDriver,
+        flare_hyperparameters_optimizer: FlareHyperparametersOptimizer
     ):
         """Init method.
 
@@ -56,11 +59,13 @@ class ActiveLearning:
             oracle_single_point_calculator: class responsible for generating of ground truth labels.
             sample_maker: class responsible for generating samples for active learning.
             artn_driver: class responsible for running LAMMPS + ARTn.
+            flare_hyperparameters_optimizer: class responsible for learning the model's hyperparameters.
 
         """
-        self.oracle_single_point_calculator = oracle_single_point_calculator
+        self.oracle_calculator = oracle_single_point_calculator
         self.sample_maker = sample_maker
         self.artn_driver = artn_driver
+        self.optimizer = flare_hyperparameters_optimizer
 
     def _get_uncertain_structure_and_uncertainties(
         self, artn_working_directory: Path
@@ -264,9 +269,7 @@ class ActiveLearning:
             logger.info("  Labelling samples with oracle...")
             time1 = time.time()
             list_single_point_calculations = [
-                self.oracle_single_point_calculator.calculate(structure)
-                for structure in list_sample_structures
-            ]
+                self.oracle_calculator.calculate(structure) for structure in list_sample_structures]
             time2 = time.time()
             logger.info(
                 f" -> It took {time2- time1: 6.2e} seconds to compute labels with Oracle."
@@ -293,22 +296,26 @@ class ActiveLearning:
                 )
 
             # TODO: this logging could be encapsulated better in a FLARE object.
-            logger.info("  Fitting the FLARE hyperparameters...")
-            optimization_result, history_df = flare_trainer.fit_hyperparameters()
-            logger.info(f"  Optimization status : {optimization_result.success}")
-            logger.info(f"  Optimization message : {optimization_result.message}")
+            if self.optimizer.is_inactive:
+                logger.info("  The optimizer is inactive: no hyperparameter training is done.")
+
+            else:
+                logger.info("  Fitting the FLARE hyperparameters...")
+                optimization_result, history_df = flare_trainer.fit_hyperparameters(self.optimizer)
+                logger.info(f"  Optimization status : {optimization_result.success}")
+                logger.info(f"  Optimization message : {optimization_result.message}")
+                hyperparameter_optimization_log = current_sub_directory / "hyperparameter_optimization_logs"
+                hyperparameter_optimization_log.mkdir(parents=True, exist_ok=True)
+                history_df.to_pickle(hyperparameter_optimization_log / "optimization_log.pkl")
+
             logger.info("  The SGP hyperparameters are now : ")
-            sigma, sigma_e, sigma_f, sigma_s = optimization_result.x
+            sigma, sigma_e, sigma_f, sigma_s = flare_trainer.sgp_model.sparse_gp.hyperparameters
             logger.info(f"       sigma   = {sigma: 12.8f}")
             logger.info(f"       sigma_e = {sigma_e: 12.8f}")
             logger.info(f"       sigma_f = {sigma_f: 12.8f}")
             logger.info(f"       sigma_s = {sigma_s: 12.8f}")
 
-            hyperparameter_optimization_log = current_sub_directory / "hyperparameter_optimization_logs"
-            hyperparameter_optimization_log.mkdir(parents=True, exist_ok=True)
-            history_df.to_pickle(hyperparameter_optimization_log / "optimization_log.pkl")
-
-        sigma, sigma_e, sigma_f, sigma_s = optimization_result.x
+        sigma, sigma_e, sigma_f, sigma_s = flare_trainer.sgp_model.sparse_gp.hyperparameters
         campaign_details = dict(uncertainty_threshold=float(uncertainty_threshold),
                                 final_round=int(round_number),
                                 sigma=float(sigma),
