@@ -146,23 +146,20 @@ class FlareTrainer:
             species_numbers_map[element.number] = idx
         return species_numbers_map
 
-    def fit_hyperparameters(self) -> Tuple[OptimizeResult, pd.DataFrame]:
+    def fit_hyperparameters(self, optimizer: FlareHyperparametersOptimizer) -> Tuple[OptimizeResult, pd.DataFrame]:
         """Fit hyperparameters.
 
         This method drives the selection of the sparse GP's hyperparameters, namely the various
         "sigma" parameters.
+
+        Args:
+            optimizer: FlareHyperparametersOptimizer instance.
 
         Returns:
             optimization_result: the scipy.minimize result object from the HP fitting process.
             history_df: a dataframe containing the negative log likelihood and the various sigma values
                 during the optimization iterative process.
         """
-        # We hardcode some sensible decisions here to avoid expositing to many obscure choices to the user.
-        minimize_options = {"disp": False,  # 'display': the algorithm shouldn't print to terminal.
-                            "ftol": 1e-8,
-                            "gtol": 1e-8,
-                            "maxiter": self.flare_configuration.max_iterations}
-        optimizer = FlareHyperparametersOptimizer(method=self._minimization_method, minimize_options=minimize_options)
         optimization_result, history_df = optimizer.train(self.sgp_model)
         return optimization_result, history_df
 
