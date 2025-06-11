@@ -2,14 +2,18 @@ from dataclasses import dataclass
 from typing import List
 
 import numpy as np
+import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import \
     BaseEnvironmentExcision
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
     BaseExciseSampleMaker, BaseExciseSampleMakerArguments)
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.utils import \
-    get_distances_from_reference_point
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.utils import (
+    get_distances_from_reference_point,
+    partition_relative_coordinates_for_voxels, select_occupied_voxels)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
+    map_lattice_parameters_to_unit_cell_vectors
 
 
 @dataclass(kw_only=True)
@@ -111,7 +115,53 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         )
         return np.argsort(distances_between_target_to_atoms)
 
-    def make_single_structure_true_random(self, constrained_structure: AXL) -> AXL:
+    def generate_relative_coordinates_true_random(
+        self, spatial_dimension
+    ) -> np.ndarray:
+        """Generate random relative coordinates when using a true random algorithm."""
+        return self.generate_random_relative_coordinates(
+            self.arguments.total_number_of_atoms, spatial_dimension
+        )
+
+    def generate_relative_coordinates_voxel_random(
+        self, lattice_parameters
+    ) -> np.ndarray:
+        """Generate random relative coordinates when using a voxel_random algorithm."""
+        box_size = (
+            map_lattice_parameters_to_unit_cell_vectors(
+                torch.tensor(lattice_parameters)
+            )
+            .diag()
+            .numpy()
+        )
+
+        box_partition, num_voxel_per_dimension = (
+            partition_relative_coordinates_for_voxels(
+                box_size, self.arguments.total_number_of_atoms
+            )
+        )
+
+        spatial_dimension, n_voxels = box_partition.shape
+
+        # generate random relative coordinates between 0 and 1
+        new_relative_coordinates = self.generate_random_relative_coordinates(
+            self.arguments.total_number_of_atoms, spatial_dimension
+        )  # shape (natom, spatial_dimension)
+        # rescale by the number of voxels along each dimension
+        new_relative_coordinates /= num_voxel_per_dimension
+
+        # choose the voxels occupied by the atoms
+        voxel_occupancies = select_occupied_voxels(
+            n_voxels, self.arguments.total_number_of_atoms
+        )
+        # this is a (natom,) array
+        occupied_voxel_coordinates = box_partition[
+            :, voxel_occupancies
+        ].transpose()  # (num_atoms, spatial_dimension)
+        new_relative_coordinates = occupied_voxel_coordinates + new_relative_coordinates
+        return new_relative_coordinates
+
+    def make_single_structure(self, constrained_structure: AXL) -> AXL:
         """Make a structure placing adding atoms at random locations in addition to those in the constrained structure.
 
         Args:
@@ -126,9 +176,19 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         spatial_dimension = constrained_relative_coordinates.shape[-1]
 
         # generate random relative coordinates and atomic species
-        new_relative_coordinates = self.generate_random_relative_coordinates(
-            self.arguments.total_number_of_atoms, spatial_dimension
-        )
+        match self.arguments.random_coordinates_algorithm:
+            case "true_random":
+                new_relative_coordinates = (
+                    self.generate_relative_coordinates_true_random(spatial_dimension)
+                )
+            case "voxel_random":
+                new_relative_coordinates = (
+                    self.generate_relative_coordinates_voxel_random(
+                        constrained_structure.L
+                    )
+                )
+            case _:  # noop
+                new_relative_coordinates = constrained_relative_coordinates
         new_atom_types = self.generate_atom_types(
             self.arguments.total_number_of_atoms, self.num_atom_types
         )
@@ -158,18 +218,6 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         return AXL(
             A=new_atom_types, X=new_relative_coordinates_copy, L=lattice_parameters
         )
-
-    def make_single_structure_voxel_random(self, constrained_structure: AXL) -> AXL:
-        """Make a structure placing adding atoms at random locations in addition to those in the constrained structure.
-
-        Args:
-            constrained_structure: fixed atoms as an AXL of numpy arrays
-
-        Returns:
-            new structure as an AXL of np.array
-        """
-        # TODO
-        return constrained_structure
 
     @staticmethod
     def get_shortest_distance_between_atoms(
@@ -216,17 +264,11 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
             f"{self.arguments.total_number_of_atoms}."
         )
         for _ in range(self.arguments.max_attempts):
-            match self.arguments.random_coordinates_algorithm:
-                case "true_random":
-                    new_structure = self.make_single_structure_true_random(
-                        constrained_structure
-                    )
-                case "voxel_random":
-                    new_structure = self.make_single_structure_voxel_random(
-                        constrained_structure
-                    )
-                case _:  # noop
-                    new_structure = constrained_structure
+            self.make_single_structure(
+                constrained_structure,
+                algorithm=self.arguments.random_coordinates_algorithm,
+            )
+
             min_interatomic_distance = self.get_shortest_distance_between_atoms(
                 new_structure.X, new_structure.L
             )

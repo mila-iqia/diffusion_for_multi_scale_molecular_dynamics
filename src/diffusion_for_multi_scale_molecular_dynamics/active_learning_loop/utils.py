@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -133,3 +133,79 @@ def get_distances_from_reference_point(
         distances_squared, (distances + box_distances_parameters) ** 2
     )
     return np.sqrt(distances_squared.sum(axis=-1))
+
+
+def find_partition_sizes(box_size: np.array, n_voxel: int) -> np.array:
+    """Find a partition scheme to fit n_voxel in a box assumed to be orthorhombic.
+
+    We use a naive guess without trying to optimize that partition. We take the best estimate for the number of voxel
+    in each direction (which could be a float) and round it to the nearest integer. This does not guarantee that the
+    number of proposed voxels match the desired number of voxels.
+
+    Args:
+        box_size: array containing the size of the box of size (spatial_dimension,)
+        n_voxel: desired number of voxels
+
+    Returns:
+        proposed_partition: integers describing in how many segments to split each axis
+        difference between the number of proposed voxels and the desired number of voxels
+    """
+    assert box_size.ndim == 1
+    assert np.all(box_size > 0)
+    box_volume = np.prod(box_size)
+    spatial_dimension = box_size.shape[0]
+    scaling_factor = (n_voxel / box_volume) ** (1 / spatial_dimension)
+    # find integers such that their product is close to n_voxel while retaining approximately the same ratio
+    # x/y, x/z, y/z as the box_size array
+    # impose a minimum of 1 voxel in each dimension and cast as integers
+    proposed_partition_size = (
+        np.round(box_size * scaling_factor).clip(min=1).astype(int)
+    )
+    return proposed_partition_size
+
+
+def partition_relative_coordinates_for_voxels(
+    box_size: np.array, n_voxel: int
+) -> Tuple[np.ndarray, np.array]:
+    """Split a box in voxels of similar volumes.
+
+    This finds the closest number of voxels to n_voxel and returns the corner of each voxel in relative coordinates.
+
+    Args:
+        box_size: array containing the size of the box in Angstrom (height, width, depth in 3D for example)
+        n_voxel: number of voxels desired
+
+    Returns:
+        stacked_meshes: corner of each voxel in an array of shape (spatial dimension, number of voxels)
+        proposed_partition_size: number of voxel along each dimension in an array of shape (spatial dimension)
+    """
+    proposed_partition_size = find_partition_sizes(box_size, n_voxel)
+    grid_points = [
+        np.linspace(0, 1, p - 1, endpoint=False) for p in proposed_partition_size
+    ]
+    meshes = np.meshgrid(*grid_points, indexing="ij")
+    stacked_meshes = np.stack(meshes).reshape(len(meshes), -1)
+    return stacked_meshes, proposed_partition_size
+
+
+def select_occupied_voxels(num_voxels, num_atoms) -> np.array:
+    """Select randomly which voxels are occupied by atoms.
+
+    This algorithm minimizes the number of voxels populated by more than 1 atom as much as possible.
+
+    Args:
+        num_voxels: number of available voxels
+        num_atoms: number of atoms to place
+
+    Returns:
+       array of voxels indices to use
+    """
+    if num_atoms == num_voxels:
+        return np.arange(num_voxels)
+    elif num_atoms < num_voxels:
+        return np.random.choice(np.arange(num_voxels), size=num_atoms, replace=False)
+    else:  # num_atoms > num_voxels
+        list_voxels = np.arange(num_voxels)
+        num_atoms = num_atoms - num_voxels
+        double_occupied_voxels = select_occupied_voxels(num_voxels, num_atoms)
+        return np.concatenate((list_voxels, double_occupied_voxels))
