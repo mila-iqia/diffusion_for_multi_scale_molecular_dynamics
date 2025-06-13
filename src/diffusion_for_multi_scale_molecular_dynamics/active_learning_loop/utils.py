@@ -100,7 +100,7 @@ def get_distances_from_reference_point(
     reference_point_relative_coordinates: np.array,
     lattice_parameters: np.array,
 ) -> np.ndarray:
-    """Find the distance between a point and a reference point, taking into account periodicity.
+    """Find the distance in Angstrom between atoms positions and a reference point, taking into account periodicity.
 
     Args:
         atom_relative_coordinates: atom relative coordinates as a (natom, spatial dimension) array
@@ -181,7 +181,7 @@ def partition_relative_coordinates_for_voxels(
     """
     proposed_partition_size = find_partition_sizes(box_size, n_voxel)
     grid_points = [
-        np.linspace(0, 1, p - 1, endpoint=False) for p in proposed_partition_size
+        np.linspace(0, 1, p, endpoint=False) for p in proposed_partition_size
     ]
     meshes = np.meshgrid(*grid_points, indexing="ij")
     stacked_meshes = np.stack(meshes).reshape(len(meshes), -1)
@@ -206,6 +206,7 @@ def select_occupied_voxels(num_voxels, num_atoms) -> np.array:
         return np.random.choice(np.arange(num_voxels), size=num_atoms, replace=False)
     else:  # num_atoms > num_voxels
         list_voxels = np.arange(num_voxels)
-        num_atoms = num_atoms - num_voxels
-        double_occupied_voxels = select_occupied_voxels(num_voxels, num_atoms)
+        double_occupied_voxels = select_occupied_voxels(
+            num_voxels, num_atoms - num_voxels
+        )
         return np.concatenate((list_voxels, double_occupied_voxels))
