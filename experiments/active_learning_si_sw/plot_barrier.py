@@ -16,7 +16,7 @@ plt.style.use(PLOT_STYLE_PATH)
 experiment_dir = TOP_DIR / "experiments/active_learning_si_sw"
 reference_artn_output_file = experiment_dir / "Si-vac_sw_potential/artn.out"
 
-list_experiments_ids = [1, 2, 3, 4, 5]
+list_run_ids = [1, 2, 3, 4, 5]
 list_campaign_ids = [1, 2, 3, 4]
 
 
@@ -27,13 +27,12 @@ if __name__ == "__main__":
 
     results = defaultdict(list)
 
-    for experiment_id in list_experiments_ids:
+    for run_id in list_run_ids:
         for campaign_id in list_campaign_ids:
             campaign_dir = (
                 experiment_dir
-                / "sigma=1000"
-                / f"experiment_{experiment_id}"
-                / f"active_learning_campaign_{campaign_id}"
+                / "output" / f"run{run_id}"
+                / f"campaign_{campaign_id}"
             )
 
             with open(campaign_dir / "campaign_details.yaml", "r") as fd:
