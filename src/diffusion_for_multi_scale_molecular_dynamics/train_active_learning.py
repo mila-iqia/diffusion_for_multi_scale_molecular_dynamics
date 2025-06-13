@@ -15,16 +15,14 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.la
     instantiate_lammps_runner
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
     NoOpSampleMaker, NoOpSampleMakerArguments)
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.stillinger_weber_single_point_calculator import \
-    StillingerWeberSinglePointCalculator  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.single_point_calculator_factory import \
+    instantiate_single_point_calculator  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import (
     FlareHyperparametersOptimizer, FlareOptimizerConfiguration)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
     FlareTrainer
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
-from diffusion_for_multi_scale_molecular_dynamics.oracle import \
-    SW_COEFFICIENTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
     load_and_backup_hyperparameters
 
@@ -113,23 +111,16 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     artn_driver = ArtnDriver(
         lammps_runner=lammps_runner,
         artn_library_plugin_path=Path(args.path_to_artn_library_plugin),
-        reference_directory=Path(args.path_to_reference_directory),
+        reference_directory=Path(args.path_to_reference_directory).absolute(),
     )
 
-    # TODO: create an oracle calculator factory.
     assert (
         "oracle" in configuration
     ), "An Oracle must be defined in the configuration file!"
     oracle_configuration = configuration["oracle"]
-    assert (
-        oracle_configuration["name"] == "stillinger_weber"
-    ), "Only stilinger weber is implemented at this time."
-
-    sw_filename = oracle_configuration["sw_coeff_filename"]
-    sw_coefficients_file_path = SW_COEFFICIENTS_DIR / sw_filename
-    oracle_calculator = StillingerWeberSinglePointCalculator(
-        lammps_runner, sw_coefficients_file_path
-    )
+    oracle_calculator = instantiate_single_point_calculator(
+        single_point_calculator_configuration=oracle_configuration,
+        lammps_runner=lammps_runner)
 
     assert (
         "flare" in configuration
