@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import time
 import typing
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.f
     FlareTrainer
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
+from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
+    configure_logging
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
     load_and_backup_hyperparameters
 
@@ -73,7 +76,6 @@ def main(args: typing.Optional[typing.Any] = None):
         help="path to where the outputs will be written.",
         required=True,
     )
-
     args = parser.parse_args(args)
 
     output_directory = Path(args.output_directory)
@@ -82,7 +84,6 @@ def main(args: typing.Optional[typing.Any] = None):
         raise Exception(
             f"Output directory {args.output_directory} already exists! Stopping to avoid overwriting data."
         )
-
     output_directory.mkdir(parents=True, exist_ok=False)
 
     configuration = load_and_backup_hyperparameters(
@@ -99,6 +100,13 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
         args (object): arguments passed from the cli
         configuration (dict): parameters from the config file
     """
+    configure_logging(experiment_dir=args.output_directory,
+                      logger=logger,
+                      log_to_console=True)
+
+    experiment_name = configuration["exp_name"]
+    logging.info(f"Starting experiment {experiment_name}")
+
     if "seed" in configuration:
         pl.seed_everything(configuration["seed"])
 
@@ -163,20 +171,35 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     )
 
     assert (
-        "uncertainty_threshold" in configuration
-    ), "An uncertainty threshold must be defined in the configuration file!"
-    uncertainty_threshold = configuration["uncertainty_threshold"]
+        "uncertainty_thresholds" in configuration
+    ), "A list of uncertainty thresholds must be defined in the configuration file!"
+    uncertainty_thresholds = configuration["uncertainty_thresholds"]
 
-    flare_trainer = FlareTrainer.from_checkpoint(
-        Path(args.path_to_initial_flare_checkpoint)
-    )
+    list_flare_checkpoint_paths = [Path(args.path_to_initial_flare_checkpoint).absolute()]
 
     try:
-        active_learning.run_campaign(
-            uncertainty_threshold=uncertainty_threshold,
-            flare_trainer=flare_trainer,
-            working_directory=Path(args.output_directory).absolute(),
-        )
+        for campaign_id, uncertainty_threshold in enumerate(uncertainty_thresholds, 1):
+            logger.info(f"Starting campaign {campaign_id} uncertainty threshold {uncertainty_threshold}")
+            checkpoint_path = list_flare_checkpoint_paths[-1]
+            logger.info(f"  - Loading checkpoint from {checkpoint_path}")
+            flare_trainer = FlareTrainer.from_checkpoint(checkpoint_path)
+
+            working_directory = Path(args.output_directory).absolute() / f"campaign_{campaign_id}"
+            working_directory.mkdir(parents=True, exist_ok=False)
+            time1 = time.time()
+            active_learning.run_campaign(
+                uncertainty_threshold=uncertainty_threshold,
+                flare_trainer=flare_trainer,
+                working_directory=working_directory,
+            )
+            time2 = time.time()
+            logger.info(f"Campaign {campaign_id} completed in {time2-time1: 6.2f} seconds.")
+
+            new_checkpoint_path = working_directory / "trained_flare.json"
+            assert new_checkpoint_path.is_file(), \
+                f"The checkpoint file at the end of campaign {campaign_id} is missing! Something went wrong."
+            list_flare_checkpoint_paths.append(new_checkpoint_path)
+
     except RuntimeError as err:
         logger.error(err)
 
