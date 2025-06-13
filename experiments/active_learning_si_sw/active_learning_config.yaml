@@ -1,13 +1,13 @@
 #================================================================================
 # Configuration file for an active learning run
 #================================================================================
-exp_name: campaign_1
+exp_name: no_op_sample_maker
 
 seed: 42
 
 elements: [Si]
 
-uncertainty_threshold: 0.01
+uncertainty_thresholds: [0.001, 0.0001, 0.00001, 0.000001]
 
 flare:
   cutoff: 5.0
