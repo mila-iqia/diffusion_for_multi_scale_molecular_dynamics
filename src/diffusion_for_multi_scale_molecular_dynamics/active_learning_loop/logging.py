@@ -28,7 +28,7 @@ def set_up_campaign_logger(working_directory: Path):
     logger = logging.getLogger(logger_name)
 
     logging.captureWarnings(capture=True)
-    logging_format = ("%(asctime)s - %(filename)s:%(lineno)s - %(funcName)20s() - %(message)s")
+    logging_format = ("%(asctime)s :: %(message)s")
     logger.setLevel(logging.INFO)
 
     console_log_file = working_directory / log_file_name
