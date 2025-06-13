@@ -264,9 +264,8 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
             f"{self.arguments.total_number_of_atoms}."
         )
         for _ in range(self.arguments.max_attempts):
-            self.make_single_structure(
+            new_structure = self.make_single_structure(
                 constrained_structure,
-                algorithm=self.arguments.random_coordinates_algorithm,
             )
 
             min_interatomic_distance = self.get_shortest_distance_between_atoms(
