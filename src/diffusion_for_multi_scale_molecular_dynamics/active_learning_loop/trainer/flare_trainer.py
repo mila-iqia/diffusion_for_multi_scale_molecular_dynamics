@@ -35,12 +35,10 @@ class FlareConfiguration:
     variance_type: str
 
     # Define the initial GP hyperparameters
+    initial_sigma: float = 1.00
     initial_sigma_e: float = 0.01
     initial_sigma_f: float = 0.001
     initial_sigma_s: float = 0.1
-
-    # Maximum number of iterations when optimizing the hyperparameters with BFGS.
-    max_bfgs_iterations: int = 100
 
     def __post_init__(self):
         """Post init."""
@@ -89,7 +87,7 @@ class FlareTrainer:
         self._descriptor_calculators = [self._B2_descriptor]
 
         # Define kernel function.
-        sigma = 1.0
+        sigma = self.flare_configuration.initial_sigma
         power = 2
         self._dot_product_kernel = NormalizedDotProduct(sigma, power)
 
@@ -107,9 +105,7 @@ class FlareTrainer:
                                      energy_training=True,
                                      force_training=True,
                                      stress_training=False,
-                                     single_atom_energies=None,
-                                     max_iterations=flare_configuration.max_bfgs_iterations,
-                                     opt_method="BFGS")
+                                     single_atom_energies=None)
 
     def add_labelled_structure(self, single_point_calculation: SinglePointCalculation,
                                active_environment_indices: List[int]):
@@ -142,23 +138,20 @@ class FlareTrainer:
             species_numbers_map[element.number] = idx
         return species_numbers_map
 
-    def fit_hyperparameters(self) -> Tuple[OptimizeResult, pd.DataFrame]:
+    def fit_hyperparameters(self, optimizer: FlareHyperparametersOptimizer) -> Tuple[OptimizeResult, pd.DataFrame]:
         """Fit hyperparameters.
 
         This method drives the selection of the sparse GP's hyperparameters, namely the various
         "sigma" parameters.
+
+        Args:
+            optimizer: FlareHyperparametersOptimizer instance.
 
         Returns:
             optimization_result: the scipy.minimize result object from the HP fitting process.
             history_df: a dataframe containing the negative log likelihood and the various sigma values
                 during the optimization iterative process.
         """
-        # We hardcode some sensible decisions here to avoid expositing to many obscure choices to the user.
-        minimize_options = {"disp": False,  # 'display': the algorithm shouldn't print to terminal.
-                            "ftol": 1e-8,
-                            "gtol": 1e-8,
-                            "maxiter": self.flare_configuration.max_bfgs_iterations}
-        optimizer = FlareHyperparametersOptimizer(method="BFGS", minimize_options=minimize_options)
         optimization_result, history_df = optimizer.train(self.sgp_model)
         return optimization_result, history_df
 
