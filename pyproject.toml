@@ -66,6 +66,7 @@ flare = ["mir_flare @ git+https://github.com/rousseab/flare@proper_build"]
 [project.scripts]
 train_diffusion = "diffusion_for_multi_scale_molecular_dynamics.train_diffusion:main"
 sample_diffusion = "diffusion_for_multi_scale_molecular_dynamics.sample_diffusion:main"
+train_active_learning = "diffusion_for_multi_scale_molecular_dynamics.train_active_learning:main"
 
 
 [build-system]

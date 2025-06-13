@@ -198,11 +198,7 @@ class ActiveLearning:
             maximum_number_of_rounds: maximum number of active learning rounds. This is useful to avoid
                 infinite loops...
         """
-        assert (
-            not working_directory.is_dir()
-        ), f"The directory {working_directory} already exists! Stopping now to avoid overwriting results."
         working_directory.mkdir(parents=True, exist_ok=True)
-
         logger = set_up_campaign_logger(working_directory)
         logger.info("Starting Active Learning Simulation")
 
