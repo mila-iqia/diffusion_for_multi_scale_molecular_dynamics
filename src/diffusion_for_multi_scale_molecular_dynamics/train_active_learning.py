@@ -12,7 +12,7 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.active_le
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_driver.artn_driver import \
     ArtnDriver
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
-    LammpsRunner
+    instantiate_lammps_runner
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
     NoOpSampleMaker, NoOpSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.stillinger_weber_single_point_calculator import \
@@ -107,15 +107,8 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     element_list = configuration["elements"]
     ElementTypes.validate_elements(element_list)
 
-    lammps_config = configuration.get(
-        "lammps", dict(mpi_processors=1, openmp_threads=1)
-    )
-
-    lammps_runner = LammpsRunner(
-        lammps_executable_path=Path(args.path_to_lammps_executable),
-        mpi_processors=lammps_config["mpi_processors"],
-        openmp_threads=lammps_config["openmp_threads"],
-    )
+    lammps_runner = instantiate_lammps_runner(lammps_executable_path=Path(args.path_to_lammps_executable),
+                                              configuration_dict=configuration)
 
     artn_driver = ArtnDriver(
         lammps_runner=lammps_runner,

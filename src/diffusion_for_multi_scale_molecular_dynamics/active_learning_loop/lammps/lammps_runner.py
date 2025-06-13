@@ -1,7 +1,29 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import Dict, List
+
+_DEFAULT_LAMMPS_CONFIG = dict(mpi_processors=1, openmp_threads=1)
+
+
+def instantiate_lammps_runner(lammps_executable_path: Path, configuration_dict: Dict):
+    """Instantiate lammps runner.
+
+    Args:
+        lammps_executable_path: Path to lammps executable.
+        configuration_dict: Global configuration dictionary, which can optionally contain LAMMPS instantiation
+            parameters.
+
+    Returns:
+        lammps_runner: a Lammps runner.
+    """
+    lammps_config = configuration_dict.get("lammps", _DEFAULT_LAMMPS_CONFIG)
+    lammps_runner = LammpsRunner(
+        lammps_executable_path=lammps_executable_path,
+        mpi_processors=lammps_config["mpi_processors"],
+        openmp_threads=lammps_config["openmp_threads"],
+    )
+    return lammps_runner
 
 
 class LammpsRunner:
