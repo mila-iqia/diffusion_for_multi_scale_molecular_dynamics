@@ -226,7 +226,7 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         """Find the shortest distance between any two atoms.
 
         Args:
-            atom_relative_coordinates: relative coordinates as a (n_atoms, spatial_dimension array)
+            atom_relative_coordinates: relative coordinates as a (n_atoms, spatial_dimension) array
             lattice_parameters: lattice parameters as a 1D array
 
         Returns:
