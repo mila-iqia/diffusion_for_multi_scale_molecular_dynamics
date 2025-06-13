@@ -2,6 +2,8 @@ from typing import Any, AnyStr, Dict, Optional
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import \
     BaseEnvironmentExcisionArguments
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
+    create_excisor
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
     BaseSampleMaker, BaseSampleMakerArguments, NoOpSampleMaker,
     NoOpSampleMakerArguments)
@@ -70,9 +72,10 @@ def create_sample_maker(
             sample_maker = NoOpSampleMaker(sample_maker_parameters)
 
         case "excise_and_repaint":
+            excisor = create_excisor(excisor_parameters)
             sample_maker = ExciseAndRepaintSampleMaker(
                 sample_maker_arguments=sample_maker_parameters,
-                environment_excisor=excisor_parameters,
+                environment_excisor=excisor,
                 noise_parameters=noise_parameters,
                 sampling_parameters=sampling_parameters,
                 diffusion_model=diffusion_model,
@@ -80,9 +83,10 @@ def create_sample_maker(
             )
 
         case "excise_and_random":
+            excisor = create_excisor(excisor_parameters)
             sample_maker = ExciseAndRandomSampleMaker(
                 sample_maker_arguments=sample_maker_parameters,
-                environment_excisor=excisor_parameters,
+                environment_excisor=excisor,
             )
 
     return sample_maker
