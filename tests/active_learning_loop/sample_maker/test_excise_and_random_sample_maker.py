@@ -5,8 +5,12 @@ import pytest
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
     NoOpEnvironmentExcision, NoOpEnvironmentExcisionArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
+    create_excisor_parameters
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import (  # noqa
     ExciseAndRandomSampleMaker, ExciseAndRandomSampleMakerArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.sample_maker_factory import (
+    create_sample_maker, create_sample_maker_parameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_number_of_lattice_parameters
@@ -379,8 +383,50 @@ class TestExciseAndRandomSampleMaker:
                     "excise_and_random_sample_maker.select_occupied_voxels",
                     new=mock_select_voxels,
                 ):
-                    calculated_atom_coordinates_in_voxels = \
-                        excise_and_random_sample_maker.generate_relative_coordinates_voxel_random(lattice_parameters)
+                    calculated_atom_coordinates_in_voxels = (
+                        excise_and_random_sample_maker.generate_relative_coordinates_voxel_random(
+                            lattice_parameters
+                        )
+                    )
         assert np.allclose(
             calculated_atom_coordinates_in_voxels, expected_atom_coordinates_in_voxels
         )
+
+    def test_smoke_test(
+        self,
+        random_algorithm,
+        spatial_dimension,
+        lattice_parameters,
+        constrained_axl_structure,
+        num_constrained_atoms,
+    ):
+        # smoke test to make sure the sample maker works end-to-end
+        sample_maker_dictionary = dict(
+            algorithm="excise_and_random",
+            total_number_of_atoms=16,
+            random_coordinates_algorithm=random_algorithm,
+            max_attempts=3,
+            minimal_interatomic_distance=0.1,
+            sample_box_strategy="fixed",
+            sample_box_size=lattice_parameters[:spatial_dimension],
+            element_list=["air", "earth", "fire", "water"],
+        )
+        sample_maker_parameters = create_sample_maker_parameters(
+            sample_maker_dictionary
+        )
+
+        excisor_dictionary = dict(
+            algorithm="spherical_cutoff",
+            radial_cutoff=0.5,
+            uncertainty_threshold=0.1,
+        )
+        excisor_parameters = create_excisor_parameters(excisor_dictionary)
+
+        sample_maker = create_sample_maker(
+            sample_maker_parameters=sample_maker_parameters,
+            excisor_parameters=excisor_parameters,
+        )
+
+        uncertainties = np.random.rand(num_constrained_atoms)
+
+        sample_maker.make_samples(constrained_axl_structure, uncertainties)

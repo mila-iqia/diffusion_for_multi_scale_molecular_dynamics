@@ -19,10 +19,11 @@ def convert_structure_to_axl(structure: Structure) -> AXL:
     Returns:
         axl_structure: the same data, but represented as an AXL.
     """
-    axl_structure = AXL(A=np.array([element.symbol for element in structure.species]),
-                        X=structure.frac_coords,
-                        L=map_unit_cell_to_lattice_parameters(structure.lattice.matrix, engine="numpy")
-                        )
+    axl_structure = AXL(
+        A=np.array([element.symbol for element in structure.species]),
+        X=structure.frac_coords,
+        L=map_unit_cell_to_lattice_parameters(structure.lattice.matrix, engine="numpy"),
+    )
     return axl_structure
 
 
@@ -38,6 +39,8 @@ def convert_axl_to_structure(axl_structure: AXL) -> Structure:
     """
     species = axl_structure.A
     relative_coordinates = axl_structure.X
-    basis_vectors = map_lattice_parameters_to_unit_cell_vectors(torch.tensor(axl_structure.L).float()).numpy()
+    basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
+        torch.tensor(axl_structure.L)
+    ).numpy()
     structure = create_structure(basis_vectors, relative_coordinates, species)
     return structure
