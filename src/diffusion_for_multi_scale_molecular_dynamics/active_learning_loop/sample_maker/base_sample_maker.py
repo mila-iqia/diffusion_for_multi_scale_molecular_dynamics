@@ -145,7 +145,7 @@ class NoOpSampleMaker(BaseSampleMaker):
         uncertainty_per_atom: np.array,
     ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
         """Noop make samples."""
-        return [structure], [{'uncertainty_per_atom': uncertainty_per_atom}]
+        return [structure], [{"uncertainty_per_atom": uncertainty_per_atom}]
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Noop filter samples."""
@@ -226,11 +226,11 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         """
         # get the basis vectors for the large box
         original_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
-            torch.tensor(structure_with_centered_atoms.L).float()
+            torch.tensor(structure_with_centered_atoms.L)
         )
         # basis vectors for the small box
         new_basis_vectors = map_lattice_parameters_to_unit_cell_vectors(
-            torch.tensor(new_lattice_parameters).float()
+            torch.tensor(new_lattice_parameters)
         )
 
         # atoms are centered in the box - so the central atom coordinates should be (0.5, 0.5, ...) by definition
@@ -243,9 +243,7 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         )
         # we can map those vector as translation vectors in the cartesian positions space
         cartesian_positions_as_vector_translation = get_positions_from_coordinates(
-            torch.tensor(
-                relative_coordinates_as_vector_translation
-            ).float(),  # have to cast to float explicitly
+            torch.tensor(relative_coordinates_as_vector_translation),
             basis_vectors=original_basis_vectors,
         )
 
@@ -253,7 +251,7 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         spatial_dimension = relative_coordinates_in_large_box.shape[-1]
         new_box_center_point_relative_coordinates = (
             torch.ones(1, spatial_dimension) * 0.5
-        )
+        ).to(new_basis_vectors)
         new_box_center_point_cartesian_positions = get_positions_from_coordinates(
             new_box_center_point_relative_coordinates, basis_vectors=new_basis_vectors
         )
