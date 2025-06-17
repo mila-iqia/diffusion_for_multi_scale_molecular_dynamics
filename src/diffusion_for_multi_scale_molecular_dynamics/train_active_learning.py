@@ -12,10 +12,14 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.active_le
     ActiveLearning
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_driver.artn_driver import \
     ArtnDriver
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
+    create_excisor_parameters
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
     instantiate_lammps_runner
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
-    NoOpSampleMaker, NoOpSampleMakerArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import \
+    BaseSampleMaker
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.sample_maker_factory import (
+    create_sample_maker, create_sample_maker_parameters)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.single_point_calculator_factory import \
     instantiate_single_point_calculator  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import (
@@ -151,17 +155,9 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
 
     flare_optimizer = FlareHyperparametersOptimizer(flare_optimizer_configuration)
 
-    # TODO: use a sample_maker factory
-    assert (
-        "sampling" in configuration
-    ), "A sampling strategy for must be defined in the configuration file!"
-    sampling_parameters = configuration["sampling"]
-    assert (
-        sampling_parameters["algorithm"] == "no_op"
-    ), "Only NoOp is implemented at this time."
-
-    sample_maker_arguments = NoOpSampleMakerArguments(element_list=element_list)
-    sample_maker = NoOpSampleMaker(sample_maker_arguments=sample_maker_arguments)
+    assert "sampling" in configuration, "A sampling strategy for must be defined in the configuration file!"
+    sampling_dictionary = configuration["sampling"]
+    sample_maker = get_sample_maker_from_configuration(sampling_dictionary, element_list)
 
     active_learning = ActiveLearning(
         oracle_single_point_calculator=oracle_calculator,
@@ -202,6 +198,19 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
 
     except RuntimeError as err:
         logger.error(err)
+
+
+def get_sample_maker_from_configuration(sampling_dictionary: typing.Dict,
+                                        element_list: typing.List[str]) -> BaseSampleMaker:
+    """Get sample maker from configuration dictionary."""
+    # TODO: deal with a potential diffusion model.
+    excisor_parameter_dictionary = sampling_dictionary.pop("excision", None)
+    excisor_parameters = create_excisor_parameters(excisor_parameter_dictionary)
+    sampling_dictionary["element_list"] = element_list
+    sample_maker_parameters = create_sample_maker_parameters(sampling_dictionary)
+    sample_maker = create_sample_maker(sample_maker_parameters=sample_maker_parameters,
+                                       excisor_parameters=excisor_parameters)
+    return sample_maker
 
 
 if __name__ == "__main__":
