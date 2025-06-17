@@ -39,7 +39,7 @@ def create_sample_maker_parameters(
     algorithm = sample_maker_dictionary["algorithm"]
 
     assert algorithm in SAMPLE_MAKER_PARAMETERS_BY_NAME.keys(), (
-        "Sample maker method {algorithm} is not implemented. Possible choices are "
+        f"Sample maker method {algorithm} is not implemented. Possible choices are "
         f"{SAMPLE_MAKER_PARAMETERS_BY_NAME.keys()}"
     )
 
