@@ -1,5 +1,7 @@
 import pytest
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_noop_sample_maker import \
+    ExciseAndNoOpSampleMaker  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import \
     ExciseAndRandomSampleMaker  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_repaint_sample_maker import \
@@ -51,7 +53,7 @@ def excision_dictionary(request, excision_criterion, excision_criterion_paramete
 
 
 # TODO: Implement something for excise_and_repaint
-@pytest.fixture(params=['noop', 'excise_and_random'])
+@pytest.fixture(params=['noop', 'excise_and_random', 'excise_and_noop'])
 def sampling_dictionary(request, excision_dictionary):
     algorithm = request.param
     sampling_dict = dict(algorithm=algorithm)
@@ -64,6 +66,8 @@ def sampling_dictionary(request, excision_dictionary):
             sampling_dict['random_coordinates_algorithm'] = "true_random"
             sampling_dict['max_attempts'] = 4
             sampling_dict['minimal_interatomic_distance'] = 1.0
+            sampling_dict['sample_box_size'] = [10.1, 11.2, 12.3]
+        case 'excise_and_noop':
             sampling_dict['sample_box_size'] = [10.1, 11.2, 12.3]
         case _:
             raise NotImplementedError("Unknown sampling case.")
@@ -80,6 +84,8 @@ def expected_sampler_maker_class(sampling_dictionary):
             return ExciseAndRepaintSampleMaker
         case "excise_and_random":
             return ExciseAndRandomSampleMaker
+        case "excise_and_noop":
+            return ExciseAndNoOpSampleMaker
         case _:
             raise NotImplementedError("Unknown sampling case.")
 

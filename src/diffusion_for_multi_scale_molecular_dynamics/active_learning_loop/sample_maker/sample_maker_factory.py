@@ -6,6 +6,8 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.e
     create_excisor
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
     BaseSampleMaker, BaseSampleMakerArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_noop_sample_maker import (  # noqa
+    ExciseAndNoOpSampleMaker, ExciseAndNoOpSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import (  # noqa
     ExciseAndRandomSampleMaker, ExciseAndRandomSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_repaint_sample_maker import (  # noqa
@@ -21,6 +23,7 @@ from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_paramet
 
 SAMPLE_MAKER_PARAMETERS_BY_NAME = dict(
     noop=NoOpSampleMakerArguments,
+    excise_and_noop=ExciseAndNoOpSampleMakerArguments,
     excise_and_repaint=ExciseAndRepaintSampleMakerArguments,
     excise_and_random=ExciseAndRandomSampleMakerArguments,
 )
@@ -82,12 +85,19 @@ def create_sample_maker(
                 diffusion_model=diffusion_model,
                 device=device,
             )
-
         case "excise_and_random":
             excisor = create_excisor(excisor_parameters)
             sample_maker = ExciseAndRandomSampleMaker(
                 sample_maker_arguments=sample_maker_parameters,
                 environment_excisor=excisor,
             )
+        case "excise_and_noop":
+            excisor = create_excisor(excisor_parameters)
+            sample_maker = ExciseAndNoOpSampleMaker(
+                sample_maker_arguments=sample_maker_parameters,
+                environment_excisor=excisor,
+            )
+        case _:
+            raise NotImplementedError(f"Algorithm {algorithm} is not implemented.")
 
     return sample_maker
