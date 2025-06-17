@@ -1,11 +1,11 @@
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import \
-    NoOpSampleMaker
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import \
     ExciseAndRandomSampleMaker  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_repaint_sample_maker import \
     ExciseAndRepaintSampleMaker  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.no_op_sample_maker import \
+    NoOpSampleMaker
 from diffusion_for_multi_scale_molecular_dynamics.train_active_learning import \
     get_sample_maker_from_configuration
 

@@ -128,31 +128,6 @@ class BaseSampleMaker(ABC):
 
 
 @dataclass(kw_only=True)
-class NoOpSampleMakerArguments(BaseSampleMakerArguments):
-    """Parameters for a trivial sample maker method."""
-    # Note that the fields must be TYPED exactly the same was as in the base class, or else the
-    # inheritance breaks.
-    algorithm: str = "NoOpSampleMaker"
-    sample_box_strategy: str = "noop"
-
-
-class NoOpSampleMaker(BaseSampleMaker):
-    """Trivial sample maker that reproduces the excised environment without modifications."""
-
-    def make_samples(
-        self,
-        structure: AXL,
-        uncertainty_per_atom: np.array,
-    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
-        """Noop make samples."""
-        return [structure], [{"uncertainty_per_atom": uncertainty_per_atom}]
-
-    def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
-        """Noop filter samples."""
-        return structures
-
-
-@dataclass(kw_only=True)
 class BaseExciseSampleMakerArguments(BaseSampleMakerArguments):
     """Parameters for a sample maker relying on an excision method to find the constrained atoms."""
 
@@ -361,35 +336,3 @@ class BaseExciseSampleMaker(BaseSampleMaker):
                 new_samples_info_updated.append(sample_info)
             created_samples_info += new_samples_info_updated
         return created_samples, created_samples_info
-
-
-@dataclass(kw_only=True)
-class NoOpExciseSampleMakerArguments(BaseExciseSampleMakerArguments):
-    """Parameters for a trivial sample maker method."""
-
-    algorithm: str = "NoOpSampleMaker"
-
-
-class NoOpExciseSampleMaker(BaseExciseSampleMaker):
-    """Trivial sample maker that reproduces the excised environment without modifications."""
-
-    def make_samples_from_constrained_substructure(
-        self,
-        substructure: AXL,
-        num_samples: int = 1,
-    ) -> List[AXL]:
-        """Create new samples using a constrained structure.
-
-        Args:
-            substructure: constrained atoms described as an AXL
-            num_samples: number of samples to make. Defaults to 1.
-
-        Returns:
-            list of samples created. The length of the list should match num_samples.
-            list of additional information on samples created.
-        """
-        return [substructure] * num_samples, [{}] * num_samples
-
-    def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
-        """Return identical structures."""
-        return structures

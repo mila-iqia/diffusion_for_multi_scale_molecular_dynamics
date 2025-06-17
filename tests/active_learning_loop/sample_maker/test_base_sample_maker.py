@@ -3,8 +3,8 @@ import pytest
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
     NoOpEnvironmentExcision, NoOpEnvironmentExcisionArguments)
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
-    NoOpExciseSampleMaker, NoOpExciseSampleMakerArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_noop_sample_maker import (  # noqa
+    ExciseAndNoOpSampleMaker, ExciseAndNoOpSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_number_of_lattice_parameters
@@ -34,7 +34,7 @@ class TestBaseExciseSampleMaker:
         number_of_samples_per_substructure,
         spatial_dimension,
     ):
-        return NoOpExciseSampleMakerArguments(
+        return ExciseAndNoOpSampleMakerArguments(
             element_list=["fire", "earth", "air", "water"],
             max_constrained_substructure=max_constrained_substructure,
             number_of_samples_per_substructure=number_of_samples_per_substructure,
@@ -54,7 +54,7 @@ class TestBaseExciseSampleMaker:
     def noop_base_excise_sample_maker(
         self, excise_sample_maker_arguments, environment_excisor
     ):
-        sample_maker = NoOpExciseSampleMaker(
+        sample_maker = ExciseAndNoOpSampleMaker(
             excise_sample_maker_arguments, environment_excisor
         )
         sample_maker.make_samples_from_constrained_substructure = (

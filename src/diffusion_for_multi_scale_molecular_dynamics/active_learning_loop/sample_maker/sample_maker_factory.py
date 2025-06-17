@@ -5,12 +5,13 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.b
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
     create_excisor
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
-    BaseSampleMaker, BaseSampleMakerArguments, NoOpSampleMaker,
-    NoOpSampleMakerArguments)
+    BaseSampleMaker, BaseSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import (  # noqa
     ExciseAndRandomSampleMaker, ExciseAndRandomSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_repaint_sample_maker import (  # noqa
     ExciseAndRepaintSampleMaker, ExciseAndRepaintSampleMakerArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.no_op_sample_maker import (
+    NoOpSampleMaker, NoOpSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
