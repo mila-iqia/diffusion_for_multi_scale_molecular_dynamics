@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
-    NoOpEnvironmentExcision, NoOpEnvironmentExcisionArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.no_op_excisor import (
+    NoOpExcision, NoOpExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_noop_sample_maker import (  # noqa
     ExciseAndNoOpSampleMaker, ExciseAndNoOpSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
@@ -43,8 +43,8 @@ class TestBaseExciseSampleMaker:
 
     @pytest.fixture
     def environment_excisor(self, max_constrained_substructure):
-        noop_excisor = NoOpEnvironmentExcision(
-            NoOpEnvironmentExcisionArguments(
+        noop_excisor = NoOpExcision(
+            NoOpExcisionArguments(
                 excise_top_k_environment=max(1, max_constrained_substructure + 1)
             )
         )

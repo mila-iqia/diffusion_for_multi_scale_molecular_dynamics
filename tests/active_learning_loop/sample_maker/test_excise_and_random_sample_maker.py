@@ -3,10 +3,10 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
-    NoOpEnvironmentExcision, NoOpEnvironmentExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
     create_excisor_parameters
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.no_op_excisor import (
+    NoOpExcision, NoOpExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import (  # noqa
     ExciseAndRandomSampleMaker, ExciseAndRandomSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.sample_maker_factory import (
@@ -93,8 +93,8 @@ class TestExciseAndRandomSampleMaker:
 
     @pytest.fixture
     def environment_excisor(self):
-        noop_excisor = NoOpEnvironmentExcision(
-            NoOpEnvironmentExcisionArguments(excise_top_k_environment=1)
+        noop_excisor = NoOpExcision(
+            NoOpExcisionArguments(excise_top_k_environment=1)
         )
         return noop_excisor
 

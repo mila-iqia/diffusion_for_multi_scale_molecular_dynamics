@@ -63,7 +63,7 @@ class BaseSampleMaker(ABC):
         self,
         structure: AXL,
         uncertainty_per_atom: np.array,
-    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
+    ) -> Tuple[List[AXL], List[np.array], List[Dict[str, Any]]]:
         """Create samples based on the provided structure.
 
         Args:
@@ -71,7 +71,10 @@ class BaseSampleMaker(ABC):
             uncertainty_per_atom: uncertainty for each atom in the structure AXL.
 
         Returns:
-            list of generated structure
+            list_sample_structures: list of generated structures
+            list_active_environment_indices: list of arrays of atom indices, one for each sample structure, identifying
+                the "active environments", namely the central atoms around which the structure are generated.
+            list_extra_info: a list of dictionaries containing extra information.
         """
         pass
 

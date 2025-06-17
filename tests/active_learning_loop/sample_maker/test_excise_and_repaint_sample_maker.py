@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
-    NoOpEnvironmentExcision, NoOpEnvironmentExcisionArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.no_op_excisor import (
+    NoOpExcision, NoOpExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_repaint_sample_maker import (  # noqa
     ExciseAndRepaintSampleMaker, ExciseAndRepaintSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
@@ -77,8 +77,8 @@ class TestExciseAndRepaintSampleMaker:
 
     @pytest.fixture
     def environment_excisor(self):
-        noop_excisor = NoOpEnvironmentExcision(
-            NoOpEnvironmentExcisionArguments(excise_top_k_environment=1)
+        noop_excisor = NoOpExcision(
+            NoOpExcisionArguments(excise_top_k_environment=1)
         )
         return noop_excisor
 

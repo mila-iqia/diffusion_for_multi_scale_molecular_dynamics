@@ -173,22 +173,3 @@ class BaseEnvironmentExcision(ABC):
             excised_substructure: all atoms within a distance radial_cutoff of the central atom (including itself).
         """
         pass
-
-
-@dataclass(kw_only=True)
-class NoOpEnvironmentExcisionArguments(BaseEnvironmentExcisionArguments):
-    """Parameters for a trivial excision method."""
-
-    algorithm: str = "NoOpExcision"
-    excise_top_k_environment: int = 1  # set a value to pass the post_init checks
-
-
-class NoOpEnvironmentExcision(BaseEnvironmentExcision):
-    """Trivial environment excision method that returns the full environment without modifications."""
-
-    def _excise_one_environment(
-        self,
-        structure: AXL,
-        central_atom_idx: int,
-    ) -> AXL:
-        return structure

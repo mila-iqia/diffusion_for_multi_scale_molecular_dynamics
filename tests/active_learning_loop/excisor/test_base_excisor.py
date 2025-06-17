@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
-    NoOpEnvironmentExcision, NoOpEnvironmentExcisionArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.no_op_excisor import (
+    NoOpExcision, NoOpExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_number_of_lattice_parameters
@@ -19,7 +19,7 @@ class TestBaseEnvironmentExcision:
 
     @pytest.fixture
     def excisor_topk_arguments(self, topk_value):
-        exc_arg = NoOpEnvironmentExcisionArguments(
+        exc_arg = NoOpExcisionArguments(
             algorithm="test_abstract_method",
             uncertainty_threshold=None,
             excise_top_k_environment=topk_value,
@@ -28,7 +28,7 @@ class TestBaseEnvironmentExcision:
 
     @pytest.fixture
     def excisor_threshold_arguments(self, uncertainty_threshold):
-        exc_arg = NoOpEnvironmentExcisionArguments(
+        exc_arg = NoOpExcisionArguments(
             algorithm="test_abstract_method",
             uncertainty_threshold=uncertainty_threshold,
             excise_top_k_environment=None,
@@ -57,7 +57,7 @@ class TestBaseEnvironmentExcision:
         )
         expected_atom_idx = [item[1] for item in sorted_pairs]
 
-        base_excisor = NoOpEnvironmentExcision(excisor_threshold_arguments)
+        base_excisor = NoOpExcision(excisor_threshold_arguments)
         calculated_atom_idx = base_excisor.select_central_atoms(uncertainty_per_atom)
 
         assert np.array_equal(calculated_atom_idx, np.array(expected_atom_idx))
@@ -72,7 +72,7 @@ class TestBaseEnvironmentExcision:
         _, expected_atom_idx = zip(*sorted(zip(uncertainties, atom_idx), reverse=True))
         expected_atom_idx = expected_atom_idx[:topk_value]
 
-        base_excisor = NoOpEnvironmentExcision(excisor_topk_arguments)
+        base_excisor = NoOpExcision(excisor_topk_arguments)
         calculated_atom_idx = base_excisor.select_central_atoms(uncertainty_per_atom)
 
         assert np.array_equal(calculated_atom_idx, np.array(expected_atom_idx))
@@ -116,7 +116,7 @@ class TestBaseEnvironmentExcision:
     def test_center_structure(
         self, number_of_atoms, uncentered_axl_structure, excisor_threshold_arguments
     ):
-        base_excisor = NoOpEnvironmentExcision(excisor_threshold_arguments)
+        base_excisor = NoOpExcision(excisor_threshold_arguments)
         for central_atom_idx in range(number_of_atoms):
             expected_shifted_coordinates = self.calculated_centered_coordinates(
                 central_atom_idx, uncentered_axl_structure.X
