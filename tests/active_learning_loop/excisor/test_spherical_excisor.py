@@ -11,15 +11,9 @@ class TestSphericalExcision:
     def radial_cutoff(self, request):
         return request.param
 
-    @pytest.fixture(params=[1, 2, 3])
-    def topk(self, request):
-        return request.param
-
     @pytest.fixture
-    def excisor_parameters(self, radial_cutoff, topk):
-        exc_params = SphericalExcisionArguments(
-            excise_top_k_environment=topk, radial_cutoff=radial_cutoff
-        )
+    def excisor_parameters(self, radial_cutoff):
+        exc_params = SphericalExcisionArguments(radial_cutoff=radial_cutoff)
         return exc_params
 
     @pytest.fixture

@@ -11,15 +11,9 @@ class TestNearestNeighborsExcision:
     def number_of_neighbors(self, request):
         return request.param
 
-    @pytest.fixture(params=[1, 2, 3])
-    def topk(self, request):
-        return request.param
-
     @pytest.fixture
-    def excisor_parameters(self, number_of_neighbors, topk):
-        exc_params = NearestNeighborsExcisionArguments(
-            excise_top_k_environment=topk, number_of_neighbors=number_of_neighbors
-        )
+    def excisor_parameters(self, number_of_neighbors):
+        exc_params = NearestNeighborsExcisionArguments(number_of_neighbors=number_of_neighbors)
         return exc_params
 
     @pytest.fixture
