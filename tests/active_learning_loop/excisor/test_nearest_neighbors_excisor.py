@@ -4,78 +4,28 @@ import pytest
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.nearest_neighbors_excisor import (
     NearestNeighborsExcision, NearestNeighborsExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from tests.active_learning_loop.excisor.base_test_excision import \
+    BaseTestExcision
 
 
-class TestNearestNeighborsExcision:
+class TestNearestNeighborsExcision(BaseTestExcision):
     @pytest.fixture(params=[1, 5, 10])
     def number_of_neighbors(self, request):
         return request.param
 
     @pytest.fixture
-    def excisor_parameters(self, number_of_neighbors):
-        exc_params = NearestNeighborsExcisionArguments(number_of_neighbors=number_of_neighbors)
-        return exc_params
+    def excisor(self, number_of_neighbors):
+        parameters = NearestNeighborsExcisionArguments(number_of_neighbors=number_of_neighbors)
+        return NearestNeighborsExcision(parameters)
 
     @pytest.fixture
-    def neighbor_excisor(self, excisor_parameters):
-        return NearestNeighborsExcision(excisor_parameters)
-
-    @pytest.fixture
-    def number_of_atoms(self):
-        return 48
-
-    @pytest.fixture(params=[1, 2, 3])
-    def spatial_dimension(self, request):
-        return request.param
-
-    @pytest.fixture
-    def basis_vectors(self, spatial_dimension):
-        box_size = np.random.random((spatial_dimension,))
-        return np.diag(box_size)
-
-    @pytest.fixture
-    def lattice_parameters(self, spatial_dimension, basis_vectors):
-        lp = np.concatenate(
-            (
-                np.diag(basis_vectors),
-                np.zeros(int(spatial_dimension * (spatial_dimension - 1) / 2)),
-            )
-        )
-        return lp
-
-    @pytest.fixture
-    def atom_relative_coordinates(self, number_of_atoms, spatial_dimension):
-        return np.random.random((number_of_atoms, spatial_dimension))
-
-    @pytest.fixture
-    def atom_cartesian_positions(self, atom_relative_coordinates, basis_vectors):
-        return np.matmul(atom_relative_coordinates, basis_vectors)
-
-    @pytest.fixture
-    def atom_species(self, number_of_atoms):
-        return np.arange(number_of_atoms)
-
-    @pytest.fixture
-    def structure_axl(self, atom_species, atom_relative_coordinates, lattice_parameters):
-        struct_axl = AXL(
-            A=atom_species, X=atom_relative_coordinates, L=lattice_parameters
-        )
-        return struct_axl
-
-    @pytest.fixture
-    def atom_uncertainty(self, number_of_atoms):
-        return np.random.random((number_of_atoms,))
-
-    @pytest.mark.parametrize("central_atom_idx", [1, 2, 3])
-    def test_excise_one_environment(
-        self,
-        neighbor_excisor,
-        structure_axl,
-        number_of_neighbors,
-        central_atom_idx,
-        atom_cartesian_positions,
-        basis_vectors,
-    ):
+    def expected_excised_environment(self,
+                                     structure_axl,
+                                     number_of_neighbors,
+                                     central_atom_idx,
+                                     atom_cartesian_positions,
+                                     basis_vectors,
+                                     ):
         central_atom_position = atom_cartesian_positions[central_atom_idx, :]
         box_dimensions = np.diag(basis_vectors)[np.newaxis, :]
         atoms_relative_coordinates_in_environment = []
@@ -105,10 +55,8 @@ class TestNearestNeighborsExcision:
             X=np.stack(atoms_relative_coordinates_in_environment),
             L=structure_axl.L,
         )
+        return expected_environment
 
-        calculated_environment = neighbor_excisor._excise_one_environment(
-            structure_axl, central_atom_idx
-        )
-
-        assert np.array_equal(expected_environment.A, calculated_environment.A)
-        assert np.array_equal(expected_environment.X, calculated_environment.X)
+    @pytest.fixture
+    def expected_excised_atom_index(self):
+        return 0
