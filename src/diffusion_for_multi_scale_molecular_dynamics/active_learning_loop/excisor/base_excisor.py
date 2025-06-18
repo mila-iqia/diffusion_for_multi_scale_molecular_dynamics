@@ -1,11 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.namespace import \
-    CENTRAL_ATOM_INDEX
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 
@@ -24,7 +22,7 @@ class BaseEnvironmentExcision(ABC):
 
     def excise_environments(
         self, structure: AXL, central_atoms_indices: np.array, center_atoms: bool = True
-    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
+    ) -> Tuple[List[AXL], List[int]]:
         """Extract all environments around the atoms satisfying the uncertainty constraints.
 
         This calls the method _excise_one_environment for each atom with a high enough uncertainty.
@@ -37,24 +35,21 @@ class BaseEnvironmentExcision(ABC):
                 box. Defaults to True.
 
         Returns:
-            environments: list of excised spheres around the highest uncertainties atoms as a list of AXL.
-            central_atoms_indices_as_dict: list of dictionary containing the index of the central atom in the original
-                structure
+            excised_environments: list of excised environment around the central atoms identified by their indices.
+            excised_central_atoms_indices: list of the indices of the central atom in the excised structures.
         """
-        environments = [
-            self._excise_one_environment(structure, atom_index)
-            for atom_index in central_atoms_indices
-        ]
+        excised_environments = []
+        excised_central_atoms_indices = []
 
-        if center_atoms:
-            environments = [
-                self.center_structure(environment, 0) for environment in environments
-            ]
+        for atom_index in central_atoms_indices:
+            excised_environment, excised_atom_index = self._excise_one_environment(structure, atom_index)
+            if center_atoms:
+                excised_environment = self.center_structure(excised_environment, excised_atom_index)
 
-        central_atoms_indices_as_dict = [
-            {CENTRAL_ATOM_INDEX: atom_index} for atom_index in central_atoms_indices
-        ]
-        return environments, central_atoms_indices_as_dict
+            excised_environments.append(excised_environment)
+            excised_central_atoms_indices.append(excised_atom_index)
+
+        return excised_environments, excised_central_atoms_indices
 
     @staticmethod
     def center_structure(structure: AXL, atom_index: int) -> AXL:
@@ -79,7 +74,7 @@ class BaseEnvironmentExcision(ABC):
         return translated_structure
 
     @abstractmethod
-    def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> AXL:
+    def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> Tuple[AXL, int]:
         """Excise the relevant atomic environment around the central atom.
 
         Args:
@@ -88,5 +83,6 @@ class BaseEnvironmentExcision(ABC):
 
         Returns:
             excised_substructure: all atoms within a distance radial_cutoff of the central atom (including itself).
+            excised_central_atom_idx: the index of the central atom in the newly created excised substructure.
         """
         pass
