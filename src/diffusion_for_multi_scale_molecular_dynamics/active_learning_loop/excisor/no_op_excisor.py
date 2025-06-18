@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Tuple
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
     BaseEnvironmentExcision, BaseEnvironmentExcisionArguments)
@@ -17,5 +18,5 @@ class NoOpExcision(BaseEnvironmentExcision):
         self,
         structure: AXL,
         central_atom_idx: int,
-    ) -> AXL:
-        return structure
+    ) -> Tuple[AXL, int]:
+        return structure, central_atom_idx
