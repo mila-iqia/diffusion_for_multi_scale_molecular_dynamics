@@ -14,7 +14,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 class SphericalExcisionArguments(BaseEnvironmentExcisionArguments):
     """Arguments for a spherical cutoff around a target atom."""
 
-    algorithm: str = "radial_excision"
+    algorithm: str = "spherical_cutoff"
     radial_cutoff: float = 3.0  # radial cutoff in Angstrom
 
     def __post_init__(self):
