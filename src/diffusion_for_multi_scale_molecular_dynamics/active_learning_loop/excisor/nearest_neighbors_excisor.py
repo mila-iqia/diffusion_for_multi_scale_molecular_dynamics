@@ -20,7 +20,6 @@ class NearestNeighborsExcisionArguments(BaseEnvironmentExcisionArguments):
 
     def __post_init__(self):
         """Post init."""
-        super().__post_init__()
         assert (
             self.number_of_neighbors > 0
         ), f"Number of neighbors to include is expected to be positive. Got {self.number_of_neighbors}"

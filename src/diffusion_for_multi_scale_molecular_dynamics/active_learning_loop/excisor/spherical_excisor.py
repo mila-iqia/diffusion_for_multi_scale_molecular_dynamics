@@ -18,7 +18,6 @@ class SphericalExcisionArguments(BaseEnvironmentExcisionArguments):
 
     def __post_init__(self):
         """Post init."""
-        super().__post_init__()
         assert (
             self.radial_cutoff > 0
         ), f"Radial cutoff is expected to be positive. Got {self.radial_cutoff}"
