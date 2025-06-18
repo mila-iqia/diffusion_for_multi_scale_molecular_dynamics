@@ -8,7 +8,7 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 @dataclass(kw_only=True)
 class NoOpExcisionArguments(BaseEnvironmentExcisionArguments):
     """Parameters for a trivial excision method."""
-    algorithm: str = "no_op_excisor"
+    algorithm: str = "noop"
 
 
 class NoOpExcision(BaseEnvironmentExcision):
