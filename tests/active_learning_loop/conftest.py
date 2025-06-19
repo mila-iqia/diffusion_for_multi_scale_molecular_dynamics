@@ -88,10 +88,6 @@ class BaseTestAxlStructure:
         )
         return struct_axl
 
-    @pytest.fixture
-    def atom_uncertainty(self, number_of_atoms):
-        return np.random.random((number_of_atoms,))
-
     @pytest.fixture(params=range(48))
     def central_atom_idx(self, request):
         return request.param
