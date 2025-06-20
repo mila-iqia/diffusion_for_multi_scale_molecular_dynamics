@@ -91,10 +91,12 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
     @pytest.fixture()
     def sample_box_size(self, sample_box_strategy, spatial_dimension):
         match sample_box_strategy:
-            case "none":
+            case "noop":
                 return None
             case "fixed":
                 return list(18.0 + 0.1 * np.random.rand(spatial_dimension))
+            case _:
+                raise NotImplementedError("Non-existent sample_box_strategy")
 
     @pytest.fixture()
     def excisor_parameters(self, excisor_algorithm, number_of_neighbors, radial_cutoff):
