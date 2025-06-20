@@ -1,5 +1,9 @@
 from typing import Any, AnyStr, Dict, Optional
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.atom_selector_factory import \
+    create_atom_selector
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.base_atom_selector import \
+    BaseAtomSelectorParameters
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import \
     BaseEnvironmentExcisionArguments
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
@@ -55,6 +59,7 @@ def create_sample_maker_parameters(
 
 def create_sample_maker(
     sample_maker_parameters: BaseSampleMakerArguments,
+    atom_selector_parameters: BaseAtomSelectorParameters,
     excisor_parameters: Optional[BaseEnvironmentExcisionArguments] = None,
     noise_parameters: Optional[NoiseParameters] = None,
     sampling_parameters: Optional[SamplingParameters] = None,
@@ -71,12 +76,19 @@ def create_sample_maker(
         f"{SAMPLE_MAKER_PARAMETERS_BY_NAME.keys()}"
     )
 
+    atom_selector = create_atom_selector(atom_selector_parameters)
+
+    if excisor_parameters is not None:
+        excisor = create_excisor(excisor_parameters)
+    else:
+        excisor = None
+
     match sample_maker_parameters.algorithm:
         case "noop":
-            sample_maker = NoOpSampleMaker(sample_maker_parameters)
+            sample_maker = NoOpSampleMaker(sample_maker_parameters, atom_selector=atom_selector)
 
         case "excise_and_repaint":
-            excisor = create_excisor(excisor_parameters)
+            # TODO
             sample_maker = ExciseAndRepaintSampleMaker(
                 sample_maker_arguments=sample_maker_parameters,
                 environment_excisor=excisor,
@@ -86,15 +98,15 @@ def create_sample_maker(
                 device=device,
             )
         case "excise_and_random":
-            excisor = create_excisor(excisor_parameters)
+            # TODO
             sample_maker = ExciseAndRandomSampleMaker(
                 sample_maker_arguments=sample_maker_parameters,
                 environment_excisor=excisor,
             )
         case "excise_and_noop":
-            excisor = create_excisor(excisor_parameters)
             sample_maker = ExciseAndNoOpSampleMaker(
                 sample_maker_arguments=sample_maker_parameters,
+                atom_selector=atom_selector,
                 environment_excisor=excisor,
             )
         case _:
