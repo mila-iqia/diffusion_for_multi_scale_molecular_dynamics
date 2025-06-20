@@ -34,9 +34,6 @@ oracle:
 
 sampling:
   algorithm: noop
-  atom_selector:
-    algorithm: threshold
-    uncertainty_threshold: 1.0e-3
   excision:
     algorithm: noop
 
