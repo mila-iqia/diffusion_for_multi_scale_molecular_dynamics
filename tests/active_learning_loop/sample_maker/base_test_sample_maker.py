@@ -1,9 +1,6 @@
-import einops
 import numpy as np
 import pytest
-from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core import Structure
-from scipy.optimize import linear_sum_assignment
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.threshold_atom_selector import (
     ThresholdAtomSelector, ThresholdAtomSelectorParameters)
@@ -97,7 +94,7 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
             case "none":
                 return None
             case "fixed":
-                return list(15.0 + np.random.rand(spatial_dimension))
+                return list(18.0 + 0.1 * np.random.rand(spatial_dimension))
 
     @pytest.fixture()
     def excisor_parameters(self, excisor_algorithm, number_of_neighbors, radial_cutoff):
@@ -200,24 +197,17 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
             active_index = index_array[0]
             list_active_indices.append(active_index)
 
-        # Let's use pymatgen to do the heavy lifting of matching substructures.
-        structure_matcher = StructureMatcher(primitive_cell=False,
-                                             scale=False,
-                                             angle_tol=0.001,
-                                             ltol=1e-8,
-                                             stol=1e-8)
-
         # Each reference substructure should be found exactly "number_of_samples_per_substructure" times.
         # We'll test that this is indeed the case.
         found_count = np.zeros(len(list_reference_pymatgen_excised_substructures), dtype=int)
 
-        for ref_idx, (subset_structure, excised_index) in (
+        for ref_idx, (reference_structure, excised_index) in (
                 enumerate(zip(list_reference_pymatgen_excised_substructures, list_excised_atom_indices))):
             # The 'reference_structure' should contain an excised environment, namely a central atom identified by
             # the 'excised_index', and other nearby atoms that form the environment. This should be in the original
             # unit cell.
-            reference_active_site = subset_structure.sites[excised_index]
-            reference_lattice = subset_structure.lattice
+            reference_active_site = reference_structure.sites[excised_index]
+            reference_lattice = reference_structure.lattice
 
             for sample_structure, active_index in zip(list_calculated_pymatgen_sample_structures, list_active_indices):
                 # A sample structure *should* contain an excised environment in a unit cell that can either
@@ -229,78 +219,40 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
                     continue
 
                 # Since the sample maker may change the unit cell, we have to transform the lattice to match.
-                superset_structure = Structure(species=sample_structure.species,
-                                               lattice=reference_lattice,  # The original unit cell
-                                               coords=sample_structure.cart_coords,
-                                               coords_are_cartesian=True)
+                candidate_structure = Structure(species=sample_structure.species,
+                                                lattice=reference_lattice,  # The original unit cell
+                                                coords=sample_structure.cart_coords,
+                                                coords_are_cartesian=True)
 
-                if len(subset_structure) > len(superset_structure):
-                    # Clearly, if the reference environment has more atoms than the sample, there cannot be a match.
+                if len(reference_structure) > len(candidate_structure):
+                    # Clearly, if the reference structure has more atoms than the sample, there cannot be a match.
                     continue
 
-                # The excised environment may be translated in the superset structure; structure_matcher
-                # can deal with that. The output variable "matching" is either "None" if there is no match,
-                # or the indices of the matching atoms.
-                matching = structure_matcher.get_mapping(superset=superset_structure,
-                                                         subset=subset_structure)
-                if matching is None:
-                    continue
-
-                # Next, attempt an exact match by accounting for the potential translation between the
-                # active atom in the reference and the sample.
-                sample_active_site = superset_structure.sites[active_index]
-
-                # build a candidate for an exact structural match by making sure that the active atom in the
-                # reference structure and the active atom in the sample structure coincide.
+                # The excised environment may be translated in the sample structure.
+                # The candidate_structure will next be translated in order to ensure that the active atom in the
+                # reference structure and the active atom in the candidate structure coincide.
+                sample_active_site = candidate_structure.sites[active_index]
                 translation = reference_active_site.coords - sample_active_site.coords
 
-                # Now that the translation is known, the active atoms will be REMOVED from the
-                # structures to be compared. This is to avoid various tedious edge cases where symmetry can
-                # lead to false positive matches.
-                reference = subset_structure.copy()
-                reference.remove_sites([reference.index(reference_active_site)])
+                # The translation is in-place
+                candidate_structure.translate_sites(indices=np.arange(len(candidate_structure)),
+                                                    vector=translation,
+                                                    frac_coords=False,
+                                                    to_unit_cell=True)
 
-                sample_matching_sites = [superset_structure.sites[match_idx] for match_idx in matching]
-                candidate = Structure(
-                    species=[site.species for site in sample_matching_sites],
-                    lattice=reference_lattice,
-                    coords=[site.coords for site in sample_matching_sites],
-                    to_unit_cell=True,
-                    coords_are_cartesian=True)
+                # can we find every reference site in the candidate structure?
+                list_found_reference_sites = []
+                for ref_site in reference_structure.sites:
+                    site_is_found = False
+                    for candidate_site in candidate_structure.sites:
+                        species_are_the_same = candidate_site.species == ref_site.species
+                        positions_are_the_same = ref_site.distance(candidate_site) < 1.0e-8
+                        if species_are_the_same and positions_are_the_same:
+                            site_is_found = True
+                            break
+                    list_found_reference_sites.append(site_is_found)
 
-                candidate.remove_sites([candidate.index(sample_active_site)])
-                # Translation is in-place
-                candidate.translate_sites(indices=np.arange(len(candidate)),
-                                          vector=translation,
-                                          frac_coords=False,
-                                          to_unit_cell=True)
-
-                # We next want to check if there is an exact match. We CANNOT use structure_matcher.get_rms_dist
-                # because it can perform translations internally to align input structures. We cannot
-                # assume that the atoms are in the same order between reference and candidate: we have to
-                # solve an assignment problem. Note that this is why we had to remove the active atoms:
-                # they must be assigned to each other, the linear assignment algorithm shouldn't have the freedom
-                # to assign them differently.
-                candidate_x = candidate.frac_coords
-                ref_x = reference.frac_coords
-                number_of_atoms = len(candidate_x)
-                assert number_of_atoms != 0, \
-                    ("The test assumes that an environment is not composed of a single atom. "
-                     "This has now occurred in the test because of unfortunate random numbers."
-                     ">>> Modify parameters to avoid this! Hint: increase the radial cutoff!")
-
-                matrix1 = einops.repeat(candidate_x,
-                                        "natoms1 spatial -> natoms1 natoms2 spatial",
-                                        natoms2=number_of_atoms)
-                matrix2 = einops.repeat(ref_x,
-                                        "natoms2 spatial -> natoms1 natoms2 spatial",
-                                        natoms1=number_of_atoms)
-                distance_cost = np.linalg.norm(matrix1 - matrix2, axis=2)
-
-                row_ind, col_ind = linear_sum_assignment(distance_cost)
-                minimum_distance = distance_cost[row_ind, col_ind].sum()
-
-                if minimum_distance < 1.0e-8:
+                if np.all(list_found_reference_sites):
                     # If we made it this far, then there is an exact structural match between the reference structure
                     # and the sample structure. The active sites are indeed the same, up to a translation.
                     found_count[ref_idx] += 1
