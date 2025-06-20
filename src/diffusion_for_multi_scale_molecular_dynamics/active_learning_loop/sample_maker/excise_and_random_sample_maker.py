@@ -1,9 +1,11 @@
 from dataclasses import dataclass
-from typing import List
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.base_atom_selector import \
+    BaseAtomSelector
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import \
     BaseEnvironmentExcision
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
@@ -50,15 +52,17 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
     def __init__(
         self,
         sample_maker_arguments: ExciseAndRandomSampleMakerArguments,
+        atom_selector: BaseAtomSelector,
         environment_excisor: BaseEnvironmentExcision,
     ):
         """Init method.
 
         Args:
             sample_maker_arguments: arguments for the excise and repaint sample maker
+            atom_selector: atomic selector class instance
             environment_excisor: atomic environment excisor
         """
-        super().__init__(sample_maker_arguments, environment_excisor)
+        super().__init__(sample_maker_arguments, atom_selector, environment_excisor)
         self.num_atom_types = len(sample_maker_arguments.element_list)
 
     @staticmethod
@@ -161,14 +165,16 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         new_relative_coordinates = occupied_voxel_coordinates + new_relative_coordinates
         return new_relative_coordinates
 
-    def make_single_structure(self, constrained_structure: AXL) -> AXL:
+    def make_single_structure(self, constrained_structure: AXL, active_atom_index: int) -> Tuple[AXL, int]:
         """Make a structure placing adding atoms at random locations in addition to those in the constrained structure.
 
         Args:
             constrained_structure: fixed atoms as an AXL of numpy arrays
+            active_atom_index: index of the "active atom" in the input constrained_structure.
 
         Returns:
-            new structure as an AXL of np.array
+            new_structure: new structure as an AXL of np.array
+            new_active_atom_index: index of the "active atom" in the new structure.
         """
         constrained_relative_coordinates = constrained_structure.X
         constrained_atom_types = constrained_structure.A
@@ -199,25 +205,40 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         )  # the atoms at those coordinates will be replaced by the constrained atoms
         new_relative_coordinates_copy = new_relative_coordinates.copy()
         # replace some relative coordinates by those of the constrained atoms
-        for constrained_atom_x, constrained_atom_a in zip(
+
+        new_active_atom_index = None
+        for constrained_structure_atom_index, (constrained_atom_x, constrained_atom_a) in enumerate(zip(
             constrained_relative_coordinates, constrained_atom_types
-        ):
-            nearest_atoms = self.sort_atoms_indices_by_distance(
+        )):
+            if constrained_structure_atom_index == active_atom_index:
+                # We need to track the index of this atom since it is the active one.
+                active_atom = True
+            else:
+                active_atom = False
+
+            nearest_atom_indices = self.sort_atoms_indices_by_distance(
                 constrained_atom_x, new_relative_coordinates, lattice_parameters
             )
             for (
                 atom_idx
             ) in (
-                nearest_atoms
+                nearest_atom_indices
             ):  # avoid mapping two different constrained atoms to the same target index
                 if atom_idx not in atom_indices_replaced:
                     atom_indices_replaced.append(atom_idx)
                     new_relative_coordinates_copy[atom_idx] = constrained_atom_x
                     new_atom_types[atom_idx] = constrained_atom_a
+                    if active_atom:
+                        assert new_active_atom_index is None, \
+                            "Trying to set the new_active_index more than once! Something is wrong."
+                        new_active_atom_index = atom_idx
                     break
-        return AXL(
-            A=new_atom_types, X=new_relative_coordinates_copy, L=lattice_parameters
-        )
+
+        new_structure = AXL(A=new_atom_types, X=new_relative_coordinates_copy, L=lattice_parameters)
+
+        assert new_active_atom_index is not None, "The new active atom index is not set. Something went wrong."
+
+        return new_structure, new_active_atom_index
 
     @staticmethod
     def get_shortest_distance_between_atoms(
@@ -244,8 +265,8 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         return min(atom_distances)
 
     def make_single_sample_from_constrained_substructure(
-        self, constrained_structure: AXL
-    ) -> AXL:
+        self, constrained_structure: AXL, active_atom_index: int
+    ) -> Tuple[AXL, int]:
         """Make a structure placing adding atoms at random locations.
 
         This calls make_single_structure_true_random or make_single_structure_voxel_random, checks if two atoms are on
@@ -253,19 +274,22 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
 
         Args:
             constrained_structure: fixed atoms as an AXL of numpy arrays
+            active_atom_index: index of the "active atom" in the input constrained_structure.
 
         Returns:
             new_structure: new AXL with additional atoms placed randomly
+            new_active_atom_index: index of the "active atom" in the newly created structure.
         """
         new_structure = None
+        new_active_index = None
         n_constraint_atoms = constrained_structure.X.shape[0]
         assert n_constraint_atoms <= self.arguments.total_number_of_atoms, (
             f"There are more constrained atoms {n_constraint_atoms} than total number of atoms "
             f"{self.arguments.total_number_of_atoms}."
         )
         for _ in range(self.arguments.max_attempts):
-            new_structure = self.make_single_structure(
-                constrained_structure,
+            new_structure, new_active_index = self.make_single_structure(
+                constrained_structure, active_atom_index
             )
 
             min_interatomic_distance = self.get_shortest_distance_between_atoms(
@@ -273,34 +297,41 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
             )
             if min_interatomic_distance > self.arguments.minimal_interatomic_distance:
                 break
-        return new_structure
+        return new_structure, new_active_index
 
     def make_samples_from_constrained_substructure(
         self,
-        constrained_structure: AXL,
+        substructure: AXL,
+        active_atom_index: int,
         num_samples: int = 1,
-    ) -> List[AXL]:
+    ) -> Tuple[List[AXL], List[int], List[Dict[str, Any]]]:
         """Create new samples using a constrained structure using a random sampling to place non-constrained atoms.
 
         This method assumes the lattice parameters in the constrained structure are already rescaled
         (box size is reduced).
 
         Args:
-            constrained_structure: excised substructure
+            substructure: excised substructure
+            active_atom_index: index of the "active atom" in the input substructure.
             num_samples: number of samples to generate with the substructure
 
         Returns:
-            new_structures: list of generated candidates structure
+            list_sample_structures: the list of created samples. The length of the list should match num_samples.
+            list_active_atom_indices: for each created sample, the index of the "active atom", ie the
+                atom at the center of the excised region.
+            list_info: list of samples additional information.
         """
-        new_structures = [
-            self.make_single_sample_from_constrained_substructure(constrained_structure)
-            for _ in range(num_samples)
-        ]
+        list_sample_structures = []
+        list_active_atom_indices = []
+        for _ in range(num_samples):
+            new_structure, new_active_index = self.make_single_sample_from_constrained_substructure(substructure,
+                                                                                                    active_atom_index)
+            list_sample_structures.append(new_structure)
+            list_active_atom_indices.append(new_active_index)
 
-        # additional information on generated structures can be passed here
-        additional_information_on_new_structures = [{}] * len(new_structures)
-
-        return new_structures, additional_information_on_new_structures
+            # additional information on generated structures can be passed here
+        additional_information_on_new_structures = [{}] * len(list_sample_structures)
+        return list_sample_structures, list_active_atom_indices, additional_information_on_new_structures
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Return identical structures."""
