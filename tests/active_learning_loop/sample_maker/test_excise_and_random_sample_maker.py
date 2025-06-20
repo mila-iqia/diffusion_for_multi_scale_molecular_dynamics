@@ -3,31 +3,43 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
-    create_excisor_parameters
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.no_op_excisor import (
-    NoOpExcision, NoOpExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import (  # noqa
     ExciseAndRandomSampleMaker, ExciseAndRandomSampleMakerArguments)
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.sample_maker_factory import (
-    create_sample_maker, create_sample_maker_parameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
-    get_number_of_lattice_parameters
+from tests.active_learning_loop.sample_maker.base_test_sample_maker import \
+    BaseTestExciseSampleMaker
 
 
-class TestExciseAndRandomSampleMaker:
-    @pytest.fixture(params=[1, 2, 3])
-    def spatial_dimension(self, request):
+class TestExciseAndRandomSampleMaker(BaseTestExciseSampleMaker):
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_random_seed(self):
+        np.random.seed(355)
+
+    @pytest.fixture(params=["true_random", "voxel_random"])
+    def random_coordinates_algorithm(self, request):
         return request.param
 
-    @pytest.fixture
-    def num_atom_types(self):
-        return 5
+    @pytest.fixture()
+    def total_number_of_atoms(self):
+        return 28
 
-    @pytest.fixture(params=[4, 6])
-    def total_number_of_atoms(self, request):
-        return request.param
+    @pytest.fixture()
+    def sample_maker_arguments(self, element_list, sample_box_strategy, sample_box_size,
+                               number_of_samples_per_substructure, random_coordinates_algorithm, total_number_of_atoms):
+        return ExciseAndRandomSampleMakerArguments(
+            element_list=element_list,
+            total_number_of_atoms=total_number_of_atoms,
+            sample_box_strategy=sample_box_strategy,
+            sample_box_size=sample_box_size,
+            random_coordinates_algorithm=random_coordinates_algorithm,
+            number_of_samples_per_substructure=number_of_samples_per_substructure)
+
+    @pytest.fixture()
+    def sample_maker(self, sample_maker_arguments, atom_selector, excisor):
+        return ExciseAndRandomSampleMaker(sample_maker_arguments=sample_maker_arguments,
+                                          atom_selector=atom_selector,
+                                          environment_excisor=excisor)
 
     @pytest.fixture
     def num_constrained_atoms(self):
@@ -44,13 +56,6 @@ class TestExciseAndRandomSampleMaker:
         return np.random.randint(0, num_atom_types, (num_constrained_atoms,))
 
     @pytest.fixture
-    def lattice_parameters(self, spatial_dimension):
-        num_lattice_parameters = get_number_of_lattice_parameters(spatial_dimension)
-        lattice_params = np.zeros((num_lattice_parameters,))
-        lattice_params[:spatial_dimension] = np.random.rand(spatial_dimension)
-        return lattice_params
-
-    @pytest.fixture
     def constrained_axl_structure(
         self,
         constrained_relative_coordinates,
@@ -61,52 +66,6 @@ class TestExciseAndRandomSampleMaker:
             A=constrained_atoms_type,
             X=constrained_relative_coordinates,
             L=lattice_parameters,
-        )
-
-    @pytest.fixture(params=["true_random", "voxel_random"])
-    def random_algorithm(self, request):
-        return request.param
-
-    @pytest.fixture(params=[1, 2, 3])
-    def num_generated_samples(self, request):
-        return request.param
-
-    @pytest.fixture
-    def e_and_r_samplemaker_arguments(
-        self,
-        num_atom_types,
-        spatial_dimension,
-        random_algorithm,
-        total_number_of_atoms,
-        num_generated_samples,
-    ):
-        return ExciseAndRandomSampleMakerArguments(
-            element_list=list(range(num_atom_types)),
-            max_constrained_substructure=1,
-            number_of_samples_per_substructure=num_generated_samples,
-            sample_box_size=[1.0] * spatial_dimension,
-            total_number_of_atoms=total_number_of_atoms,
-            random_coordinates_algorithm=random_algorithm,
-            minimal_interatomic_distance=1e-5,
-            max_attempts=1,
-        )
-
-    @pytest.fixture
-    def environment_excisor(self):
-        noop_excisor = NoOpExcision(
-            NoOpExcisionArguments(excise_top_k_environment=1)
-        )
-        return noop_excisor
-
-    @pytest.fixture
-    def excise_and_random_sample_maker(
-        self,
-        e_and_r_samplemaker_arguments,
-        environment_excisor,
-    ):
-        return ExciseAndRandomSampleMaker(
-            sample_maker_arguments=e_and_r_samplemaker_arguments,
-            environment_excisor=environment_excisor,
         )
 
     @pytest.fixture
@@ -176,18 +135,18 @@ class TestExciseAndRandomSampleMaker:
     def test_make_samples_from_constrained_substructure(
         self,
         constrained_axl_structure,
-        excise_and_random_sample_maker,
+        sample_maker,
         expected_relative_coordinates,
         expected_atom_types,
-        random_algorithm,
-        num_generated_samples,
+        random_coordinates_algorithm,
+        number_of_samples_per_substructure,
         expected_axl_after_replacing_constrained_atoms,
     ):
         mock_generate_atom_types = MagicMock(return_value=expected_atom_types)
         mock_generate_relative_coordinates = MagicMock(
             return_value=expected_relative_coordinates
         )
-        if random_algorithm == "true_random":
+        if random_coordinates_algorithm == "true_random":
             relative_coordinates_mock_target = (
                 "diffusion_for_multi_scale_molecular_dynamics."
                 "active_learning_loop.sample_maker.excise_and_random_sample_maker."
@@ -208,13 +167,15 @@ class TestExciseAndRandomSampleMaker:
             with patch(
                 relative_coordinates_mock_target, new=mock_generate_relative_coordinates
             ):
-                calculated_new_samples, _ = (
-                    excise_and_random_sample_maker.make_samples_from_constrained_substructure(
-                        constrained_axl_structure, num_samples=num_generated_samples
+                calculated_new_samples, _, _ = (
+                    sample_maker.make_samples_from_constrained_substructure(
+                        substructure=constrained_axl_structure,
+                        active_atom_index=0,
+                        num_samples=number_of_samples_per_substructure
                     )
                 )
 
-        assert len(calculated_new_samples) == num_generated_samples
+        assert len(calculated_new_samples) == number_of_samples_per_substructure
         for new_sample in calculated_new_samples:
             assert np.array_equal(
                 new_sample.A, expected_axl_after_replacing_constrained_atoms.A
@@ -231,7 +192,7 @@ class TestExciseAndRandomSampleMaker:
         expected_relative_coordinates,
         lattice_parameters,
         spatial_dimension,
-        excise_and_random_sample_maker,
+        sample_maker,
     ):
         target_point = np.random.rand(spatial_dimension)
         target_point_cartesian = target_point * lattice_parameters[:spatial_dimension]
@@ -254,7 +215,7 @@ class TestExciseAndRandomSampleMaker:
         distances = distance_to_atom.sum(axis=-1)
 
         calculated_order = (
-            excise_and_random_sample_maker.sort_atoms_indices_by_distance(
+            sample_maker.sort_atoms_indices_by_distance(
                 target_point, expected_relative_coordinates, lattice_parameters
             )
         )
@@ -269,7 +230,7 @@ class TestExciseAndRandomSampleMaker:
         expected_relative_coordinates,
         lattice_parameters,
         spatial_dimension,
-        excise_and_random_sample_maker,
+        sample_maker,
     ):
         shortest_distance_between_atoms = np.infty
         all_cartesian_coordinates = (
@@ -303,7 +264,7 @@ class TestExciseAndRandomSampleMaker:
             )
 
         calculated_distance = (
-            excise_and_random_sample_maker.get_shortest_distance_between_atoms(
+            sample_maker.get_shortest_distance_between_atoms(
                 expected_relative_coordinates, lattice_parameters
             )
         )
@@ -353,7 +314,7 @@ class TestExciseAndRandomSampleMaker:
         self,
         lattice_parameters,
         expected_relative_coordinates,
-        excise_and_random_sample_maker,
+        sample_maker,
         box_partition,
         num_voxels_per_dimension,
         total_number_of_atoms,
@@ -384,7 +345,7 @@ class TestExciseAndRandomSampleMaker:
                     new=mock_select_voxels,
                 ):
                     calculated_atom_coordinates_in_voxels = (
-                        excise_and_random_sample_maker.generate_relative_coordinates_voxel_random(
+                        sample_maker.generate_relative_coordinates_voxel_random(
                             lattice_parameters
                         )
                     )
@@ -394,39 +355,9 @@ class TestExciseAndRandomSampleMaker:
 
     def test_smoke_test(
         self,
-        random_algorithm,
-        spatial_dimension,
-        lattice_parameters,
-        constrained_axl_structure,
-        num_constrained_atoms,
+        sample_maker,
+        structure_axl,
+        uncertainty_per_atom,
     ):
         # smoke test to make sure the sample maker works end-to-end
-        sample_maker_dictionary = dict(
-            algorithm="excise_and_random",
-            total_number_of_atoms=16,
-            random_coordinates_algorithm=random_algorithm,
-            max_attempts=3,
-            minimal_interatomic_distance=0.1,
-            sample_box_strategy="fixed",
-            sample_box_size=lattice_parameters[:spatial_dimension],
-            element_list=["air", "earth", "fire", "water"],
-        )
-        sample_maker_parameters = create_sample_maker_parameters(
-            sample_maker_dictionary
-        )
-
-        excisor_dictionary = dict(
-            algorithm="spherical_cutoff",
-            radial_cutoff=0.5,
-            uncertainty_threshold=0.1,
-        )
-        excisor_parameters = create_excisor_parameters(excisor_dictionary)
-
-        sample_maker = create_sample_maker(
-            sample_maker_parameters=sample_maker_parameters,
-            excisor_parameters=excisor_parameters,
-        )
-
-        uncertainties = np.random.rand(num_constrained_atoms)
-
-        sample_maker.make_samples(constrained_axl_structure, uncertainties)
+        sample_maker.make_samples(structure_axl, uncertainty_per_atom)
