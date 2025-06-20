@@ -83,14 +83,28 @@ def create_sample_maker(
     else:
         excisor = None
 
+    # Validate the excisor algorithm
+    match sample_maker_parameters.algorithm:
+        case "noop":
+            assert excisor is None or excisor_parameters.algorithm == 'noop', \
+                ("It is nonsensical to specify an excisor different from 'noop' when the sample maker is 'noop'. "
+                 "Review input for consistency.")
+
+        case "excise_and_repaint" | "excise_and_random" | "excise_and_noop":
+            assert excisor is not None and excisor_parameters.algorithm != 'noop', \
+                ("It is nonsensical to specify a NoOp excisor when the sample maker is 'excise_and_*'. "
+                 "Review input for consistency.")
+        case _:
+            raise NotImplementedError(f"Algorithm {algorithm} is not implemented.")
+
     match sample_maker_parameters.algorithm:
         case "noop":
             sample_maker = NoOpSampleMaker(sample_maker_parameters, atom_selector=atom_selector)
 
         case "excise_and_repaint":
-            # TODO
             sample_maker = ExciseAndRepaintSampleMaker(
                 sample_maker_arguments=sample_maker_parameters,
+                atom_selector=atom_selector,
                 environment_excisor=excisor,
                 noise_parameters=noise_parameters,
                 sampling_parameters=sampling_parameters,
@@ -98,9 +112,9 @@ def create_sample_maker(
                 device=device,
             )
         case "excise_and_random":
-            # TODO
             sample_maker = ExciseAndRandomSampleMaker(
                 sample_maker_arguments=sample_maker_parameters,
+                atom_selector=atom_selector,
                 environment_excisor=excisor,
             )
         case "excise_and_noop":
