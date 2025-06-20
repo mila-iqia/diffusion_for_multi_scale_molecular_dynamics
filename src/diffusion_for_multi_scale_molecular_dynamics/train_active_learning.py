@@ -10,6 +10,8 @@ import lightning as pl
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.active_learning import \
     ActiveLearning
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.atom_selector_factory import \
+    create_atom_selector_parameters
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_driver.artn_driver import \
     ArtnDriver
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
@@ -157,14 +159,6 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
 
     assert "sampling" in configuration, "A sampling strategy for must be defined in the configuration file!"
     sampling_dictionary = configuration["sampling"]
-    sample_maker = get_sample_maker_from_configuration(sampling_dictionary, element_list)
-
-    active_learning = ActiveLearning(
-        oracle_single_point_calculator=oracle_calculator,
-        sample_maker=sample_maker,
-        artn_driver=artn_driver,
-        flare_hyperparameters_optimizer=flare_optimizer,
-    )
 
     assert (
         "uncertainty_thresholds" in configuration
@@ -176,6 +170,14 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     try:
         for campaign_id, uncertainty_threshold in enumerate(uncertainty_thresholds, 1):
             logger.info(f"Starting campaign {campaign_id} uncertainty threshold {uncertainty_threshold}")
+            sample_maker = get_sample_maker_from_configuration(sampling_dictionary, uncertainty_threshold, element_list)
+            active_learning = ActiveLearning(
+                oracle_single_point_calculator=oracle_calculator,
+                sample_maker=sample_maker,
+                artn_driver=artn_driver,
+                flare_hyperparameters_optimizer=flare_optimizer,
+            )
+
             checkpoint_path = list_flare_checkpoint_paths[-1]
             logger.info(f"  - Loading checkpoint from {checkpoint_path}")
             flare_trainer = FlareTrainer.from_checkpoint(checkpoint_path)
@@ -201,14 +203,25 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
 
 
 def get_sample_maker_from_configuration(sampling_dictionary: typing.Dict,
+                                        uncertainty_threshold: float,
                                         element_list: typing.List[str]) -> BaseSampleMaker:
     """Get sample maker from configuration dictionary."""
     # TODO: deal with a potential diffusion model.
+    atom_selector_parameter_dictionary = dict(algorithm="threshold",
+                                              uncertainty_threshold=uncertainty_threshold)
+    atom_selector_parameters = create_atom_selector_parameters(atom_selector_parameter_dictionary)
+
     excisor_parameter_dictionary = sampling_dictionary.pop("excision", None)
-    excisor_parameters = create_excisor_parameters(excisor_parameter_dictionary)
+    if excisor_parameter_dictionary is not None:
+        excisor_parameters = create_excisor_parameters(excisor_parameter_dictionary)
+    else:
+        excisor_parameters = None
+
     sampling_dictionary["element_list"] = element_list
     sample_maker_parameters = create_sample_maker_parameters(sampling_dictionary)
+
     sample_maker = create_sample_maker(sample_maker_parameters=sample_maker_parameters,
+                                       atom_selector_parameters=atom_selector_parameters,
                                        excisor_parameters=excisor_parameters)
     return sample_maker
 
