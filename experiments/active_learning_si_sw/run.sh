@@ -16,14 +16,17 @@ INITIAL_CHECKPOINT=./output/initial_trained_flare.json
 
 
 # NoOp
-CONFIG=noop_config.yaml 
-TOP_DIR=./noop/
+#CONFIG=noop_config.yaml 
+#TOP_DIR=./noop/
 
 
 # Excise and NoOp
 #CONFIG=excise_and_noop_config.yaml 
 #TOP_DIR=./excise_and_noop/
 
+# Excise and Random
+CONFIG=excise_and_random_config.yaml 
+TOP_DIR=./excise_and_random/
 
 
 mkdir  $TOP_DIR
