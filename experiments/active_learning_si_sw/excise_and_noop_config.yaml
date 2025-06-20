@@ -33,7 +33,9 @@ oracle:
   sw_coeff_filename: Si.sw
 
 sampling:
-  algorithm: noop
+  algorithm: excise_and_noop
+  sample_box_strategy: fixed
+  sample_box_size: [10., 10., 10.]
   excision:
     algorithm: spherical_cutoff
     radial_cutoff: 5.0  # radial cutoff in Angstrom
