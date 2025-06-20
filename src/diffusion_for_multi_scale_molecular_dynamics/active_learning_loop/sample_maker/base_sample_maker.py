@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.base_atom_selector import \
+    BaseAtomSelector
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import \
     BaseEnvironmentExcision
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.namespace import (
@@ -48,14 +50,16 @@ class BaseSampleMakerArguments:
 class BaseSampleMaker(ABC):
     """Base class for the method making new samples."""
 
-    def __init__(self, sample_maker_arguments: BaseSampleMakerArguments, **kwargs):
+    def __init__(self, sample_maker_arguments: BaseSampleMakerArguments, atom_selector: BaseAtomSelector, **kwargs):
         """Init method.
 
         Args:
             sample_maker_arguments: arguments defining the sample maker method
+            atom_selector: an atom selector object that can identify interesting atoms.
             kwargs: optional arguments.
         """
         self.arguments = sample_maker_arguments
+        self.atom_selector = atom_selector
         self.sample_box_strategy = sample_maker_arguments.sample_box_strategy
 
     @abstractmethod
@@ -161,27 +165,32 @@ class BaseExciseSampleMaker(BaseSampleMaker):
     def __init__(
         self,
         sample_maker_arguments: BaseExciseSampleMakerArguments,
+        atom_selector: BaseAtomSelector,
         environment_excisor: BaseEnvironmentExcision,
     ):
         """Init method."""
-        super().__init__(sample_maker_arguments)
+        super().__init__(sample_maker_arguments, atom_selector)
         self.environment_excisor = environment_excisor
 
     @abstractmethod
     def make_samples_from_constrained_substructure(
         self,
         substructure: AXL,
+        active_atom_index: int,
         num_samples: int = 1,
-    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
+    ) -> Tuple[List[AXL], List[int], List[Dict[str, Any]]]:
         """Create new samples using a constrained structure.
 
         Args:
-            substructure: constrained atoms described as an AXL
+            substructure: constrained atoms described as an AXL.
+            active_atom_index: index of the "active atom" in the input substructure.
             num_samples: number of samples to make. Defaults to 1.
 
         Returns:
-            list of samples created. The length of the list should match num_samples.
-            list of samples additional information.
+            list_samples: the list of created samples. The length of the list should match num_samples.
+            list_active_atom_indices: for each created sample, the index of the "active atom", ie the
+                atom at the center of the excised region.
+            list_info: list of samples additional information.
         """
         pass
 
@@ -270,7 +279,7 @@ class BaseExciseSampleMaker(BaseSampleMaker):
         self,
         structure: AXL,
         uncertainty_per_atom: np.array,
-    ) -> Tuple[List[AXL], List[Dict[str, Any]]]:
+    ) -> Tuple[List[AXL], List[np.array], List[Dict[str, Any]]]:
         """Make new samples based on the excised substructures created using the uncertainties.
 
         Args:
@@ -280,12 +289,18 @@ class BaseExciseSampleMaker(BaseSampleMaker):
                 the structure variable.
 
         Returns:
-            created_samples: list of generated samples as AXL structures
+            list_sample_structures: list of generated samples as AXL structures
+            list_active_environment_indices: list of arrays of atom indices, one for each sample structure, identifying
+                the "active environments", namely the central atoms around which the structure are generated.
+                Note that, since we are excising around a single atom, each "array" in the list will be composed of
+                a single element.
             created_samples_info: list of dictionary with additional information on the created samples
         """
-        constrained_environments_after_excision, central_atom_indices = (
+        # Start by excising the selected environments
+        central_atom_indices = self.atom_selector.select_central_atoms(uncertainty_per_atom)
+        constrained_environments_after_excision, excised_central_atoms_indices = (
             self.environment_excisor.excise_environments(
-                structure, uncertainty_per_atom, center_atoms=True
+                structure, central_atom_indices, center_atoms=True
             )
         )
         assert len(constrained_environments_after_excision) == len(
@@ -304,14 +319,19 @@ class BaseExciseSampleMaker(BaseSampleMaker):
                     : self.arguments.max_constrained_substructure
                 ]
             )
-            central_atom_indices = central_atom_indices[
+            excised_central_atoms_indices = excised_central_atoms_indices[
                 : self.arguments.max_constrained_substructure
             ]
-        created_samples = []
-        created_samples_info = []
+
+        # Build the samples based on excised regions
+        list_created_samples = []
+        list_samples_info = []
+        list_active_environment_indices = []
         for constrained_environment, central_atom_index in zip(
-            constrained_environments_after_excision, central_atom_indices
+            constrained_environments_after_excision, excised_central_atoms_indices
         ):
+            # Box embedding does not affect the order of atoms in the structure, and so does not
+            # change the index "central atom".
             if self.sample_box_strategy == "fixed":
                 constrained_environment_in_new_box = self.embed_structure_in_new_box(
                     constrained_environment, self.arguments.new_box_lattice_parameters
@@ -319,17 +339,19 @@ class BaseExciseSampleMaker(BaseSampleMaker):
             # TODO use the L diffusion to get a new box
             else:  # noop
                 constrained_environment_in_new_box = constrained_environment
-            new_samples, new_samples_info = (
+
+            new_samples, active_atom_indices, new_samples_info = (
                 self.make_samples_from_constrained_substructure(
-                    constrained_environment_in_new_box,
-                    self.arguments.number_of_samples_per_substructure,
+                    substructure=constrained_environment_in_new_box,
+                    active_atom_index=central_atom_index,
+                    num_samples=self.arguments.number_of_samples_per_substructure,
                 )
             )
-            created_samples += new_samples
+            list_created_samples += new_samples
+            list_active_environment_indices += [np.array([idx]) for idx in active_atom_indices]
 
             new_samples_info_updated = []
             for sample_info in new_samples_info:
-                sample_info.update(central_atom_index)
                 sample_info.update(
                     {
                         AXL_STRUCTURE_IN_ORIGINAL_BOX: constrained_environment,
@@ -337,5 +359,5 @@ class BaseExciseSampleMaker(BaseSampleMaker):
                     }
                 )
                 new_samples_info_updated.append(sample_info)
-            created_samples_info += new_samples_info_updated
-        return created_samples, created_samples_info
+            list_samples_info += new_samples_info_updated
+        return list_created_samples, list_active_environment_indices, list_samples_info
