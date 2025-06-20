@@ -1,7 +1,7 @@
 #================================================================================
 # Configuration file for an active learning run
 #================================================================================
-exp_name: no_op_sample_maker
+exp_name: excise_and_noop_sample_maker
 
 seed: 42
 
