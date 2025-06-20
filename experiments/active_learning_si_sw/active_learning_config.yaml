@@ -33,7 +33,12 @@ oracle:
   sw_coeff_filename: Si.sw
 
 sampling:
-  algorithm: no_op
+  algorithm: noop
+  atom_selector:
+    algorithm: threshold
+    uncertainty_threshold: 1.0e-3
+  excision:
+    algorithm: noop
 
 lammps:
   mpi_processors: 4
