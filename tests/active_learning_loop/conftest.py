@@ -56,7 +56,7 @@ class BaseTestAxlStructure:
 
     @pytest.fixture
     def basis_vectors(self, spatial_dimension):
-        box_size = np.random.random((spatial_dimension,))
+        box_size = 22 + np.random.random((spatial_dimension,))
         return np.diag(box_size)
 
     @pytest.fixture
