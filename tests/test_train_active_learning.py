@@ -17,34 +17,34 @@ def element_list():
     return ['Ca', 'Si', 'H', 'C']
 
 
-@pytest.fixture(params=['uncertainty_threshold', 'excise_top_k_environment'])
-def excision_criterion(request):
+@pytest.fixture(params=[('noop', 'noop'),
+                        ('nearest_neighbors', 'excise_and_random'),
+                        ('spherical_cutoff', 'excise_and_random'),
+                        ('nearest_neighbors', 'excise_and_noop'),
+                        ('spherical_cutoff', 'excise_and_noop')])
+def excision_and_sampler_maker_algorithm_combination(request):
     return request.param
 
 
+@pytest.fixture
+def excision_algorithm(excision_and_sampler_maker_algorithm_combination):
+    return excision_and_sampler_maker_algorithm_combination[0]
+
+
+@pytest.fixture
+def sampling_algorithm(excision_and_sampler_maker_algorithm_combination):
+    return excision_and_sampler_maker_algorithm_combination[1]
+
+
 @pytest.fixture()
-def excision_criterion_parameter(excision_criterion):
-    match excision_criterion:
-        case 'uncertainty_threshold':
-            return 0.001
-        case 'excise_top_k_environment':
-            return 8
-        case _:
-            raise NotImplementedError("Unknown excision criterion")
-
-
-@pytest.fixture(params=['noop', 'nearest_neighbors', 'spherical_cutoff'])
-def excision_dictionary(request, excision_criterion, excision_criterion_parameter):
-    algorithm = request.param
-    excision_dict = dict(algorithm=algorithm)
-    match algorithm:
+def excision_dictionary(excision_algorithm):
+    excision_dict = dict(algorithm=excision_algorithm)
+    match excision_algorithm:
         case 'noop':
             pass
         case 'nearest_neighbors':
             excision_dict['number_of_neighbors'] = 16
-            excision_dict[excision_criterion] = excision_criterion_parameter
         case 'spherical_cutoff':
-            excision_dict[excision_criterion] = excision_criterion_parameter
             excision_dict['radial_cutoff'] = 2.0
         case _:
             raise NotImplementedError("Unknown excision case.")
@@ -53,12 +53,11 @@ def excision_dictionary(request, excision_criterion, excision_criterion_paramete
 
 
 # TODO: Implement something for excise_and_repaint
-@pytest.fixture(params=['noop', 'excise_and_random', 'excise_and_noop'])
-def sampling_dictionary(request, excision_dictionary):
-    algorithm = request.param
-    sampling_dict = dict(algorithm=algorithm)
+@pytest.fixture()
+def sampling_dictionary(sampling_algorithm, excision_dictionary):
+    sampling_dict = dict(algorithm=sampling_algorithm)
     sampling_dict['excision'] = excision_dictionary
-    match algorithm:
+    match sampling_algorithm:
         case 'noop':
             pass
         case 'excise_and_random':
@@ -91,5 +90,6 @@ def expected_sampler_maker_class(sampling_dictionary):
 
 
 def test_get_sample_maker_from_configuration(sampling_dictionary, element_list, expected_sampler_maker_class):
-    sample_maker = get_sample_maker_from_configuration(sampling_dictionary, element_list)
+    uncertainty_threshold = 0.001
+    sample_maker = get_sample_maker_from_configuration(sampling_dictionary, uncertainty_threshold, element_list)
     assert type(sample_maker) is expected_sampler_maker_class
