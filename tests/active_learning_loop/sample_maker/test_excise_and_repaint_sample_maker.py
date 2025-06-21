@@ -17,7 +17,8 @@ from tests.active_learning_loop.sample_maker.base_test_sample_maker import \
     BaseTestExciseSampleMaker
 
 
-# TODO: this is broken
+# TODO: a "fake" or "mock" ScoreNetwork should be introduced in order to make it possible to call
+#   the "make_samples" method on the sample_maker; this is necessary to run the base class tests.
 class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
 
     @pytest.fixture(scope="class", autouse=True)
