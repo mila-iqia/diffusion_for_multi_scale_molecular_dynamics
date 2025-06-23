@@ -84,11 +84,16 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         Returns:
             sampling_constraint: data class usable by a ConstrainedLangevinGenerator
         """
+        # The indices of the constrained structures will be explicitly fixed here in order to
+        # EXPLICITLY maintain the order of atoms in the final sample. This is useful to insure
+        # that the index of the active atom is well defined.
+        constrained_indices = torch.arange(len(constrained_structure.X))
         elements = self.arguments.element_list
         sampling_constraint = SamplingConstraint(
             elements=elements,
             constrained_relative_coordinates=torch.FloatTensor(constrained_structure.X),
             constrained_atom_types=torch.LongTensor(constrained_structure.A),
+            constrained_indices=constrained_indices
         )
         # a FloatTensor is used for the coordinates because torch will convert to float64 instead of float32
         return sampling_constraint
@@ -155,7 +160,9 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         new_structures = self.torch_batch_axl_to_list_of_numpy_axl(
             generated_samples["original_axl"]
         )
-        # TODO: verify that this is true!
+        # Since the order of the atoms in the constrained substructure are
+        # explicitly enforced, the index of the active atom is the same in the
+        # constrained substructure and in the sample.
         list_active_atom_indices = num_samples * [active_atom_index]
 
         # additional information on generated structures can be passed here
