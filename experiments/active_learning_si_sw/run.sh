@@ -28,7 +28,6 @@ INITIAL_CHECKPOINT=./output/initial_trained_flare.json
 CONFIG=excise_and_random_config.yaml 
 TOP_DIR=./excise_and_random/
 
-
 mkdir  $TOP_DIR
 # This creates the initial checkpoint
 python create_initial_checkpoint.py --path_to_lammps_executable $LAMMPS_EXEC \
