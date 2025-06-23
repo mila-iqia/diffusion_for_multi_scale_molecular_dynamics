@@ -61,6 +61,12 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
                          atom_selector=atom_selector,
                          environment_excisor=environment_excisor)
 
+        assert sample_maker_arguments.number_of_samples_per_substructure == sampling_parameters.number_of_samples, \
+            ("ExciseAndRepaint uses a generative model to generates samples. The number of samples requested in "
+             "the sampling_parameters (ie, 'number_of_samples') should be identical to the number of samples per "
+             "substructure requested in the sample_maker configuration (ie 'number_of_samples_per_substructure'). "
+             "The configuration currently asks for inconsistent things. Review input.")
+
         self.sample_noise_parameters = noise_parameters
         self.sampling_parameters = sampling_parameters
         self.diffusion_model = diffusion_model
@@ -112,7 +118,7 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
 
     def make_samples_from_constrained_substructure(
         self,
-        constrained_structure: AXL,
+        substructure: AXL,
         active_atom_index: int,
         num_samples: int = 1,
     ) -> Tuple[List[AXL], List[int], List[Dict[str, Any]]]:
@@ -122,7 +128,7 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         (box size is reduced).
 
         Args:
-            constrained_structure: excised substructure
+            substructure: excised substructure
             active_atom_index: index of the "active atom" in the input substructure.
             num_samples: number of samples to generate with the substructure
 
@@ -132,7 +138,7 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
                 atom at the center of the excised region.
             list_info: list of samples additional information.
         """
-        sampling_constraints = self.create_sampling_constraints(constrained_structure)
+        sampling_constraints = self.create_sampling_constraints(substructure)
         generator = ConstrainedLangevinGenerator(
             noise_parameters=self.sample_noise_parameters,
             sampling_parameters=self.sampling_parameters,

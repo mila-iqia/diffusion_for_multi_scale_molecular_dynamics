@@ -183,6 +183,10 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
         # but the excised environment should be present, and its central atom should have the right index.
         # We'll leverage pymatgen to perform the relevant checks.
 
+        # we'll use this to check if two positions are the same. We don't want this tolerance to be too small;
+        # we can expect errors on the order of float machine epsilon if there is casting between float32 and float64.
+        same_position_tolerance = 1.0e-6
+
         list_reference_pymatgen_excised_substructures, list_excised_atom_indices = (
             reference_pymatgen_excised_substructures_and_indices)
 
@@ -248,7 +252,7 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
                     site_is_found = False
                     for candidate_site in candidate_structure.sites:
                         species_are_the_same = candidate_site.species == ref_site.species
-                        positions_are_the_same = ref_site.distance(candidate_site) < 1.0e-8
+                        positions_are_the_same = ref_site.distance(candidate_site) < same_position_tolerance
                         if species_are_the_same and positions_are_the_same:
                             site_is_found = True
                             break

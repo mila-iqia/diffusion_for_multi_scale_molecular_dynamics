@@ -10,6 +10,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector
     PredictorCorrectorSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
     SamplingConstraint
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import (
+    EGNNScoreNetwork, EGNNScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
@@ -17,8 +19,6 @@ from tests.active_learning_loop.sample_maker.base_test_sample_maker import \
     BaseTestExciseSampleMaker
 
 
-# TODO: a "fake" or "mock" ScoreNetwork should be introduced in order to make it possible to call
-#   the "make_samples" method on the sample_maker; this is necessary to run the base class tests.
 class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
 
     @pytest.fixture(scope="class", autouse=True)
@@ -30,8 +30,19 @@ class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
         return 3
 
     @pytest.fixture
-    def number_of_atoms(self):
-        return 14
+    def score_network_parameters(self, num_atom_types):
+        return EGNNScoreNetworkParameters(
+            number_of_bloch_wave_shells=1,
+            edges="radial_cutoff",
+            radial_cutoff=5.0,
+            num_atom_types=num_atom_types,
+            normalize=False,
+        )
+
+    @pytest.fixture()
+    def axl_score_network(self, score_network_parameters):
+        score_network = EGNNScoreNetwork(score_network_parameters)
+        return score_network
 
     @pytest.fixture
     def batch_atom_types(self, batch_size, number_of_atoms, num_atom_types):
@@ -65,7 +76,7 @@ class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
     @pytest.fixture
     def noise_parameters(self):
         return NoiseParameters(
-            total_time_steps=2,
+            total_time_steps=5,
             schedule_type="exponential",
             sigma_min=0.01,
             sigma_max=0.5,
@@ -84,22 +95,21 @@ class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
         spatial_dimension,
         number_of_atoms,
         num_atom_types,
+        number_of_samples_per_substructure,
         cell_dimensions_for_samping,
     ):
+        # The EGNN model works with float32: the code crashes if we mix float32 and float64.
+        cell_dimensions = [np.float32(c) for c in cell_dimensions_for_samping]
         return PredictorCorrectorSamplingParameters(
-            number_of_samples=1,
+            number_of_samples=number_of_samples_per_substructure,
             spatial_dimension=spatial_dimension,
             number_of_corrector_steps=1,
             num_atom_types=num_atom_types,
             number_of_atoms=number_of_atoms,
             use_fixed_lattice_parameters=True,
-            cell_dimensions=cell_dimensions_for_samping,
+            cell_dimensions=cell_dimensions,
             record_samples=False,
         )
-
-    @pytest.fixture
-    def axl_score_network(self):
-        return None
 
     @pytest.fixture
     def sample_maker(
@@ -191,7 +201,7 @@ class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
         )))):
             # The inputs don't matter since we force the output with a mock.
             calculated_new_samples, _, _ = sample_maker.make_samples_from_constrained_substructure(
-                constrained_structure=structure_axl,
+                substructure=structure_axl,
                 active_atom_index=0)
 
         mock_create_batch_of_samples.assert_called_once()
@@ -202,32 +212,3 @@ class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
                 calculated_new_samples[b].X, batch_relative_coordinates[b, :, :]
             )
             assert np.array_equal(calculated_new_samples[b].L, batch_lattice_parameters[b, :])
-
-    @pytest.fixture()
-    def samples_and_indices(self):
-        # TODO: Remove this stub once we have a proper way of drawing fake samples.
-        return None
-
-    @pytest.fixture()
-    def calculated_pymatgen_sample_structures_and_indices(self):
-        # TODO: Remove this stub once we have a proper way of drawing fake samples.
-        return None
-
-    @pytest.fixture()
-    def reference_pymatgen_excised_substructures_and_indices(self):
-        # TODO: Remove this stub once we have a proper way of drawing fake samples.
-        return None
-
-    def test_sample_lattice_parameters(self, samples_and_indices, sample_box_strategy,
-                                       sample_box_size, lattice_parameters):
-        # TODO: Remove this stub once we have a proper way of drawing fake samples.
-        pytest.skip("Skipping this test until a fake make_sample method is implemented.")
-
-    def test_excised_environments_are_present(
-            self,
-            calculated_pymatgen_sample_structures_and_indices,
-            reference_pymatgen_excised_substructures_and_indices,
-            number_of_samples_per_substructure
-    ):
-        # TODO: Remove this stub once we have a proper way of drawing fake samples.
-        pytest.skip("Skipping this test until a fake make_sample method is implemented.")
