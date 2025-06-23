@@ -1,5 +1,10 @@
 import pytest
 
+try:
+    import flare_pp  # noqa
+except ImportError:
+    pytest.skip("Skipping FLARE tests:  optional FLARE dependencies not installed.", allow_module_level=True)
+
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_noop_sample_maker import \
     ExciseAndNoOpSampleMaker  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import \
