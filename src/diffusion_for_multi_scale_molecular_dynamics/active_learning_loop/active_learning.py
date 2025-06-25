@@ -250,9 +250,15 @@ class ActiveLearning:
                 self._make_samples(uncertain_structure, uncertainty_per_atom))
 
             logger.info("  Labelling samples with oracle...")
+            oracle_directory = current_sub_directory / "oracle"
+            oracle_directory.mkdir(parents=True, exist_ok=True)
+
             time1 = time.time()
-            list_single_point_calculations = [
-                self.oracle_calculator.calculate(structure) for structure in list_sample_structures]
+            list_single_point_calculations = []
+            for idx, structure in enumerate(list_sample_structures):
+                results_path = oracle_directory / f"dump_{idx}.yaml"
+                result = self.oracle_calculator.calculate(structure, results_path=results_path)
+                list_single_point_calculations.append(result)
             time2 = time.time()
             logger.info(
                 f" -> It took {time2- time1: 6.2e} seconds to compute labels with Oracle."
@@ -262,9 +268,6 @@ class ActiveLearning:
             oracle_df = self._convert_single_point_calculations_to_dataframe(
                 list_single_point_calculations, list_sample_information
             )
-
-            oracle_directory = current_sub_directory / "oracle"
-            oracle_directory.mkdir(parents=True, exist_ok=True)
 
             output_file = oracle_directory / "oracle_single_point_calculations.pkl"
             oracle_df.to_pickle(output_file)

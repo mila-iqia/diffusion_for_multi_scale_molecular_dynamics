@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -30,6 +31,6 @@ class BaseSinglePointCalculator:
         pass
 
     @abstractmethod
-    def calculate(self, structure: Structure) -> SinglePointCalculation:
+    def calculate(self, structure: Structure, results_path: Optional[Path] = None) -> SinglePointCalculation:
         """This method just defines the API."""
         raise NotImplementedError("This method must be implemented in a child class.")
