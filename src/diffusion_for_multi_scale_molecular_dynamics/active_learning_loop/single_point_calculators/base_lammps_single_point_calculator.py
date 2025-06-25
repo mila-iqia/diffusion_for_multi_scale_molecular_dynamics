@@ -1,7 +1,9 @@
+import os
+import shutil
 import tempfile
 from abc import abstractmethod
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 from pymatgen.core import Structure
 from pymatgen.io.lammps.data import LammpsData
@@ -126,13 +128,15 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
 
         return calculation_result
 
-    def calculate(self, structure: Structure) -> SinglePointCalculation:
+    def calculate(self, structure: Structure, results_path: Optional[Path] = None) -> SinglePointCalculation:
         """Calculate.
 
         Drive LAMMPS execution.
 
         Args:
             structure: pymatgen structure.
+            results_path: (Optional) if present, the dump.yaml file produced by the LAMMPS calculation will
+                be moved to this location.
 
         Returns:
             calculation_results: the parsed LAMMPS output.
@@ -141,5 +145,9 @@ class BaseLAMMPSSinglePointCalculator(BaseSinglePointCalculator):
             calculation_result = self.calculate_in_work_directory(
                 structure, tmp_work_dir
             )
+            if results_path is not None:
+                src = os.path.join(tmp_work_dir, "dump.yaml")
+                dst = str(results_path)
+                shutil.move(src, dst)
 
         return calculation_result
