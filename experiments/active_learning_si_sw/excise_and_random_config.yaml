@@ -38,7 +38,7 @@ sampling:
   total_number_of_atoms: 64
   random_coordinates_algorithm: voxel_random
   max_attempts: 10
-  minimal_interatomic_distance: 0.5
+  minimal_interatomic_distance: 1.5
   sample_box_strategy: fixed
   sample_box_size: [ 10.86, 10.86, 10.86 ]
   excision:
