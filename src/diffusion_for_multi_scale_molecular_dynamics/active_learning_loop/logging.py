@@ -24,8 +24,7 @@ def set_up_campaign_logger(working_directory: Path):
         logger: a configured logger.
     """
     log_file_name = "active_learning.log"
-    logger_name = generate_random_string(size=16)  # Get a unique name to avoid overlogging.
-    logger = logging.getLogger(logger_name)
+    logger = logging.getLogger()
 
     logging.captureWarnings(capture=True)
     logging_format = ("%(asctime)s :: %(message)s")
@@ -50,6 +49,6 @@ def set_up_campaign_logger(working_directory: Path):
 
 def clean_up_campaign_logger(logger: logging.Logger):
     """Remove the logger."""
-    for handler in list(logger.handlers):  # Iterate over a copy to safely remove
+    for handler in list(logger.handlers):
         handler.close()  # Close the file handler to release the file
         logger.removeHandler(handler)
