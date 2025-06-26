@@ -4,84 +4,28 @@ import pytest
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.spherical_excisor import (
     SphericalExcision, SphericalExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from tests.active_learning_loop.excisor.base_test_excision import \
+    BaseTestExcision
 
 
-class TestSphericalExcision:
-    @pytest.fixture(params=[1.0, 2.0])
+class TestSphericalExcision(BaseTestExcision):
+    @pytest.fixture(params=[1.2, 2.3])
     def radial_cutoff(self, request):
         return request.param
 
-    @pytest.fixture(params=[1, 2, 3])
-    def topk(self, request):
-        return request.param
+    @pytest.fixture
+    def excisor(self, radial_cutoff):
+        parameters = SphericalExcisionArguments(radial_cutoff=radial_cutoff)
+        return SphericalExcision(parameters)
 
     @pytest.fixture
-    def excisor_parameters(self, radial_cutoff, topk):
-        exc_params = SphericalExcisionArguments(
-            excise_top_k_environment=topk, radial_cutoff=radial_cutoff
-        )
-        return exc_params
+    def expected_excised_atom_index(self):
+        # TODO
+        return 0
 
     @pytest.fixture
-    def spherical_excisor(self, excisor_parameters):
-        return SphericalExcision(excisor_parameters)
-
-    @pytest.fixture
-    def number_of_atoms(self):
-        return 48
-
-    @pytest.fixture(params=[1, 2, 3])
-    def spatial_dimension(self, request):
-        return request.param
-
-    @pytest.fixture
-    def basis_vectors(self, spatial_dimension):
-        box_size = np.random.random((spatial_dimension,)) * 4
-        return np.diag(box_size)
-
-    @pytest.fixture
-    def lattice_parameters(self, spatial_dimension, basis_vectors):
-        lp = np.concatenate(
-            (
-                np.diag(basis_vectors),
-                np.zeros(int(spatial_dimension * (spatial_dimension - 1) / 2)),
-            )
-        )
-        return lp
-
-    @pytest.fixture
-    def atom_relative_positions(self, number_of_atoms, spatial_dimension):
-        return np.random.random((number_of_atoms, spatial_dimension))
-
-    @pytest.fixture
-    def atom_cartesian_positions(self, atom_relative_positions, basis_vectors):
-        return np.matmul(atom_relative_positions, basis_vectors)
-
-    @pytest.fixture
-    def atom_species(self, number_of_atoms):
-        return np.arange(number_of_atoms)
-
-    @pytest.fixture
-    def structure_axl(self, atom_species, atom_relative_positions, lattice_parameters):
-        struct_axl = AXL(
-            A=atom_species, X=atom_relative_positions, L=lattice_parameters
-        )
-        return struct_axl
-
-    @pytest.fixture
-    def atom_uncertainty(self, number_of_atoms):
-        return np.random.random((number_of_atoms,))
-
-    @pytest.mark.parametrize("central_atom_idx", [1, 2, 3])
-    def test_excise_one_environment(
-        self,
-        spherical_excisor,
-        structure_axl,
-        radial_cutoff,
-        central_atom_idx,
-        atom_cartesian_positions,
-        basis_vectors,
-    ):
+    def expected_excised_environment(self, structure_axl, radial_cutoff, central_atom_idx,
+                                     atom_cartesian_positions, basis_vectors):
         central_atom_position = atom_cartesian_positions[central_atom_idx, :]
         box_dimensions = np.diag(basis_vectors)[np.newaxis, :]
         atoms_positions_in_environment = []
@@ -108,10 +52,4 @@ class TestSphericalExcision:
             X=np.stack(np.array(atoms_positions_in_environment)[sorted_idx]),
             L=structure_axl.L,
         )
-
-        calculated_environment = spherical_excisor._excise_one_environment(
-            structure_axl, central_atom_idx
-        )
-
-        assert np.array_equal(expected_environment.A, calculated_environment.A)
-        assert np.array_equal(expected_environment.X, calculated_environment.X)
+        return expected_environment

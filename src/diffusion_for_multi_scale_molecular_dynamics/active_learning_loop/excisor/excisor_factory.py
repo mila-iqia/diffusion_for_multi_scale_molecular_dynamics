@@ -1,20 +1,21 @@
 from typing import Any, AnyStr, Dict
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import (
-    BaseEnvironmentExcision, BaseEnvironmentExcisionArguments,
-    NoOpEnvironmentExcision, NoOpEnvironmentExcisionArguments)
+    BaseEnvironmentExcision, BaseEnvironmentExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.nearest_neighbors_excisor import (
     NearestNeighborsExcision, NearestNeighborsExcisionArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.no_op_excisor import (
+    NoOpExcision, NoOpExcisionArguments)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.spherical_excisor import (
     SphericalExcision, SphericalExcisionArguments)
 
 EXCISOR_PARAMETERS_BY_NAME = dict(
-    noop=NoOpEnvironmentExcisionArguments,
+    noop=NoOpExcisionArguments,
     nearest_neighbors=NearestNeighborsExcisionArguments,
     spherical_cutoff=SphericalExcisionArguments,
 )
 EXCISOR_BY_NAME = dict(
-    noop=NoOpEnvironmentExcision,
+    noop=NoOpExcision,
     nearest_neighbors=NearestNeighborsExcision,
     spherical_cutoff=SphericalExcision,
 )

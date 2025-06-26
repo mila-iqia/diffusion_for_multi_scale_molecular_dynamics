@@ -17,10 +17,10 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.logging i
     clean_up_campaign_logger, set_up_campaign_logger)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import \
     BaseSampleMaker
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.conversion_utils import (
-    convert_axl_to_structure, convert_structure_to_axl)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.namespace import (
     AXL_STRUCTURE_IN_NEW_BOX, AXL_STRUCTURE_IN_ORIGINAL_BOX)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.structure_converter import \
+    StructureConverter
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import (  # noqa
     BaseSinglePointCalculator, SinglePointCalculation)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import \
@@ -65,6 +65,7 @@ class ActiveLearning:
         self.sample_maker = sample_maker
         self.artn_driver = artn_driver
         self.optimizer = flare_hyperparameters_optimizer
+        self._structure_converter = StructureConverter(list_of_element_symbols=sample_maker.arguments.element_list)
 
     def _get_uncertain_structure_and_uncertainties(
         self, artn_working_directory: Path
@@ -86,14 +87,29 @@ class ActiveLearning:
 
     def _make_samples(
         self, structure: Structure, uncertainty_per_atom: np.ndarray
-    ) -> Tuple[List[Structure], List[Dict[str, Any]]]:
-        """Make samples."""
-        axl_structure = convert_structure_to_axl(structure)
-        list_sample_axl_structures, list_sample_additional_information = (
+    ) -> Tuple[List[Structure], List[np.array], List[Dict[str, Any]]]:
+        """Make samples.
+
+        This method handles the back-and-forth transformation from Pymatgen Structures to AXL structures.
+
+        Ars:
+            structure: Pymatgen structure to make samples from.
+            uncertainty_per_atom: uncertainty per atom.
+
+        Returns:
+            list_sample_structures: list of sampled structures.
+            list_active_indices: The indices of the active atoms in the sample structures.
+            list_additional_information: list of additional information.
+        """
+        axl_structure = self._structure_converter.convert_structure_to_axl(structure)
+        (list_sample_axl_structures,
+         list_active_indices,
+         list_sample_additional_information) = (
             self.sample_maker.make_samples(axl_structure, uncertainty_per_atom)
         )
-        converted_list_sample_axl_structures = [
-            convert_axl_to_structure(axl_structure)
+
+        list_sample_structures = [
+            self._structure_converter.convert_axl_to_structure(axl_structure)
             for axl_structure in list_sample_axl_structures
         ]
         converted_list_additional_information = [
@@ -101,13 +117,13 @@ class ActiveLearning:
             for sample_info in list_sample_additional_information
         ]
         return (
-            converted_list_sample_axl_structures,
+            list_sample_structures,
+            list_active_indices,
             converted_list_additional_information,
         )
 
-    @staticmethod
     def _convert_axl_to_structure_in_dict(
-        sample_additional_information: Dict[str, Any],
+        self, sample_additional_information: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Convert AXL elements of an additional information dictionary to pymatgen structure.
 
@@ -120,7 +136,7 @@ class ActiveLearning:
         converted_info = {}
         for k, v in sample_additional_information.items():
             if k in [AXL_STRUCTURE_IN_ORIGINAL_BOX, AXL_STRUCTURE_IN_NEW_BOX]:
-                converted_info[k] = convert_axl_to_structure(v)
+                converted_info[k] = self._structure_converter.convert_axl_to_structure(v)
             else:
                 converted_info[k] = v
         return converted_info
@@ -146,31 +162,6 @@ class ActiveLearning:
 
         df = pd.DataFrame(data=rows)
         return df
-
-    def _determine_active_environment_indices(self, sample_info: Dict, uncertainty_threshold: float) -> List[int]:
-        """Determine active environment indices.
-
-        This method identifies which environments are "active" (or "high uncertainty") based on information
-        in the sample_info dictionary. The environments are represented by their central atom.
-
-        Args:
-            sample_info: sample information dictionary.
-            It is assumed to contain a field named 'uncertainty_per_atom'. It is also assumed that this array
-            is sorted in the same way as the corresponding atoms in their respective structures.
-            uncertainty_threshold: uncertainty threshold for determining uncertain environments.
-
-        Returns:
-            active_environment_indices: atomic indices of the active environments present.
-        """
-        # TODO: this is heavily geared towards the NoOp sample maker. Review and generalize when
-        #   non-trivial sample makers are implemented.
-        assert 'uncertainty_per_atom' in sample_info, \
-            "The field 'uncertainty_per_atom' is missing. Something is wrong."
-
-        uncertainty_per_atom = sample_info['uncertainty_per_atom']
-        mask = np.where(uncertainty_per_atom > uncertainty_threshold)[0]
-        active_environment_indices = list(np.arange(len(uncertainty_per_atom))[mask])
-        return active_environment_indices
 
     def _log_campaign_details(self, campaign_working_directory_path: Path, campaign_details: Dict):
         """Log campaign details."""
@@ -198,11 +189,7 @@ class ActiveLearning:
             maximum_number_of_rounds: maximum number of active learning rounds. This is useful to avoid
                 infinite loops...
         """
-        assert (
-            not working_directory.is_dir()
-        ), f"The directory {working_directory} already exists! Stopping now to avoid overwriting results."
         working_directory.mkdir(parents=True, exist_ok=True)
-
         logger = set_up_campaign_logger(working_directory)
         logger.info("Starting Active Learning Simulation")
 
@@ -259,9 +246,8 @@ class ActiveLearning:
             )
 
             logger.info("  Making new samples based on uncertainties.")
-            list_sample_structures, list_sample_information = self._make_samples(
-                uncertain_structure, uncertainty_per_atom
-            )
+            list_sample_structures, list_active_indices, list_sample_information = (
+                self._make_samples(uncertain_structure, uncertainty_per_atom))
 
             logger.info("  Labelling samples with oracle...")
             time1 = time.time()
@@ -284,9 +270,8 @@ class ActiveLearning:
             oracle_df.to_pickle(output_file)
 
             logger.info("  Adding samples and uncertain environment to FLARE.")
-            for single_point_calculation, sample_info in zip(list_single_point_calculations, list_sample_information):
-                active_environment_indices = self._determine_active_environment_indices(sample_info,
-                                                                                        uncertainty_threshold)
+            for single_point_calculation, active_environment_indices \
+                    in zip(list_single_point_calculations, list_active_indices):
                 flare_trainer.add_labelled_structure(
                     single_point_calculation,
                     active_environment_indices=active_environment_indices,

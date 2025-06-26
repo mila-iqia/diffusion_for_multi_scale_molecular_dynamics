@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Tuple
 
 import numpy as np
 
@@ -20,7 +21,6 @@ class NearestNeighborsExcisionArguments(BaseEnvironmentExcisionArguments):
 
     def __post_init__(self):
         """Post init."""
-        super().__post_init__()
         assert (
             self.number_of_neighbors > 0
         ), f"Number of neighbors to include is expected to be positive. Got {self.number_of_neighbors}"
@@ -34,7 +34,7 @@ class NearestNeighborsExcision(BaseEnvironmentExcision):
         super().__init__(excision_arguments)
         self.number_of_neighbors = excision_arguments.number_of_neighbors
 
-    def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> AXL:
+    def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> Tuple[AXL, int]:
         """Excise the N nearest atoms within a distance radial_cutoff from a central atom.
 
         Args:
@@ -43,19 +43,25 @@ class NearestNeighborsExcision(BaseEnvironmentExcision):
 
         Returns:
             excised_substructure: all atoms within a distance radial_cutoff of the central atom (including itself).
+            excised_central_atom_idx: the index of the central atom in the newly created excised substructure.
         """
         central_atom_relative_coordinates = structure.X[central_atom_idx, :]
         distances_from_central_atom = get_distances_from_reference_point(
             structure.X, central_atom_relative_coordinates, structure.L
         )
+
         # find the indices sorting the distances from closer to most distant
         sorted_indices = np.argsort(distances_from_central_atom)
         # the N nearest are the nearest neighbor. Add 1 to include the central atom itself.
         nearest_neighbor_indices = sorted_indices[: self.number_of_neighbors + 1]
+
+        # Clearly, the closest atom to the central one is *itself*, with a distance of zero.
+        # Since the indices are sorted with respect to distance, the zeroth element will be the central atom.
+        excised_central_atom_idx = 0
 
         excised_substructure = AXL(
             A=structure.A[nearest_neighbor_indices],
             X=structure.X[nearest_neighbor_indices, :],
             L=structure.L,
         )
-        return excised_substructure
+        return excised_substructure, excised_central_atom_idx

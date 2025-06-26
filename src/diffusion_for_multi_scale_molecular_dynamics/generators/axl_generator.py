@@ -45,7 +45,7 @@ class SamplingParameters:
             cell_dimensions = torch.tensor(self.cell_dimensions)
             if (
                 cell_dimensions.dim() == 1
-            ):  # if we provide a list of int, we assume the vectors are orthogonal
+            ):  # if we provide a list of floats, we assume the vectors are orthogonal
                 cell_dimensions = torch.diag(cell_dimensions)
             assert cell_dimensions.dim() == 2, (
                 f"Provided cell_dimensions must be a 2D tensor. "

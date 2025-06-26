@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Tuple
 
 import numpy as np
 
@@ -13,12 +14,11 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 class SphericalExcisionArguments(BaseEnvironmentExcisionArguments):
     """Arguments for a spherical cutoff around a target atom."""
 
-    algorithm: str = "radial_excision"
+    algorithm: str = "spherical_cutoff"
     radial_cutoff: float = 3.0  # radial cutoff in Angstrom
 
     def __post_init__(self):
         """Post init."""
-        super().__post_init__()
         assert (
             self.radial_cutoff > 0
         ), f"Radial cutoff is expected to be positive. Got {self.radial_cutoff}"
@@ -32,7 +32,7 @@ class SphericalExcision(BaseEnvironmentExcision):
         super().__init__(excision_arguments)
         self.radial_cutoff = excision_arguments.radial_cutoff
 
-    def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> AXL:
+    def _excise_one_environment(self, structure: AXL, central_atom_idx: int) -> Tuple[AXL, int]:
         """Excise the atoms within a distance radial_cutoff from a central atom.
 
         Args:
@@ -55,10 +55,14 @@ class SphericalExcision(BaseEnvironmentExcision):
         sorted_in_subset = np.argsort(distances_under_cutoff)
         sorted_indices_closer_than_threshold = indices_closer_than_threshold[sorted_in_subset]
 
+        # Clearly, the closest atom to the central one is *itself*, with a distance of zero.
+        # Since the indices are sorted with respect to distance, the zeroth element will be the central atom.
+        excised_central_atom_idx = 0
+
         # slice the AXL accordingly
         excised_substructure = AXL(
             A=structure.A[sorted_indices_closer_than_threshold],
             X=structure.X[sorted_indices_closer_than_threshold, :],
             L=structure.L,
         )
-        return excised_substructure
+        return excised_substructure, excised_central_atom_idx

@@ -12,13 +12,14 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
 
 plt.style.use(PLOT_STYLE_PATH)
 
+experiment = "noop"
 
-experiment_dir = TOP_DIR / "experiments/active_learning_si_sw"
-reference_artn_output_file = experiment_dir / "Si-vac_sw_potential/artn.out"
+top_dir = TOP_DIR / "experiments/active_learning_si_sw"
+experiment_dir = TOP_DIR / "experiments/active_learning_si_sw" / experiment
+reference_artn_output_file = top_dir / "Si-vac_sw_potential/artn.out"
 
-list_experiments_ids = [1, 2, 3, 4, 5]
+list_run_ids = [1, 2, 3, 4, 5]
 list_campaign_ids = [1, 2, 3, 4]
-
 
 if __name__ == "__main__":
     with open(reference_artn_output_file, "r") as fd:
@@ -27,14 +28,9 @@ if __name__ == "__main__":
 
     results = defaultdict(list)
 
-    for experiment_id in list_experiments_ids:
+    for run_id in list_run_ids:
         for campaign_id in list_campaign_ids:
-            campaign_dir = (
-                experiment_dir
-                / "sigma=1000"
-                / f"experiment_{experiment_id}"
-                / f"active_learning_campaign_{campaign_id}"
-            )
+            campaign_dir = experiment_dir / f"run{run_id}" / f"campaign_{campaign_id}"
 
             with open(campaign_dir / "campaign_details.yaml", "r") as fd:
                 campaign_details = yaml.load(fd, Loader=yaml.FullLoader)
@@ -66,7 +62,7 @@ if __name__ == "__main__":
     list_std = np.array(list_std)
 
     fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    # fig.suptitle(f"Saddle Point Energy From Active Learning\n Best Result Error : {1000 * error: 4.1f} meV")
+    fig.suptitle(f"Saddle Point Energy From Active Learning\n Algorithm : {experiment}")
     ax1 = fig.add_subplot(111)
 
     ax1.semilogx(list_thresholds, list_mean, "ro-", ms=10, label="Mean Flare Value")

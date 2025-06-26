@@ -1,8 +1,10 @@
 from dataclasses import dataclass
-from typing import List
+from typing import Any, Dict, List, Tuple
 
 import torch
 
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.base_atom_selector import \
+    BaseAtomSelector
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.base_excisor import \
     BaseEnvironmentExcision
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
@@ -37,6 +39,7 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
     def __init__(
         self,
         sample_maker_arguments: ExciseAndRepaintSampleMakerArguments,
+        atom_selector: BaseAtomSelector,
         environment_excisor: BaseEnvironmentExcision,
         noise_parameters: NoiseParameters,
         sampling_parameters: SamplingParameters,
@@ -47,13 +50,23 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
 
         Args:
             sample_maker_arguments: arguments for the excise and repaint sample maker
+            atom_selector: an atom selector.
             environment_excisor: atomic environment excisor
             noise_parameters: noise parameters used for the diffusion model
             sampling_parameters: sampling parameters used for the diffusion model
             diffusion_model: score network used for constrained generation (repainting)
             device: torch device to use for the diffusion model. Defaults to cpu.
         """
-        super().__init__(sample_maker_arguments, environment_excisor)
+        super().__init__(sample_maker_arguments=sample_maker_arguments,
+                         atom_selector=atom_selector,
+                         environment_excisor=environment_excisor)
+
+        assert sample_maker_arguments.number_of_samples_per_substructure == sampling_parameters.number_of_samples, \
+            ("ExciseAndRepaint uses a generative model to generates samples. The number of samples requested in "
+             "the sampling_parameters (ie, 'number_of_samples') should be identical to the number of samples per "
+             "substructure requested in the sample_maker configuration (ie 'number_of_samples_per_substructure'). "
+             "The configuration currently asks for inconsistent things. Review input.")
+
         self.sample_noise_parameters = noise_parameters
         self.sampling_parameters = sampling_parameters
         self.diffusion_model = diffusion_model
@@ -71,11 +84,16 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         Returns:
             sampling_constraint: data class usable by a ConstrainedLangevinGenerator
         """
+        # The indices of the constrained structures will be explicitly fixed here in order to
+        # EXPLICITLY maintain the order of atoms in the final sample. This is useful to insure
+        # that the index of the active atom is well defined.
+        constrained_indices = torch.arange(len(constrained_structure.X))
         elements = self.arguments.element_list
         sampling_constraint = SamplingConstraint(
             elements=elements,
             constrained_relative_coordinates=torch.FloatTensor(constrained_structure.X),
             constrained_atom_types=torch.LongTensor(constrained_structure.A),
+            constrained_indices=constrained_indices
         )
         # a FloatTensor is used for the coordinates because torch will convert to float64 instead of float32
         return sampling_constraint
@@ -105,22 +123,27 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
 
     def make_samples_from_constrained_substructure(
         self,
-        constrained_structure: AXL,
+        substructure: AXL,
+        active_atom_index: int,
         num_samples: int = 1,
-    ) -> List[AXL]:
+    ) -> Tuple[List[AXL], List[int], List[Dict[str, Any]]]:
         """Create new samples using a constrained structure using a diffusion model to repaint non-constrained atoms.
 
         This method assumes the lattice parameters in the constrained structure are already rescaled
         (box size is reduced).
 
         Args:
-            constrained_structure: excised substructure
+            substructure: excised substructure
+            active_atom_index: index of the "active atom" in the input substructure.
             num_samples: number of samples to generate with the substructure
 
         Returns:
             new_structures: list of generated candidates structure
+            list_active_atom_indices: for each created sample, the index of the "active atom", ie the
+                atom at the center of the excised region.
+            list_info: list of samples additional information.
         """
-        sampling_constraints = self.create_sampling_constraints(constrained_structure)
+        sampling_constraints = self.create_sampling_constraints(substructure)
         generator = ConstrainedLangevinGenerator(
             noise_parameters=self.sample_noise_parameters,
             sampling_parameters=self.sampling_parameters,
@@ -137,11 +160,15 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         new_structures = self.torch_batch_axl_to_list_of_numpy_axl(
             generated_samples["original_axl"]
         )
+        # Since the order of the atoms in the constrained substructure are
+        # explicitly enforced, the index of the active atom is the same in the
+        # constrained substructure and in the sample.
+        list_active_atom_indices = num_samples * [active_atom_index]
 
         # additional information on generated structures can be passed here
         additional_information_on_new_structures = [{}] * len(new_structures)
 
-        return new_structures, additional_information_on_new_structures
+        return new_structures, list_active_atom_indices, additional_information_on_new_structures
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Return identical structures."""
