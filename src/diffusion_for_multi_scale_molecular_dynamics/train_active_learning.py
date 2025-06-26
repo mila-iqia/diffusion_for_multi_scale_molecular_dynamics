@@ -202,11 +202,12 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
         logger.error(err)
 
 
-def get_sample_maker_from_configuration(sampling_dictionary: typing.Dict,
+def get_sample_maker_from_configuration(original_sampling_dictionary: typing.Dict,
                                         uncertainty_threshold: float,
                                         element_list: typing.List[str]) -> BaseSampleMaker:
     """Get sample maker from configuration dictionary."""
     # TODO: deal with a potential diffusion model.
+    sampling_dictionary = original_sampling_dictionary.copy()
     atom_selector_parameter_dictionary = dict(algorithm="threshold",
                                               uncertainty_threshold=uncertainty_threshold)
     atom_selector_parameters = create_atom_selector_parameters(atom_selector_parameter_dictionary)
