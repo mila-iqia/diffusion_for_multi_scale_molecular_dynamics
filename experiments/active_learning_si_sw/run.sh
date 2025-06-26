@@ -12,7 +12,7 @@
 SRC_DIR=/Users/brunorousseau/sources/
 LAMMPS_EXEC=${SRC_DIR}/lammps/build/lmp
 ARTN_PLUGIN=${SRC_DIR}/artn-plugin/build/libartn.dylib
-INITIAL_CHECKPOINT=./output/initial_trained_flare.json
+INITIAL_CHECKPOINT=./initial_model/initial_trained_flare.json
 
 list_runs="1 2 3 4 5"
 
