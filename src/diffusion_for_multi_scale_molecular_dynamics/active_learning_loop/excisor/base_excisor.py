@@ -30,7 +30,7 @@ class BaseEnvironmentExcision(ABC):
         Args:
             structure: crystal structure, including atomic species, relative coordinates and lattice parameters
             central_atoms_indices: indices of atoms at the center of environments to be excised from the structure.
-                It is assumed that the indices correspond to the atom orderin the input structure.
+                It is assumed that the indices correspond to the atom ordering the input structure.
             center_atoms: if True, apply a translation to all atoms such that the central atom is in the middle of the
                 box. Defaults to True.
 

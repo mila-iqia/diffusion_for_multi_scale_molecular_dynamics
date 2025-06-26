@@ -138,7 +138,7 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
 
     assert (
         "flare" in configuration
-    ), "An Flare configuration must be defined in the configuration file!"
+    ), "A Flare configuration must be defined in the configuration file!"
     flare_parameters = configuration["flare"]
     optimizer_parameters = flare_parameters.pop("flare_optimizer")
     optimize_on_the_fly = optimizer_parameters.pop("optimize_on_the_fly")
