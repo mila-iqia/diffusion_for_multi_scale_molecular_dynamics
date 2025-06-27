@@ -49,6 +49,7 @@ if __name__ == "__main__":
         required=True,
     )
     args = parser.parse_args()
+    Path(args.path_to_initial_flare_checkpoint).parent.mkdir(exist_ok=True, parents=True)
 
     lammps_runner = LammpsRunner(
         lammps_executable_path=Path(args.path_to_lammps_executable),

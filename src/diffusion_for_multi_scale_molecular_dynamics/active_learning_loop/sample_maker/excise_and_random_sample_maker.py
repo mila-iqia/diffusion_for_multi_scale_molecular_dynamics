@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
@@ -287,6 +288,7 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
             f"There are more constrained atoms {n_constraint_atoms} than total number of atoms "
             f"{self.arguments.total_number_of_atoms}."
         )
+        success = False
         for _ in range(self.arguments.max_attempts):
             new_structure, new_active_index = self.make_single_structure(
                 constrained_structure, active_atom_index
@@ -296,7 +298,15 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
                 new_structure.X, new_structure.L
             )
             if min_interatomic_distance > self.arguments.minimal_interatomic_distance:
+                success = True
                 break
+
+        if not success:
+            logging.warning(f"A sample structure with all inter-atomic distances larger "
+                            f"than {self.arguments.minimal_interatomic_distance} could not be "
+                            f"generated in {self.arguments.max_attempts} attempts. "
+                            f"The last generated structure is returned.")
+
         return new_structure, new_active_index
 
     def make_samples_from_constrained_substructure(

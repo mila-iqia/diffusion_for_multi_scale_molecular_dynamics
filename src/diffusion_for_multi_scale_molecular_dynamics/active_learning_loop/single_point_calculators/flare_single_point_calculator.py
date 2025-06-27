@@ -1,3 +1,6 @@
+from pathlib import Path
+from typing import Optional
+
 import numpy as np
 from flare.bffs.sgp import SGP_Wrapper
 from flare.bffs.sgp.calculator import SGP_Calculator
@@ -27,17 +30,19 @@ class FlareSinglePointCalculator(BaseSinglePointCalculator):
             case _:
                 raise NotImplementedError("Only local and DTC variance types are implemented. Review input.")
 
-    def calculate(self, structure: Structure) -> SinglePointCalculation:
+    def calculate(self, structure: Structure, results_path: Optional[Path] = None) -> SinglePointCalculation:
         """Calculate.
 
         Drive the sparse Gaussian Process calculation.
 
         Args:
             structure: pymatgen structure.
+            results_path: Should be None
 
         Returns:
             calculation_results: the calculation result.
         """
+        assert results_path is None, "The FLARE model has no file results artifact."
         atoms = structure.to_ase_atoms()
         self._flare_calculator.calculate(atoms=atoms, properties=self._calculation_properties)
 
