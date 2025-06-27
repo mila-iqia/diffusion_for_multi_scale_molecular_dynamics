@@ -41,6 +41,6 @@ def get_calculation_state_from_artn_output(artn_output: str) -> CalculationState
 
 def get_saddle_energy(artn_output: str):
     """Get saddle energy from ARTn output."""
-    saddle_energy_pattern = r"\|> DEBRIEF\(SADDLE\) \| dE = (?P<energy>\d*\.?\d+) eV"
+    saddle_energy_pattern = r"\|> DEBRIEF\(SADDLE\) \| dE = (?P<energy>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?) eV"
     match = re.search(saddle_energy_pattern, artn_output)
     return float(match.group('energy'))
