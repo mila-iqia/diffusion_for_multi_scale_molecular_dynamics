@@ -7,6 +7,7 @@ import typing
 from pathlib import Path
 
 import lightning as pl
+import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.active_learning import \
     ActiveLearning
@@ -30,6 +31,12 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.f
     FlareTrainer
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
+from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
+    PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import \
+    get_axl_network
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     configure_logging
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
@@ -44,13 +51,13 @@ def main(args: typing.Optional[typing.Any] = None):
 
     parser.add_argument(
         "--config",
-        help="path to configuration file with parameters defining the task in yaml format",
+        help="Path to configuration file with parameters defining the task in yaml format",
         required=True,
     )
 
     parser.add_argument(
         "--path_to_reference_directory",
-        help="path to a directory that contains the ART input file and initial configuration. "
+        help="Path to a directory that contains the ART input file and initial configuration. "
         "This defines the task to be accomplished.",
         default=None,
         required=True,
@@ -58,30 +65,38 @@ def main(args: typing.Optional[typing.Any] = None):
 
     parser.add_argument(
         "--path_to_lammps_executable",
-        help="path to a LAMMPS executable that is compatible with ARTn and FLARE.",
+        help="Path to a LAMMPS executable that is compatible with ARTn and FLARE.",
         default=None,
         required=True,
     )
 
     parser.add_argument(
         "--path_to_artn_library_plugin",
-        help="path to the compiled ARTn_plugin library.",
+        help="Path to the compiled ARTn_plugin library.",
         default=None,
         required=True,
     )
 
     parser.add_argument(
         "--path_to_initial_flare_checkpoint",
-        help="path to a FLARE model checkpoint that has been pretrained (ie, is not empty).",
+        help="Path to a FLARE model checkpoint that has been pretrained (ie, is not empty).",
         default=None,
         required=True,
     )
 
     parser.add_argument(
         "--output_directory",
-        help="path to where the outputs will be written.",
+        help="Path to where the outputs will be written.",
         required=True,
     )
+
+    parser.add_argument(
+        "--path_to_score_network_checkpoint",
+        help="Path to a diffusion model checkpoint. This is only needed for 'excise and repaint'.",
+        required=False,
+        default=None,
+    )
+
     args = parser.parse_args(args)
 
     output_directory = Path(args.output_directory)
@@ -202,12 +217,86 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
         logger.error(err)
 
 
+def get_repaint_parameters(sampling_dictionary: typing.Dict[typing.AnyStr, typing.Any],
+                           element_list: typing.List[str],
+                           path_to_score_network_checkpoint: typing.Optional[str] = None):
+    """Get repaint parameters."""
+    algorithm = sampling_dictionary["algorithm"]
+    # Default values
+    device = "cpu"
+    axl_network = None
+    noise_parameters = None
+    sampling_parameters = None
+    if algorithm != "excise_and_repaint":
+        return noise_parameters, sampling_parameters, axl_network, device
+
+    if torch.cuda.is_available():
+        device = "cuda"
+    assert path_to_score_network_checkpoint is not None, \
+        "A path to a valid score network checkpoint must be provided to use 'excise_and_repaint'."
+    axl_network = get_axl_network(path_to_score_network_checkpoint)
+
+    assert 'noise' in sampling_dictionary, \
+        "A 'noise' configuration must be defined in the 'sampling' field in order to use 'excise_and_repaint'."
+
+    noise_dictionary = sampling_dictionary["noise"]
+    noise_parameters = NoiseParameters(**noise_dictionary)
+
+    assert 'repaint_generator' in sampling_dictionary, \
+        ("A 'repaint_sampling' configuration must be defined in the 'sampling' field in order to use "
+         "'excise_and_repaint'.")
+
+    sampling_generator_dictionary = sampling_dictionary["repaint_generator"]
+
+    assert 'algorithm' not in sampling_generator_dictionary, \
+        ("Do not specify the 'algorithm' for the repaint generator: only the predictor_corrector repaint generator "
+         "algorithm is valid and will be automatically selected.")
+    sampling_generator_dictionary['algorithm'] = "predictor_corrector"
+
+    assert 'num_atom_types' not in sampling_generator_dictionary, \
+        ("Do not specify the 'num_atom_types' for the repaint generator: the value will be inferred from "
+         "the element list.")
+    sampling_generator_dictionary['num_atom_types'] = len(element_list)
+
+    assert 'number_of_atoms' not in sampling_generator_dictionary, \
+        ("Do not specify the 'number_of_atoms' for the repaint generator: the value will be inferred from "
+         "the 'total_number_of_atoms' sampling field.")
+    sampling_generator_dictionary['number_of_atoms'] = sampling_dictionary['total_number_of_atoms']
+
+    assert 'number_of_samples' not in sampling_generator_dictionary, \
+        ("Do not specify the 'number_of_samples' for the repaint generator: the value will be inferred from "
+         "the 'number_of_samples_per_substructure' sampling field.")
+    sampling_generator_dictionary['number_of_samples'] = (
+        sampling_dictionary.get('number_of_samples_per_substructure', 1))
+
+    assert ('use_fixed_lattice_parameters' not in sampling_generator_dictionary
+            and 'cell_dimensions' not in sampling_generator_dictionary), \
+        ("Do not specify 'use_fixed_lattice_parameters' or 'cell_dimensions' for the repaint generator: these values "
+         "will be inferred from the sampling field.")
+    sampling_generator_dictionary['use_fixed_lattice_parameters'] = (
+        sampling_dictionary.get('sample_box_strategy', "fixed"))
+
+    if sampling_generator_dictionary['use_fixed_lattice_parameters'] == "fixed":
+        sampling_generator_dictionary["cell_dimensions"] = sampling_dictionary["sample_box_size"]
+
+    sampling_parameters = PredictorCorrectorSamplingParameters(**sampling_generator_dictionary)
+
+    return noise_parameters, sampling_parameters, axl_network, device
+
+
 def get_sample_maker_from_configuration(original_sampling_dictionary: typing.Dict,
                                         uncertainty_threshold: float,
-                                        element_list: typing.List[str]) -> BaseSampleMaker:
+                                        element_list: typing.List[str],
+                                        path_to_score_network_checkpoint: typing.Optional[str] = None) \
+        -> BaseSampleMaker:
     """Get sample maker from configuration dictionary."""
-    # TODO: deal with a potential diffusion model.
     sampling_dictionary = original_sampling_dictionary.copy()
+
+    noise_parameters, sampling_parameters, axl_network, device = get_repaint_parameters(
+        sampling_dictionary=sampling_dictionary,
+        element_list=element_list,
+        path_to_score_network_checkpoint=path_to_score_network_checkpoint)
+
     atom_selector_parameter_dictionary = dict(algorithm="threshold",
                                               uncertainty_threshold=uncertainty_threshold)
     atom_selector_parameters = create_atom_selector_parameters(atom_selector_parameter_dictionary)
@@ -223,7 +312,11 @@ def get_sample_maker_from_configuration(original_sampling_dictionary: typing.Dic
 
     sample_maker = create_sample_maker(sample_maker_parameters=sample_maker_parameters,
                                        atom_selector_parameters=atom_selector_parameters,
-                                       excisor_parameters=excisor_parameters)
+                                       excisor_parameters=excisor_parameters,
+                                       noise_parameters=noise_parameters,
+                                       sampling_parameters=sampling_parameters,
+                                       diffusion_model=axl_network,
+                                       device=device)
     return sample_maker
 
 
