@@ -302,7 +302,7 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
                 break
 
         if not success:
-            logging.warning(f"A sample structure will all distances larger "
+            logging.warning(f"A sample structure with all inter-atomic distances larger "
                             f"than {self.arguments.minimal_interatomic_distance} could not be "
                             f"generated in {self.arguments.max_attempts} attempts. "
                             f"The last generated structure is returned.")
