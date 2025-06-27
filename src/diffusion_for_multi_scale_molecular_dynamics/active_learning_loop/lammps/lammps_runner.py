@@ -54,10 +54,8 @@ class LammpsRunner:
 
     def _build_commands(self, input_file_name: str) -> List[str]:
         """Build the actual command to run."""
-        commands = []
-        if self._mpi_processors != 1:
-            commands += ["mpirun", "-np", f"{self._mpi_processors}"]
-        commands += [str(self._lammps_executable_path), "-echo", "none", "-screen", "none", "-i", input_file_name]
+        commands += ["mpirun", "-np", f"{self._mpi_processors}", str(self._lammps_executable_path), 
+                     "-echo", "none", "-screen", "none", "-i", input_file_name]
         return commands
 
     def run_lammps(self, working_directory: Path, lammps_input_file_name: str):
