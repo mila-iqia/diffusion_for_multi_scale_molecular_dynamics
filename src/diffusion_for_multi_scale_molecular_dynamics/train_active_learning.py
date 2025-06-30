@@ -185,7 +185,10 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     try:
         for campaign_id, uncertainty_threshold in enumerate(uncertainty_thresholds, 1):
             logger.info(f"Starting campaign {campaign_id} uncertainty threshold {uncertainty_threshold}")
-            sample_maker = get_sample_maker_from_configuration(sampling_dictionary, uncertainty_threshold, element_list)
+            sample_maker = get_sample_maker_from_configuration(sampling_dictionary,
+                                                               uncertainty_threshold,
+                                                               element_list,
+                                                               args.path_to_score_network_checkpoint)
             active_learning = ActiveLearning(
                 oracle_single_point_calculator=oracle_calculator,
                 sample_maker=sample_maker,
