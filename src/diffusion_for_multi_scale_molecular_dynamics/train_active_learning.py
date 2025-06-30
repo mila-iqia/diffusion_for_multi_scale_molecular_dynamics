@@ -261,11 +261,6 @@ def get_repaint_parameters(sampling_dictionary: typing.Dict[typing.AnyStr, typin
          "the element list.")
     sampling_generator_dictionary['num_atom_types'] = len(element_list)
 
-    assert 'number_of_atoms' not in sampling_generator_dictionary, \
-        ("Do not specify the 'number_of_atoms' for the repaint generator: the value will be inferred from "
-         "the 'total_number_of_atoms' sampling field.")
-    sampling_generator_dictionary['number_of_atoms'] = sampling_dictionary['total_number_of_atoms']
-
     assert 'number_of_samples' not in sampling_generator_dictionary, \
         ("Do not specify the 'number_of_samples' for the repaint generator: the value will be inferred from "
          "the 'number_of_samples_per_substructure' sampling field.")

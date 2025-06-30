@@ -34,7 +34,6 @@ oracle:
 
 sampling:
   algorithm: excise_and_repaint
-  total_number_of_atoms: 64
   sample_box_strategy: fixed
   sample_box_size: [ 10.86, 10.86, 10.86 ]
   excision:
@@ -47,6 +46,7 @@ sampling:
     schedule_type: linear
     corrector_step_epsilon: 2.5e-8
   repaint_generator:
+    number_of_atoms: 64
     number_of_corrector_steps: 2
     one_atom_type_transition_per_step: False
     atom_type_greedy_sampling: False
