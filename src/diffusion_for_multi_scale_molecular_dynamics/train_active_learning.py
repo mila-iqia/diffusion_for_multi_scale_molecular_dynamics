@@ -306,10 +306,11 @@ def get_sample_maker_from_configuration(original_sampling_configuration_dictiona
     else:
         excisor_parameters = None
 
-    # Let's extract only the sample_maker configuration
+    # Let's extract only the sample_maker configuration, popping out components that don't belong.
     sample_maker_dictionary = sampling_configuration_dictionary.copy()
     sample_maker_dictionary["element_list"] = element_list
     sample_maker_dictionary.pop("noise", None)
+    sample_maker_dictionary.pop("repaint_generator", None)
 
     sample_maker_parameters = create_sample_maker_parameters(sample_maker_dictionary)
 
