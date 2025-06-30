@@ -282,16 +282,17 @@ def get_repaint_parameters(sampling_dictionary: typing.Dict[typing.AnyStr, typin
     return noise_parameters, sampling_parameters, axl_network, device
 
 
-def get_sample_maker_from_configuration(original_sampling_dictionary: typing.Dict,
+def get_sample_maker_from_configuration(original_sampling_configuration_dictionary: typing.Dict,
                                         uncertainty_threshold: float,
                                         element_list: typing.List[str],
                                         path_to_score_network_checkpoint: typing.Optional[str] = None) \
         -> BaseSampleMaker:
     """Get sample maker from configuration dictionary."""
-    sampling_dictionary = original_sampling_dictionary.copy()
+    # Let's make sure we don't modify the input, which would lead to undesirable side effects!
+    sampling_configuration_dictionary = original_sampling_configuration_dictionary.copy()
 
     noise_parameters, sampling_parameters, axl_network, device = get_repaint_parameters(
-        sampling_dictionary=sampling_dictionary,
+        sampling_dictionary=sampling_configuration_dictionary,
         element_list=element_list,
         path_to_score_network_checkpoint=path_to_score_network_checkpoint)
 
@@ -299,14 +300,18 @@ def get_sample_maker_from_configuration(original_sampling_dictionary: typing.Dic
                                               uncertainty_threshold=uncertainty_threshold)
     atom_selector_parameters = create_atom_selector_parameters(atom_selector_parameter_dictionary)
 
-    excisor_parameter_dictionary = sampling_dictionary.pop("excision", None)
+    excisor_parameter_dictionary = sampling_configuration_dictionary.pop("excision", None)
     if excisor_parameter_dictionary is not None:
         excisor_parameters = create_excisor_parameters(excisor_parameter_dictionary)
     else:
         excisor_parameters = None
 
-    sampling_dictionary["element_list"] = element_list
-    sample_maker_parameters = create_sample_maker_parameters(sampling_dictionary)
+    # Let's extract only the sample_maker configuration
+    sample_maker_dictionary = sampling_configuration_dictionary.copy()
+    sample_maker_dictionary["element_list"] = element_list
+    sample_maker_dictionary.pop("noise", None)
+
+    sample_maker_parameters = create_sample_maker_parameters(sample_maker_dictionary)
 
     sample_maker = create_sample_maker(sample_maker_parameters=sample_maker_parameters,
                                        atom_selector_parameters=atom_selector_parameters,
