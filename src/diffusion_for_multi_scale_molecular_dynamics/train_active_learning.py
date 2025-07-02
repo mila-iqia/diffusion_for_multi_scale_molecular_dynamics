@@ -7,22 +7,15 @@ import typing
 from pathlib import Path
 
 import lightning as pl
-import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.active_learning import \
     ActiveLearning
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.atom_selector_factory import \
-    create_atom_selector_parameters
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.configuration_parsing import \
+    get_sample_maker_from_configuration
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_driver.artn_driver import \
     ArtnDriver
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
-    create_excisor_parameters
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
     instantiate_lammps_runner
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import \
-    BaseSampleMaker
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.sample_maker_factory import (
-    create_sample_maker, create_sample_maker_parameters)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.single_point_calculator_factory import \
     instantiate_single_point_calculator  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import (
@@ -31,12 +24,6 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.f
     FlareTrainer
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
-    PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import \
-    get_axl_network
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     configure_logging
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
@@ -185,10 +172,13 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     try:
         for campaign_id, uncertainty_threshold in enumerate(uncertainty_thresholds, 1):
             logger.info(f"Starting campaign {campaign_id} uncertainty threshold {uncertainty_threshold}")
-            sample_maker = get_sample_maker_from_configuration(sampling_dictionary,
-                                                               uncertainty_threshold,
-                                                               element_list,
-                                                               args.path_to_score_network_checkpoint)
+
+            sample_maker = get_sample_maker_from_configuration(
+                sampling_dictionary=sampling_dictionary,
+                uncertainty_threshold=uncertainty_threshold,
+                element_list=element_list,
+                path_to_score_network_checkpoint=args.path_to_score_network_checkpoint)
+
             active_learning = ActiveLearning(
                 oracle_single_point_calculator=oracle_calculator,
                 sample_maker=sample_maker,
@@ -218,110 +208,6 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
 
     except RuntimeError as err:
         logger.error(err)
-
-
-def get_repaint_parameters(sampling_dictionary: typing.Dict[typing.AnyStr, typing.Any],
-                           element_list: typing.List[str],
-                           path_to_score_network_checkpoint: typing.Optional[str] = None):
-    """Get repaint parameters."""
-    algorithm = sampling_dictionary["algorithm"]
-    # Default values
-    device = "cpu"
-    axl_network = None
-    noise_parameters = None
-    sampling_parameters = None
-    if algorithm != "excise_and_repaint":
-        return noise_parameters, sampling_parameters, axl_network, device
-
-    if torch.cuda.is_available():
-        device = "cuda"
-    assert path_to_score_network_checkpoint is not None, \
-        "A path to a valid score network checkpoint must be provided to use 'excise_and_repaint'."
-    axl_network = get_axl_network(path_to_score_network_checkpoint)
-
-    assert 'noise' in sampling_dictionary, \
-        "A 'noise' configuration must be defined in the 'sampling' field in order to use 'excise_and_repaint'."
-
-    noise_dictionary = sampling_dictionary["noise"]
-    noise_parameters = NoiseParameters(**noise_dictionary)
-
-    assert 'repaint_generator' in sampling_dictionary, \
-        ("A 'repaint_sampling' configuration must be defined in the 'sampling' field in order to use "
-         "'excise_and_repaint'.")
-
-    sampling_generator_dictionary = sampling_dictionary["repaint_generator"]
-
-    assert 'algorithm' not in sampling_generator_dictionary, \
-        ("Do not specify the 'algorithm' for the repaint generator: only the predictor_corrector repaint generator "
-         "algorithm is valid and will be automatically selected.")
-    sampling_generator_dictionary['algorithm'] = "predictor_corrector"
-
-    assert 'num_atom_types' not in sampling_generator_dictionary, \
-        ("Do not specify the 'num_atom_types' for the repaint generator: the value will be inferred from "
-         "the element list.")
-    sampling_generator_dictionary['num_atom_types'] = len(element_list)
-
-    assert 'number_of_samples' not in sampling_generator_dictionary, \
-        ("Do not specify the 'number_of_samples' for the repaint generator: the value will be inferred from "
-         "the 'number_of_samples_per_substructure' sampling field.")
-    sampling_generator_dictionary['number_of_samples'] = (
-        sampling_dictionary.get('number_of_samples_per_substructure', 1))
-
-    assert ('use_fixed_lattice_parameters' not in sampling_generator_dictionary
-            and 'cell_dimensions' not in sampling_generator_dictionary), \
-        ("Do not specify 'use_fixed_lattice_parameters' or 'cell_dimensions' for the repaint generator: these values "
-         "will be inferred from the sampling field.")
-    sampling_generator_dictionary['use_fixed_lattice_parameters'] = (
-        sampling_dictionary.get('sample_box_strategy', "fixed"))
-
-    if sampling_generator_dictionary['use_fixed_lattice_parameters'] == "fixed":
-        sampling_generator_dictionary["cell_dimensions"] = sampling_dictionary["sample_box_size"]
-
-    sampling_parameters = PredictorCorrectorSamplingParameters(**sampling_generator_dictionary)
-
-    return noise_parameters, sampling_parameters, axl_network, device
-
-
-def get_sample_maker_from_configuration(original_sampling_configuration_dictionary: typing.Dict,
-                                        uncertainty_threshold: float,
-                                        element_list: typing.List[str],
-                                        path_to_score_network_checkpoint: typing.Optional[str] = None) \
-        -> BaseSampleMaker:
-    """Get sample maker from configuration dictionary."""
-    # Let's make sure we don't modify the input, which would lead to undesirable side effects!
-    sampling_configuration_dictionary = original_sampling_configuration_dictionary.copy()
-
-    noise_parameters, sampling_parameters, axl_network, device = get_repaint_parameters(
-        sampling_dictionary=sampling_configuration_dictionary,
-        element_list=element_list,
-        path_to_score_network_checkpoint=path_to_score_network_checkpoint)
-
-    atom_selector_parameter_dictionary = dict(algorithm="threshold",
-                                              uncertainty_threshold=uncertainty_threshold)
-    atom_selector_parameters = create_atom_selector_parameters(atom_selector_parameter_dictionary)
-
-    excisor_parameter_dictionary = sampling_configuration_dictionary.pop("excision", None)
-    if excisor_parameter_dictionary is not None:
-        excisor_parameters = create_excisor_parameters(excisor_parameter_dictionary)
-    else:
-        excisor_parameters = None
-
-    # Let's extract only the sample_maker configuration, popping out components that don't belong.
-    sample_maker_dictionary = sampling_configuration_dictionary.copy()
-    sample_maker_dictionary["element_list"] = element_list
-    sample_maker_dictionary.pop("noise", None)
-    sample_maker_dictionary.pop("repaint_generator", None)
-
-    sample_maker_parameters = create_sample_maker_parameters(sample_maker_dictionary)
-
-    sample_maker = create_sample_maker(sample_maker_parameters=sample_maker_parameters,
-                                       atom_selector_parameters=atom_selector_parameters,
-                                       excisor_parameters=excisor_parameters,
-                                       noise_parameters=noise_parameters,
-                                       sampling_parameters=sampling_parameters,
-                                       diffusion_model=axl_network,
-                                       device=device)
-    return sample_maker
 
 
 if __name__ == "__main__":
