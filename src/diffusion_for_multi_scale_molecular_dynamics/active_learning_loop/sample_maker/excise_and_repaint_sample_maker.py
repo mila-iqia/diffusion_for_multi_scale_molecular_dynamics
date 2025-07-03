@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.base_atom_selector import \
@@ -9,6 +10,8 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.b
     BaseEnvironmentExcision
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import (
     BaseExciseSampleMaker, BaseExciseSampleMakerArguments)
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.utils import \
+    get_distances_from_reference_point
 from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
     SamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.generators.constrained_langevin_generator import (
@@ -27,6 +30,9 @@ class ExciseAndRepaintSampleMakerArguments(BaseExciseSampleMakerArguments):
     """Arguments for a sample generator based on the excise and repaint approach."""
 
     algorithm: str = "excise_and_repaint"
+
+    # in Angstrom: generated atoms within this radius from the central atom will be removed.
+    sample_edit_radius: Optional[float] = None
 
 
 class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
@@ -66,6 +72,11 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
              "the sampling_parameters (ie, 'number_of_samples') should be identical to the number of samples per "
              "substructure requested in the sample_maker configuration (ie 'number_of_samples_per_substructure'). "
              "The configuration currently asks for inconsistent things. Review input.")
+
+        self.samples_should_be_edited = False
+        if sample_maker_arguments.sample_edit_radius is not None:
+            self.samples_should_be_edited = True
+            self.sample_edit_radius = sample_maker_arguments.sample_edit_radius
 
         self.sample_noise_parameters = noise_parameters
         self.sampling_parameters = sampling_parameters
@@ -143,6 +154,11 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
                 atom at the center of the excised region.
             list_info: list of samples additional information.
         """
+        number_of_constrained_atoms = len(substructure.X)
+        assert active_atom_index < number_of_constrained_atoms, \
+            ("The active atom index is larger than the number of constrained atoms: "
+             "this should be impossible, something is wrong. Review code!")
+
         sampling_constraints = self.create_sampling_constraints(substructure)
         generator = ConstrainedLangevinGenerator(
             noise_parameters=self.sample_noise_parameters,
@@ -160,6 +176,14 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         new_structures = self.torch_batch_axl_to_list_of_numpy_axl(
             generated_samples["original_axl"]
         )
+        if self.samples_should_be_edited:
+            # Edit the sampled structures in place.
+            new_structures = [self.edit_generated_structure(sampled_structure,
+                                                            active_atom_index,
+                                                            number_of_constrained_atoms,
+                                                            self.sample_edit_radius)
+                              for sampled_structure in new_structures]
+
         # Since the order of the atoms in the constrained substructure are
         # explicitly enforced, the index of the active atom is the same in the
         # constrained substructure and in the sample.
@@ -173,3 +197,44 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Return identical structures."""
         return structures
+
+    @staticmethod
+    def edit_generated_structure(sampled_structure: AXL,
+                                 active_atom_index: int,
+                                 number_of_constrained_atoms: int,
+                                 sample_edit_radius: float) -> AXL:
+        """Edit generated structure.
+
+        This method removes generated atoms that are within a sphere of radius "sample_edit_radius" around
+        the active atom. It is assumed that the first "number_of_constrained_atoms" are the constrained atoms;
+        these should not be edited out!
+
+        Args:
+            sampled_structure: generated sampled structure
+            number_of_constrained_atoms: number of atoms that are constrained and should not be removed.
+            active_atom_index: index of the "active atom" in the input sample.
+            sample_edit_radius: radius of exclusion sphere around the active index where
+                generated atoms must be removed.
+
+        Returns:
+            edited_sampled_structure: the edited sampled structure
+        """
+        central_atom_relative_coordinates = sampled_structure.X[active_atom_index]
+        distances_from_central_atom = get_distances_from_reference_point(
+            sampled_structure.X, central_atom_relative_coordinates, sampled_structure.L
+        )
+
+        number_of_atoms = len(sampled_structure.X)
+
+        constrained_atoms_mask = np.zeros(number_of_atoms, dtype=bool)
+        constrained_atoms_mask[:number_of_constrained_atoms] = True
+
+        outside_radius_mask = distances_from_central_atom > sample_edit_radius
+
+        keep_mask = np.logical_or(constrained_atoms_mask, outside_radius_mask)
+
+        edited_structure = AXL(A=sampled_structure.A[keep_mask],
+                               X=sampled_structure.X[keep_mask],
+                               L=sampled_structure.L)
+
+        return edited_structure
