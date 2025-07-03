@@ -44,7 +44,7 @@ def get_repaint_parameters(
     Returns:
         noise_parameters: a NoiseParameters object if the config is present, otherwise None.
         sampling_parameters: a PredictorCorrectorSamplingParameters object if the config is present, otherwise None.
-        axl_network: a Score Network object to draw constrained samples if the config is prseent, otherwise None.
+        axl_network: a Score Network object to draw constrained samples if the config is present, otherwise None.
         device: a string indicating which device should be used: either cpu or cuda.
     """
     algorithm = sampling_dictionary["algorithm"]
