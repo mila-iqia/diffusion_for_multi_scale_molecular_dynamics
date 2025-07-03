@@ -36,6 +36,7 @@ sampling:
   algorithm: excise_and_repaint
   sample_box_strategy: fixed
   sample_box_size: [ 10.86, 10.86, 10.86 ]
+  sample_edit_radius: 5.0 # in Angstrom: generated atoms within this radius from the central atom will be removed.
   excision:
     algorithm: spherical_cutoff
     radial_cutoff: 5.0  # radial cutoff in Angstrom
