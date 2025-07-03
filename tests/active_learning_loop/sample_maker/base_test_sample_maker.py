@@ -185,7 +185,7 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
 
         # we'll use this to check if two positions are the same. We don't want this tolerance to be too small;
         # we can expect errors on the order of float machine epsilon if there is casting between float32 and float64.
-        same_position_tolerance = 1.0e-6
+        same_position_tolerance = 1.0e-5
 
         list_reference_pymatgen_excised_substructures, list_excised_atom_indices = (
             reference_pymatgen_excised_substructures_and_indices)

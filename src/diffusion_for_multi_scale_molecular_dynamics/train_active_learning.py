@@ -10,18 +10,12 @@ import lightning as pl
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.active_learning import \
     ActiveLearning
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.atom_selector_factory import \
-    create_atom_selector_parameters
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.configuration_parsing import \
+    get_sample_maker_from_configuration
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_driver.artn_driver import \
     ArtnDriver
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
-    create_excisor_parameters
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
     instantiate_lammps_runner
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import \
-    BaseSampleMaker
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.sample_maker_factory import (
-    create_sample_maker, create_sample_maker_parameters)
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.single_point_calculator_factory import \
     instantiate_single_point_calculator  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import (
@@ -44,13 +38,13 @@ def main(args: typing.Optional[typing.Any] = None):
 
     parser.add_argument(
         "--config",
-        help="path to configuration file with parameters defining the task in yaml format",
+        help="Path to configuration file with parameters defining the task in yaml format",
         required=True,
     )
 
     parser.add_argument(
         "--path_to_reference_directory",
-        help="path to a directory that contains the ART input file and initial configuration. "
+        help="Path to a directory that contains the ART input file and initial configuration. "
         "This defines the task to be accomplished.",
         default=None,
         required=True,
@@ -58,30 +52,38 @@ def main(args: typing.Optional[typing.Any] = None):
 
     parser.add_argument(
         "--path_to_lammps_executable",
-        help="path to a LAMMPS executable that is compatible with ARTn and FLARE.",
+        help="Path to a LAMMPS executable that is compatible with ARTn and FLARE.",
         default=None,
         required=True,
     )
 
     parser.add_argument(
         "--path_to_artn_library_plugin",
-        help="path to the compiled ARTn_plugin library.",
+        help="Path to the compiled ARTn_plugin library.",
         default=None,
         required=True,
     )
 
     parser.add_argument(
         "--path_to_initial_flare_checkpoint",
-        help="path to a FLARE model checkpoint that has been pretrained (ie, is not empty).",
+        help="Path to a FLARE model checkpoint that has been pretrained (ie, is not empty).",
         default=None,
         required=True,
     )
 
     parser.add_argument(
         "--output_directory",
-        help="path to where the outputs will be written.",
+        help="Path to where the outputs will be written.",
         required=True,
     )
+
+    parser.add_argument(
+        "--path_to_score_network_checkpoint",
+        help="Path to a diffusion model checkpoint. This is only needed for 'excise and repaint'.",
+        required=False,
+        default=None,
+    )
+
     args = parser.parse_args(args)
 
     output_directory = Path(args.output_directory)
@@ -170,7 +172,13 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     try:
         for campaign_id, uncertainty_threshold in enumerate(uncertainty_thresholds, 1):
             logger.info(f"Starting campaign {campaign_id} uncertainty threshold {uncertainty_threshold}")
-            sample_maker = get_sample_maker_from_configuration(sampling_dictionary, uncertainty_threshold, element_list)
+
+            sample_maker = get_sample_maker_from_configuration(
+                sampling_dictionary=sampling_dictionary,
+                uncertainty_threshold=uncertainty_threshold,
+                element_list=element_list,
+                path_to_score_network_checkpoint=args.path_to_score_network_checkpoint)
+
             active_learning = ActiveLearning(
                 oracle_single_point_calculator=oracle_calculator,
                 sample_maker=sample_maker,
@@ -200,31 +208,6 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
 
     except RuntimeError as err:
         logger.error(err)
-
-
-def get_sample_maker_from_configuration(original_sampling_dictionary: typing.Dict,
-                                        uncertainty_threshold: float,
-                                        element_list: typing.List[str]) -> BaseSampleMaker:
-    """Get sample maker from configuration dictionary."""
-    # TODO: deal with a potential diffusion model.
-    sampling_dictionary = original_sampling_dictionary.copy()
-    atom_selector_parameter_dictionary = dict(algorithm="threshold",
-                                              uncertainty_threshold=uncertainty_threshold)
-    atom_selector_parameters = create_atom_selector_parameters(atom_selector_parameter_dictionary)
-
-    excisor_parameter_dictionary = sampling_dictionary.pop("excision", None)
-    if excisor_parameter_dictionary is not None:
-        excisor_parameters = create_excisor_parameters(excisor_parameter_dictionary)
-    else:
-        excisor_parameters = None
-
-    sampling_dictionary["element_list"] = element_list
-    sample_maker_parameters = create_sample_maker_parameters(sampling_dictionary)
-
-    sample_maker = create_sample_maker(sample_maker_parameters=sample_maker_parameters,
-                                       atom_selector_parameters=atom_selector_parameters,
-                                       excisor_parameters=excisor_parameters)
-    return sample_maker
 
 
 if __name__ == "__main__":
