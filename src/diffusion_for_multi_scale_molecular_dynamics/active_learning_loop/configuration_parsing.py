@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any, AnyStr, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -152,8 +153,9 @@ def get_sample_maker_from_configuration(
     Returns:
         sample_maker: A configured Sample Maker instance.
     """
-    # Let's make sure we don't modify the input, which would lead to undesirable side effects!
-    sampling_dict = sampling_dictionary.copy()
+    # We use deepcopy to make sure we don't modify anything (including mutable internal dictionaries!)
+    # in the input configuration.
+    sampling_dict = deepcopy(sampling_dictionary)
 
     noise_parameters, sampling_parameters, axl_network, device = get_repaint_parameters(
         sampling_dictionary=sampling_dict,
