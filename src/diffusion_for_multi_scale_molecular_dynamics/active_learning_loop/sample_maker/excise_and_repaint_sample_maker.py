@@ -190,7 +190,9 @@ class ExciseAndRepaintSampleMaker(BaseExciseSampleMaker):
         list_active_atom_indices = num_samples * [active_atom_index]
 
         # additional information on generated structures can be passed here
-        additional_information_on_new_structures = [{}] * len(new_structures)
+        additional_information_on_new_structures = []
+        for _ in range(len(new_structures)):
+            additional_information_on_new_structures.append(self._create_sample_info_dictionary(substructure))
 
         return new_structures, list_active_atom_indices, additional_information_on_new_structures
 

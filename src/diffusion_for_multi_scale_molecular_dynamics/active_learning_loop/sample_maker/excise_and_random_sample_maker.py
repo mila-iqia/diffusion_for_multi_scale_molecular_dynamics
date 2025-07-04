@@ -333,14 +333,15 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         """
         list_sample_structures = []
         list_active_atom_indices = []
+        additional_information_on_new_structures = []
         for _ in range(num_samples):
             new_structure, new_active_index = self.make_single_sample_from_constrained_substructure(substructure,
                                                                                                     active_atom_index)
             list_sample_structures.append(new_structure)
             list_active_atom_indices.append(new_active_index)
-
             # additional information on generated structures can be passed here
-        additional_information_on_new_structures = [{}] * len(list_sample_structures)
+            additional_information_on_new_structures.append(self._create_sample_info_dictionary(substructure))
+
         return list_sample_structures, list_active_atom_indices, additional_information_on_new_structures
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:

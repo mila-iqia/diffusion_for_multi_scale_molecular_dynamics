@@ -134,17 +134,27 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
         return list_reference_pymatgen_excised_substructures, list_excised_atom_indices
 
     @pytest.fixture()
-    def samples_and_indices(self, structure_axl, uncertainty_per_atom, sample_maker):
+    def make_samples_output(self, structure_axl, uncertainty_per_atom, sample_maker):
         # This fixture is where we call the method we actually want to test.
         # We will conduct various checks based on the outputs of the method.
-        list_sample_axl_structures, list_active_environment_indices, _ = (
+        list_sample_axl_structures, list_active_environment_indices, list_sample_infos = (
             sample_maker.make_samples(structure_axl, uncertainty_per_atom))
-        return list_sample_axl_structures, list_active_environment_indices
+        return list_sample_axl_structures, list_active_environment_indices, list_sample_infos
 
-    def test_sample_lattice_parameters(self, samples_and_indices, sample_box_strategy,
+    @pytest.fixture()
+    def list_sample_axl_structures(self, make_samples_output):
+        return make_samples_output[0]
+
+    @pytest.fixture()
+    def list_active_environment_indices(self, make_samples_output):
+        return make_samples_output[1]
+
+    @pytest.fixture()
+    def list_sample_infos(self, make_samples_output):
+        return make_samples_output[2]
+
+    def test_sample_lattice_parameters(self, list_sample_axl_structures, sample_box_strategy,
                                        sample_box_size, lattice_parameters):
-        list_samples_axl_structure, _ = samples_and_indices
-
         match sample_box_strategy:
             case "noop":
                 reference_lattice_parameters = lattice_parameters
@@ -154,23 +164,23 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
             case _:
                 raise NotImplementedError("Unknown sampling box making strategy.")
 
-        for axl_structure in list_samples_axl_structure:
+        for axl_structure in list_sample_axl_structures:
             sample_lattice_parameters = axl_structure.L
             np.testing.assert_allclose(sample_lattice_parameters, reference_lattice_parameters)
 
     @pytest.fixture()
-    def calculated_pymatgen_sample_structures_and_indices(self, samples_and_indices, element_list):
+    def calculated_pymatgen_sample_structures_and_indices(self, list_sample_axl_structures,
+                                                          list_active_environment_indices, element_list):
         # We will use pymatgen to see if the created sample structures match expectations.
         # Convert the sampled axl structures to pymatgen for simpler testing.
         structure_converter = StructureConverter(element_list)
-        list_sample_axl_structures, list_of_active_environment_index_arrays = samples_and_indices
 
         list_calculated_pymatgen_sample_structures = []
         for axl_substructure in list_sample_axl_structures:
             structure = structure_converter.convert_axl_to_structure(axl_substructure)
             list_calculated_pymatgen_sample_structures.append(structure)
 
-        return list_calculated_pymatgen_sample_structures, list_of_active_environment_index_arrays
+        return list_calculated_pymatgen_sample_structures, list_active_environment_indices
 
     def test_excised_environments_are_present(
         self,

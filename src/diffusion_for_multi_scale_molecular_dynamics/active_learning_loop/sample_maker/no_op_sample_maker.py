@@ -36,7 +36,7 @@ class NoOpSampleMaker(BaseSampleMaker):
     ) -> Tuple[List[AXL], List[np.array], List[Dict[str, Any]]]:
         """Noop make samples."""
         central_atom_indices = self.atom_selector.select_central_atoms(uncertainty_per_atom)
-        return [structure], [central_atom_indices], [{}]
+        return [structure], [central_atom_indices], [self._create_sample_info_dictionary(structure)]
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:
         """Noop filter samples."""
