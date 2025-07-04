@@ -36,7 +36,9 @@ class BaseTestSampleMaker(BaseTestAxlStructure):
 
     @pytest.fixture
     def threshold_atom_selector(self, uncertainty_threshold):
-        parameters = ThresholdAtomSelectorParameters(uncertainty_threshold=uncertainty_threshold)
+        parameters = ThresholdAtomSelectorParameters(
+            uncertainty_threshold=uncertainty_threshold
+        )
         return ThresholdAtomSelector(parameters)
 
     @pytest.fixture(params=["threshold", "top_k"])
@@ -44,7 +46,9 @@ class BaseTestSampleMaker(BaseTestAxlStructure):
         return request.param
 
     @pytest.fixture()
-    def atom_selector(self, atom_selector_algorithm, threshold_atom_selector, top_k_atom_selector):
+    def atom_selector(
+        self, atom_selector_algorithm, threshold_atom_selector, top_k_atom_selector
+    ):
         match atom_selector_algorithm:
             case "threshold":
                 return threshold_atom_selector
@@ -53,7 +57,7 @@ class BaseTestSampleMaker(BaseTestAxlStructure):
             case _:
                 raise NotImplementedError("Non-existent atom_selector algorithm")
 
-    @pytest.fixture(params=['uncertainty_threshold', 'excise_top_k_environment'])
+    @pytest.fixture(params=["uncertainty_threshold", "excise_top_k_environment"])
     def excision_strategy(self, request):
         return request.param
 
@@ -117,8 +121,9 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
         return create_excisor(excisor_parameters)
 
     @pytest.fixture()
-    def reference_pymatgen_excised_substructures_and_indices(self, element_list, uncertainty_per_atom,
-                                                             atom_selector, excisor, structure_axl):
+    def reference_pymatgen_excised_substructures_and_indices(
+        self, element_list, uncertainty_per_atom, atom_selector, excisor, structure_axl
+    ):
         # We will use pymatgen to see if the created sample structures match expectations.
         structure_converter = StructureConverter(element_list)
         selected_atom_indices = atom_selector.select_central_atoms(uncertainty_per_atom)
@@ -126,8 +131,12 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
         list_reference_pymatgen_excised_substructures = []
         list_excised_atom_indices = []
         for atom_index in selected_atom_indices:
-            excised_substructure_axl, excised_atom_index = excisor._excise_one_environment(structure_axl, atom_index)
-            struct = structure_converter.convert_axl_to_structure(excised_substructure_axl)
+            excised_substructure_axl, excised_atom_index = (
+                excisor._excise_one_environment(structure_axl, atom_index)
+            )
+            struct = structure_converter.convert_axl_to_structure(
+                excised_substructure_axl
+            )
             list_reference_pymatgen_excised_substructures.append(struct)
             list_excised_atom_indices.append(excised_atom_index)
 
@@ -137,9 +146,16 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
     def make_samples_output(self, structure_axl, uncertainty_per_atom, sample_maker):
         # This fixture is where we call the method we actually want to test.
         # We will conduct various checks based on the outputs of the method.
-        list_sample_axl_structures, list_active_environment_indices, list_sample_infos = (
-            sample_maker.make_samples(structure_axl, uncertainty_per_atom))
-        return list_sample_axl_structures, list_active_environment_indices, list_sample_infos
+        (
+            list_sample_axl_structures,
+            list_active_environment_indices,
+            list_sample_infos,
+        ) = sample_maker.make_samples(structure_axl, uncertainty_per_atom)
+        return (
+            list_sample_axl_structures,
+            list_active_environment_indices,
+            list_sample_infos,
+        )
 
     @pytest.fixture()
     def list_sample_axl_structures(self, make_samples_output):
@@ -153,24 +169,34 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
     def list_sample_infos(self, make_samples_output):
         return make_samples_output[2]
 
-    def test_sample_lattice_parameters(self, list_sample_axl_structures, sample_box_strategy,
-                                       sample_box_size, lattice_parameters):
+    def test_sample_lattice_parameters(
+        self,
+        list_sample_axl_structures,
+        sample_box_strategy,
+        sample_box_size,
+        lattice_parameters,
+    ):
         match sample_box_strategy:
             case "noop":
                 reference_lattice_parameters = lattice_parameters
             case "fixed":
                 unit_cell = np.diag(np.array(sample_box_size))
-                reference_lattice_parameters = map_numpy_unit_cell_to_lattice_parameters(unit_cell)
+                reference_lattice_parameters = (
+                    map_numpy_unit_cell_to_lattice_parameters(unit_cell)
+                )
             case _:
                 raise NotImplementedError("Unknown sampling box making strategy.")
 
         for axl_structure in list_sample_axl_structures:
             sample_lattice_parameters = axl_structure.L
-            np.testing.assert_allclose(sample_lattice_parameters, reference_lattice_parameters)
+            np.testing.assert_allclose(
+                sample_lattice_parameters, reference_lattice_parameters
+            )
 
     @pytest.fixture()
-    def calculated_pymatgen_sample_structures_and_indices(self, list_sample_axl_structures,
-                                                          list_active_environment_indices, element_list):
+    def calculated_pymatgen_sample_structures_and_indices(
+        self, list_sample_axl_structures, list_active_environment_indices, element_list
+    ):
         # We will use pymatgen to see if the created sample structures match expectations.
         # Convert the sampled axl structures to pymatgen for simpler testing.
         structure_converter = StructureConverter(element_list)
@@ -180,13 +206,74 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
             structure = structure_converter.convert_axl_to_structure(axl_substructure)
             list_calculated_pymatgen_sample_structures.append(structure)
 
-        return list_calculated_pymatgen_sample_structures, list_active_environment_indices
+        return (
+            list_calculated_pymatgen_sample_structures,
+            list_active_environment_indices,
+        )
+
+    def test_sample_info_constrained_indices(
+        self,
+        calculated_pymatgen_sample_structures_and_indices,
+        reference_pymatgen_excised_substructures_and_indices,
+        list_sample_infos,
+        number_of_samples_per_substructure,
+    ):
+        list_calculated_pymatgen_sample_structures = (
+            calculated_pymatgen_sample_structures_and_indices[0]
+        )
+        list_reference_pymatgen_excised_substructures = (
+            reference_pymatgen_excised_substructures_and_indices[0]
+        )
+
+        number_of_samples = len(list_calculated_pymatgen_sample_structures)
+
+        for sample_idx in range(number_of_samples):
+            generated_structure = list_calculated_pymatgen_sample_structures[sample_idx]
+            info_dict = list_sample_infos[sample_idx]
+
+            excised_idx = sample_idx // number_of_samples_per_substructure
+            excised_environment = list_reference_pymatgen_excised_substructures[
+                excised_idx
+            ]
+
+            reference_lattice = excised_environment.lattice
+            constrained_indices = info_dict["constrained_atom_indices"]
+
+            substructure1 = Structure(
+                species=[
+                    generated_structure.species[idx] for idx in constrained_indices
+                ],
+                lattice=reference_lattice,
+                coords=generated_structure.cart_coords[constrained_indices],
+                coords_are_cartesian=True,
+            )
+
+            substructure2 = Structure(
+                species=excised_environment.species,
+                lattice=reference_lattice,
+                coords=excised_environment.cart_coords,
+                coords_are_cartesian=True,
+            )
+
+            # The two structures should be a translation away.
+            translation = substructure1.sites[0].coords - substructure2.sites[0].coords
+
+            # The translation is in-place
+            substructure2.translate_sites(
+                indices=np.arange(len(substructure2)),
+                vector=translation,
+                frac_coords=False,
+                to_unit_cell=True,
+            )
+
+        assert substructure1.species == substructure2.species
+        np.testing.assert_allclose(substructure1.frac_coords, substructure2.frac_coords)
 
     def test_excised_environments_are_present(
         self,
         calculated_pymatgen_sample_structures_and_indices,
         reference_pymatgen_excised_substructures_and_indices,
-        number_of_samples_per_substructure
+        number_of_samples_per_substructure,
     ):
         # The goal of this test is to check that the sample maker is indeed putting the expected
         # excised environments inside the new sample boxes. There may be other atoms present in the samples,
@@ -198,10 +285,13 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
         same_position_tolerance = 1.0e-5
 
         list_reference_pymatgen_excised_substructures, list_excised_atom_indices = (
-            reference_pymatgen_excised_substructures_and_indices)
+            reference_pymatgen_excised_substructures_and_indices
+        )
 
-        list_calculated_pymatgen_sample_structures, list_of_active_environment_index_arrays = (
-            calculated_pymatgen_sample_structures_and_indices)
+        (
+            list_calculated_pymatgen_sample_structures,
+            list_of_active_environment_index_arrays,
+        ) = calculated_pymatgen_sample_structures_and_indices
 
         # For each sample structure, the active indices are actually stored as a numpy array. Since excision
         # presupposes a single active atom at the heart of the environment, these index arrays should
@@ -215,30 +305,42 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
 
         # Each reference substructure should be found exactly "number_of_samples_per_substructure" times.
         # We'll test that this is indeed the case.
-        found_count = np.zeros(len(list_reference_pymatgen_excised_substructures), dtype=int)
+        found_count = np.zeros(
+            len(list_reference_pymatgen_excised_substructures), dtype=int
+        )
 
-        for ref_idx, (reference_structure, excised_index) in (
-                enumerate(zip(list_reference_pymatgen_excised_substructures, list_excised_atom_indices))):
+        for ref_idx, (reference_structure, excised_index) in enumerate(
+            zip(
+                list_reference_pymatgen_excised_substructures, list_excised_atom_indices
+            )
+        ):
             # The 'reference_structure' should contain an excised environment, namely a central atom identified by
             # the 'excised_index', and other nearby atoms that form the environment. This should be in the original
             # unit cell.
             reference_active_site = reference_structure.sites[excised_index]
             reference_lattice = reference_structure.lattice
 
-            for sample_structure, active_index in zip(list_calculated_pymatgen_sample_structures, list_active_indices):
+            for sample_structure, active_index in zip(
+                list_calculated_pymatgen_sample_structures, list_active_indices
+            ):
                 # A sample structure *should* contain an excised environment in a unit cell that can either
                 # be the original one or a fixed one specified by the user. There may also be more atoms
                 # depending on the repainting algorithm used.
 
                 # Check that the "active sites" have the same species; otherwise, a match is impossible.
-                if sample_structure[active_index].species != reference_active_site.species:
+                if (
+                    sample_structure[active_index].species
+                    != reference_active_site.species
+                ):
                     continue
 
                 # Since the sample maker may change the unit cell, we have to transform the lattice to match.
-                candidate_structure = Structure(species=sample_structure.species,
-                                                lattice=reference_lattice,  # The original unit cell
-                                                coords=sample_structure.cart_coords,
-                                                coords_are_cartesian=True)
+                candidate_structure = Structure(
+                    species=sample_structure.species,
+                    lattice=reference_lattice,  # The original unit cell
+                    coords=sample_structure.cart_coords,
+                    coords_are_cartesian=True,
+                )
 
                 if len(reference_structure) > len(candidate_structure):
                     # Clearly, if the reference structure has more atoms than the sample, there cannot be a match.
@@ -251,18 +353,24 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
                 translation = reference_active_site.coords - sample_active_site.coords
 
                 # The translation is in-place
-                candidate_structure.translate_sites(indices=np.arange(len(candidate_structure)),
-                                                    vector=translation,
-                                                    frac_coords=False,
-                                                    to_unit_cell=True)
+                candidate_structure.translate_sites(
+                    indices=np.arange(len(candidate_structure)),
+                    vector=translation,
+                    frac_coords=False,
+                    to_unit_cell=True,
+                )
 
                 # can we find every reference site in the candidate structure?
                 list_found_reference_sites = []
                 for ref_site in reference_structure.sites:
                     site_is_found = False
                     for candidate_site in candidate_structure.sites:
-                        species_are_the_same = candidate_site.species == ref_site.species
-                        positions_are_the_same = ref_site.distance(candidate_site) < same_position_tolerance
+                        species_are_the_same = (
+                            candidate_site.species == ref_site.species
+                        )
+                        positions_are_the_same = (
+                            ref_site.distance(candidate_site) < same_position_tolerance
+                        )
                         if species_are_the_same and positions_are_the_same:
                             site_is_found = True
                             break
@@ -273,5 +381,7 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
                     # and the sample structure. The active sites are indeed the same, up to a translation.
                     found_count[ref_idx] += 1
 
-        expected_count = number_of_samples_per_substructure * np.ones_like(found_count, dtype=int)
+        expected_count = number_of_samples_per_substructure * np.ones_like(
+            found_count, dtype=int
+        )
         np.testing.assert_array_equal(found_count, expected_count)

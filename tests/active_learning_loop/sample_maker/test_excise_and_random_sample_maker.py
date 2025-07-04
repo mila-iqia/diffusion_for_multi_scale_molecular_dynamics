@@ -2,12 +2,14 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import (  # noqa
     ExciseAndRandomSampleMaker, ExciseAndRandomSampleMakerArguments)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from tests.active_learning_loop.sample_maker.base_test_sample_maker import \
     BaseTestExciseSampleMaker
+from tests.fake_data_utils import find_aligning_permutation
 
 
 class TestExciseAndRandomSampleMaker(BaseTestExciseSampleMaker):
@@ -177,11 +179,16 @@ class TestExciseAndRandomSampleMaker(BaseTestExciseSampleMaker):
 
         assert len(calculated_new_samples) == number_of_samples_per_substructure
         for new_sample in calculated_new_samples:
+            # The algorithm may shuffle the order of atoms.
+            permutation_indices = find_aligning_permutation(
+                torch.from_numpy(new_sample.X),
+                torch.from_numpy(expected_axl_after_replacing_constrained_atoms.X)).numpy()
+
             assert np.array_equal(
-                new_sample.A, expected_axl_after_replacing_constrained_atoms.A
+                new_sample.A, expected_axl_after_replacing_constrained_atoms.A[permutation_indices]
             )
             assert np.allclose(
-                new_sample.X, expected_axl_after_replacing_constrained_atoms.X
+                new_sample.X, expected_axl_after_replacing_constrained_atoms.X[permutation_indices]
             )
             assert np.allclose(
                 new_sample.L, expected_axl_after_replacing_constrained_atoms.L
