@@ -154,14 +154,14 @@ class ActiveLearning:
 
             constrained_indices = sample_information["constrained_atom_indices"]
             structure = calculation.structure
-            constraint_mask = np.zeros(len(structure), dtype=bool)
-            constraint_mask[constrained_indices] = True
+            constraint_mask = np.zeros(len(structure), dtype=int)
+            constraint_mask[constrained_indices] = 1
             structure.add_site_property('constrained', constraint_mask)
+            structure.add_site_property('forces', calculation.forces)
 
             row = dict(
                 calculation_type=calculation.calculation_type,
                 structure=structure,
-                forces=calculation.forces,
                 energy=calculation.energy,
             )
             rows.append(row)
