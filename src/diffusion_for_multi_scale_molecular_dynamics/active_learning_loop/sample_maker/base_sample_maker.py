@@ -133,6 +133,29 @@ class BaseSampleMaker(ABC):
                     f"{self.arguments.sample_box_strategy} is an invalid box making strategy."
                 )
 
+    def _create_sample_info_dictionary(self, axl_structure: AXL) -> Dict[str, Any]:
+        """Create sample info dictionary.
+
+        This utility method will create an "info" dictionary that captures the indices
+        describing the atoms in the input structure.
+
+        The usefulness of this method is in distinguishing the indices of the atoms in
+        the initial structure with an uncertain atom from the atoms that are then (potentially)
+        generated.
+
+        This assumes that any new atoms added to a structure by "repaint" will always be
+        appended to existing "constrained" atoms.
+
+        Args:
+            axl_structure: structure as an AXL object.
+
+        Returns:
+            sample_info_dict: A Dictionary containing useful information about the input structure.
+        """
+        number_of_atoms = len(axl_structure.X)
+        sample_info_dict = dict(constrained_atom_indices=list(range(number_of_atoms)))
+        return sample_info_dict
+
 
 @dataclass(kw_only=True)
 class BaseExciseSampleMakerArguments(BaseSampleMakerArguments):

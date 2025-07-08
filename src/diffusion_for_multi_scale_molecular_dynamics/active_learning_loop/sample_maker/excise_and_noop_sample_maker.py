@@ -38,7 +38,7 @@ class ExciseAndNoOpSampleMaker(BaseExciseSampleMaker):
         """
         list_samples = num_samples * [substructure]
         list_active_atom_indices = num_samples * [active_atom_index]
-        list_info = num_samples * [{}]
+        list_info = [self._create_sample_info_dictionary(substructure) for _ in range(num_samples)]
         return list_samples, list_active_atom_indices, list_info
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:

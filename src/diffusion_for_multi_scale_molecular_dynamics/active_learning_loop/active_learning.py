@@ -151,12 +151,18 @@ class ActiveLearning:
         for calculation, sample_information in zip(
             list_single_point_calculations, list_sample_information
         ):
+
+            constrained_indices = sample_information["constrained_atom_indices"]
+            structure = calculation.structure
+            constraint_mask = np.zeros(len(structure), dtype=int)
+            constraint_mask[constrained_indices] = 1
+            structure.add_site_property('constrained', constraint_mask)
+            structure.add_site_property('forces', calculation.forces)
+
             row = dict(
                 calculation_type=calculation.calculation_type,
-                structure=calculation.structure,
-                forces=calculation.forces,
+                structure=structure,
                 energy=calculation.energy,
-                sample_information=sample_information,
             )
             rows.append(row)
 

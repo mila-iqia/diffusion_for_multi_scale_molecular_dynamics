@@ -206,6 +206,7 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         )  # the atoms at those coordinates will be replaced by the constrained atoms
         new_relative_coordinates_copy = new_relative_coordinates.copy()
         # replace some relative coordinates by those of the constrained atoms
+        replacement_indices = []
 
         new_active_atom_index = None
         for constrained_structure_atom_index, (constrained_atom_x, constrained_atom_a) in enumerate(zip(
@@ -229,17 +230,34 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
                     atom_indices_replaced.append(atom_idx)
                     new_relative_coordinates_copy[atom_idx] = constrained_atom_x
                     new_atom_types[atom_idx] = constrained_atom_a
+                    replacement_indices.append(atom_idx)
                     if active_atom:
                         assert new_active_atom_index is None, \
                             "Trying to set the new_active_index more than once! Something is wrong."
                         new_active_atom_index = atom_idx
                     break
 
-        new_structure = AXL(A=new_atom_types, X=new_relative_coordinates_copy, L=lattice_parameters)
+        # Shuffle the atom order to ensure that the constrained atoms come first.
+        # We use a MASK to extract all the generated atoms; their order doesn't matter.
+        # However, we extract the constrained coordinates exactly in the order defined
+        # by the index array "replacement_indices": using a MASK here might shuffle their order!
+        generated_atoms_mask = np.ones(len(new_relative_coordinates), dtype=bool)
+        generated_atoms_mask[replacement_indices] = False
+
+        atom_types = np.concatenate([new_atom_types[replacement_indices],
+                                     new_atom_types[generated_atoms_mask]])
+
+        relative_coordinates = np.vstack([new_relative_coordinates_copy[replacement_indices],
+                                          new_relative_coordinates_copy[generated_atoms_mask]])
+
+        new_structure = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
 
         assert new_active_atom_index is not None, "The new active atom index is not set. Something went wrong."
+        # The active atom index should be one of the replacement_indices since it is part of the
+        # constrained set of atoms.
+        active_atom_idx = replacement_indices.index(new_active_atom_index)
 
-        return new_structure, new_active_atom_index
+        return new_structure, active_atom_idx
 
     @staticmethod
     def get_shortest_distance_between_atoms(
@@ -333,14 +351,15 @@ class ExciseAndRandomSampleMaker(BaseExciseSampleMaker):
         """
         list_sample_structures = []
         list_active_atom_indices = []
+        additional_information_on_new_structures = []
         for _ in range(num_samples):
             new_structure, new_active_index = self.make_single_sample_from_constrained_substructure(substructure,
                                                                                                     active_atom_index)
             list_sample_structures.append(new_structure)
             list_active_atom_indices.append(new_active_index)
-
             # additional information on generated structures can be passed here
-        additional_information_on_new_structures = [{}] * len(list_sample_structures)
+            additional_information_on_new_structures.append(self._create_sample_info_dictionary(substructure))
+
         return list_sample_structures, list_active_atom_indices, additional_information_on_new_structures
 
     def filter_made_samples(self, structures: List[AXL]) -> List[AXL]:

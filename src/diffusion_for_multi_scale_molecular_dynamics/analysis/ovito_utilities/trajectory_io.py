@@ -6,6 +6,8 @@ import torch
 from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 
+from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.xyz_utils import \
+    generate_xyz_text
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
@@ -331,45 +333,9 @@ class XyzStructureWriter(StructureWriter):
         output_name = str(
             self.results_directory / XYZ_FILENAME_TEMPLATE.format(time_index=time_index)
         )
-
-        lattice = structure.lattice._matrix
-        lattice = list(
-            map(str, lattice.flatten())
-        )  # flatten and convert to string for formatting
-        lattice_str = 'Lattice="' + " ".join(lattice) + '" Origin="0 0 0" pbc="T T T"'
-
-        n_atom = len(structure.sites)
-        if site_properties is None:
-            site_properties = []
-            properties_dim = []
-        elif site_properties is not None and isinstance(site_properties, str):
-            site_properties = [site_properties]
-            assert (
-                self.properties_dim is not None
-            ), "site properties are defined, but dimensionalities are not."
-
-        if self.properties_dim is not None:
-            properties_dim = [self.properties_dim[k] for k in site_properties]
-
-        assert len(properties_dim) == len(
-            site_properties
-        ), "mismatch between number of site properties names and dimensions"
-
-        xyz_txt = f"{n_atom}\n"
-        xyz_txt += lattice_str + " Properties=pos:R:3"
-        for prop, prop_dim in zip(site_properties, properties_dim):
-            xyz_txt += f":{prop}:R:{prop_dim}"
-        xyz_txt += "\n"
-        for i in range(n_atom):
-            positions_values = structure.sites[i].coords
-            xyz_txt += " ".join(map(str, positions_values))
-            for prop in site_properties:
-                prop_value = structure.sites[i].properties.get(prop, 0)
-                xyz_txt += f" {' '.join(map(str, prop_value))}"
-            xyz_txt += "\n"
-
         if not output_name.endswith(".xyz"):
             output_name += ".xyz"
 
+        xyz_txt = generate_xyz_text(structure, site_properties, self.properties_dim)
         with open(output_name, "w") as f:
             f.write(xyz_txt)
