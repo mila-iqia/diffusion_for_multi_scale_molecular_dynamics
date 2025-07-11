@@ -1,0 +1,78 @@
+
+
+# ---------- Initialize Simulation --------------------- 
+clear 
+units       metal 
+dimension   3 
+boundary    p p p 
+atom_style  atomic 
+atom_modify sort 0 1
+
+
+# ---------- Create Atoms --------------------- 
+read_data   initial_configuration.dat
+
+
+# ---------- Define Interatomic Potential --------------------- 
+pair_style   sw 
+pair_coeff   * * Si.sw Si
+
+mass        1  28.0855
+
+neighbor     2.0 bin 
+neigh_modify delay 10 check yes 
+
+# balance atoms per cpu
+comm_style tiled
+balance 1.1 rcb
+ 
+# ---------- Define Settings --------------------- 
+compute eng all pe/atom 
+compute eatoms all reduce sum c_eng 
+
+
+# ----------- OUTPUT DUMP
+thermo 1
+thermo_style custom step pe fnorm lx ly lz press pxx pyy pzz c_eatoms 
+
+dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz
+dump_modify dump_id thermo yes
+dump_modify dump_id element Si
+
+
+# ----------- ARTn
+plugin   load   /Users/brunorousseau/sources/artn-plugin/build/libartn.dylib
+plugin   list
+
+fix             10 all artn alpha0 0.2 dmax 5.0
+#fix             10 all artn alpha0 0.1 alphashrink 0.99 dtshrink 0.5 dmax 0.5 tmax 20 tmin 0.02
+timestep 0.001
+
+
+# ---------- Run Minimization --------------------- 
+reset_timestep 0 
+#fix 1 all box/relax iso 0.0 vmax 0.001
+
+min_style fire 
+
+#min_modify: dmax or delaystep or dtgrow or dtshrink or alpha0 or alphahrink or...
+#            tmax or tmin or halfstepback or initialdelay or vdfmax or line or...
+#            norm or discrete_factor or integrator or tmax  
+#            alpha_damp: does not work anymore
+
+
+minimize 1e-4 1e-5 2000 10000 
+
+
+variable natoms equal "count(all)" 
+variable teng equal "c_eatoms"
+variable length equal "lx"
+variable ecoh equal "v_teng/v_natoms"
+
+print "Total energy (eV) = ${teng};"
+print "Number of atoms = ${natoms};"
+print "Lattice constant (Angstoms) = ${length};"
+print "Cohesive energy (eV) = ${ecoh};"
+
+print "All done!" 
+
