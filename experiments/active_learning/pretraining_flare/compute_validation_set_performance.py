@@ -128,7 +128,7 @@ if __name__ == "__main__":
                 mapped_flare_calculator, list_valid_labelled_structures
             )
 
-            for key, value in flare_results.items():
+            for key, value in mapped_flare_results.items():
                 row[f"mapped_flare_{key}"] = value
 
         list_rows.append(row)
