@@ -18,7 +18,7 @@ atom_modify sort 0 1
 ## smaller simulation box, single vacancy defect
 ##
 
-read_data   conf.sw
+read_data   initial_configuration.dat
 
 
 ##
