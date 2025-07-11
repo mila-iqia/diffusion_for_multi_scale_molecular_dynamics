@@ -29,10 +29,9 @@ module load gcc
 SRC_DIR=/home/mila/r/rousseab/sources
 LAMMPS_EXEC=${SRC_DIR}/lammps/build/lmp
 ARTN_PLUGIN=${SRC_DIR}/artn-plugin/build/libartn.so
-INITIAL_CHECKPOINT=./initial_model/flare_model_sigma_2.json
+INITIAL_CHECKPOINT=/home/mila/r/rousseab/scratch/active_learning/sigma_1000.0_n_10/flare_model_pretrained.json
 
 PYTHON=/home/mila/r/rousseab/repositories/diffusion_for_multi_scale_molecular_dynamics/.venv/bin/python
-
 
 CONFIG=excise_and_repaint_config.yaml 
 TOP_DIR=./excise_and_repaint/
