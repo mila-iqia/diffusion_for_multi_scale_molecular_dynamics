@@ -133,6 +133,5 @@ if __name__ == "__main__":
 
         list_rows.append(row)
 
-        df = pd.DataFrame(list_rows)
-
-        df.to_pickle(output_dir / "validation_set_performance.pkl")
+    df = pd.DataFrame(list_rows)
+    df.to_pickle(output_dir / "validation_set_performance.pkl")
