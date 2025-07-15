@@ -1,7 +1,4 @@
 
-# Using pARTn with FIRE minimization 
-# File inspired from the repo MAMMASMIAS, 2022
-
 
 # ---------- Initialize Simulation --------------------- 
 clear 
@@ -12,21 +9,8 @@ atom_style  atomic
 atom_modify sort 0 1
 
 
-# ---------- Read one of the input structure files --------------------- 
-
-##
-## smaller simulation box, single vacancy defect
-##
-
-read_data   conf.sw
-
-
-##
-## larger simulation box, single vacancy defect
-## NOTE: if you use the larger box, make according change also in artn.in
-##
-
-#read_data   conf_big.sw
+# ---------- Create Atoms --------------------- 
+read_data   initial_configuration.dat
 
 
 # ---------- Define Interatomic Potential --------------------- 
@@ -41,24 +25,27 @@ neigh_modify delay 10 check yes
 # balance atoms per cpu
 comm_style tiled
 balance 1.1 rcb
+ 
+# ---------- Define Settings --------------------- 
+compute eng all pe/atom 
+compute eatoms all reduce sum c_eng 
+
 
 # ----------- OUTPUT DUMP
 thermo 1
-thermo_style custom step pe
+thermo_style custom step pe fnorm lx ly lz press pxx pyy pzz c_eatoms 
 
-dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz 
+dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz
 dump_modify dump_id thermo yes
 dump_modify dump_id element Si
 
 
-#displace_atoms	all random 0.05 0.05 0.05 1258475
-
 # ----------- ARTn
 plugin   load   /Users/brunorousseau/sources/artn-plugin/build/libartn.dylib
+plugin   list
 
-fix             10 all artn dmax 5.0
+fix             10 all artn alpha0 0.2 dmax 5.0
 #fix             10 all artn alpha0 0.1 alphashrink 0.99 dtshrink 0.5 dmax 0.5 tmax 20 tmin 0.02
-
 timestep 0.001
 
 
@@ -74,6 +61,18 @@ min_style fire
 #            alpha_damp: does not work anymore
 
 
-## ------ launch
-minimize 1e-3 1e-5 5000 10000 
+minimize 1e-4 1e-5 2000 10000 
+
+
+variable natoms equal "count(all)" 
+variable teng equal "c_eatoms"
+variable length equal "lx"
+variable ecoh equal "v_teng/v_natoms"
+
+print "Total energy (eV) = ${teng};"
+print "Number of atoms = ${natoms};"
+print "Lattice constant (Angstoms) = ${length};"
+print "Cohesive energy (eV) = ${ecoh};"
+
+print "All done!" 
 

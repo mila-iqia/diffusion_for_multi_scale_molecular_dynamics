@@ -1,0 +1,30 @@
+&ARTN_PARAMETERS
+  !! Units definition::(eV,Ang,ps)  
+  engine_units     ='lammps/metal'
+  verbose          = 2
+  !! zseed            = 42
+  zseed            = 0
+
+  !! ARTn mode
+  ninit            = 2 
+  lpush_final      = .true. 
+  nsmooth          = 3 
+  nnewchance       = 30
+  forc_thr         = 0.01
+  restart_freq     = 0
+
+  !! parameters for the push
+  push_step_size   = 0.40
+  push_mode        = 'rad'
+  push_dist_thr    = 3.5
+  push_ids         = 462 
+
+  !! lanczos parameters
+  lanczos_disp     = 1.0D-2
+  lanczos_min_size = 3
+  lanczos_max_size = 50 
+  
+  !! eigenpush parms
+  eigen_step_size  = 0.1
+  push_over        = 2.0
+/
