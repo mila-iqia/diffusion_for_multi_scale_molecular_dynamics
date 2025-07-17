@@ -8,7 +8,10 @@ clear
 units       metal 
 dimension   3 
 boundary    p p p 
-atom_style  atomic 
+atom_style  atomic
+
+# Prevent LAMMPS from sorting atoms, which might confuse ARTn.
+atom_modify sort 0 1
 
 
 # ---------- Read in the starting configuration --------------------- 
@@ -76,4 +79,4 @@ min_style fire
 
 
 ## ------ launch
-minimize 1e-3 1e-5 5000 10000 
+minimize 1e-4 1e-5 5000 10000
