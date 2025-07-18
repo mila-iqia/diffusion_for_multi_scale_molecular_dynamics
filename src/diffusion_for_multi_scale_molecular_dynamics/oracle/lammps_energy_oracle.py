@@ -5,7 +5,7 @@ import tempfile
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import lammps
 import numpy as np
@@ -162,14 +162,18 @@ class LammpsEnergyOracle(EnergyOracle):
         cartesian_positions: np.ndarray,
         basis_vectors: np.ndarray,
         atom_types: np.ndarray,
-    ) -> float:
+    ) -> Tuple[float, np.ndarray]:
 
         with tempfile.TemporaryDirectory() as tmp_work_dir:
             dump_file_path = Path(tmp_work_dir) / "dump.yaml"
-            energy, forces = self._compute_energy_and_forces(
+            energy, forces_df = self._compute_energy_and_forces(
                 cartesian_positions, basis_vectors, atom_types, dump_file_path
             )
             # clean up!
             dump_file_path.unlink(missing_ok=True)
 
-        return energy, forces[["fx", "fy", "fz"]].to_numpy()
+        # Ensures that anything that cannot be turned into a number becomes a NaN instead of
+        # crashing the code.
+        forces = forces_df[["fx", "fy", "fz"]].apply(pd.to_numeric, errors='coerce').to_numpy()
+
+        return energy, forces
