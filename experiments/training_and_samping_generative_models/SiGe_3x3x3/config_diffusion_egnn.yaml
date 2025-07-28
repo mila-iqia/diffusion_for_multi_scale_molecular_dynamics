@@ -1,0 +1,121 @@
+#================================================================================
+exp_name: july26_egnn_sige_3x3x3
+run_name: run1
+
+max_epoch: 100
+log_every_n_steps: 1
+gradient_clipping: 0.0
+accumulate_grad_batches: 2
+
+elements: [Si, Ge]
+
+seed: 1234
+
+# data
+data:
+  batch_size: 16
+  num_workers: 16
+  max_atom: 216
+  use_fixed_lattice_parameters: True
+  noise:
+    total_time_steps: 1000
+    sigma_min: 0.0001 
+    sigma_max: 0.2
+    schedule_type: linear
+    corrector_step_epsilon: 2.5e-8
+  use_optimal_transport: False
+
+# architecture
+spatial_dimension: 3
+
+model:
+  loss: # Only the relative coordinates loss will matter.
+    coordinates:
+      algorithm: mse
+      lambda_weight: 1.0
+    atom_types:
+      algorithm: d3pm
+      lambda_weight: 1.0
+      ce_weight: 1.0
+    lattice_parameters:
+      algorithm: mse
+      lambda_weight: 0.0
+  score_network:
+    architecture: egnn
+    num_atom_types: 2
+    n_layers: 4
+    coordinate_hidden_dimensions_size: 256
+    coordinate_n_hidden_dimensions: 4
+    coords_agg: "mean"
+    message_hidden_dimensions_size: 256
+    message_n_hidden_dimensions: 4
+    message_agg: "mean"
+    node_hidden_dimensions_size: 256
+    node_n_hidden_dimensions: 4
+    attention: False
+    normalize: False
+    residual: True
+    tanh: False
+    edges: radial_cutoff
+    radial_cutoff: 7.5
+
+# optimizer and scheduler
+optimizer:
+  name: adamw
+  learning_rate: 1.0e-4
+  weight_decay: 5.0e-8
+
+scheduler:
+  name: ReduceLROnPlateau
+  factor: 0.9
+  patience: 10
+
+# early stopping
+early_stopping:
+  metric: validation_epoch_loss
+  mode: min
+  patience: 25
+
+model_checkpoint:
+  monitor: validation_ks_distance_structure
+  mode: min
+
+diffusion_sampling:
+  noise:
+    total_time_steps: 1000 
+    sigma_min: 0.0001
+    sigma_max: 0.2
+    schedule_type: linear
+    corrector_step_epsilon: 2.5e-8
+  sampling:
+    algorithm: predictor_corrector
+    num_atom_types: 2
+    number_of_atoms: 216
+    sample_batchsize: 4
+    spatial_dimension: 3
+    number_of_corrector_steps: 2
+    one_atom_type_transition_per_step: True
+    atom_type_greedy_sampling: True
+    atom_type_transition_in_corrector: False
+    number_of_samples: 4
+    record_samples: False
+    use_fixed_lattice_parameters: True
+    cell_dimensions: [16.626, 16.626, 16.626]
+  metrics:
+    compute_energies: True
+    compute_structure_factor: True
+    structure_factor_max_distance: 15.0
+
+sampling_visualization:
+  first_record_epoch: 1
+  record_energies: True
+  record_every_n_epochs:  1
+  record_structure: True
+  record_trajectories: False
+
+oracle:
+  name: lammps
+  sw_coeff_filename: SiGe.sw
+
+logging:
+  - comet
