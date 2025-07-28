@@ -1,0 +1,29 @@
+noise:
+    total_time_steps: 1000
+    sigma_min: 0.0001
+    sigma_max: 0.2
+    schedule_type: linear
+    corrector_step_epsilon: 2.5e-8
+sampling:
+    algorithm: predictor_corrector
+    num_atom_types: 1 
+    sample_batchsize: 16
+    spatial_dimension: 3
+    number_of_corrector_steps: 2
+    number_of_atoms: 8
+    number_of_samples: 16
+    record_samples: True
+    use_fixed_lattice_parameters: True
+    cell_dimensions: [5.43,5.43,5.43]
+metrics:
+    compute_energies: True
+    compute_structure_factor: True
+    structure_factor_max_distance: 5.0
+
+elements: [Si]
+spatial_dimension: 3
+
+oracle:
+  name: lammps
+  sw_coeff_filename: Si.sw
+
