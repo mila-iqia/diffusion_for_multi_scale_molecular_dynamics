@@ -6,8 +6,8 @@ from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
     ElementTypes
-from diffusion_for_multi_scale_molecular_dynamics.namespace import \
-    AXL_COMPOSITION
+from diffusion_for_multi_scale_molecular_dynamics.namespace import (
+    AXL, AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_lattice_parameters_to_unit_cell_vectors
 
@@ -40,10 +40,17 @@ if __name__ == "__main__":
             output_dir = samples_top_directory / f"{dataset_name}" / f"T={T}/"
             output_dir.mkdir(parents=True, exist_ok=True)
 
+            energies_file_path = experiment_dir / f"sample_output_T={T}/energies.pt"
+            energies = torch.load(energies_file_path)
+            order = torch.argsort(energies)
+
             samples_file_path = experiment_dir / f"sample_output_T={T}/samples.pt"
 
             data = torch.load(samples_file_path, map_location="cpu")
-            axl_composition = data[AXL_COMPOSITION]
+            unordered_axl_composition = data[AXL_COMPOSITION]
+            axl_composition = AXL(A=unordered_axl_composition.A[order],
+                                  X=unordered_axl_composition.X[order],
+                                  L=unordered_axl_composition.L[order])
 
             batch_lattice_parameters = axl_composition.L
 
