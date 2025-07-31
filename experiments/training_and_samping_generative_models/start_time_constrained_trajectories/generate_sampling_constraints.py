@@ -97,7 +97,14 @@ loader_parameters = LammpsDataModuleParameters(batch_size=1024,
 
 list_schedule_types = ["linear", "exponential"]
 
-list_start_time_index = torch.arange(100, 1050, 50)
+# Wide scan
+# list_start_time_index = torch.arange(100, 1050, 50)
+# start_times = [list_start_time_index, list_start_time_index]
+
+# fine scan
+list_start_time_index_fine_linear = torch.arange(10, 100, 10)
+list_start_time_index_fine_exponential = torch.arange(600, 700, 10)
+start_times = [list_start_time_index_fine_linear, list_start_time_index_fine_exponential]
 
 
 if __name__ == "__main__":
@@ -125,7 +132,7 @@ if __name__ == "__main__":
 
     reference_composition = AXL(A=a0, X=x0, L=l0)
 
-    for schedule_type in list_schedule_types:
+    for schedule_type, list_start_time_index in zip(list_schedule_types, start_times):
 
         output_dir = Path(__file__).parent / f"sampling_constraints_{dataset_name}" / schedule_type
         output_dir.mkdir(parents=True, exist_ok=True)
