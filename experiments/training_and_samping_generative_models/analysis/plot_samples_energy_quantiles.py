@@ -17,11 +17,11 @@ image_directory.mkdir(exist_ok=True)
 
 base_experiment_dir = Path("/Users/brunorousseau/courtois/july26/")
 
-dataset_name = "Si_diffusion_1x1x1"
+# dataset_name = "Si_diffusion_1x1x1"
 # dataset_name = "Si_diffusion_2x2x2"
 # dataset_name = "Si_diffusion_3x3x3"
 # dataset_name = "SiGe_diffusion_1x1x1"
-# dataset_name = "SiGe_diffusion_2x2x2"
+dataset_name = "SiGe_diffusion_2x2x2"
 # dataset_name = "SiGe_diffusion_3x3x3"
 
 match dataset_name:
@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     yrange = dataset_quantiles.max() - dataset_quantiles.min()
     ymax = dataset_quantiles.max() + 0.25 * yrange
-    ymin = dataset_quantiles.min() - 0.25 * yrange
+    ymin = dataset_quantiles.min() - 1.5 * yrange
 
     for T in list_T:
         sample_energies = torch.load(sample_top_dir / f'sample_output_T={T}' / "energies.pt")
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     ax.set_ylabel("Energy (eV)")
     ax.set_xlim(-0.1, 100.1)
     ax.set_ylim(ymin=ymin, ymax=ymax)
-    ax.legend(loc="upper left", fancybox=True, shadow=True, ncol=1, fontsize=12)
+    ax.legend(loc="lower right", fancybox=True, shadow=True, ncol=1, fontsize=12)
     fig.tight_layout()
     fig.savefig(image_directory / f"sample_energy_quantiles_{dataset_name}.png")
     plt.close(fig)
