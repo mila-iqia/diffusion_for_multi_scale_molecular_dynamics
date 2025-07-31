@@ -74,7 +74,13 @@ def get_noisy_composition(reference_composition: AXL,
     return noisy_composition
 
 
-dataset_name = "Si_diffusion_2x2x2"
+# dataset_name = "Si_diffusion_2x2x2"
+# max_atom = 64
+# batch_size = 128
+
+dataset_name = "Si_diffusion_3x3x3"
+max_atom = 216
+batch_size = 16
 
 lammps_run_dir = DATA_DIR / dataset_name
 processed_dataset_dir = lammps_run_dir / "processed"
@@ -85,13 +91,12 @@ num_atom_types = len(elements)
 
 loader_parameters = LammpsDataModuleParameters(batch_size=1024,
                                                num_workers=8,
-                                               max_atom=64,
+                                               max_atom=max_atom,
                                                elements=elements,
                                                noise_parameters=NoiseParameters(total_time_steps=1))
 
 list_schedule_types = ["linear", "exponential"]
 
-batch_size = 128
 list_start_time_index = torch.arange(100, 1050, 50)
 
 
@@ -122,7 +127,7 @@ if __name__ == "__main__":
 
     for schedule_type in list_schedule_types:
 
-        output_dir = Path(__file__).parent / "sampling_constraints" / schedule_type
+        output_dir = Path(__file__).parent / f"sampling_constraints_{dataset_name}" / schedule_type
         output_dir.mkdir(parents=True, exist_ok=True)
 
         noise_parameters = NoiseParameters(total_time_steps=1000,
