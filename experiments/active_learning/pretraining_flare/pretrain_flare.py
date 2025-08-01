@@ -27,7 +27,9 @@ seed = 42
 
 logging.basicConfig(level=logging.INFO)
 
-list_sigmas = [1.0, 2.0, 5.0, 10.0, 100.0, 1000.0]
+list_sigma_ef = 0.1 ** np.arange(6)
+
+sigma = 1.0
 
 # Train FLARE with a variable number of structures.
 list_number_of_training_structures = np.arange(1, 17)
@@ -41,19 +43,19 @@ if __name__ == "__main__":
 
     logging.info("Instantiate FLARE models")
     flare_trainer_dict = dict()
-    for sigma in tqdm(list_sigmas, "SIGMA"):
+    for sigma_ef in tqdm(list_sigma_ef, "SIGMA"):
         flare_configuration = FlareConfiguration(
             cutoff=5.0,
             elements=element_list,
             n_radial=12,
             lmax=3,
             initial_sigma=sigma,
-            initial_sigma_e=1.0,
-            initial_sigma_f=0.050,
+            initial_sigma_e=sigma_ef,
+            initial_sigma_f=sigma_ef,
             initial_sigma_s=1.0,
             variance_type="local",
         )
-        flare_trainer_dict[sigma] = FlareTrainer(flare_configuration)
+        flare_trainer_dict[sigma_ef] = FlareTrainer(flare_configuration)
 
     logging.info("Adding training data to various FLARE models.")
     for number_of_training_structures in tqdm(list_number_of_training_structures, "N"):
@@ -64,15 +66,15 @@ if __name__ == "__main__":
         number_of_atoms = len(labelled_structure.structure)
         active_environment_indices = list(np.random.randint(0, number_of_atoms, (8,)))
 
-        for sigma in tqdm(list_sigmas, "SIGMA"):
-            flare_trainer = flare_trainer_dict[sigma]
+        for sigma_level, sigma_ef in tqdm(enumerate(list_sigma_ef, 1), "SIGMA"):
+            flare_trainer = flare_trainer_dict[sigma_ef]
             flare_trainer.add_labelled_structure(
                 labelled_structure,
                 active_environment_indices=active_environment_indices,
             )
 
             checkpoint_dir = (
-                checkpoint_top_dir / f"sigma_{sigma}_n_{number_of_training_structures}"
+                checkpoint_top_dir / f"sigma_level_{sigma_level}_n_{number_of_training_structures}"
             )
             checkpoint_dir.mkdir(parents=True, exist_ok=False)
 

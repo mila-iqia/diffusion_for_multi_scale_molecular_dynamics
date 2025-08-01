@@ -88,7 +88,7 @@ if __name__ == "__main__":
     with open(data_dir / "valid_labelled_structures.pkl", "rb") as fd:
         list_valid_labelled_structures = pickle.load(fd)
 
-    checkpoint_directories = glob.glob(str(checkpoint_top_dir / "sigma_*_n_*"))
+    checkpoint_directories = glob.glob(str(checkpoint_top_dir / "sigma_level_*_n_*"))
     number_of_directories = len(checkpoint_directories)
 
     list_rows = []
@@ -102,9 +102,11 @@ if __name__ == "__main__":
         flare_calculator = FlareSinglePointCalculator(sgp_model=flare_trainer.sgp_model)
 
         sigma = flare_trainer.flare_configuration.initial_sigma
+        sigma_e = flare_trainer.flare_configuration.initial_sigma_e
+        sigma_f = flare_trainer.flare_configuration.initial_sigma_f
         number_of_structures = flare_trainer.sgp_model.sparse_gp.n_energy_labels
 
-        row = dict(sigma=sigma, number_of_structures=number_of_structures)
+        row = dict(sigma=sigma, sigma_e=sigma_e, sigma_f=sigma_f, number_of_structures=number_of_structures)
 
         flare_results = compute_errors_and_uncertainties(
             flare_calculator, list_valid_labelled_structures

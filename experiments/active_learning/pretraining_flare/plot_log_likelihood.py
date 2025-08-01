@@ -11,7 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
 plt.style.use(PLOT_STYLE_PATH)
 
 experiment_dir = TOP_DIR / "experiments/active_learning/pretraining_flare/"
-checkpoint_dir = experiment_dir / "flare_checkpoints" / "sigma_1000.0_n_10"
+checkpoint_dir = experiment_dir / "flare_checkpoints" / "sigma_level_6_n_16"
 
 images_dir = experiment_dir / "images"
 images_dir.mkdir(parents=True, exist_ok=True)

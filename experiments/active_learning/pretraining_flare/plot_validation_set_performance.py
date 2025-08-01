@@ -33,7 +33,7 @@ if __name__ == "__main__":
     ax2.set_xlabel("Number of Training Structures")
     ax2.set_ylabel(r"Validation Mean Force RMSE (eV / $\AA$)")
 
-    for sigma, group_df in df.groupby(by="sigma"):
+    for sigma_ef, group_df in df.groupby(by="sigma_e"):
         number_of_training_structures = group_df["number_of_structures"].values
         validation_energy_rmse = group_df["flare_energy_rmse"].values
         validation_mean_force_rmse = group_df["flare_mean_force_rmse"]
@@ -47,7 +47,7 @@ if __name__ == "__main__":
             number_of_training_structures,
             validation_energy_rmse,
             "-",
-            label=rf"$\sigma$ = {sigma}",
+            label=rf"$\sigma_e$ = $\sigma_f$ = {sigma_ef:3.1e}",
         )
         color = lines.get_color()
 
@@ -57,7 +57,7 @@ if __name__ == "__main__":
             "*",
             ms=10,
             color=color,
-            label=rf"$\sigma$ = {sigma} (MAPPED)",
+            label=rf"$\sigma_e$ = $\sigma_f$ = {sigma_ef: 3.1e} (MAPPED)",
         )
 
         ax2.semilogy(
@@ -94,6 +94,7 @@ if __name__ == "__main__":
         fancybox=True,
         shadow=True,
         borderaxespad=1.0,
+        fontsize=8
     )
 
     plt.subplots_adjust(bottom=0.25)
@@ -120,7 +121,7 @@ if __name__ == "__main__":
 
     xmax1, ymax1, xmax2, ymax2 = 0, 0, 0, 0
 
-    for sigma, sigma_df in sub_df.groupby(by="sigma"):
+    for sigma_ef, sigma_df in sub_df.groupby(by="sigma_e"):
 
         # ================================================================================
         list_flare_force_errors = sigma_df["flare_all_force_errors"].values[0]
@@ -134,7 +135,7 @@ if __name__ == "__main__":
             list_flare_uncertainties,
             list_flare_force_errors,
             **common_params,
-            label=rf"$\sigma$ = {sigma}, slope = {coeffs[0]:4.1f}",
+            label=rf"$\sigma_e$ =$\sigma_f$ = {sigma_ef:3.1e}, slope = {coeffs[0]:4.1f}",
         )
 
         ax1.plot(x, y, "-", c=line.get_color(), lw=4, label="__nolabel__")
@@ -158,7 +159,7 @@ if __name__ == "__main__":
             list_mapped_flare_uncertainties,
             list_mapped_flare_force_errors,
             **common_params,
-            label=rf"$\sigma$ = {sigma}, slope = {coeffs[0]:4.1f}",
+            label=rf"$\sigma_e$ = $\sigma_f$ = {sigma_ef:3.1e}, slope = {coeffs[0]:4.1f}",
         )
         ax2.plot(x, y, "-", c=line.get_color(), lw=4, label="__nolabel__")
 
@@ -184,7 +185,7 @@ if __name__ == "__main__":
     ax.set_xlabel("FLARE Uncertainty")
     ax.set_ylabel("MAPPED FLARE Uncertainty")
 
-    for sigma, sigma_df in sub_df.groupby(by="sigma"):
+    for sigma_ef, sigma_df in sub_df.groupby(by="sigma_e"):
 
         list_flare_uncertainties = sigma_df["flare_all_uncertainties"].values[0]
         list_mapped_flare_uncertainties = sigma_df[
@@ -200,7 +201,7 @@ if __name__ == "__main__":
             list_flare_uncertainties,
             list_mapped_flare_uncertainties,
             "o",
-            label=rf"$\sigma$ = {sigma}, slope = {coeffs[0]:4.3f}",
+            label=rf"$\sigma$ = {sigma_ef:3.1e}, slope = {coeffs[0]:4.3f}",
         )
 
         ax.plot(x, y, "-", c=line.get_color(), lw=4, label="__nolabel__")
