@@ -18,7 +18,7 @@ def analyse(experiment_name: str, run_name: str):
     logger.info(f"  checkpoint is  {checkpoint_path}")
 
     input_parameters = InputParameters(algorithm="predictor_corrector",
-                                       total_time_steps=50,
+                                       total_time_steps=20,
                                        number_of_corrector_steps=2,
                                        corrector_step_epsilon=2.5e-8,
                                        number_of_samples=10_000,
@@ -48,10 +48,10 @@ def analyse(experiment_name: str, run_name: str):
 # Choose which experiments to analyse. They must have been trained first!
 list_experiment_names = ["analytical",
                          "no_regularizer",
-                         "analytical_regression_regularizer",
-                         "fokker_planck_regularizer",
-                         "consistency_regularizer",
-                         "consistency_with_analytical_guide_regularizer",
+                         # "analytical_regression_regularizer",
+                         # "fokker_planck_regularizer",
+                         # "consistency_regularizer",
+                         # "consistency_with_analytical_guide_regularizer",
                          ]
 run_name = "run1"
 
