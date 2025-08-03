@@ -260,6 +260,6 @@ def plot_marginal_distribution(input_parameters: InputParameters, output_directo
     ax.set_ylim(ymin=-0.01)
     ax.legend(loc=0)
     ax.set_xlabel(r"$x$")
-    ax.set_ylabel(r"$P(x)$")
+    ax.set_ylabel(r"$P(x, t)$")
     plt.savefig(output_directory / "marginal_probability_distribution.png")
     plt.close(fig)
