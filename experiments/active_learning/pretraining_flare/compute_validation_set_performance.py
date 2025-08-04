@@ -7,12 +7,8 @@ import numpy as np
 import pandas as pd
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
-    LammpsRunner
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.flare_single_point_calculator import \
     FlareSinglePointCalculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.mapped_flare_single_point_calculator import \
-    MappedFlareSinglePointCalculator  # noqa
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
     FlareTrainer
 
@@ -66,8 +62,6 @@ def compute_errors_and_uncertainties(single_point_calculator, list_labelled_stru
 
 logging.basicConfig(level=logging.INFO)
 
-lammps_executable_path = Path("/Users/brunorousseau/sources/lammps/build/lmp")
-
 experiment_dir = TOP_DIR / "experiments/active_learning/pretraining_flare/"
 
 data_dir = experiment_dir / "data"
@@ -76,19 +70,17 @@ checkpoint_top_dir = experiment_dir / "flare_checkpoints"
 output_dir = experiment_dir / "validation_performance"
 output_dir.mkdir(parents=True, exist_ok=True)
 
-# the MAPPED flare is SLOW, probably because of yaml parsing.
-# We'll only compute a subset.
-list_n_for_mapped_flare_calculations = [5, 10, 15]
+sigma = 1.0
+# scanning  over a range of values.
+list_sigma_e = np.array([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1])
+list_sigma_f = np.array([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1])
 
 if __name__ == "__main__":
-    lammps_runner = LammpsRunner(
-        lammps_executable_path, mpi_processors=4, openmp_threads=4
-    )
 
     with open(data_dir / "valid_labelled_structures.pkl", "rb") as fd:
         list_valid_labelled_structures = pickle.load(fd)
 
-    checkpoint_directories = glob.glob(str(checkpoint_top_dir / "sigma_level_*_n_*"))
+    checkpoint_directories = glob.glob(str(checkpoint_top_dir / "number_of_structures_*"))
     number_of_directories = len(checkpoint_directories)
 
     list_rows = []
@@ -96,44 +88,28 @@ if __name__ == "__main__":
         logging.info(
             f"Processing {checkpoint_directory} ({idx} of {number_of_directories})"
         )
-        checkpoint_path = Path(checkpoint_directory) / "flare_model_pretrained.json"
+        checkpoint_path = Path(checkpoint_directory) / "flare_model_preloaded.json"
 
         flare_trainer = FlareTrainer.from_checkpoint(checkpoint_path)
-        flare_calculator = FlareSinglePointCalculator(sgp_model=flare_trainer.sgp_model)
-
-        sigma = flare_trainer.flare_configuration.initial_sigma
-        sigma_e = flare_trainer.flare_configuration.initial_sigma_e
-        sigma_f = flare_trainer.flare_configuration.initial_sigma_f
         number_of_structures = flare_trainer.sgp_model.sparse_gp.n_energy_labels
 
-        row = dict(sigma=sigma, sigma_e=sigma_e, sigma_f=sigma_f, number_of_structures=number_of_structures)
+        for sigma_e in list_sigma_e:
+            for sigma_f in list_sigma_f:
+                hyperparameters = np.array([sigma, sigma_e, sigma_f, 1.0])
+                flare_trainer.sgp_model.sparse_gp.set_hyperparameters(hyperparameters)
+                flare_trainer.sgp_model.sparse_gp.precompute_KnK()
 
-        flare_results = compute_errors_and_uncertainties(
-            flare_calculator, list_valid_labelled_structures
-        )
+                flare_calculator = FlareSinglePointCalculator(sgp_model=flare_trainer.sgp_model)
 
-        for key, value in flare_results.items():
-            row[f"flare_{key}"] = value
+                row = dict(sigma=sigma, sigma_e=sigma_e, sigma_f=sigma_f,
+                           number_of_structures=number_of_structures)
 
-        if number_of_structures in list_n_for_mapped_flare_calculations:
-            pair_coeff_file_path = Path(checkpoint_directory) / "lmp_pretrained.flare"
-            mapped_uncertainty_file_path = (
-                Path(checkpoint_directory) / "map_unc_lmp_pretrained.flare"
-            )
-            mapped_flare_calculator = MappedFlareSinglePointCalculator(
-                lammps_runner=lammps_runner,
-                pair_coeff_file_path=pair_coeff_file_path,
-                mapped_uncertainty_file_path=mapped_uncertainty_file_path,
-            )
+                flare_results = compute_errors_and_uncertainties(
+                    flare_calculator, list_valid_labelled_structures
+                )
 
-            mapped_flare_results = compute_errors_and_uncertainties(
-                mapped_flare_calculator, list_valid_labelled_structures
-            )
-
-            for key, value in mapped_flare_results.items():
-                row[f"mapped_flare_{key}"] = value
-
-        list_rows.append(row)
+                row.update(flare_results)
+                list_rows.append(row)
 
     df = pd.DataFrame(list_rows)
     df.to_pickle(output_dir / "validation_set_performance.pkl")
