@@ -24,10 +24,10 @@ SRC_DIR=$HOME/sources
 LAMMPS_EXEC=${SRC_DIR}/lammps/build/lmp
 
 
-GROUND_TRUTH_DIRECTORY=$SCRATCH/experiments/active_learning/crystalline_silicon_vacancy/ground_truth
+GROUND_TRUTH_DIRECTORY=$SCRATCH/experiments/active_learning/v2/crystalline_silicon_vacancy/ground_truth
 TOP_OUTPUT_DIR=${GROUND_TRUTH_DIRECTORY}/output/
 
-REFERENCE_DIRECTORY=$SCRATCH/experiments/active_learning/crystalline_silicon_vacancy/reference
+REFERENCE_DIRECTORY=$SCRATCH/experiments/active_learning/v2/crystalline_silicon_vacancy/reference
 
 ## Activate your venv
 source $REPO_ROOT/.venv/bin/activate

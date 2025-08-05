@@ -50,9 +50,9 @@ for run in $list_runs; do
         echo "Creating run $run of active learning."
 	OUTPUT_DIR=${TOP_DIR}/run${run}
 	train_active_learning --config $CONFIG \
-			      --path_to_reference_directory $REFERENCE_DIRECTORY \
-			      --path_to_lammps_executable $LAMMPS_EXEC \
-			      --path_to_artn_library_plugin $ARTN_PLUGIN \
-			      --path_to_initial_flare_checkpoint $INITIAL_FLARE_CHECKPOINT \
-			      --output_directory $OUTPUT_DIR
+			                  --path_to_reference_directory $REFERENCE_DIRECTORY \
+			                  --path_to_lammps_executable $LAMMPS_EXEC \
+			                  --path_to_artn_library_plugin $ARTN_PLUGIN \
+			                  --path_to_initial_flare_checkpoint $INITIAL_FLARE_CHECKPOINT \
+			                  --output_directory $OUTPUT_DIR
 done
