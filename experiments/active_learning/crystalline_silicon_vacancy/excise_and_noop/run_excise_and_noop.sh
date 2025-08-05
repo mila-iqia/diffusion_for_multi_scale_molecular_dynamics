@@ -2,15 +2,14 @@
 ## optional key to track gpu usage
 #SBATCH --wckey=courtois2025
 #SBATCH --partition=staff-amlrt
-#SBATCH --job-name=excise_and_repaint_active_learning_si_vacancy
+#SBATCH --job-name=active_learning_si_vacancy_excise_and_noop
 #SBATCH --output=logs/%x__%j.out
 #SBATCH --error=logs/%x__%j.err
 ## cpu / gpu / memory selection
 #SBATCH --ntasks=8
 #SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:1
 #SBATCH --mem=32G
-#SBATCH --time=48:00:00
+#SBATCH --time=24:00:00
 
 #================================================================================
 #
@@ -33,11 +32,10 @@ SRC_DIR=$HOME/sources
 LAMMPS_EXEC=${SRC_DIR}/lammps/build/lmp
 ARTN_PLUGIN=${SRC_DIR}/artn-plugin/build/libartn.so
 
-INITIAL_FLARE_CHECKPOINT=$SCRATCH/experiments/active_learning/v2/pretrained_flare/flare_model_pretrained.json  
+INITIAL_FLARE_CHECKPOINT=$SCRATCH/experiments/active_learning/v2/pretrained_flare/flare_model_pretrained.json
 
-DIFFUSION_CHECKPOINT=$SCRATCH/experiments/july26_si_egnn_2x2x2/run1/output/best_model/best_model-epoch\=064-step\=203190.ckpt
+CONFIG=excise_and_noop_config.yaml  
 
-CONFIG=excise_and_repaint_config.yaml 
 TOP_DIR=./output/
 
 REFERENCE_DIRECTORY=$SCRATCH/experiments/active_learning/v2/crystalline_silicon_vacancy/reference
@@ -52,7 +50,6 @@ for run in $list_runs; do
         echo "Creating run $run of active learning."
 	OUTPUT_DIR=${TOP_DIR}/run${run}
 	train_active_learning --config $CONFIG \
-                        --path_to_score_network_checkpoint $DIFFUSION_CHECKPOINT \
 			                  --path_to_reference_directory $REFERENCE_DIRECTORY \
 			                  --path_to_lammps_executable $LAMMPS_EXEC \
 			                  --path_to_artn_library_plugin $ARTN_PLUGIN \
