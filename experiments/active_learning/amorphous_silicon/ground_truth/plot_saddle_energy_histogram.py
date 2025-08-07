@@ -13,7 +13,7 @@ plt.style.use(PLOT_STYLE_PATH)
 
 
 top_dir = TOP_DIR / "experiments/active_learning/amorphous_silicon"
-experiment_dir = top_dir / "ground_truth_experiment/calculation_runs"
+experiment_dir = top_dir / "ground_truth/calculation_runs"
 
 if __name__ == "__main__":
 
