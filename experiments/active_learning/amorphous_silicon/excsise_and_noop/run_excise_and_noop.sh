@@ -2,7 +2,7 @@
 ## optional key to track gpu usage
 #SBATCH --wckey=courtois2025
 #SBATCH --partition=staff-amlrt
-#SBATCH --job-name=noop_active_learning_si_vacancy
+#SBATCH --job-name=active_learning_si_vacancy_excise_and_noop
 #SBATCH --output=logs/%x__%j.out
 #SBATCH --error=logs/%x__%j.err
 ## cpu / gpu / memory selection
@@ -25,6 +25,7 @@ module load cuda/12.6.0  # not useful for now
 module load python/3.10
 module load gcc  
 
+
 REPO_ROOT=$HOME/repositories/diffusion_for_multi_scale_molecular_dynamics/
 
 SRC_DIR=$HOME/sources
@@ -33,7 +34,8 @@ ARTN_PLUGIN=${SRC_DIR}/artn-plugin/build/libartn.so
 
 INITIAL_FLARE_CHECKPOINT=$SCRATCH/experiments/active_learning/amorphous_silicon/pretrained_flare/flare_model_pretrained.json
 
-CONFIG=noop_config.yaml 
+CONFIG=excise_and_noop_config.yaml  
+
 TOP_DIR=./output/
 
 REFERENCE_DIRECTORY=$SCRATCH/experiments/active_learning/amorphous_silicon/reference
