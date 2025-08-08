@@ -15,6 +15,9 @@ plt.style.use(PLOT_STYLE_PATH)
 top_dir = TOP_DIR / "experiments/active_learning/amorphous_silicon"
 experiment_dir = top_dir / "ground_truth/calculation_runs"
 
+images_dir = top_dir / "ground_truth/images"
+images_dir.mkdir(parents=True, exist_ok=True)
+
 if __name__ == "__main__":
 
     artn_out_files = glob.glob(str(experiment_dir / "run*/artn.out"), recursive=True)
@@ -34,8 +37,7 @@ if __name__ == "__main__":
     failure_count = np.isnan(list_saddle_energy).sum()
 
     fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
-    fig.suptitle(f"Ground Truth Saddle Point Energies for Amorphous Silicon\n"
-                 f"Attempts: {attempts_count}, Failures: {failure_count}",)
+    fig.suptitle("Ground Truth Saddle Point Energies for Amorphous Silicon")
     ax1 = fig.add_subplot(111)
     ax1.hist(list_saddle_energy, bins=100, color='green', alpha=0.5, histtype="stepfilled")
 
@@ -43,4 +45,4 @@ if __name__ == "__main__":
     ax1.set_ylabel("Count")
     fig.tight_layout()
 
-    plt.show()
+    fig.savefig(images_dir / "ground_truth_saddle_point_energy_distribution.png")
