@@ -14,8 +14,9 @@ plt.style.use(PLOT_STYLE_PATH)
 top_dir = Path("/Users/brunorousseau/courtois/july26/active_learning/amorphous_silicon")
 
 # experiment = "excise_and_repaint"
+experiment = "excise_and_repaint_3x3x3"
 # experiment = "noop"
-experiment = "excise_and_noop"
+# experiment = "excise_and_noop"
 # experiment = "excise_and_random"
 
 top_experiment_directory = top_dir / experiment / "output"

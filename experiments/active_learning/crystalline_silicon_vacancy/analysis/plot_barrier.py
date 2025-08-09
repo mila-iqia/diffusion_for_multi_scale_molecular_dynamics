@@ -12,8 +12,8 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import (
 
 plt.style.use(PLOT_STYLE_PATH)
 
-
-top_dir = Path("/Users/brunorousseau/courtois/july26/active_learning/v2/crystalline_silicon_vacancy/")
+version = 'v7'
+top_dir = Path(f"/Users/brunorousseau/courtois/july26/active_learning/{version}/crystalline_silicon_vacancy/")
 
 experiment = "excise_and_repaint"
 # experiment = "noop"
