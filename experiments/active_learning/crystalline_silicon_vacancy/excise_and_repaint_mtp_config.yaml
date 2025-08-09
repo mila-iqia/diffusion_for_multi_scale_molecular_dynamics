@@ -1,0 +1,71 @@
+#================================================================================
+# Configuration file for an active learning run
+#================================================================================
+exp_name: excise_and_repaint_sample_maker
+
+seed: 42
+
+elements: [Si]
+
+uncertainty_thresholds: [0.001, 0.0001, 0.00001, 0.000001]
+
+oracle:
+  name: stillinger_weber
+  sw_coeff_filename: Si.sw
+
+sampling:
+  algorithm: excise_and_repaint
+  sample_box_strategy: fixed
+  sample_box_size: [ 10.86, 10.86, 10.86 ]
+  sample_edit_radius: 5.0 # in Angstrom: generated atoms within this radius from the central atom will be removed.
+  excision:
+    algorithm: spherical_cutoff
+    radial_cutoff: 5.0  # radial cutoff in Angstrom
+  noise:
+    total_time_steps: 500
+    sigma_min: 0.0001
+    sigma_max: 0.2
+    schedule_type: linear
+    corrector_step_epsilon: 2.5e-8
+  repaint_generator:
+    number_of_atoms: 64
+    number_of_corrector_steps: 2
+    one_atom_type_transition_per_step: False
+    atom_type_greedy_sampling: False
+    atom_type_transition_in_corrector: False
+    record_samples: False
+
+lammps:
+  mpi_processors: 4
+  openmp_threads: 2
+
+
+# === Which MLIP backend to use in active learning ===
+mlip_impl: mtp   # {flare|mtp}; new
+
+mtp:
+  # Paths / binaries
+  mlp_bin: mlp                                 # optional; used only if you later want CLI ops
+  work_dir: ${run_dir}/mtp
+  potential_path: ${mtp.work_dir}/pot.almtp    # MTP potential for LAMMPS
+  training_cfg: ${mtp.work_dir}/training.cfg   # where new labels will be appended (DFT step)
+
+  # D-optimality thresholds (MTP)
+  gamma_select: 2.0     # add neighborhood when max γ >= this
+  gamma_break: 10.0     # pause MD/ART and retrain when max γ >= this
+
+  # Neighborhood to repaint (keep your current radius if different)
+  neighborhood_radius: 6.0   # Å
+
+  # --- LAMMPS wiring for in-situ γ ---
+  lammps:
+    pair_style: "mlip"                           # adjust if your plugin uses another name
+    pair_coeff: "* * ${mtp.potential_path} Si"   # element list as in your system
+    # Tell the runner how γ appears in dumps from your build:
+    gamma_dump_field: "gamma"                    # name of per-atom field in dump
+    # If your build can output c-vector coefficients, list their names or a glob-like pattern.
+    # If not available, omit and we’ll just use γ.
+    cvec_dump_fields: []                         # e.g. ["c1","c2","c3", ...] if supported
+
+    # Extra fields we want anyway (runner merges these with gamma/cvec):
+    base_dump_fields: ["id","type","x","y","z"]

@@ -3,6 +3,7 @@ import shutil
 import time
 from pathlib import Path
 from string import Template
+from typing import Optional
 
 from pymatgen.core import Structure
 from pymatgen.io.lammps.data import LammpsData
@@ -27,7 +28,8 @@ class ArtnDriver:
     This class is responsible for driving the execution of a ARTn simulation with LAMMPS.
     """
 
-    def __init__(self, lammps_runner: LammpsRunner, artn_library_plugin_path: Path, reference_directory: Path):
+    def __init__(self, lammps_runner: LammpsRunner, artn_library_plugin_path: Path, reference_directory: Path,
+                 template_path: Optional[Path] = None, mtp_potential_path: Optional[Path] = None,):
         """Init method.
 
         Args:
@@ -37,6 +39,8 @@ class ArtnDriver:
                 with the lammps runner.
             reference_directory: Path to a directory that is assumed to contain a file 'artn.in' defining
                 the ARtn job to run, and 'initial_configuration.dat' defining the starting configuration.
+            template_path: optional LAMMPS input template to use instead of PATH_TO_LAMMPS_ARTN_TEMPLATE.
+            mtp_potential_path: optional path to MTP potential file (used by MTP template).
         """
         assert reference_directory.is_dir(), "The reference directory is not valid."
 
@@ -52,11 +56,13 @@ class ArtnDriver:
 
         self._lammps_runner = lammps_runner
 
-        # load the template
-        with open(PATH_TO_LAMMPS_ARTN_TEMPLATE, mode="r") as fd:
+        # load the template (prefer user-provided path if given)
+        template_file = (template_path if template_path is not None else PATH_TO_LAMMPS_ARTN_TEMPLATE)
+        with open(template_file, mode="r") as fd:
             template_string = fd.read()
-
         self._template = Template(template_string)
+        # optional: carried through to template as $mtp_potential_path
+        self._mtp_potential_path = mtp_potential_path
 
         self._lammps_input_filename = "lammps.in"
 
@@ -75,7 +81,7 @@ class ArtnDriver:
         return structure
 
     def run(self, working_directory: Path, uncertainty_threshold: float,
-            pair_coeff_file_path: Path, mapped_uncertainty_file_path: Path) -> CalculationState:
+            pair_coeff_file_path: Optional[Path], mapped_uncertainty_file_path: Optional[Path]) -> CalculationState:
         """Run the ARTn simulation.
 
         Args:
@@ -112,13 +118,20 @@ class ArtnDriver:
         group_block, mass_block, elements_string = generate_named_elements_blocks(self.initial_structure)
 
         parameters = dict(configuration_file_path="initial_configuration.dat",
-                          pair_coeff_file_path=str(pair_coeff_file_path),
-                          mapped_uncertainty_file_path=str(mapped_uncertainty_file_path),
+                          pair_coeff_file_path = (
+                              "" if pair_coeff_file_path is None else str(pair_coeff_file_path)
+                          ),
+                          mapped_uncertainty_file_path = (
+                             "" if mapped_uncertainty_file_path is None else str(mapped_uncertainty_file_path)
+                          ),
                           artn_library_plugin_path=str(self._artn_library_plugin_path),
                           uncertainty_threshold=f"{uncertainty_threshold:.12f}",
                           group_block=group_block,
                           mass_block=mass_block,
-                          elements_string=elements_string)
+                          elements_string=elements_string,
+                          mtp_potential_path=(
+                              "" if self._mtp_potential_path is None else str(self._mtp_potential_path)
+                          ))
 
         script_content = self._template.safe_substitute(**parameters)
         input_file_path = working_directory / self._lammps_input_filename

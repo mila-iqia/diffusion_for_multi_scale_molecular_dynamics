@@ -103,10 +103,11 @@ def _get_uncertainties_from_atoms_dataframe(
     atoms_df: pd.DataFrame,
 ) -> Union[np.ndarray, None]:
     """Get uncertainties from atoms dataframe."""
-    if UNCERTAINTY_FIELD in atoms_df.columns:
-        return atoms_df[UNCERTAINTY_FIELD].astype(float).values
-    else:
-        return None
+    # Support FLARE (default) and MTP (extrapolation grade as c_unc)
+    for col in (UNCERTAINTY_FIELD, "c_unc"):
+        if col in atoms_df.columns:
+        return atoms_df[col].astype(float).values
+    return None
 
 
 def extract_all_fields_from_dump(

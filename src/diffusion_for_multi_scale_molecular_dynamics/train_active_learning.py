@@ -121,13 +121,29 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     element_list = configuration["elements"]
     ElementTypes.validate_elements(element_list)
 
-    lammps_runner = instantiate_lammps_runner(lammps_executable_path=Path(args.path_to_lammps_executable),
-                                              configuration_dict=configuration)
+    lammps_runner = instantiate_lammps_runner(
+        lammps_executable_path = Path(args.path_to_lammps_executable),
+        configuration_dict = configuration
+    )
+
+    # Decide backend once and pass MTP-specific knobs into ArtnDriver only when needed
+    backend = (configuration.get("mlip_impl") or "flare").lower()
+    use_flare = backend == "flare"
+    mtp_template_path = None
+    mtp_potential_path = None
+
+    if not use_flare:
+        # Optional keys; only used by the MTP template
+        mtp_cfg = configuration.get("mtp", {})
+        mtp_template_path = Path(mtp_cfg.get("artn_template_path")) if mtp_cfg.get("artn_template_path") else None
+        mtp_potential_path = Path(mtp_cfg["potential_path"]) if "potential_path" in mtp_cfg else None
 
     artn_driver = ArtnDriver(
-        lammps_runner=lammps_runner,
-        artn_library_plugin_path=Path(args.path_to_artn_library_plugin),
-        reference_directory=Path(args.path_to_reference_directory).absolute(),
+        lammps_runner = lammps_runner,
+        artn_library_plugin_path = Path(args.path_to_artn_library_plugin),
+        reference_directory = Path(args.path_to_reference_directory).absolute(),
+        template_path = mtp_template_path,
+        mtp_potential_path = mtp_potential_path,
     )
 
     assert (
@@ -138,26 +154,21 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
         single_point_calculator_configuration=oracle_configuration,
         lammps_runner=lammps_runner)
 
-    assert (
-        "flare" in configuration
-    ), "A Flare configuration must be defined in the configuration file!"
-    flare_parameters = configuration["flare"]
-    optimizer_parameters = flare_parameters.pop("flare_optimizer")
-    optimize_on_the_fly = optimizer_parameters.pop("optimize_on_the_fly")
+    if use_flare:
+        assert "flare" in configuration, "A Flare configuration must be defined when mlip_impl=flare!"
+        flare_parameters = configuration["flare"]
+        optimizer_parameters = flare_parameters.pop("flare_optimizer")
+        if "optimize" in optimizer_parameters:
+            flare_optimizer_configuration = FlareOptimizerConfiguration.from_dict(optimizer_parameters)
+        else:
+            flare_optimizer_configuration = FlareOptimizerConfiguration(
+                **optimizer_parameters,
+                optimize_sigma_e=False,
+                optimize_sigma_f=False,
+                optimize_sigma_s=False,
+            )
+        flare_optimizer = FlareHyperparametersOptimizer(flare_optimizer_configuration)
 
-    if optimize_on_the_fly:
-        flare_optimizer_configuration = FlareOptimizerConfiguration(
-            **optimizer_parameters
-        )
-    else:
-        flare_optimizer_configuration = FlareOptimizerConfiguration(
-            optimize_sigma=False,
-            optimize_sigma_e=False,
-            optimize_sigma_f=False,
-            optimize_sigma_s=False,
-        )
-
-    flare_optimizer = FlareHyperparametersOptimizer(flare_optimizer_configuration)
 
     assert "sampling" in configuration, "A sampling strategy for must be defined in the configuration file!"
     sampling_dictionary = configuration["sampling"]
@@ -167,7 +178,9 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     ), "A list of uncertainty thresholds must be defined in the configuration file!"
     uncertainty_thresholds = configuration["uncertainty_thresholds"]
 
-    list_flare_checkpoint_paths = [Path(args.path_to_initial_flare_checkpoint).absolute()]
+    list_flare_checkpoint_paths = []
+    if use_flare:
+        list_flare_checkpoint_paths = [Path(args.path_to_initial_flare_checkpoint).absolute()]
 
     try:
         for campaign_id, uncertainty_threshold in enumerate(uncertainty_thresholds, 1):
@@ -183,21 +196,31 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
                 oracle_single_point_calculator=oracle_calculator,
                 sample_maker=sample_maker,
                 artn_driver=artn_driver,
-                flare_hyperparameters_optimizer=flare_optimizer,
+                flare_hyperparameters_optimizer=flare_optimizer,  # stays None for MTP (we'll wire next)
             )
-
-            checkpoint_path = list_flare_checkpoint_paths[-1]
-            logger.info(f"  - Loading checkpoint from {checkpoint_path}")
-            flare_trainer = FlareTrainer.from_checkpoint(checkpoint_path)
 
             working_directory = Path(args.output_directory).absolute() / f"campaign_{campaign_id}"
             working_directory.mkdir(parents=True, exist_ok=False)
-            time1 = time.time()
-            active_learning.run_campaign(
-                uncertainty_threshold=uncertainty_threshold,
-                flare_trainer=flare_trainer,
-                working_directory=working_directory,
-            )
+
+            if use_flare:
+                checkpoint_path = list_flare_checkpoint_paths[-1]
+                logger.info(f"  - Loading checkpoint from {checkpoint_path}")
+                flare_trainer = FlareTrainer.from_checkpoint(checkpoint_path)
+                time1 = time.time()
+                active_learning.run_campaign(
+                    uncertainty_threshold=uncertainty_threshold,
+                    flare_trainer=flare_trainer,
+                    working_directory=working_directory,
+                )
+            else:
+                # MTP branch: no FLARE trainer; template & potential were passed to ArtnDriver above
+                time1 = time.time()
+                active_learning.run_campaign(
+                    uncertainty_threshold=uncertainty_threshold,
+                    flare_trainer=None,
+                    working_directory=working_directory,
+                )
+
             time2 = time.time()
             logger.info(f"Campaign {campaign_id} completed in {time2-time1: 6.2f} seconds.")
 

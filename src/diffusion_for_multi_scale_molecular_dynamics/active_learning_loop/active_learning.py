@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -178,7 +178,7 @@ class ActiveLearning:
     def run_campaign(
         self,
         uncertainty_threshold: float,
-        flare_trainer: FlareTrainer,
+        flare_trainer: Optional[FlareTrainer],
         working_directory: Path,
         maximum_number_of_rounds: int = 100,
     ):
@@ -199,6 +199,8 @@ class ActiveLearning:
         logger = set_up_campaign_logger(working_directory)
         logger.info("Starting Active Learning Simulation")
 
+        use_flare = flare_trainer is not None
+
         round_number = 0
 
         while round_number <= maximum_number_of_rounds:
@@ -208,18 +210,23 @@ class ActiveLearning:
             current_sub_directory = working_directory / f"round_{round_number}"
 
             mapped_coefficients_directory = (
-                current_sub_directory / "FLARE_mapped_coefficients"
+                current_sub_directory / "mapped_coefficients"
             )
             mapped_coefficients_directory.mkdir(parents=True, exist_ok=True)
 
             # The artn_driver will create this directory.
             artn_working_directory = current_sub_directory / "lammps_artn"
 
-            pair_coeff_file_path, mapped_uncertainty_file_path = (
-                flare_trainer.write_mapped_model_to_disk(
-                    mapped_coefficients_directory, version=round_number
+            if use_flare:
+                pair_coeff_file_path, mapped_uncertainty_file_path = (
+                    flare_trainer.write_mapped_model_to_disk(
+                        mapped_coefficients_directory, version=round_number
+                    )
                 )
-            )
+            else:
+                # MTP branch: ARTn/LAMMPS will use its own MTP config; we pass None here.
+                pair_coeff_file_path = None
+                mapped_uncertainty_file_path = None
 
             logger.info("  Launching ARTn simulation...")
             calculation_state = self.artn_driver.run(
@@ -233,9 +240,10 @@ class ActiveLearning:
             if calculation_state == CalculationState.SUCCESS:
                 logger.info("Active Learning Campaign is Complete.")
 
-                logger.info("Writing FLARE model checkpoint.")
-                checkpoint_path = working_directory / "trained_flare.json"
-                flare_trainer.write_checkpoint_to_disk(checkpoint_path)
+                if use_flare:
+                    logger.info("Writing FLARE model checkpoint.")
+                    checkpoint_path = working_directory / "trained_flare.json"
+                    flare_trainer.write_checkpoint_to_disk(checkpoint_path)
                 logger.info("Exiting.")
                 break
 
@@ -278,41 +286,49 @@ class ActiveLearning:
             output_file = oracle_directory / "oracle_single_point_calculations.pkl"
             oracle_df.to_pickle(output_file)
 
-            logger.info("  Adding samples and uncertain environment to FLARE.")
-            for single_point_calculation, active_environment_indices \
-                    in zip(list_single_point_calculations, list_active_indices):
-                flare_trainer.add_labelled_structure(
-                    single_point_calculation,
-                    active_environment_indices=active_environment_indices,
-                )
+            if use_flare:
+                logger.info("  Adding samples and uncertain environment to FLARE.")
+                for single_point_calculation, active_environment_indices \
+                        in zip(list_single_point_calculations, list_active_indices):
+                    flare_trainer.add_labelled_structure(
+                        single_point_calculation,
+                        active_environment_indices=active_environment_indices,
+                    )
 
-            if self.optimizer.is_inactive:
-                logger.info("  The optimizer is inactive: no hyperparameter training is done.")
+                if self.optimizer.is_inactive:
+                    logger.info("  The optimizer is inactive: no hyperparameter training is done.")
 
-            else:
-                logger.info("  Fitting the FLARE hyperparameters...")
-                optimization_result, history_df = flare_trainer.fit_hyperparameters(self.optimizer)
-                logger.info(f"  Optimization status : {optimization_result.success}")
-                logger.info(f"  Optimization message : {optimization_result.message}")
-                hyperparameter_optimization_log = current_sub_directory / "hyperparameter_optimization_logs"
-                hyperparameter_optimization_log.mkdir(parents=True, exist_ok=True)
-                history_df.to_pickle(hyperparameter_optimization_log / "optimization_log.pkl")
+                else:
+                    logger.info("  Fitting the FLARE hyperparameters...")
+                    optimization_result, history_df = flare_trainer.fit_hyperparameters(self.optimizer)
+                    logger.info(f"  Optimization status : {optimization_result.success}")
+                    logger.info(f"  Optimization message : {optimization_result.message}")
+                    hyperparameter_optimization_log = current_sub_directory / "hyperparameter_optimization_logs"
+                    hyperparameter_optimization_log.mkdir(parents=True, exist_ok=True)
+                    history_df.to_pickle(hyperparameter_optimization_log / "optimization_log.pkl")
 
-            # TODO: this logging could be encapsulated better in a FLARE object.
-            logger.info("  The SGP hyperparameters are now : ")
+                # TODO: this logging could be encapsulated better in a FLARE object.
+                logger.info("  The SGP hyperparameters are now : ")
+                sigma, sigma_e, sigma_f, sigma_s = flare_trainer.sgp_model.sparse_gp.hyperparameters
+                logger.info(f"       sigma   = {sigma: 12.8f}")
+                logger.info(f"       sigma_e = {sigma_e: 12.8f}")
+                logger.info(f"       sigma_f = {sigma_f: 12.8f}")
+                logger.info(f"       sigma_s = {sigma_s: 12.8f}")
+
+        if use_flare:
             sigma, sigma_e, sigma_f, sigma_s = flare_trainer.sgp_model.sparse_gp.hyperparameters
-            logger.info(f"       sigma   = {sigma: 12.8f}")
-            logger.info(f"       sigma_e = {sigma_e: 12.8f}")
-            logger.info(f"       sigma_f = {sigma_f: 12.8f}")
-            logger.info(f"       sigma_s = {sigma_s: 12.8f}")
-
-        sigma, sigma_e, sigma_f, sigma_s = flare_trainer.sgp_model.sparse_gp.hyperparameters
-        campaign_details = dict(uncertainty_threshold=float(uncertainty_threshold),
-                                final_round=int(round_number),
-                                sigma=float(sigma),
-                                sigma_e=float(sigma_e),
-                                sigma_f=float(sigma_f),
-                                sigma_s=float(sigma_s))
+            campaign_details = dict(uncertainty_threshold=float(uncertainty_threshold),
+                                    final_round=int(round_number),
+                                    sigma=float(sigma),
+                                    sigma_e=float(sigma_e),
+                                    sigma_f=float(sigma_f),
+                                    sigma_s=float(sigma_s))
+        else:
+            # MTP: no FLARE hyperparams
+            campaign_details = dict(
+                uncertainty_threshold=float(uncertainty_threshold),
+                final_round=int(round_number),
+            )
 
         self._log_campaign_details(campaign_working_directory_path=working_directory,
                                    campaign_details=campaign_details)
