@@ -165,4 +165,4 @@ if __name__ == "__main__":
         ax.set_ylabel('Count')
         ax.set_xlim(0., 1.01)
     fig.tight_layout()
-    fig.savefig(images_dir / "flace_descriptor_cosine_similarity.png")
+    fig.savefig(images_dir / "flare_descriptor_cosine_similarity.png")
