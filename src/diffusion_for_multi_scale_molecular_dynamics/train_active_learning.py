@@ -197,7 +197,8 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
                 oracle_single_point_calculator=oracle_calculator,
                 sample_maker=sample_maker,
                 artn_driver=artn_driver,
-                flare_hyperparameters_optimizer=flare_optimizer,  # stays None for MTP (we'll wire next)
+                flare_hyperparameters_optimizer=flare_optimizer,
+                mtp_runtime = (configuration.get("mtp") if not use_flare else None),
             )
 
             working_directory = Path(args.output_directory).absolute() / f"campaign_{campaign_id}"
