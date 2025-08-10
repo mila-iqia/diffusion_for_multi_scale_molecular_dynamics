@@ -42,7 +42,7 @@ balance 1.1 rcb
 
 
 # stop simulation if the threshold is violated
-fix extreme_extrapolation all halt 1 v_continue_run != 1
+# fix extreme_extrapolation all halt 1 v_continue_run != 1
 
 
 # ----------- OUTPUT DUMP
