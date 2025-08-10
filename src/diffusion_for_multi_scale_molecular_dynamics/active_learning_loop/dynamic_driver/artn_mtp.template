@@ -57,7 +57,7 @@ dump uncertain_dump_id all yaml 1 uncertain_dump.yaml id element x y z fx fy fz
 dump_modify uncertain_dump_id thermo yes
 dump_modify uncertain_dump_id element $elements_string
 
-dump_modify uncertain_dump_id skip v_continue_run 
+dump_modify uncertain_dump_id skip no
 
 
 # ----------- ARTn
