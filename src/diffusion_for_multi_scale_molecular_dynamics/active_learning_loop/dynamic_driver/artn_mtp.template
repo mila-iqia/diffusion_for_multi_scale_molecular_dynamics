@@ -47,6 +47,7 @@ balance 1.1 rcb
 
 # ----------- OUTPUT DUMP
 dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz
+dump_modify dump_id sort id
 dump_modify dump_id thermo yes
 dump_modify dump_id element $elements_string
 
@@ -57,7 +58,6 @@ dump uncertain_dump_id all yaml 1 uncertain_dump.yaml id element x y z fx fy fz
 dump_modify uncertain_dump_id thermo yes
 dump_modify uncertain_dump_id element $elements_string
 
-dump_modify dump_id skip no
 
 
 # ----------- ARTn
