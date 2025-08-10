@@ -106,7 +106,7 @@ def _get_uncertainties_from_atoms_dataframe(
     # Support FLARE (default) and MTP (extrapolation grade as c_unc)
     for col in (UNCERTAINTY_FIELD, "c_unc"):
         if col in atoms_df.columns:
-        return atoms_df[col].astype(float).values
+            return atoms_df[col].astype(float).values
     return None
 
 

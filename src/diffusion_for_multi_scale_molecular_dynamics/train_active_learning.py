@@ -129,6 +129,7 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
     # Decide backend once and pass MTP-specific knobs into ArtnDriver only when needed
     backend = (configuration.get("mlip_impl") or "flare").lower()
     use_flare = backend == "flare"
+    flare_optimizer = None
     mtp_template_path = None
     mtp_potential_path = None
 
