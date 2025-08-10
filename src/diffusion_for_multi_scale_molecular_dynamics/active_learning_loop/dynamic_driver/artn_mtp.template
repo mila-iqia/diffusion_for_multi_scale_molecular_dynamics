@@ -24,7 +24,8 @@ $mass_block
 # ---------- Define Pair Style (MTP) ---------------------
 # Let mlip-3 control AL in LAMMPS (halt + save extrapolative snapshots)
 # this has to be on one line despite all common sense
-pair_style mlip load_from=$mtp_potential_path extrapolation_control=true extrapolation_control:threshold_break=$uncertainty_threshold extrapolation_control:threshold_save=2 extrapolation_control:save_extrapolative_to=preselected.cfg
+# pair_style mlip load_from=$mtp_potential_path extrapolation_control=true extrapolation_control:threshold_break=$uncertainty_threshold extrapolation_control:threshold_save=2 extrapolation_control:save_extrapolative_to=preselected.cfg
+pair_style mlip mlip.ini
 pair_coeff * *
 
 # ---------- Define Interatomic Potential ---------------------
