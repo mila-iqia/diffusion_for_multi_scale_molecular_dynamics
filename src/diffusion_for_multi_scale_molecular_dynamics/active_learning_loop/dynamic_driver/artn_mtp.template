@@ -28,9 +28,6 @@ pair_style mlip load_from=$mtp_potential_path extrapolation_control=true extrapo
 pair_coeff * *
 
 # ---------- Define Interatomic Potential ---------------------
-compute max_unc_all all reduce max c_unc
-variable max_unc equal c_max_unc_all
-
 
 neighbor     2.0 bin 
 neigh_modify delay 10 check yes 
@@ -56,7 +53,7 @@ dump_modify dump_id element $elements_string
 thermo 1
 thermo_style custom step pe v_max_unc
 
-dump uncertain_dump_id all yaml 1 uncertain_dump.yaml id element x y z fx fy fz c_unc
+dump uncertain_dump_id all yaml 1 uncertain_dump.yaml id element x y z fx fy fz
 dump_modify uncertain_dump_id thermo yes
 dump_modify uncertain_dump_id element $elements_string
 
