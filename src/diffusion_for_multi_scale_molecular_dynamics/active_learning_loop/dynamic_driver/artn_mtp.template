@@ -21,15 +21,13 @@ $group_block
 
 $mass_block
 
-
 # ---------- Define Pair Style (MTP) ---------------------
-pair_style mlip
-pair_coeff * * $mtp_potential_path $elements_string
+# Let mlip-3 control AL in LAMMPS (halt + save extrapolative snapshots)
+# this has to be on one line despite all common sense
+pair_style mlip load_from=$mtp_potential_path extrapolation_control=true extrapolation_control:threshold_break=$uncertainty_threshold extrapolation_control:threshold_save=2 extrapolation_control:save_extrapolative_to=preselected.cfg
+pair_coeff * *
 
-# Extrapolation grade γ as per-atom compute
-compute unc all mlip/extrapolation/atom
-
-# ---------- Define Interatomic Potential --------------------- 
+# ---------- Define Interatomic Potential ---------------------
 compute max_unc_all all reduce max c_unc
 variable max_unc equal c_max_unc_all
 
@@ -51,7 +49,7 @@ fix extreme_extrapolation all halt 1 v_continue_run != 1
 
 
 # ----------- OUTPUT DUMP
-dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz c_unc
+dump dump_id all yaml 1 dump.yaml id element x y z fx fy fz
 dump_modify dump_id thermo yes
 dump_modify dump_id element $elements_string
 

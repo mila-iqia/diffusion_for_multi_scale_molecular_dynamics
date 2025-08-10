@@ -1,3 +1,6 @@
+import os
+import re
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
@@ -27,6 +30,8 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.f
     FlareHyperparametersOptimizer
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
     FlareTrainer
+from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.outputs import \
+    extract_all_fields_from_dump
 
 
 class ActiveLearning:
@@ -50,7 +55,8 @@ class ActiveLearning:
         oracle_single_point_calculator: BaseSinglePointCalculator,
         sample_maker: BaseSampleMaker,
         artn_driver: ArtnDriver,
-        flare_hyperparameters_optimizer: FlareHyperparametersOptimizer
+        flare_hyperparameters_optimizer: FlareHyperparametersOptimizer,
+        mtp_runtime: Optional[Dict[str, Any]] = None,
     ):
         """Init method.
 
@@ -66,6 +72,8 @@ class ActiveLearning:
         self.artn_driver = artn_driver
         self.optimizer = flare_hyperparameters_optimizer
         self._structure_converter = StructureConverter(list_of_element_symbols=sample_maker.arguments.element_list)
+        # holds keys like {"mlp_bin": "mlp", "potential_path": ".../pot.almtp"}
+        self._mtp_runtime = mtp_runtime
 
     def _get_uncertain_structure_and_uncertainties(
         self, artn_working_directory: Path
@@ -83,6 +91,12 @@ class ActiveLearning:
         )
         uncertain_structure = list_structures[0]
         uncertainties = list_uncertainties[0]
+
+        # Fallback for MTP: if no per-atom uncertainties were dumped, compute γ with mlp-3 CLI.
+        if (uncertainties is None or (isinstance(uncertainties, np.ndarray) and uncertainties.size == 0)) and self._mtp_runtime is not None:
+            gamma = self._compute_mtp_gamma_with_mlp(artn_working_directory = artn_working_directory)
+            uncertainties = gamma
+
         return uncertain_structure, uncertainties
 
     def _make_samples(
@@ -334,3 +348,59 @@ class ActiveLearning:
                                    campaign_details=campaign_details)
         # Delete the logger to avoid overlogging across campaigns.
         clean_up_campaign_logger(logger)
+
+    def _compute_mtp_gamma_with_mlp(self, artn_working_directory: Path) -> np.ndarray:
+        """Compute per-atom extrapolation grades γ using mlp-3 on the saved `preselected.cfg`.
+
+        If that file is missing, we raise with a clear message so we can adjust the template.
+        """
+        mlp_bin = (self._mtp_runtime or {}).get("mlp_bin", "mlp")
+        pot = (self._mtp_runtime or {}).get("potential_path")
+        cfg = artn_working_directory / "preselected.cfg"
+        assert pot, "MTP: `potential_path` missing in mtp_runtime."
+        if not cfg.exists():
+        raise FileNotFoundError(
+            f"MTP fallback expected {cfg} (set by extrapolation_control:save_extrapolative_to)."
+        )
+        # Run: mlp calc-grade POT preselected.cfg
+        proc = subprocess.run(
+            [mlp_bin, "calc-grade", str(pot), str(cfg)],
+            check = True, capture_output = True, text = True, cwd = str(artn_working_directory)
+        )
+        out = proc.stdout.strip()
+        # Heuristic parse: grab the LAST block of floats, size == natoms.
+        # We infer natoms from the first structure we saved to YAML.
+        # Safer: read the last 'BEGIN_CFG...END_CFG' and count atoms via 'Size'—but we can
+        # get natoms from the last YAML (already loaded) if needed; here we parse robustly.
+        # Extract all floats:
+        floats = [float(x) for x in re.findall(r"[-+]?\d*\.\d+|\d+", out)]
+        if not floats:
+            raise RuntimeError(f"MTP calc-grade produced no numeric output.\nFirst 200 chars:\n{out[:200]}")
+        # Try to infer natoms from preselected.cfg header:
+        natoms = None
+        try:
+            with open(cfg, "r") as fd:
+                txt = fd.read()
+            # take last Size number
+            sizes = [int(s) for s in re.findall(r"(?im)^\\s*Size\\s*\\n\\s*(\\d+)\\s*$", txt)]
+            if sizes:
+                natoms = sizes[-1]
+        except Exception:
+            pass
+        if natoms is None:
+            # fallback: use current uncertain structure length via YAML (same directory)
+            # the caller already loaded list_structures[0]; access via last dump again:
+            dump_yaml = artn_working_directory / "uncertain_dump.yaml"
+            try:
+                lst, _, _, _ = extract_all_fields_from_dump(dump_yaml)
+                natoms = len(lst[0])
+            except Exception:
+                pass
+        if natoms is None:
+              raise RuntimeError("Could not determine natoms to parse calc-grade output.")
+        # Take the last `natoms` floats as per-atom γs
+        if len(floats) >= natoms:
+            gamma = np.array(floats[-natoms:], dtype=float)
+        else:
+            raise RuntimeError(f"calc-grade output has only {len(floats)} numbers, need {natoms}.")
+        return gamma
