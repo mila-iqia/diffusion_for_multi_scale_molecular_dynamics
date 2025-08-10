@@ -359,9 +359,9 @@ class ActiveLearning:
         cfg = artn_working_directory / "preselected.cfg"
         assert pot, "MTP: `potential_path` missing in mtp_runtime."
         if not cfg.exists():
-        raise FileNotFoundError(
-            f"MTP fallback expected {cfg} (set by extrapolation_control:save_extrapolative_to)."
-        )
+            raise FileNotFoundError(
+                f"MTP fallback expected {cfg} (set by extrapolation_control:save_extrapolative_to)."
+            )
         # Run: mlp calc-grade POT preselected.cfg
         proc = subprocess.run(
             [mlp_bin, "calc-grade", str(pot), str(cfg)],
