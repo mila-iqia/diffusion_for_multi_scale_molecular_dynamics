@@ -1,0 +1,54 @@
+#================================================================================
+# Configuration file for an active learning run
+#================================================================================
+exp_name: excise_and_repaint
+
+seed: 42
+
+elements: [Si]
+
+uncertainty_thresholds: [0.1, 0.01, 0.001, 0.0001]
+
+flare:
+  cutoff: 5.0
+  n_radial: 12
+  lmax: 3
+  initial_sigma: 1.0
+  initial_sigma_e: 0.1
+  initial_sigma_f: 0.001
+  initial_sigma_s: 1.0
+  variance_type: local
+
+  flare_optimizer:
+    optimize_on_the_fly: False
+
+oracle:
+  name: stillinger_weber
+  sw_coeff_filename: Si.sw
+
+sampling:
+  algorithm: excise_and_repaint
+  sample_box_strategy: fixed
+  sample_box_size: [ 10.86, 10.86, 10.86 ]
+  sample_edit_radius: 5.0 # in Angstrom: generated atoms within this radius from the central atom will be removed.
+  max_constrained_substructure: 20
+  excision:
+    algorithm: spherical_cutoff
+    radial_cutoff: 5.0  # radial cutoff in Angstrom
+  noise:
+    total_time_steps: 1000
+    sigma_min: 0.0001
+    sigma_max: 0.2
+    schedule_type: linear
+    corrector_step_epsilon: 2.5e-8
+  repaint_generator:
+    number_of_atoms: 64
+    number_of_corrector_steps: 2
+    one_atom_type_transition_per_step: False
+    atom_type_greedy_sampling: False
+    atom_type_transition_in_corrector: False
+    record_samples: False
+
+lammps:
+  mpi_processors: 4
+  openmp_threads: 2

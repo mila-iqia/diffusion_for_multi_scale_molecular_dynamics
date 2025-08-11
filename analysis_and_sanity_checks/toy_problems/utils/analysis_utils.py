@@ -252,7 +252,7 @@ def plot_marginal_distribution(input_parameters: InputParameters, output_directo
     for t, sigma, marginal_probability in zip(
         list_times, list_sigmas, list_marginal_probabilities
     ):
-        label = "$t$ = " + f"{t}" + r", $\sigma(t)$ =" + f"{sigma:3.2f}"
+        label = "$t$ = " + f"{t:3.2f}" + r", $\sigma(t)$ =" + f"{sigma:3.2f}"
         ax.plot(x, marginal_probability, lw=lw, label=label)
         lw = 2
 
@@ -260,6 +260,6 @@ def plot_marginal_distribution(input_parameters: InputParameters, output_directo
     ax.set_ylim(ymin=-0.01)
     ax.legend(loc=0)
     ax.set_xlabel(r"$x$")
-    ax.set_ylabel(r"$P(x)$")
+    ax.set_ylabel(r"$P(x, t)$")
     plt.savefig(output_directory / "marginal_probability_distribution.png")
     plt.close(fig)

@@ -1,5 +1,4 @@
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -107,51 +106,53 @@ def generate_vector_field_video(
     ground_truth_probabilities = torch.stack(list_ground_truth_probabilities)
 
     # ================================================================================
+    vector_field_path = output_file_path.parent
+    vector_field_path.mkdir(parents=True, exist_ok=True)
+
+    tmp_dir = vector_field_path / "vector_field_images"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
 
     s = 2
-    with tempfile.TemporaryDirectory() as tmpdirname:
 
-        tmp_dir = Path(tmpdirname)
+    for time_idx in tqdm(range(len(list_times)), "VIDEO"):
+        sigma_t = list_sigmas[time_idx]
+        time = list_times[time_idx].item()
 
-        for time_idx in tqdm(range(len(list_times)), "VIDEO"):
-            sigma_t = list_sigmas[time_idx]
-            time = list_times[time_idx].item()
+        fig = get_2d_vector_field_figure(
+            X1=X1,
+            X2=X2,
+            probabilities=ground_truth_probabilities[time_idx],
+            sigma_normalized_scores=sigma_normalized_scores[time_idx],
+            time=time,
+            sigma_t=sigma_t,
+            sigma_d=sigma_d,
+            supsampling_scale=s,
+        )
 
-            fig = get_2d_vector_field_figure(
-                X1=X1,
-                X2=X2,
-                probabilities=ground_truth_probabilities[time_idx],
-                sigma_normalized_scores=sigma_normalized_scores[time_idx],
-                time=time,
-                sigma_t=sigma_t,
-                sigma_d=sigma_d,
-                supsampling_scale=s,
-            )
+        output_image = tmp_dir / f"vector_field_{time_idx}.png"
+        fig.savefig(output_image)
+        plt.close(fig)
 
-            output_image = tmp_dir / f"vector_field_{time_idx}.png"
-            fig.savefig(output_image)
-            plt.close(fig)
+    output_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        output_file_path.parent.mkdir(parents=True, exist_ok=True)
+    # ffmpeg -r 10  -start_number 0 -i vector_field_%d.png -vcodec libx264 -pix_fmt yuv420p mlp_vector_field.mp4
+    commands = [
+        "ffmpeg",
+        "-r",
+        "10",
+        "-start_number",
+        "0",
+        "-i",
+        str(tmp_dir / "vector_field_%d.png"),
+        "-vcodec",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        str(output_file_path),
+    ]
 
-        # ffmpeg -r 10  -start_number 0 -i vector_field_%d.png -vcodec libx264 -pix_fmt yuv420p mlp_vector_field.mp4
-        commands = [
-            "ffmpeg",
-            "-r",
-            "10",
-            "-start_number",
-            "0",
-            "-i",
-            str(tmp_dir / "vector_field_%d.png"),
-            "-vcodec",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            str(output_file_path),
-        ]
-
-        # This subprocess should create the video.
-        subprocess.run(commands, capture_output=True, text=True)
+    # This subprocess should create the video.
+    subprocess.run(commands, capture_output=True, text=True)
 
 
 def plot_2d_samples(relative_coordinates: torch.Tensor):
