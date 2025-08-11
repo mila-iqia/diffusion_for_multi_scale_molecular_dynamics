@@ -6,8 +6,7 @@
 
   ninit = 2
   lpush_final = .true. 
-  !! nsmooth = 2
-  nsmooth = 8
+  nsmooth = 2
 
   forc_thr = 0.01
 
