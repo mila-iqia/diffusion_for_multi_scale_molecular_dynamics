@@ -20,15 +20,15 @@ if __name__ == "__main__":
     for idx, (sigma_e, group_df) in enumerate(df.groupby(by="sigma_e")):
 
         fig = plt.figure(figsize=PLEASANT_FIG_SIZE)
-        fig.suptitle(rf"Training FLARE from scratch on Si 2x2x2: $\sigma_e$ = {sigma_e:3.2e}")
+        fig.suptitle(rf"Training FLARE from scratch on Si 2x2x2: $\sigma_e$ = {sigma_e:3.1e}")
         ax1 = fig.add_subplot(121)
         ax2 = fig.add_subplot(122)
 
-        ax1.set_title("Energy Errors")
+        ax1.set_title("Energy Errors", y=0.95, loc='center')
         ax1.set_xlabel("Number of Training Structures")
         ax1.set_ylabel("Validation Energy RMSE (eV)")
 
-        ax2.set_title("Force Errors")
+        ax2.set_title("Force Errors", y=0.95, loc='center')
         ax2.set_xlabel("Number of Training Structures")
         ax2.set_ylabel(r"Validation Mean Force RMSE (eV / $\AA$)")
 
@@ -66,7 +66,7 @@ if __name__ == "__main__":
             loc="lower center",  # Place the legend's center below the plots
             bbox_to_anchor=(
                 0.5,
-                -0.025,
+                -0.01,
             ),
             ncol=5,  # Number of columns for legend entries
             fancybox=True,
@@ -75,5 +75,5 @@ if __name__ == "__main__":
             fontsize=10
         )
 
-        plt.subplots_adjust(bottom=0.25)
+        plt.subplots_adjust(bottom=0.2)
         fig.savefig(images_dir / f"errors_vs_number_of_structures_{idx}.png")
