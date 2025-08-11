@@ -1,4 +1,4 @@
-"""Extact Training Artifacts.
+"""Extract Training Artifacts.
 
 It can be time-consuming to extract the information we want to plot. This script performs
 the preprocessing, so that plotting scripts can be light and quick.
