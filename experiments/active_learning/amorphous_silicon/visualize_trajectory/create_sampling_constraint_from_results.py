@@ -11,7 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint
 results_top_dir = Path("/Users/brunorousseau/courtois/july26/active_learning/amorphous_silicon")
 oracle_path = results_top_dir / "excise_and_repaint_3x3x3/output/run1/campaign_1/round_1/oracle"
 
-output_path = TOP_DIR / "experiments/active_learning/amorphous_silicon/analysis/sampling_constraint.pkl"
+output_path = TOP_DIR / "experiments/active_learning/amorphous_silicon/visualize_trajectory/sampling_constraint.pkl"
 
 
 if __name__ == '__main__':
