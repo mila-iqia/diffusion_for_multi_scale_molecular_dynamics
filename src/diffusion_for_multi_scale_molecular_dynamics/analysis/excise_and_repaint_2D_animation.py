@@ -2,33 +2,24 @@
 
 To generate the animation, run the following command:
 
-manim -pqh src/diffusion_for_multi_scale_molecular_dynamics/analysis/excise_and_repaint_animation.py \
-    ExciseAndRepaint2DToyModel
+manim -pql src/diffusion_for_multi_scale_molecular_dynamics/analysis/excise_and_repaint_animation.py
 
+(replace l with h for a high-quality video)
 """
 
+import math
 from typing import List
 
 import numpy as np
-from manim import (
-    BLUE,
-    GREEN,
-    ORIGIN,
-    RED,
-    RIGHT,
-    UP,
-    WHITE,
-    YELLOW,
-    Create,
-    Dot,
-    FadeIn,
-    FadeOut,
-    Scene,
-    Square,
-    Text,
-    Transform,
-    VGroup,
-)
+from manim import (BLUE, BLUE_E, DOWN, GREEN, GREY_B, LEFT, ORIGIN, PI, RED,
+                   RIGHT, UP, WHITE, YELLOW, Axes, Brace, Circle, Create,
+                   DashedLine, Dot, FadeIn, FadeOut, Group, Line, Rectangle,
+                   Scene, Square, Text, Transform, ValueTracker, VGroup,
+                   always_redraw, smooth, LaggedStart, SurroundingRectangle, AnimationGroup)
+
+from diffusion_for_multi_scale_molecular_dynamics.analysis.manim_utils import \
+    make_box_with_atoms, build_oracle_panel, compute_toy_forces, draw_force_arrows, integrate_step
+
 
 BOX_SIZE = 5.0  # Display size of the box in Manim units
 ATOM_RADIUS = 0.1
@@ -36,6 +27,9 @@ SMALL_BOX_SIZE = 4.0
 PADDING = 0.4  # 10% padding inside small box
 BOX_GAP = 0.5  # spacing between large and small boxes
 CORNER_PADDING = 0.6  # adjustable: distance from box edge to each new atom
+SHORT_DELAY = 1  # time between two steps - in second
+MEDIUM_DELAY = 2
+LONG_DELAY = 3
 
 
 def generate_2d_grid_positions(n: int, margin: float = 0.1) -> np.ndarray:
@@ -196,19 +190,296 @@ class ExciseAndRepaint2DToyModel(Scene):
 
         self.play(FadeIn(new_atoms))
 
-    def construct(self):
-        self.display_initial_state()
-        self.wait(1)  # Optional pause
-
+    def animate_excise_and_repaint(self):
+        # Initial setup
+        self.display_initial_state(n=5, margin=0.1)
+        self.wait(SHORT_DELAY)
+        # Select center atom and its neighbors
+        # center_idx = 12  # Center atom (can be parameterized)
         center_idx = len(self.positions) // 2  # Center of 5x5 grid = index 12
-        neighbors = find_k_nearest_neighbors(center_idx, self.positions, k=4)
-        self.highlight_neighbors(center_idx, neighbors)
+        neighbor_indices = find_k_nearest_neighbors(center_idx, self.positions, k=4)
+        keep_indices = [center_idx] + neighbor_indices
+        # Run the animation sequence
+        self.highlight_neighbors(center_idx, neighbor_indices)
+        self.wait(SHORT_DELAY)
+        small_box = self.move_atoms_to_smaller_box(keep_indices)
+        self.wait(MEDIUM_DELAY)
+        self.finalize_small_system(keep_indices, small_box)
+        self.wait(LONG_DELAY)
 
-        self.wait(1)  # Optional pause
+    def reset_scene(self, animate_fade: bool = True):
+        """Clear all mobjects, stop updaters, and reset the camera frame."""
+        if not self.mobjects:
+            self._reset_camera_frame()
+            return
 
-        keep = [center_idx] + neighbors
-        small_box = self.move_atoms_to_smaller_box(keep)
-        self.wait(1.5)
+        # Snapshot all current mobjects (avoid mutating while iterating)
+        objs = list(self.mobjects)
 
-        self.finalize_small_system(keep, small_box)
-        self.wait(3)
+        # Stop updaters on everything
+        for m in objs:
+            m.clear_updaters()
+
+        # Use Group (not VGroup) so non-VMobjects are supported
+        bucket = Group(*objs)
+
+        if animate_fade:
+            self.play(FadeOut(bucket, lag_ratio=0.05))
+        # Remove everything from the scene
+        self.remove(*objs)
+        self.clear()  # clean internal bookkeeping
+
+        # Reset camera (harmless if not a MovingCameraScene)
+        self._reset_camera_frame()
+
+    def _reset_camera_frame(self):
+        if hasattr(self, "camera") and hasattr(self.camera, "frame"):
+            frame = self.camera.frame
+            frame.set_width(config.frame_width)
+            frame.set_height(config.frame_height)
+            frame.move_to(ORIGIN)
+
+    def intro_energy_barrier(
+        self,
+        box_width=5.5,
+        box_height=3.0,
+        n_bg_atoms=18,
+        ion_color=YELLOW,
+        bg_atom_color=BLUE_E,
+        run_time=5.0,
+    ):
+        # Layout anchors
+        left_panel_center = 3.2 * LEFT
+        right_panel_center = 3.6 * RIGHT
+
+        # 1) Left: material box + atoms
+        box = Rectangle(width=box_width, height=box_height, stroke_width=3).move_to(
+            left_panel_center
+        )
+        self.add(box)
+
+        # Background atoms (static)
+        rng = np.random.default_rng(7)
+        atoms = VGroup()
+        # Leave a horizontal corridor for the ion by biasing y toward center
+        for _ in range(n_bg_atoms):
+            x = rng.uniform(-box_width / 2 + 0.35, box_width / 2 - 0.35)
+            # push background atoms away from the transit lane (y≈0) a bit
+            y_raw = rng.uniform(-box_height / 2 + 0.35, box_height / 2 - 0.35)
+            y = math.copysign(1, y_raw) * max(0.2 * box_height, abs(y_raw))
+            c = Circle(radius=0.15, color=bg_atom_color, fill_opacity=0.85).move_to(
+                box.get_center() + np.array([x, y, 0])
+            )
+            atoms.add(c)
+        self.add(atoms)
+
+        # Ion to travel across
+        ion_radius = 0.20
+        ion = Circle(radius=ion_radius, color=ion_color, fill_opacity=1.0).set_stroke(
+            width=4
+        )
+        # Path endpoints (inside the box, with a bit of padding)
+        pad = 0.35
+        xL = box.get_left()[0] + pad
+        xR = box.get_right()[0] - pad
+        y_lane = box.get_center()[1] + 0.00
+        ion.move_to(np.array([xL, y_lane, 0]))
+        self.add(ion)
+
+        # A faint dashed lane to imply channel
+        lane = DashedLine(
+            start=np.array([xL, y_lane, 0]),
+            end=np.array([xR, y_lane, 0]),
+            dash_length=0.15,
+            color=GREY_B,
+        )
+        self.add(lane)
+
+        # 2) Right: energy profile (barrier)
+        axes = Axes(
+            x_range=[0, 1, 0.2],
+            y_range=[0, 3.5, 0.5],
+            x_length=5.5,
+            y_length=3.3,
+            tips=False,
+            axis_config={"include_numbers": False, "stroke_width": 2},
+        ).move_to(right_panel_center)
+
+        x_label = Text("position", font_size=28).next_to(axes, DOWN, buff=0.35)
+        y_label = (
+            Text("energy", font_size=28)
+            .next_to(axes.y_axis, LEFT, buff=0.3)
+            .rotate(PI / 2)
+        )
+        title = Text("Energy barrier", font_size=32).next_to(axes, UP, buff=0.35)
+        self.add(axes, x_label, y_label, title)
+
+        # Barrier function: smooth bump centered at 0.5 (adjust amplitudes as desired)
+        def barrier(x):
+            # Base slope term + Gaussian bump
+            bump = 2.6 * np.exp(-(((x - 0.5) / 0.14) ** 2))
+            base = 0.4 + 0.2 * (x - 0.5)
+            return bump + base
+
+        graph = axes.plot(barrier, x_range=[0, 1], stroke_width=6, color=RED)
+        self.add(graph)
+
+        # 3) Synchronization between left (ion) and right (energy)
+        progress = ValueTracker(0.0)  # 0 -> 1
+
+        # Helpers to map progress → positions
+        def pos_from_progress(p):
+            x = (1 - p) * xL + p * xR
+            return np.array([x, y_lane, 0])
+
+        def curve_point_from_progress(p):
+            x = p  # reaction coordinate ∈ [0,1]
+            y = barrier(x)
+            return axes.coords_to_point(x, y)
+
+        # Tracers on the energy plot
+        tracer_dot = always_redraw(
+            lambda: Dot(
+                curve_point_from_progress(progress.get_value()),
+                radius=0.06,
+                color=YELLOW,
+            )
+        )
+        vline = always_redraw(
+            lambda: DashedLine(
+                start=axes.coords_to_point(progress.get_value(), 0),
+                end=curve_point_from_progress(progress.get_value()),
+                dash_length=0.08,
+                color=GREY_B,
+            )
+        )
+
+        # A brace + label to emphasize the barrier height
+        x_peak = 0.5
+        peak_point = axes.coords_to_point(x_peak, barrier(x_peak))
+        base_point = axes.coords_to_point(x_peak, 0)
+        brace = Brace(
+            Line(base_point, peak_point), direction=RIGHT, color=WHITE, buff=0.08
+        )
+        brace_label = brace.get_text("activation energy")  # font_size=28)
+        # self.add(tracer_dot, vline)
+        self.add(tracer_dot, vline, brace, brace_label)
+
+        # Keep ion and tracers updated
+        ion.add_updater(lambda m: m.move_to(pos_from_progress(progress.get_value())))
+
+        # 4) Animate: ion crosses while energy tracer climbs and descends the barrier
+        self.play(progress.animate.set_value(1.0), run_time=run_time, rate_func=smooth)
+
+        # 5) Clean up updaters to avoid side-effects if you continue the scene
+        ion.clear_updaters()
+
+    def intro_md_oracle(
+        self,
+        n_atoms: int = 16,
+        box_size=(5.5, 3.2),
+        steps: int = 6,
+        oracle_modes=("DFT", "Potential"),
+        dt: float = 0.085,
+        substeps: int = 2,
+        run_per_step: float = 0.8,
+    ):
+        """Illustrative MD loop: atoms in a box, forces from an 'oracle', integrate, repeat."""
+        # Layout
+        left_center = 3.0 * LEFT
+        right_center = 3.6 * RIGHT
+
+        # Left panel: box + atoms
+        box, atoms, pos, vel = make_box_with_atoms(
+            center=left_center,
+            width=box_size[0],
+            height=box_size[1],
+            n_atoms=n_atoms,
+            atom_radius=0.14,
+            atom_color=BLUE_E,
+            seed=7,
+        )
+        self.play(
+            FadeIn(box),
+            LaggedStart(*[FadeIn(a, scale=0.7) for a in atoms], lag_ratio=0.03),
+            run_time=0.9,
+        )
+
+        # Right panel: oracle
+        panel, set_mode, cost_fill = build_oracle_panel(
+            right_center, width=5.2, height=box_size[1]
+        )
+        self.play(FadeIn(panel), run_time=0.5)
+
+        # Small captions (kept minimal)
+        caption = Text("positions → forces → integrate → repeat", font_size=26).next_to(
+            box, DOWN, buff=0.25
+        )
+        self.play(FadeIn(caption), run_time=0.4)
+
+        # Helper to animate atom position updates in one go
+        def animate_positions(new_pos: np.ndarray, rt: float):
+            anims = []
+            for atom, p in zip(atoms, new_pos):
+                anims.append(atom.animate.move_to([p[0], p[1], 0]))
+            self.play(AnimationGroup(*anims, lag_ratio=0.0), run_time=rt)
+
+        # Main loop
+        for k in range(steps):
+            # Toggle oracle mode every couple of steps (DFT slower/costly; Potential faster/cheap)
+            mode = oracle_modes[k % len(oracle_modes)]
+            set_mode(mode)
+            # cost bar target height
+            if mode.lower().startswith("dft"):
+                target_h = panel.height * 0.48
+                cost_color = RED
+                oracle_glow = SurroundingRectangle(
+                    panel[3], color=YELLOW, buff=0.06, stroke_width=4
+                )  # around chip_rect
+                glow_rt = 0.45
+            else:
+                target_h = panel.height * 0.18
+                cost_color = GREEN
+                oracle_glow = SurroundingRectangle(
+                    panel[3], color=GREEN, buff=0.06, stroke_width=3
+                )
+                glow_rt = 0.25
+
+            # Animate cost bar
+            target_h = max(0.02, min(target_h, panel.height * 0.55))
+            self.play(
+                panel[-1]
+                .animate.set_color(cost_color)
+                .set_height(target_h)
+                .move_to(panel[-2].get_bottom() + UP * (target_h / 2 + 0.02)),
+                Create(oracle_glow),
+                run_time=0.35,
+            )
+
+            # Compute forces once for visuals
+            forces = compute_toy_forces(pos, box)
+            draw_force_arrows(self, atoms, forces, scale=0.9, run_time=0.35)
+
+            # Integrate a couple of micro-steps; then animate to the final positions
+            p_tmp, v_tmp = pos.copy(), vel.copy()
+            for _ in range(substeps):
+                f = compute_toy_forces(p_tmp, box)
+                p_tmp, v_tmp = integrate_step(
+                    p_tmp, v_tmp, f, dt=dt, damping=0.985, box_rect=box
+                )
+            animate_positions(p_tmp, rt=run_per_step)
+            pos, vel = p_tmp, v_tmp
+
+            # Remove glow quickly (keeps things lean)
+            self.play(FadeOut(oracle_glow), run_time=glow_rt)
+
+        self.play(FadeOut(caption), run_time=0.3)
+
+    def construct(self):
+        self.intro_md_oracle()
+        # self.intro_energy_barrier()
+        # self.wait(LONG_DELAY)
+        # self.reset_scene()
+        # self.wait(SHORT_DELAY)
+        # self.animate_excise_and_repaint()
+        self.wait(LONG_DELAY)
