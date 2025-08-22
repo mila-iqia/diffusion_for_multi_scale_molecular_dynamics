@@ -12,14 +12,15 @@ from typing import List
 
 import numpy as np
 from manim import (BLUE, BLUE_E, DOWN, GREEN, GREY_B, LEFT, ORIGIN, PI, RED,
-                   RIGHT, UP, WHITE, YELLOW, Axes, Brace, Circle, Create,
-                   DashedLine, Dot, FadeIn, FadeOut, Group, Line, Rectangle,
-                   Scene, Square, Text, Transform, ValueTracker, VGroup,
-                   always_redraw, smooth, LaggedStart, SurroundingRectangle, AnimationGroup)
+                   RIGHT, UP, WHITE, YELLOW, AnimationGroup, Axes, Brace,
+                   Circle, Create, DashedLine, Dot, FadeIn, FadeOut, Group,
+                   LaggedStart, Line, Rectangle, Scene, Square, Text,
+                   Transform, ValueTracker, VGroup, always_redraw, config,
+                   linear, smooth)
 
-from diffusion_for_multi_scale_molecular_dynamics.analysis.manim_utils import \
-    make_box_with_atoms, build_oracle_panel, compute_toy_forces, draw_force_arrows, integrate_step
-
+from diffusion_for_multi_scale_molecular_dynamics.analysis.manim_utils import (
+    compute_toy_forces, draw_force_arrows_snapshot, integrate_step,
+    make_box_with_atoms)
 
 BOX_SIZE = 5.0  # Display size of the box in Manim units
 ATOM_RADIUS = 0.1
@@ -247,7 +248,11 @@ class ExciseAndRepaint2DToyModel(Scene):
         ion_color=YELLOW,
         bg_atom_color=BLUE_E,
         run_time=5.0,
+        title_text: str | None = "ART Nouveau",
     ):
+        title = Text(title_text, font_size=32).to_edge(UP) if title_text else None
+        if title:
+            self.play(FadeIn(title), run_time=0.25)
         # Layout anchors
         left_panel_center = 3.2 * LEFT
         right_panel_center = 3.6 * RIGHT
@@ -311,8 +316,8 @@ class ExciseAndRepaint2DToyModel(Scene):
             .next_to(axes.y_axis, LEFT, buff=0.3)
             .rotate(PI / 2)
         )
-        title = Text("Energy barrier", font_size=32).next_to(axes, UP, buff=0.35)
-        self.add(axes, x_label, y_label, title)
+        plot_title = Text("Energy barrier", font_size=32).next_to(axes, UP, buff=0.35)
+        self.add(axes, x_label, y_label, plot_title)
 
         # Barrier function: smooth bump centered at 0.5 (adjust amplitudes as desired)
         def barrier(x):
@@ -374,110 +379,84 @@ class ExciseAndRepaint2DToyModel(Scene):
         # 5) Clean up updaters to avoid side-effects if you continue the scene
         ion.clear_updaters()
 
-    def intro_md_oracle(
+    def intro_md(
         self,
-        n_atoms: int = 16,
-        box_size=(5.5, 3.2),
-        steps: int = 6,
-        oracle_modes=("DFT", "Potential"),
-        dt: float = 0.085,
-        substeps: int = 2,
-        run_per_step: float = 0.8,
+        n_atoms: int = 18,
+        steps_per_cycle: int = 3,
+        cycles: int = 3,
+        dt: float = 0.11,
+        jump_time: float = 0.35,  # shorter = choppier
+        pause_time: float = 1.2,  # commentary window
+        max_force_arrows: int | None = 10,  # None = all atoms
+        title_text: str | None = "Molecular dynamics",
+        end_pause_time: float = 2.4,
     ):
-        """Illustrative MD loop: atoms in a box, forces from an 'oracle', integrate, repeat."""
-        # Layout
-        left_center = 3.0 * LEFT
-        right_center = 3.6 * RIGHT
-
-        # Left panel: box + atoms
+        # Centered, larger box
         box, atoms, pos, vel = make_box_with_atoms(
-            center=left_center,
-            width=box_size[0],
-            height=box_size[1],
+            center=ORIGIN,
+            width=7.0,
+            height=4.2,
             n_atoms=n_atoms,
-            atom_radius=0.14,
+            atom_radius=0.16,
             atom_color=BLUE_E,
-            seed=7,
+            seed=9,
         )
+
+        title = Text(title_text, font_size=32).to_edge(UP) if title_text else None
+        if title:
+            self.play(FadeIn(title), run_time=0.25)
         self.play(
             FadeIn(box),
-            LaggedStart(*[FadeIn(a, scale=0.7) for a in atoms], lag_ratio=0.03),
-            run_time=0.9,
+            LaggedStart(*[FadeIn(a, scale=0.8) for a in atoms], lag_ratio=0.03),
+            run_time=0.7,
         )
 
-        # Right panel: oracle
-        panel, set_mode, cost_fill = build_oracle_panel(
-            right_center, width=5.2, height=box_size[1]
-        )
-        self.play(FadeIn(panel), run_time=0.5)
+        # Optional: highlight one atom with a short trail to help the eye
+        # atoms[0].set_color(YELLOW).set_stroke(WHITE, 2)
+        # trail = TracedPath(atoms[0].get_center, stroke_opacity=[0.7, 0.0],
+        #                   stroke_width=3, dissipating_time=1.4, z_index=0.5)
+        # self.add(trail)
 
-        # Small captions (kept minimal)
-        caption = Text("positions → forces → integrate → repeat", font_size=26).next_to(
-            box, DOWN, buff=0.25
-        )
-        self.play(FadeIn(caption), run_time=0.4)
-
-        # Helper to animate atom position updates in one go
-        def animate_positions(new_pos: np.ndarray, rt: float):
-            anims = []
-            for atom, p in zip(atoms, new_pos):
-                anims.append(atom.animate.move_to([p[0], p[1], 0]))
-            self.play(AnimationGroup(*anims, lag_ratio=0.0), run_time=rt)
-
-        # Main loop
-        for k in range(steps):
-            # Toggle oracle mode every couple of steps (DFT slower/costly; Potential faster/cheap)
-            mode = oracle_modes[k % len(oracle_modes)]
-            set_mode(mode)
-            # cost bar target height
-            if mode.lower().startswith("dft"):
-                target_h = panel.height * 0.48
-                cost_color = RED
-                oracle_glow = SurroundingRectangle(
-                    panel[3], color=YELLOW, buff=0.06, stroke_width=4
-                )  # around chip_rect
-                glow_rt = 0.45
-            else:
-                target_h = panel.height * 0.18
-                cost_color = GREEN
-                oracle_glow = SurroundingRectangle(
-                    panel[3], color=GREEN, buff=0.06, stroke_width=3
-                )
-                glow_rt = 0.25
-
-            # Animate cost bar
-            target_h = max(0.02, min(target_h, panel.height * 0.55))
+        # Helper to perform one discrete “frame” of motion
+        def jump_once(p, v):
+            f = compute_toy_forces(p, box)
+            p2, v2 = integrate_step(p, v, f, dt=dt, damping=0.985, box_rect=box)
+            # move atoms in one go (choppy effect)
+            anims = [
+                atoms[i].animate.move_to([p2[i, 0], p2[i, 1], 0])
+                for i in range(len(atoms))
+            ]
             self.play(
-                panel[-1]
-                .animate.set_color(cost_color)
-                .set_height(target_h)
-                .move_to(panel[-2].get_bottom() + UP * (target_h / 2 + 0.02)),
-                Create(oracle_glow),
-                run_time=0.35,
+                AnimationGroup(*anims, lag_ratio=0.0),
+                run_time=jump_time,
+                rate_func=linear,
+            )
+            return p2, v2
+
+        # Main: a few jumps, then pause with forces; repeat
+        for c in range(cycles):
+            for _ in range(steps_per_cycle):
+                pos, vel = jump_once(pos, vel)
+            forces = compute_toy_forces(pos, box)
+            draw_force_arrows_snapshot(
+                self,
+                atoms,
+                forces,
+                scale=0.4,
+                max_arrows=max_force_arrows,
+                fade_time=0.25 if c < cycles - 1 else 0.1,
+                hold=pause_time if c < cycles - 1 else end_pause_time,
             )
 
-            # Compute forces once for visuals
-            forces = compute_toy_forces(pos, box)
-            draw_force_arrows(self, atoms, forces, scale=0.9, run_time=0.35)
-
-            # Integrate a couple of micro-steps; then animate to the final positions
-            p_tmp, v_tmp = pos.copy(), vel.copy()
-            for _ in range(substeps):
-                f = compute_toy_forces(p_tmp, box)
-                p_tmp, v_tmp = integrate_step(
-                    p_tmp, v_tmp, f, dt=dt, damping=0.985, box_rect=box
-                )
-            animate_positions(p_tmp, rt=run_per_step)
-            pos, vel = p_tmp, v_tmp
-
-            # Remove glow quickly (keeps things lean)
-            self.play(FadeOut(oracle_glow), run_time=glow_rt)
-
-        self.play(FadeOut(caption), run_time=0.3)
+        if title:
+            self.play(FadeOut(title), run_time=0.2)
 
     def construct(self):
-        self.intro_md_oracle()
-        # self.intro_energy_barrier()
+        self.intro_md(
+            pause_time=SHORT_DELAY, steps_per_cycle=1, end_pause_time=LONG_DELAY
+        )
+        self.reset_scene()
+        self.intro_energy_barrier()
         # self.wait(LONG_DELAY)
         # self.reset_scene()
         # self.wait(SHORT_DELAY)
