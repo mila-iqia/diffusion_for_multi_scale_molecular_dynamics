@@ -12,6 +12,7 @@ from tests.fake_data_utils import (create_dump_yaml_documents,
 import os
 os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "true")
 
+
 @lru_cache(maxsize=1)
 def has_lmp():
     # lru_cache allows to run this function once during pytest and keep the results in memory
