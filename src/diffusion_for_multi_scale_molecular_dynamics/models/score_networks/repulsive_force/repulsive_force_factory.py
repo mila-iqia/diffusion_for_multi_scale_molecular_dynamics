@@ -25,7 +25,7 @@ def create_repulsive_force(repulsive_force_parameters: RepulsiveForceParameters)
     This is a factory method responsible for instantiating the repulsive force.
     """
     architecture = repulsive_force_parameters.architecture
-    assert(
+    assert (
         architecture in REPULSIVE_FORCE_BY_ARCH.keys()
     ), f"Architecture {architecture} is not implemented. Possible choices are {REPULSIVE_FORCE_BY_ARCH.keys()}"
 
