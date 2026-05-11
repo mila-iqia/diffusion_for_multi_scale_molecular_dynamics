@@ -28,6 +28,7 @@ dependencies = [
     "matplotlib>=3.8.3",
     "monty>=2024.2.2",
     "myst-parser>=2.0.0",
+    "numpy>=1.22.0,<2",
     "orion>=0.2.4",
     "ovito>=3.10.6",
     "pip>=24.2",

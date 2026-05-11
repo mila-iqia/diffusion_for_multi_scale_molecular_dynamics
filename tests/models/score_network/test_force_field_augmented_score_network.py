@@ -427,7 +427,6 @@ class TestForceFieldAugmentedScoreNetworkZBL(BaseTestScoreNetwork):
             radial_cutoff=2.19293,
             inner_radius_fraction=0.5552844824048191,
             element_list=element_list_Si32,
-            device="cpu",
         )
 
         score_network = EGNNScoreNetwork(score_network_parameters_Si32)
@@ -559,7 +558,6 @@ class TestForceFieldAugmentedScoreNetworkZBL(BaseTestScoreNetwork):
             radial_cutoff=1e-4,  # Tiny radial_cutoff so there's no interacting pairs
             inner_radius_fraction=0.5,
             element_list=element_list_Si32,
-            device="cpu",
         )
 
         score_network = EGNNScoreNetwork(score_network_parameters_Si32)
