@@ -18,10 +18,10 @@ from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
     OptimizerParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import \
     ForceFieldAugmentedScoreNetworkParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.harmonic_force import (
-    HarmonicForceParameters)
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.harmonic_force import \
+    HarmonicForceParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import \
     AXL_COMPOSITION
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \

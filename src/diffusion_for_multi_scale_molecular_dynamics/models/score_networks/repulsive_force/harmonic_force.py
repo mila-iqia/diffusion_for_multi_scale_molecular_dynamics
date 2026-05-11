@@ -1,12 +1,12 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 
-import torch
 import einops
+import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.repulsive_force import (
-    RepulsiveForce,
-    RepulsiveForceParameters)
+    RepulsiveForce, RepulsiveForceParameters)
 from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
     AdjacencyInfo, get_periodic_adjacency_information)
 

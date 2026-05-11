@@ -14,10 +14,10 @@ from torch.utils.data import DataLoader
 
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_parameters import \
     DataModuleParameters
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.trajectory_processor_for_diffusion import \
-    TrajectoryProcessorForDiffusion
 from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
     NoisingTransform
+from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.trajectory_processor_for_diffusion import \
+    TrajectoryProcessorForDiffusion
 from diffusion_for_multi_scale_molecular_dynamics.data.element_types import (
     NULL_ELEMENT, ElementTypes)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (

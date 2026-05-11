@@ -33,8 +33,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import (
     ForceFieldAugmentedScoreNetwork, ForceFieldAugmentedScoreNetworkParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.repulsive_force_factory import (
-    create_repulsive_force_parameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.repulsive_force_factory import \
+    create_repulsive_force_parameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \

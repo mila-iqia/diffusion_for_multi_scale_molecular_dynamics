@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import \

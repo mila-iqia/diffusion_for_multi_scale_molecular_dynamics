@@ -1,13 +1,13 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 
-from ase.data import atomic_numbers
-from ase.units import _eps0, _e, m, J
 import torch
+from ase.data import atomic_numbers
+from ase.units import J, _e, _eps0, m
 
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.repulsive_force import (
-    RepulsiveForce,
-    RepulsiveForceParameters)
+    RepulsiveForce, RepulsiveForceParameters)
 
 
 @dataclass(kw_only=True)

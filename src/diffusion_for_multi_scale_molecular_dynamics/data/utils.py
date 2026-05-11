@@ -4,10 +4,10 @@ import logging
 import os
 from typing import Any, AnyStr, Dict, List, Tuple
 
-import yaml
-from yaml import CDumper, CLoader
 import numpy as np
+import yaml
 from ase import Atoms
+from yaml import CDumper, CLoader
 
 from ..namespace import AXL
 

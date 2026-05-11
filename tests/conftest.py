@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import numpy as np
 import pytest
 import torch
@@ -6,9 +8,6 @@ from tests.fake_data_utils import (create_dump_yaml_documents,
                                    create_thermo_yaml_documents,
                                    generate_random_string,
                                    get_configuration_runs, write_to_yaml)
-
-
-from functools import lru_cache
 
 
 @lru_cache(maxsize=1)
