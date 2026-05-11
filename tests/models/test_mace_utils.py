@@ -68,6 +68,8 @@ class TestInputToMaceChain:
         graph_config = Configuration(
             atomic_numbers=atom_type,
             positions=atomic_positions.numpy(),
+            properties={},
+            property_weights={},
             cell=unit_cell,
             pbc=pbc,
         )
@@ -150,6 +152,8 @@ class TestInputToMaceRandom(TestInputToMaceChain):
             graph_config = Configuration(
                 atomic_numbers=atom_type,
                 positions=atomic_positions.numpy(),
+                properties={},
+                property_weights={},
                 cell=unit_cell,
                 pbc=pbc,
             )

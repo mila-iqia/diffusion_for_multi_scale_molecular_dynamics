@@ -9,6 +9,8 @@ from tests.fake_data_utils import (create_dump_yaml_documents,
                                    generate_random_string,
                                    get_configuration_runs, write_to_yaml)
 
+import os
+os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "true")
 
 @lru_cache(maxsize=1)
 def has_lmp():

@@ -403,7 +403,7 @@ class DiffusionMACE(torch.nn.Module):
             shifts=data["shifts"],
         )
         edge_attrs = self.spherical_harmonics(vectors)
-        edge_feats = self.radial_embedding(lengths)
+        edge_feats, _ = self.radial_embedding(lengths, data["node_attrs"], data["edge_index"], data["node_attrs"])
         if self.edge_attribute_mixing is not None:
             edge_diffusion_scalar_embeddings = self.diffusion_scalar_embedding(
                 data["edge_diffusion_scalars"]

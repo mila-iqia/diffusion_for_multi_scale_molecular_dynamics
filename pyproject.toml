@@ -23,7 +23,7 @@ dependencies = [
     "jupyter>=1.0.0",
     "kaleido>=0.2.1",
     "lammps[mpi]",
-    "mace-torch>=0.3.16",
+    "mace-torch>=0.3.15",
     "maml>=2023.9.9",
     "matplotlib>=3.8.3",
     "monty>=2024.2.2",
