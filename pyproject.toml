@@ -23,7 +23,7 @@ dependencies = [
     "jupyter>=1.0.0",
     "kaleido>=0.2.1",
     "lammps[mpi]",
-    "mace-torch>=0.3.4",
+    "mace-torch>=0.3.16",
     "maml>=2023.9.9",
     "matplotlib>=3.8.3",
     "monty>=2024.2.2",
@@ -49,12 +49,13 @@ dependencies = [
     "sphinxcontrib-napoleon>=0.7",
     "tensorboard>=2.16.2",
     "torch-geometric>=2.5.3",
-    "torch>=2.2.3",
+    "torch>=2.2.0",
     "torchode>=0.2.0",
     "torchsde>=0.2.6",
     "tqdm>=4.64.0",
     "lightning>=2.5.1",
 ]
+
 
 [project.optional-dependencies]
 pyace = [
