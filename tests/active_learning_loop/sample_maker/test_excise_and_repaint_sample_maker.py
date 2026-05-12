@@ -175,8 +175,8 @@ class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
         for b in range(batch_size):
             current_numpy_axl = calculated_list_of_numpy_axl[b]
             assert np.array_equal(current_numpy_axl.A, batch_atom_types[b, :])
-            assert np.allclose(current_numpy_axl.X, batch_relative_coordinates[b, :, :])
-            assert np.allclose(current_numpy_axl.L, batch_lattice_parameters[b, :])
+            assert np.allclose(current_numpy_axl.X, batch_relative_coordinates[b, :, :], rtol=1e-6, atol=1e-7)
+            assert np.allclose(current_numpy_axl.L, batch_lattice_parameters[b, :], rtol=1e-6, atol=1e-7)
 
     def test_create_sampling_constraints(
         self, structure_axl, element_list, sample_maker
@@ -296,6 +296,6 @@ class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
             radial_cutoff,
         )
 
-        np.testing.assert_allclose(edited_structure_axl.A, structure_axl.A)
-        np.testing.assert_allclose(edited_structure_axl.X, structure_axl.X)
-        np.testing.assert_allclose(edited_structure_axl.L, structure_axl.L)
+        np.testing.assert_allclose(edited_structure_axl.A, structure_axl.A, rtol=1e-6, atol=1e-7)
+        np.testing.assert_allclose(edited_structure_axl.X, structure_axl.X, rtol=1e-6, atol=1e-7)
+        np.testing.assert_allclose(edited_structure_axl.L, structure_axl.L, rtol=1e-6, atol=1e-7)

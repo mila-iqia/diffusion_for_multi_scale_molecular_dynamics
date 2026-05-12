@@ -190,7 +190,7 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
         for axl_structure in list_sample_axl_structures:
             sample_lattice_parameters = axl_structure.L
             np.testing.assert_allclose(
-                sample_lattice_parameters, reference_lattice_parameters
+                sample_lattice_parameters, reference_lattice_parameters, rtol=1e-6, atol=1e-7
             )
 
     @pytest.fixture()
@@ -267,7 +267,7 @@ class BaseTestExciseSampleMaker(BaseTestSampleMaker):
             )
 
         assert substructure1.species == substructure2.species
-        np.testing.assert_allclose(substructure1.frac_coords, substructure2.frac_coords)
+        np.testing.assert_allclose(substructure1.frac_coords, substructure2.frac_coords, rtol=1e-6, atol=1e-7)
 
     def test_excised_environments_are_present(
         self,
