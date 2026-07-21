@@ -330,9 +330,10 @@ class MLPScoreNetwork(ScoreNetwork):
             dim=1,
         )
 
-        forces_input = self.condition_embedding_layer(
-            self.flatten(batch[CARTESIAN_FORCES])
-        )
+        if conditional:
+            forces_input = self.condition_embedding_layer(
+                self.flatten(batch[CARTESIAN_FORCES])
+            )
 
         output = input
         for i, (layer, condition_layer) in enumerate(

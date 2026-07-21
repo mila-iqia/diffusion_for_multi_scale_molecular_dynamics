@@ -26,8 +26,9 @@ from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, AXL_COMPOSITION, AXL_NAME_DICT, CARTESIAN_FORCES,
     CARTESIAN_POSITIONS, LATTICE_PARAMETERS, NOISE, NOISY_ATOM_TYPES,
     NOISY_AXL_COMPOSITION, NOISY_LATTICE_PARAMETERS,
-    NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES, Q_BAR_TM1_MATRICES, Q_MATRICES,
-    RELATIVE_COORDINATES, TIME, TIME_INDICES)
+    NOISY_RELATIVE_COORDINATES, NUMBER_OF_ATOMS, PADDED_ATOM_TYPE,
+    Q_BAR_MATRICES, Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME,
+    TIME_INDICES)
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
     OracleParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import \
@@ -43,7 +44,7 @@ from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_pa
 from diffusion_for_multi_scale_molecular_dynamics.score.gaussian_score import \
     get_lattice_sigma_normalized_score
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
-    get_coordinates_sigma_normalized_score
+    get_coordinates_sigma_normalized_score_cartesian
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_number_of_lattice_parameters, get_positions_from_coordinates,
     map_lattice_parameters_to_unit_cell_vectors,
@@ -261,7 +262,13 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         at = batch[NOISY_ATOM_TYPES]
         xt = batch[NOISY_RELATIVE_COORDINATES]
         lt = batch[NOISY_LATTICE_PARAMETERS]
-        noisy_composition = AXL(A=at, X=xt, L=lt)
+
+        pad_mask = (a0 == PADDED_ATOM_TYPE)
+        x0_for_score = x0.masked_fill(pad_mask.unsqueeze(-1), 0.0)
+        xt_for_score = xt.masked_fill(pad_mask.unsqueeze(-1), 0.0)
+        at_for_score = at.masked_fill(pad_mask, 0)
+        # Padded atoms have NaN coordinates and invalid (-1) atom types; replace with 0 before passing to the network.
+        noisy_composition = AXL(A=at_for_score, X=xt_for_score, L=lt)
 
         # Get the loss targets
         # Coordinates: The target is :math:`sigma(t) \nabla log p_{t|0} (xt | x0)`
@@ -269,8 +276,16 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         sigmas = einops.repeat(batch[NOISE],
                                "batch 1 -> batch natoms space",
                                natoms=x0.shape[1], space=x0.shape[2])
+
+        sigma_cart = batch[NOISE].squeeze(-1)  # shape [batch_size]
+        lattice_diagonals = l0[:, :x0.shape[-1]]  # shape [batch_size, spatial_dimension]
         target_coordinates_normalized_conditional_scores = (
-            self._get_coordinates_target_normalized_score(xt, x0, sigmas)
+            self._get_relative_coordinates_target_cartesian_normalized_score(
+                noisy_relative_coordinates=xt_for_score,
+                real_relative_coordinates=x0_for_score,
+                sigma_cart=sigma_cart,
+                lattice_diagonals=lattice_diagonals,
+            )
         )
 
         # for the atom types, the loss is constructed from the Q and Qbar matrices
@@ -281,9 +296,8 @@ class AXLDiffusionLightningModel(pl.LightningModule):
                                            "batch 1 -> batch space",
                                            space=l0.shape[-1])
         # same values as for X diffusion, but different shape
-        num_atoms = (
-            torch.ones_like(l0) * a0.shape[1]
-        )  # TODO should depend on data - not a constant
+        num_atoms = batch["natom"].unsqueeze(-1).expand_as(l0).to(l0)
+
         # num_atoms should be broadcasted to match sigmas_for_lattice
         sigmas_n = scale_sigma_by_number_of_atoms(
             sigmas_for_lattice, num_atoms, spatial_dimension=l0.shape[-1]
@@ -296,8 +310,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             NOISY_AXL_COMPOSITION: noisy_composition,
             TIME: batch[TIME],
             NOISE: batch[NOISE],
-            CARTESIAN_FORCES: batch[CARTESIAN_FORCES],
+            NUMBER_OF_ATOMS: batch[NUMBER_OF_ATOMS],
         }
+        if CARTESIAN_FORCES in batch:
+            augmented_batch[CARTESIAN_FORCES] = batch[CARTESIAN_FORCES]
 
         use_conditional = None if no_conditional is False else False
 
@@ -316,8 +332,10 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         )
 
         # we also need the atom types to be one-hot vector and not a class index
-        a0_onehot = class_index_to_onehot(a0, self.num_atom_types + 1)
-        at_onehot = class_index_to_onehot(at, self.num_atom_types + 1)
+        a0_for_loss = a0.masked_fill(pad_mask, 0)
+        at_for_loss = at.masked_fill(pad_mask, 0)
+        a0_onehot = class_index_to_onehot(a0_for_loss, self.num_atom_types + 1)
+        at_onehot = class_index_to_onehot(at_for_loss, self.num_atom_types + 1)
 
         unreduced_loss_atom_types = self.loss_calculator.A.calculate_unreduced_loss(
             predicted_logits=model_predictions.A,
@@ -335,19 +353,18 @@ class AXLDiffusionLightningModel(pl.LightningModule):
             sigmas_for_lattice,
         )
 
+        real_atom_counts = batch["natom"].float()
+        coord_loss = unreduced_loss_coordinates.masked_fill(
+            pad_mask.unsqueeze(-1), 0.0
+        ).sum(dim=(-2, -1)) / (real_atom_counts * x0.shape[-1])
+        atom_type_loss = unreduced_loss_atom_types.masked_fill(
+            pad_mask.unsqueeze(-1), 0.0
+        ).sum(dim=(-2, -1)) / (real_atom_counts * (self.num_atom_types + 1))
+
         aggregated_weighted_loss = (
-            self.loss_weights.X
-            * unreduced_loss_coordinates.mean(
-                dim=(-2, -1)
-            )  # averaged over number of atoms and spatial dimension
-            + self.loss_weights.L
-            * unreduced_loss_lattice.mean(
-                dim=-1
-            )  # averaged over number of lattice parameters
-            + self.loss_weights.A
-            * unreduced_loss_atom_types.mean(
-                dim=(-2, -1)
-            )  # averaged over number of atoms and number of classes
+            self.loss_weights.X * coord_loss
+            + self.loss_weights.L * unreduced_loss_lattice.mean(dim=-1)
+            + self.loss_weights.A * atom_type_loss
         )  # results in a tensor of dimension [batch_size]
 
         weighted_loss = torch.mean(aggregated_weighted_loss)
@@ -393,37 +410,40 @@ class AXLDiffusionLightningModel(pl.LightningModule):
 
         return output
 
-    def _get_coordinates_target_normalized_score(
+    def _get_relative_coordinates_target_cartesian_normalized_score(
         self,
         noisy_relative_coordinates: torch.Tensor,
         real_relative_coordinates: torch.Tensor,
-        sigmas: torch.Tensor,
+        sigma_cart: torch.Tensor,
+        lattice_diagonals: torch.Tensor,
     ) -> torch.Tensor:
-        """Get target normalized score for the relative coordinates.
+        """Get the sigma_cart-normalized Cartesian target score for relative coordinates.
 
         It is assumed that the inputs are consistent, ie, the noisy relative coordinates correspond
-        to the real relative coordinates noised with sigmas. It is also assumed that sigmas has
-        been broadcast so that the same value sigma(t) is applied to all atoms + dimensions within a configuration.
+        to the real relative coordinates noised with sigma_cart converted per direction.
 
         Args:
             noisy_relative_coordinates : noised relative coordinates.
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
             real_relative_coordinates : original relative coordinates, before the addition of noise.
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
-            sigmas :
-                Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
+            sigma_cart : Cartesian sigma in Angstrom. Tensor of dimensions [batch_size].
+            lattice_diagonals : diagonal lattice parameters in Angstrom.
+                Tensor of dimensions [batch_size, spatial_dimension].
 
         Returns:
-        target normalized score: sigma times target score, ie, sigma times nabla_xt log P_{t|0}(xt| x0).
+            target normalized score: sigma_cart * score_cart_d = sigma_rel_d * score_rel_d.
                 Tensor of dimensions [batch_size, number_of_atoms, spatial_dimension]
         """
         delta_relative_coordinates = map_relative_coordinates_to_unit_cell(
             noisy_relative_coordinates - real_relative_coordinates
         )
-        target_normalized_scores = get_coordinates_sigma_normalized_score(
-            delta_relative_coordinates, sigmas, kmax=self.hyper_params.kmax_target_score
+        return get_coordinates_sigma_normalized_score_cartesian(
+            delta_relative_coordinates,
+            sigma_cart,
+            lattice_diagonals,
+            kmax=self.hyper_params.kmax_target_score,
         )
-        return target_normalized_scores
 
     def _get_lattice_target_normalized_score(
         self,

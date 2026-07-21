@@ -134,7 +134,17 @@ def expected_neighbors(structures, radial_cutoff):
 
 
 @pytest.fixture
-def expected_adjacency_info(structures, expected_neighbors):
+def expected_squared_distances(expected_neighbors):
+    """Compute expected squared distances from neighbor displacements."""
+    all_squared_distances = []
+    for list_neighbors in expected_neighbors:
+        for neigh in list_neighbors:
+            all_squared_distances.append(np.dot(neigh.displacement, neigh.displacement))
+    return torch.tensor(all_squared_distances, dtype=torch.float32)
+
+
+@pytest.fixture
+def expected_adjacency_info(structures, expected_neighbors, expected_squared_distances):
     node_batch_indices = []
     edge_batch_indices = []
     shifts = []
@@ -168,12 +178,14 @@ def expected_adjacency_info(structures, expected_neighbors):
         )
         edge_batch_indices.append(batch_edge_batch_indices)
 
+    print("STRUCTURE", structures)
     return AdjacencyInfo(
         adjacency_matrix=torch.cat(adj_matrix, dim=1),
         shifts=torch.cat(shifts, dim=0),
         node_batch_indices=torch.cat(node_batch_indices),
         edge_batch_indices=torch.cat(edge_batch_indices),
         number_of_edges=torch.tensor(number_of_edges),
+        squared_distances=expected_squared_distances,
     )
 
 

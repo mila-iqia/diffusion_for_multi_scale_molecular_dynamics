@@ -389,6 +389,67 @@ class TestD3PMLossCalculator:
 
         torch.testing.assert_close(computed_loss, expected_losss)
 
+    def test_no_nan_gradient_with_padded_atoms_at_high_time(self, d3pm_calculator):
+        """Regression test: backward pass must not produce NaN gradients when padded
+        atoms are present at high diffusion time.
+
+        At high t the absorbing-state cumulative matrix has Q_bar_t[type_0, type_0] → 0,
+        so padded atoms (forced to at=type_0, a0=type_0) produce a zero denominator in
+        get_probability_at_previous_time_step. Without the den2.clamp fix this causes
+        p_atm1=NaN and q_atm1=NaN, which survive the forward masked_fill but inject NaN
+        into the backward via 0/NaN=NaN in the log backward, eventually corrupting weights.
+        """
+        batch_size = 4
+        number_of_atoms = 8
+        num_classes = 2  # 1 real atom type + MASK
+
+        # Last 3 atom slots are padded
+        number_of_real_atoms = number_of_atoms - 3
+        pad_mask = torch.zeros(batch_size, number_of_atoms, dtype=torch.bool)
+        pad_mask[:, number_of_real_atoms:] = True
+
+        # Predicted logits: MASK class forced to -inf (as done by the score network)
+        logits_data = torch.randn(batch_size, number_of_atoms, num_classes)
+        logits_data[:, :, -1] = -torch.inf
+        predicted_logits = logits_data.detach().requires_grad_(True)
+
+        # a0: all atoms are type_0 (padded atoms forced to type_0 by axl_lightning_model)
+        one_hot_a0 = torch.zeros(batch_size, number_of_atoms, num_classes)
+        one_hot_a0[:, :, 0] = 1.0
+
+        # at: real atoms at MASK (typical at high t), padded atoms at type_0 (impossible state)
+        one_hot_at = torch.zeros(batch_size, number_of_atoms, num_classes)
+        one_hot_at[:, :number_of_real_atoms, -1] = 1.0
+        one_hot_at[:, number_of_real_atoms:, 0] = 1.0
+
+        # Absorbing-state Q matrices at high t.
+        # Q[i, j] = P(start at i, end at j). Q_bar_t[type_0, type_0] = 0: fully absorbed.
+        q_bar_t_2x2 = torch.tensor([[0.0, 1.0], [0.0, 1.0]])
+        q_bar_tm1_2x2 = torch.tensor([[1e-6, 1.0 - 1e-6], [0.0, 1.0]])
+        q_t_2x2 = torch.tensor([[0.5, 0.5], [0.0, 1.0]])
+
+        def expand_to_batch(matrix):
+            return matrix[None, None].expand(batch_size, number_of_atoms, -1, -1).contiguous().float()
+
+        time_indices = torch.ones(batch_size, dtype=torch.long)
+
+        unreduced_loss = d3pm_calculator.calculate_unreduced_loss(
+            predicted_logits,
+            one_hot_a0,
+            one_hot_at,
+            time_indices,
+            expand_to_batch(q_t_2x2),
+            expand_to_batch(q_bar_t_2x2),
+            expand_to_batch(q_bar_tm1_2x2),
+        )
+
+        # Mask padded atoms before backward, as axl_diffusion_lightning_model.py does
+        masked_loss = unreduced_loss.masked_fill(pad_mask.unsqueeze(-1), 0.0)
+        masked_loss.mean().backward()
+
+        assert not predicted_logits.grad.isnan().any(), \
+            "NaN gradient detected: Is den2 clamping in get_probability_at_previous_time_step broken once again."
+
     @pytest.mark.parametrize("time_index_zero", [True, False])
     def test_variational_bound_call(
         self,

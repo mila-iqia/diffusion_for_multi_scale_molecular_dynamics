@@ -28,6 +28,7 @@ class PredictorCorrectorSamplingParameters(SamplingParameters):
     one_atom_type_transition_per_step: bool = True
     atom_type_greedy_sampling: bool = True
     atom_type_transition_in_corrector: bool = False
+    progress_bar: bool = True
 
 
 class PredictorCorrectorAXLGenerator(AXLGenerator):
@@ -43,6 +44,7 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         use_fixed_lattice_parameters: bool = False,
         fixed_lattice_parameters: Optional[torch.Tensor] = None,
         trajectory_initializer: Optional[TrajectoryInitializer] = None,
+        progress_bar: bool = True,
         **kwargs,
     ):
         """Init method."""
@@ -73,6 +75,8 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
                 fixed_lattice_parameters=fixed_lattice_parameters,
             )
             self.trajectory_initializer = FullRandomTrajectoryInitializer(params)
+
+        self.progress_bar = progress_bar
 
     def initialize(self, number_of_samples: int, device: torch.device) -> AXL:
         """This method must initialize the samples for sampling trajectory."""
@@ -145,7 +149,8 @@ class PredictorCorrectorAXLGenerator(AXLGenerator):
         forces = torch.zeros_like(composition_ip1.X)
 
         for i in tqdm(
-            range(starting_step_index - 1, max(ending_step_index, 0) - 1, -1)
+            range(starting_step_index - 1, max(ending_step_index, 0) - 1, -1),
+            disable=not self.progress_bar,
         ):
             # We begin the loop at i = starting_index - 1 because the first predictor step has index "i + 1",
             # such that the first predictor step occurs at = starting_step_index, which is the most natural

@@ -9,7 +9,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
 
 def get_adj_matrix(
     positions: torch.Tensor, basis_vectors: torch.Tensor, radial_cutoff: float = 4.0, spatial_dimension: int = 3
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Create the adjacency and shift matrices.
 
     Args:
@@ -28,6 +28,7 @@ def get_adj_matrix(
         shift matrix: The lattice vector shifts between source and destination, as a [num_edge, 3] tensor
         batch_indices: for each node, this indicates which batch item it originally belonged to.
         number_of_edges: for each element in the batch, how many edges belong to it
+        squared_distances: squared cartesian distances for each edge, as a [num_edge] tensor
     """
     batch_size, number_of_atoms, spatial_dimensions = positions.shape
 
@@ -44,7 +45,8 @@ def get_adj_matrix(
     )
     shifts = adjacency_info.shifts
     batch_indices = adjacency_info.node_batch_indices
+    squared_distances = adjacency_info.squared_distances
 
     number_of_edges = adjacency_info.number_of_edges
 
-    return shifted_adjacency_matrix, shifts, batch_indices, number_of_edges
+    return shifted_adjacency_matrix, shifts, batch_indices, number_of_edges, squared_distances

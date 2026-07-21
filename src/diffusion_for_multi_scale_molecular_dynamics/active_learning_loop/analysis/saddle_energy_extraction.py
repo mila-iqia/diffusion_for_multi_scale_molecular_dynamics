@@ -58,17 +58,17 @@ def _get_campaign_details(campaign_path: Path):
         threshold = campaign_details["uncertainty_threshold"]
     else:
         # Something crashed.
-        final_round = np.NaN
-        threshold = np.NaN
+        final_round = np.nan
+        threshold = np.nan
 
     return final_round, threshold
 
 
 def _get_saddle_energy(campaign_path: Path, final_round):
     """Get saddle energy."""
-    if final_round is np.NaN:
+    if final_round is np.nan:
         # something crashed
-        return np.NaN
+        return np.nan
 
     final_round_dir = campaign_path / f"round_{final_round}"
     artn_output_file = final_round_dir / "lammps_artn/artn.out"
@@ -78,6 +78,6 @@ def _get_saddle_energy(campaign_path: Path, final_round):
             saddle_energy = get_saddle_energy(artn_output)
     except Exception:
         print("Failed to Extract Saddle Energy")
-        saddle_energy = np.NaN
+        saddle_energy = np.nan
 
     return saddle_energy

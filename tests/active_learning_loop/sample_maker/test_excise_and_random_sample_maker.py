@@ -230,7 +230,7 @@ class TestExciseAndRandomSampleMaker(BaseTestExciseSampleMaker):
         for calculated_index in calculated_order:
             expected_index = np.argmin(distances)
             assert calculated_index == expected_index
-            distances[expected_index] = np.infty
+            distances[expected_index] = np.inf
 
     def test_get_shortest_distance_between_atoms(
         self,
@@ -239,7 +239,7 @@ class TestExciseAndRandomSampleMaker(BaseTestExciseSampleMaker):
         spatial_dimension,
         sample_maker,
     ):
-        shortest_distance_between_atoms = np.infty
+        shortest_distance_between_atoms = np.inf
         all_cartesian_coordinates = (
             expected_relative_coordinates * lattice_parameters[:spatial_dimension]
         )

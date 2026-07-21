@@ -117,8 +117,10 @@ def get_probability_at_previous_time_step(
     )
     den2 = einops.einsum(probability_at_zeroth_timestep, den1, "... j, ... j -> ...")
 
+    # Padded atoms produce den2=0 (impossible state at high t), causing NaN via 0/0.
+    # Clamp to prevent NaN in both the forward output and the backward pass.
     denominator = einops.repeat(
-        den2, "... -> ... num_classes", num_classes=numerator.shape[-1]
+        den2.clamp(min=small_epsilon), "... -> ... num_classes", num_classes=numerator.shape[-1]
     )
 
     return numerator / denominator

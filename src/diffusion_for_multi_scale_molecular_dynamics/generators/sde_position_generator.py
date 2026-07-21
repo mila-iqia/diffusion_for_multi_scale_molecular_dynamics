@@ -11,7 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator impor
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
@@ -84,12 +84,12 @@ class SDE(torch.nn.Module):
         self.noise_parameters = noise_parameters
         self.exploding_variance = VarianceScheduler(noise_parameters)
         self.axl_network = axl_network
-        self.atom_types = atom_types
         self.number_of_atoms = sampling_parameters.number_of_atoms
         self.spatial_dimension = sampling_parameters.spatial_dimension
-        self.initial_diffusion_time = initial_diffusion_time
-        self.final_diffusion_time = final_diffusion_time
-        self.lattice_parameters = lattice_parameters
+        self.register_buffer("atom_types", atom_types)
+        self.register_buffer("initial_diffusion_time", initial_diffusion_time)
+        self.register_buffer("final_diffusion_time", final_diffusion_time)
+        self.register_buffer("lattice_parameters", lattice_parameters)
 
     def _get_diffusion_coefficient_g_squared(
         self, diffusion_time: torch.Tensor
@@ -193,9 +193,9 @@ class SDE(torch.nn.Module):
             ),
             NOISE: sigmas,
             TIME: times,
-            CARTESIAN_FORCES: torch.zeros_like(
-                relative_coordinates
-            ),  # TODO: handle forces correctly.
+            CARTESIAN_FORCES: torch.zeros_like(relative_coordinates),  # TODO: handle forces correctly.
+            NUMBER_OF_ATOMS: torch.full((atom_types.shape[0],), self.number_of_atoms,
+                                        dtype=torch.long, device=atom_types.device),
         }
         # Shape for the coordinates scores [batch_size, number of atoms, spatial dimension]
         model_predictions = self.axl_network(batch)

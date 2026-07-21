@@ -11,7 +11,7 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initiali
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -49,6 +49,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             use_fixed_lattice_parameters=sampling_parameters.use_fixed_lattice_parameters,
             fixed_lattice_parameters=sampling_parameters.fixed_lattice_parameters,
             trajectory_initializer=trajectory_initializer,
+            progress_bar=sampling_parameters.progress_bar,
         )
 
         self.noise_parameters = noise_parameters
@@ -125,7 +126,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
                 relative coordinates, of shape [number_of_samples, number_of_atoms, spatial_dimension]
                 lattice parameters, of shape [number_of_samples, spatial_dimension * (spatial_dimension + 1) / 2]
             time : time at which to evaluate the score
-            sigma_noise: the diffusion sigma parameter corresponding to the time at which to evaluate the score
+            sigma_noise: the diffusion sigma parameter corresponding to the noise parameter (in cartesian units)
             cartesian_forces: forces to condition the sampling from. Shape [number_of_samples, number_of_atoms,
                 spatial_dimension]
 
@@ -138,8 +139,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         number_of_samples = composition.X.shape[0]
 
         time_tensor = time * torch.ones(number_of_samples, 1).to(composition.X)
-        sigma_noise_tensor = sigma_noise * torch.ones(number_of_samples, 1).to(
-            composition.X
+        sigma_noise_tensor = torch.full(
+            (number_of_samples, 1), float(sigma_noise),
+            device=composition.X.device, dtype=composition.X.dtype,
         )
 
         augmented_batch = {
@@ -147,6 +149,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             TIME: time_tensor,
             NOISE: sigma_noise_tensor,
             CARTESIAN_FORCES: cartesian_forces,
+            NUMBER_OF_ATOMS: torch.full((number_of_samples,), composition.X.shape[1],
+                                        dtype=torch.long, device=composition.X.device),
         }
 
         # TODO do not hard-code conditional to False - need to be able to condition sampling
@@ -157,28 +161,25 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         relative_coordinates: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_i: torch.Tensor,
+        sigma_cart: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
         z: torch.Tensor,
     ) -> torch.Tensor:
-        r"""Generic update for the relative coordinates.
+        r"""Generic cell-independent update for the relative coordinates.
 
-        This is useful for both the predictor and the corrector step. The score weight and gaussian weight noise differs
-        in these two settings.
+        Callers are responsible for pre-scaling score_weight and gaussian_noise_weight so that
+        this formula is cell-independent (see predictor and corrector step methods).
 
         Args:
             relative_coordinates: starting coordinates. Dimension: [number_of_samples, number_of_atoms,
                 spatial_dimension]
-
             sigma_normalized_scores: output of the model - an estimate of the normalized
                 score :math:`\sigma \nabla log p(x)`.
                 Dimension: [number_of_samples, number_of_atoms, spatial_dimension]
-            sigma_i: noise parameter for variance exploding noise scheduler. Dimension: [number_of_samples]
-            score_weight: prefactor in front of the normalized score update. Should be g2_i in the predictor step and
-                eps_i in the corrector step. Dimension: [number_of_samples]
-            gaussian_noise_weight: prefactor in front of the random noise update. Should be g_i in the predictor step
-                and sqrt_2eps_i in the corrector step. Dimension: [number_of_samples]
+            sigma_cart: noise parameter in Cartesian units. Scalar or Dimension: [number_of_samples].
+            score_weight: pre-scaled prefactor for the score term. Shape broadcastable to sigma_normalized_scores.
+            gaussian_noise_weight: pre-scaled prefactor for the noise term. Shape broadcastable to z.
             z: gaussian noise used to update the coordinates. A sample drawn from the normal distribution.
                 Dimension: [number_of_samples, number_of_atoms, spatial_dimension].
 
@@ -191,35 +192,50 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             z = self._draw_coordinates_gaussian_sample(number_of_samples).to(
                 relative_coordinates
             )
-        updated_coordinates = (
-            relative_coordinates
-            + score_weight * sigma_normalized_scores / sigma_i
-            + gaussian_noise_weight * z
-        )
 
-        # map back to the range [0, 1)
-        updated_coordinates = map_relative_coordinates_to_unit_cell(updated_coordinates)
-        return updated_coordinates
+        dx_rel = score_weight * sigma_normalized_scores / sigma_cart + gaussian_noise_weight * z
+        return map_relative_coordinates_to_unit_cell(relative_coordinates + dx_rel)
 
     def _relative_coordinates_update_predictor_step(
         self,
         relative_coordinates: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_i: torch.Tensor,
-        score_weight: torch.Tensor,
-        gaussian_noise_weight: torch.Tensor,
+        sigma_cart: torch.Tensor,
+        g2_cart: torch.Tensor,
+        g_cart: torch.Tensor,
+        lattice_diagonals: torch.Tensor,
         z: torch.Tensor,
     ) -> torch.Tensor:
         """Relative coordinates update for the predictor step.
 
-        This returns the generic _relative_coordinates_update.
+        The update is given by the following formula:
+            x_i+1 = x_i + (sigma_i^2 - sigma_i-1^2) s_theta(x_i,t_i) + sqrt(sigma_i^2 - sigma_i-1^2) z
+
+        g2_cart propto lattice_diagonals^2. g_cart and sigma_cart propto lattice_diagonals.
+        We divide g2_cart and g_cart by lattice_diagonals to have a cell independent SDE.
+
+        Args:
+            relative_coordinates: x_i. Current relative coordinates in [0, 1). Shape [samples, atoms, spatial_dim].
+            sigma_normalized_scores: s_theta. Model estimate of the score.
+                                     Unitless. Shape [samples, atoms, spatial_dim].
+            sigma_cart: sigma_i. Cartesian noise level in ang. Scalar or shape [samples].
+            g2_cart: sigma_i^2-sigma_i-1^2. Squared Cartesian diffusion coefficient in ang^2. Scalar or [samples].
+            g_cart: sqrt(sigma_i^2-sigma_i-1^2). Cartesian diffusion coefficient in ang. Scalar or [samples].
+            lattice_diagonals: diagonal cell lengths [L_11, L_22, ...] in ang. Shape [samples, spatial_dim].
+            z: standard Gaussian noise in relative coordinates. Shape [samples, atoms, spatial_dim].
+
+        Returns:
+            updated_coordinates: relative coordinates after the predictor step, wrapped to [0, 1).
+                Shape [samples, atoms, spatial_dim].
         """
+        score_weight = g2_cart / lattice_diagonals[:, None, :]
+        noise_weight = g_cart / lattice_diagonals[:, None, :]
         return self._relative_coordinates_update(
             relative_coordinates,
             sigma_normalized_scores,
-            sigma_i,
+            sigma_cart,
             score_weight,
-            gaussian_noise_weight,
+            noise_weight,
             z,
         )
 
@@ -227,21 +243,42 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         relative_coordinates: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_i: torch.Tensor,
-        score_weight: torch.Tensor,
-        gaussian_noise_weight: torch.Tensor,
+        sigma_cart: torch.Tensor,
+        eps: torch.Tensor,
+        sqrt_2eps: torch.Tensor,
+        lattice_diagonals: torch.Tensor,
         z: torch.Tensor,
     ) -> torch.Tensor:
         """Relative coordinates update for the corrector step.
 
-        This returns the generic _relative_coordinates_update.
+        The update is given by the following formula:
+            x_i = x_i + eps_i * s_theta(x_i,t_i) + sqrt(2*eps_i) * z
+
+        eps, sqrt_2eps and sigma_cart are all L-independent. Both score and noise weights are divided
+        by lattice_diagonals so that dx_rel scales as 1/L, giving a cell-independent dx_cart = L * dx_rel.
+
+        Args:
+            relative_coordinates: x_i. Current relative coordinates in [0, 1). Shape [samples, atoms, spatial_dim].
+            sigma_normalized_scores: s_theta. Model estimate of the score.
+                                     Unitless. Shape [samples, atoms, spatial_dim].
+            sigma_cart: sigma_i. Cartesian noise level in ang. Scalar or shape [samples].
+            eps: eps_i = 0.5*corrector_step_epsilon*sigma_i^2/sigma_1^2. Unitless. Scalar or [samples].
+            sqrt_2eps: sqrt(2*eps_i). Unitless. Scalar or [samples].
+            lattice_diagonals: diagonal cell lengths [L_11, L_22, ...] in ang. Shape [samples, spatial_dim].
+            z: standard Gaussian noise for the stochastic term. Shape [samples, atoms, spatial_dim].
+
+        Returns:
+            updated_coordinates: relative coordinates after the corrector step, wrapped to [0, 1).
+                Shape [samples, atoms, spatial_dim].
         """
+        score_weight = eps / lattice_diagonals[:, None, :]
+        noise_weight = sqrt_2eps / lattice_diagonals[:, None, :]
         return self._relative_coordinates_update(
             relative_coordinates,
             sigma_normalized_scores,
-            sigma_i,
+            sigma_cart,
             score_weight,
-            gaussian_noise_weight,
+            noise_weight,
             z,
         )
 
@@ -443,7 +480,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         lattice_parameters: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_n_i: torch.Tensor,
+        sigma_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
         z: Optional[torch.Tensor] = None,
@@ -459,8 +496,8 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             sigma_normalized_scores: output of the model - an estimate of the normalized
                 score :math:`\sigma \nabla log p(x)`.
                 Dimension: [number_of_samples, spatial_dimension * (spatial_dimension + 1) / 2]
-            sigma_n_i: noise parameter for variance exploding noise scheduler scaled by the number of atoms.
-                Dimension: [number_of_samples]
+            sigma_i: noise parameter for variance exploding noise scheduler in Cartesian units.
+                Dimension: scalar or [number_of_samples]
             score_weight: prefactor in front of the normalized score update. Should be g2_i in the predictor step and
                 eps_i in the corrector step. Dimension: [number_of_samples]
             gaussian_noise_weight: prefactor in front of the random noise update. Should be g_i in the
@@ -485,7 +522,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         updated_lattice_parameters = (
             lattice_parameters
-            + score_weight * sigma_normalized_scores / sigma_n_i
+            + score_weight * sigma_normalized_scores / sigma_i
             + gaussian_noise_weight * z
         )
         return updated_lattice_parameters
@@ -494,7 +531,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         lattice_parameters: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_n_i: torch.Tensor,
+        sigma_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
         z: Optional[torch.Tensor] = None,
@@ -506,7 +543,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         return self._lattice_parameters_update(
             lattice_parameters,
             sigma_normalized_scores,
-            sigma_n_i,
+            sigma_i,
             score_weight,
             gaussian_noise_weight,
             z,
@@ -516,7 +553,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         self,
         lattice_parameters: torch.Tensor,
         sigma_normalized_scores: torch.Tensor,
-        sigma_n_i: torch.Tensor,
+        sigma_i: torch.Tensor,
         score_weight: torch.Tensor,
         gaussian_noise_weight: torch.Tensor,
         z: Optional[torch.Tensor] = None,
@@ -528,7 +565,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         return self._lattice_parameters_update(
             lattice_parameters,
             sigma_normalized_scores,
-            sigma_n_i,
+            sigma_i,
             score_weight,
             gaussian_noise_weight,
             z,
@@ -559,15 +596,11 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         idx = index_i - 1  # python starts indices at zero
         t_i = self.noise.time[idx].to(composition_i.X)
-        g_i = self.noise.g[idx].to(composition_i.X)
-        g2_i = self.noise.g_squared[idx].to(composition_i.X)
-        sigma_i = self.noise.sigma[idx].to(composition_i.X)
+        sigma_cart_i = self.noise.sigma[idx].to(composition_i.X)
+        g_cart_i = self.noise.g[idx].to(composition_i.X)
+        g2_cart_i = self.noise.g_squared[idx].to(composition_i.X)
 
-        # TODO we should consider scaling sigma_i by the number of atoms for the relative coordinates update
-        # for now, we are only scaling for the lattice parameters
-        n_atom = composition_i.X.shape[-2]
-        spatial_dimension_inv = 1 / composition_i.X.shape[-1]
-        sigma_n_i = sigma_i / (n_atom ** spatial_dimension_inv)
+        lattice_diagonals = composition_i.L[:, :self.spatial_dimension]
 
         # Broadcast the q matrices to the expected dimensions.
         q_matrices_i = einops.repeat(
@@ -592,7 +625,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         )
 
         model_predictions_i = self._get_model_predictions(
-            composition_i, t_i, sigma_i, cartesian_forces
+            composition_i, t_i, sigma_cart_i, cartesian_forces
         )
 
         # Even if the global flag 'one_atom_type_transition_per_step' is set to True, a single atomic transition
@@ -625,17 +658,23 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i.X
         )
 
-        # Update the position according to the predictor
         x_im1 = self._relative_coordinates_update_predictor_step(
-            composition_i.X, model_predictions_i.X, sigma_i, g2_i, g_i, z_coordinates
+            composition_i.X, model_predictions_i.X,
+            sigma_cart_i, g2_cart_i, g_cart_i,
+            lattice_diagonals, z_coordinates,
         )
 
         # update lattice parameters
         z_lattice = self._draw_lattice_gaussian_sample(number_of_samples).to(
             composition_i.L
         )
+        # The model predicts sigma_n * score_L where sigma_n = sigma_cart / n_atom^(1/d).
+        # Use the sigma_n schedule (g2_n, g_n, sigma_n) to get the correct step size.
+        sigma_n_i = sigma_cart_i / (number_of_atoms ** (1.0 / self.spatial_dimension))
+        g2_n_i = g2_cart_i / (number_of_atoms ** (2.0 / self.spatial_dimension))
+        g_n_i = g_cart_i / (number_of_atoms ** (1.0 / self.spatial_dimension))
         lp_im1 = self._lattice_parameters_update_predictor_step(
-            composition_i.L, model_predictions_i.L, sigma_n_i, g2_i, g_i, z_lattice
+            composition_i.L, model_predictions_i.L, sigma_n_i, g2_n_i, g_n_i, z_lattice
         )
 
         composition_im1 = AXL(A=a_im1, X=x_im1, L=lp_im1)
@@ -682,7 +721,7 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
     def _get_lattice_parameters_corrector_step_size(
         self,
         index_i: int,
-        sigma_n_i: torch.Tensor,
+        sigma_i: torch.Tensor,
         model_predictions_i: torch.Tensor,
         z: torch.Tensor,
     ) -> torch.Tensor:
@@ -719,22 +758,17 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
 
         if index_i == 0:
             # TODO: we are extrapolating here; the score network will never have seen this time step...
-            sigma_i = (
-                self.noise_parameters.sigma_min
-            )  # no need to change device, this is a float
+            sigma_cart_i = self.noise_parameters.sigma_min_cart  # no need to change device, this is a float
             t_i = 0.0  # same for device - this is a float
             idx = index_i
         else:
             idx = index_i - 1  # python starts indices at zero
-            sigma_i = self.noise.sigma[idx].to(composition_i.X)
+            sigma_cart_i = self.noise.sigma[idx].to(composition_i.X)
             t_i = self.noise.time[idx].to(composition_i.X)
 
-        n_atom = composition_i.X.shape[-2]
-        spatial_dimension_inv = 1 / composition_i.X.shape[-1]
-        sigma_n_i = sigma_i / (n_atom ** spatial_dimension_inv)
-
+        lattice_diagonals = composition_i.L[:, :self.spatial_dimension]
         model_predictions_i = self._get_model_predictions(
-            composition_i, t_i, sigma_i, cartesian_forces
+            composition_i, t_i, sigma_cart_i, cartesian_forces
         )
 
         # draw a gaussian noise sample and update the positions accordingly
@@ -742,9 +776,9 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i.X
         )
 
-        # get the step size eps_i
+        # get the step size eps_i (in Cartesian units)
         eps_i_coordinates = self._get_coordinates_corrector_step_size(
-            index_i, sigma_i, model_predictions_i.X, z_coordinates
+            index_i, sigma_cart_i, model_predictions_i.X, z_coordinates
         )
         # the size for the noise part is sqrt(2 * eps_i)
         sqrt_2eps_i_coordinates = torch.sqrt(2 * eps_i_coordinates)
@@ -752,9 +786,10 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
         corrected_x_i = self._relative_coordinates_update_corrector_step(
             composition_i.X,
             model_predictions_i.X,
-            sigma_i,
+            sigma_cart_i,
             eps_i_coordinates,
             sqrt_2eps_i_coordinates,
+            lattice_diagonals,
             z_coordinates,
         )
 
@@ -763,16 +798,20 @@ class LangevinGenerator(PredictorCorrectorAXLGenerator):
             composition_i.L
         )
 
-        # get the step size eps_i
+        number_of_atoms_corrector = composition_i.X.shape[1]
+        # The model predicts sigma_n * score_L where sigma_n = sigma_cart / n_atom^(1/d).
+        # For the sigma_n schedule, eps_n = eps_cart (atom scaling cancels in sigma_n^2/sigma_n_1^2).
+        # Only the denominator in the update needs to use sigma_n_i.
+        sigma_n_i_corrector = sigma_cart_i / (number_of_atoms_corrector ** (1.0 / self.spatial_dimension))
         eps_i_lattice = self._get_lattice_parameters_corrector_step_size(
-            index_i, sigma_n_i, model_predictions_i.L, z_lattice
+            index_i, sigma_n_i_corrector, model_predictions_i.L, z_lattice
         )
         sqrt_2eps_i_lattice = torch.sqrt(2 * eps_i_lattice)
 
         corrected_lp_i = self._lattice_parameters_update(
             composition_i.L,
             model_predictions_i.L,
-            sigma_n_i,
+            sigma_n_i_corrector,
             eps_i_lattice,
             sqrt_2eps_i_lattice,
         )

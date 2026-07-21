@@ -16,7 +16,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_ne
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, LATTICE_PARAMETERS, NOISY_ATOM_TYPES,
-    NOISY_RELATIVE_COORDINATES, RELATIVE_COORDINATES)
+    NOISY_RELATIVE_COORDINATES, NUMBER_OF_ATOMS, RELATIVE_COORDINATES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 
@@ -125,9 +125,12 @@ class ConstrainedLangevinGenerator(LangevinGenerator):
             # This must be the final denoising step, and the composition is already at t=0. Do not noise!
             return input_composition
 
+        number_of_samples = input_composition.A.shape[0]
         input_batch = {ATOM_TYPES: input_composition.A,
                        RELATIVE_COORDINATES: input_composition.X,
-                       LATTICE_PARAMETERS: input_composition.L}
+                       LATTICE_PARAMETERS: input_composition.L,
+                       NUMBER_OF_ATOMS: torch.full((number_of_samples,), self.number_of_atoms,
+                                                   dtype=torch.long, device=input_composition.A.device)}
 
         output_batch = self.noising_transform.transform_given_time_index(input_batch, index_i)
         noised_composition_i = AXL(A=output_batch[NOISY_ATOM_TYPES],

@@ -18,7 +18,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_pr
     MaceMLPScorePredictionHeadParameters, MaceScorePredictionHeadParameters,
     instantiate_mace_prediction_head)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, TIME)
+    AXL, NOISY_AXL_COMPOSITION, NOISY_CARTESIAN_POSITIONS, NUMBER_OF_ATOMS,
+    TIME)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_lattice_parameters_to_unit_cell_vectors
 
@@ -146,6 +147,10 @@ class MACEScoreNetwork(ScoreNetwork):
         assert (
             number_of_atoms == self._natoms
         ), "The dimension corresponding to the number of atoms is not consistent with the configuration."
+        natoms = batch.get(NUMBER_OF_ATOMS, None)
+        if natoms is not None:
+            assert (natoms == self._natoms).all(), \
+                "MACEScoreNetwork does not support variable numbers of atoms (padding detected)."
 
     def _forward_unchecked(
         self, batch: Dict[AnyStr, torch.Tensor], conditional: bool = False

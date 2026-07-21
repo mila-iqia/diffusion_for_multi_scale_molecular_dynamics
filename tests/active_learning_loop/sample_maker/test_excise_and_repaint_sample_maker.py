@@ -104,8 +104,8 @@ class TestExciseAndRepaintSampleMaker(BaseTestExciseSampleMaker):
         return NoiseParameters(
             total_time_steps=5,
             schedule_type="exponential",
-            sigma_min=0.01,
-            sigma_max=0.5,
+            sigma_min_cart=0.01,
+            sigma_max_cart=2.0,
         )
 
     @pytest.fixture

@@ -8,6 +8,51 @@ from tests.active_learning_loop.excisor.base_test_excision import \
     BaseTestExcision
 
 
+def test_spherical_excisor_finds_neighbor_across_pbc():
+    """The excisor must find the closest neighbor even when it lies across a periodic boundary.
+
+    Layout (x-axis only, y=z=0.5):
+      - central atom  at x = 0.02  (index 0 in the structure)
+      - PBC neighbor  at x = 0.98  (index 1) — only 0.04 box-lengths away via PBC
+      - 6x6x6 offset grid atoms at (i+0.5)/6, nearest at x ≈ 0.083 (0.063 box-lengths away)
+
+    With box_size = 10 Å:
+      - PBC distance to neighbor:        0.04 × 10 = 0.40 Å
+      - distance to nearest grid atom:   0.063 × 10 = 0.63 Å
+
+    A cutoff of 0.5 Å must include the PBC neighbor and exclude all grid atoms.
+    """
+    box_size = 10.0
+    n = 6
+
+    # Offset grid: positions at (i + 0.5)/n — no atom near 0 or 1 in any direction.
+    grid_1d = (np.arange(n) + 0.5) / n
+    gx, gy, gz = np.meshgrid(grid_1d, grid_1d, grid_1d, indexing="ij")
+    grid_coords = np.stack([gx.ravel(), gy.ravel(), gz.ravel()], axis=1)  # (216, 3)
+
+    central_coord = np.array([[0.02, 0.5, 0.5]])
+    pbc_neighbor_coord = np.array([[0.98, 0.5, 0.5]])
+    all_coords = np.concatenate([central_coord, pbc_neighbor_coord, grid_coords], axis=0)
+
+    n_atoms = all_coords.shape[0]
+    structure = AXL(
+        A=np.zeros(n_atoms, dtype=int),
+        X=all_coords,
+        L=np.array([box_size, box_size, box_size, 0.0, 0.0, 0.0]),
+    )
+
+    excisor = SphericalExcision(SphericalExcisionArguments(radial_cutoff=0.5))
+    excised_env, excised_central_idx = excisor._excise_one_environment(structure, central_atom_idx=0)
+
+    assert excised_env.X.shape[0] == 2, (
+        f"Expected 2 atoms (central + PBC neighbor), got {excised_env.X.shape[0]}"
+    )
+    assert excised_central_idx == 0
+    assert np.isclose(excised_env.X[1, 0], 0.98), (
+        f"Expected PBC neighbor at x ≈ 0.98, got {excised_env.X[1, 0]}"
+    )
+
+
 class TestSphericalExcision(BaseTestExcision):
     @pytest.fixture(params=[1.2, 2.3])
     def radial_cutoff(self, request):

@@ -4,7 +4,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import (
     ScoreNetwork, ScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME, UNIT_CELL)
 from tests.models.score_network.base_test_score_network import \
     BaseTestScoreNetwork
 
@@ -41,6 +41,7 @@ class TestScoreNetworkBasicCheck(BaseTestScoreNetwork):
             TIME: times,
             NOISE: noises,
             UNIT_CELL: unit_cell,
+            NUMBER_OF_ATOMS: torch.full((batch_size,), number_of_atoms, dtype=torch.long),
         }
 
     @pytest.fixture()

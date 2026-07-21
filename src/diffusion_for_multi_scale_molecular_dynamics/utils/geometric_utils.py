@@ -6,7 +6,7 @@ import torch
 def get_cubic_point_group_symmetries(spatial_dimension: int = 3):
     """Get cubic point group symmetries."""
     permutations = [
-        torch.diag(torch.ones(spatial_dimension))[[idx]] for idx in itertools.permutations(range(spatial_dimension))
+        torch.diag(torch.ones(spatial_dimension))[list(idx)] for idx in itertools.permutations(range(spatial_dimension))
     ]
     sign_changes = [
         torch.diag(torch.tensor(diag))

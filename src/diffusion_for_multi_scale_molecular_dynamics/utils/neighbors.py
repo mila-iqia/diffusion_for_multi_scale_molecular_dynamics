@@ -18,7 +18,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.lattice_utils import \
     get_relative_coordinates_lattice_vectors
 
 INDEX_PADDING_VALUE = -1
-POSITION_PADDING_VALUE = np.NaN
+POSITION_PADDING_VALUE = np.nan
 
 
 AdjacencyInfo = namedtuple(
@@ -29,6 +29,7 @@ AdjacencyInfo = namedtuple(
         "edge_batch_indices",  # original batch index of each edge.
         "node_batch_indices",  # original batch index of each node.
         "number_of_edges",  # number of edges in each batch element.
+        "squared_distances",  # squared distances of each edge.
     ],
 )
 
@@ -182,12 +183,13 @@ def get_periodic_adjacency_information(
     # This is the maximum number of neighbors for any atom in any structure in the batch.
     # Going forward, there is no need to look beyond this number of neighbors.
     max_number_of_neighbors = int(max_k_array.max())
+    k = get_kmin_k_for_keops(max_number_of_neighbors)
 
     # Use KeOps KNN functionalities to find neighbors and their indices.
     squared_distances, dst_indices = d_ij.Kmin_argKmin(
-        K=max_number_of_neighbors, dim=3
+        K=k, dim=3
     )  # find neighbors along "j"
-    # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
+    # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, k]
     # The 'dst_indices' array corresponds to KeOps first 'virtual' dimension (the "i" dimension). This goes from
     # 0 to max_atom - 1 and correspond to atom indices (specifically, destination indices!).
 
@@ -196,6 +198,7 @@ def get_periodic_adjacency_information(
         zero < squared_distances, squared_distances <= radial_cutoff**2
     )
     # Dimensions: [batch_size, number_of_relative_lattice_vectors, max_natom, max_number_of_neighbors]
+    masked_squared_distances = squared_distances[valid_neighbor_mask]
 
     # Combine all the non-batch dimensions to obtain the maximum number of edges per batch element
     number_of_edges = valid_neighbor_mask.view(batch_size, -1).sum(dim=1)
@@ -224,6 +227,7 @@ def get_periodic_adjacency_information(
         edge_batch_indices=edge_batch_indices,
         node_batch_indices=torch.repeat_interleave(torch.arange(batch_size), max_natom),
         number_of_edges=number_of_edges,
+        squared_distances=masked_squared_distances,
     )
 
 
@@ -379,6 +383,31 @@ def _get_vectors_from_multiple_indices(
     """
     # Yes, the answer looks trivial, but it's quite confusing to know if if gather or select_index should be used!
     return vectors[batch_indices, vector_indices]
+
+
+def get_kmin_k_for_keops(max_number_of_neighbors: int) -> int:
+    """Get the K value to use in KeOps Kmin_argKmin, rounded up to the next power of 2.
+
+    KeOps generates and compiles a custom CUDA kernel for each distinct value of K passed to
+    Kmin_argKmin. A message like:
+        [KeOps] Generating code for KMin_ArgKMin_Reduction ... (with parameters K=<value>)
+    appears every time a new K triggers a compilation. When K is computed dynamically from data
+    (e.g. maximum neighbor count in a batch), it can vary widely — especially with high diffusion
+    noise, variable system sizes, or mixed atom counts — causing hundreds of recompilations that
+    dominate wall time.
+
+    This function maps any K to the smallest power of 2 that is >= K. This limits the set of
+    distinct K values that KeOps ever sees to at most log2(max_neighbors) values, so at most
+    that many kernels are compiled across the entire training run (after which they are cached).
+
+    Args:
+        max_number_of_neighbors: the exact maximum number of neighbors observed in a batch.
+
+    Returns:
+        the smallest power of 2 that is >= max_number_of_neighbors, with a minimum of 1.
+    """
+    n = max(1, max_number_of_neighbors)
+    return 1 << (n - 1).bit_length()
 
 
 def shift_adjacency_matrix_indices_for_graph_batching(

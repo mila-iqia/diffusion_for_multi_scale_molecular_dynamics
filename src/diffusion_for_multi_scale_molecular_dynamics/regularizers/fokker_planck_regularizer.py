@@ -7,7 +7,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
     ScoreNetwork
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.sigma_calculator import \
     instantiate_sigma_calculator
 from diffusion_for_multi_scale_molecular_dynamics.regularizers.regularizer import (
@@ -82,11 +82,14 @@ class FokkerPlanckRegularizer(Regularizer):
 
         composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
 
+        batch_size, natoms = atom_types.shape
+        number_of_atoms = torch.full((batch_size,), natoms, dtype=torch.long, device=relative_coordinates.device)
         batch = {
             NOISY_AXL_COMPOSITION: composition,
             NOISE: sigmas_t,
             TIME: times,
             CARTESIAN_FORCES: forces,
+            NUMBER_OF_ATOMS: number_of_atoms,
         }
         return batch
 

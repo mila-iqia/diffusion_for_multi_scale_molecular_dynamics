@@ -71,7 +71,7 @@ def input_to_diffusion_mace(
     basis_vectors[:, spatial_dimension:] = 0  # TODO enforce orthogonal cells
     basis_vectors = map_lattice_parameters_to_unit_cell_vectors(basis_vectors)
 
-    adj_matrix, shift_matrix, batch_tensor, num_edges = get_adj_matrix(
+    adj_matrix, shift_matrix, batch_tensor, num_edges, _ = get_adj_matrix(
         positions=cartesian_positions,
         basis_vectors=basis_vectors,
         radial_cutoff=radial_cutoff,
@@ -109,10 +109,6 @@ def input_to_diffusion_mace(
     )  # batch * spatial_dimension, spatial_dimension
     # create the pytorch-geometric graph
 
-    forces = batch[CARTESIAN_FORCES].view(
-        -1, spatial_dimension
-    )  # batch * n_atom_per_graph, spatial dimension
-
     graph_data = Data(
         edge_index=adj_matrix,
         node_attrs=node_attrs.to(device),
@@ -123,8 +119,9 @@ def input_to_diffusion_mace(
         batch=batch_tensor.to(device),
         shifts=shift_matrix,
         cell=flat_basis_vectors,
-        forces=forces,
     )
+    if CARTESIAN_FORCES in batch:
+        graph_data.forces = batch[CARTESIAN_FORCES].view(-1, spatial_dimension)
     return graph_data
 
 
@@ -413,9 +410,10 @@ class DiffusionMACE(torch.nn.Module):
             )
             edge_feats = self.edge_hidden_layers(augmented_edge_attributes)
 
-        forces_embedding = self.condition_embedding_layer(
-            data["forces"]
-        )  # 0e + 1o embedding
+        if conditional:
+            forces_embedding = self.condition_embedding_layer(
+                data["forces"]
+            )  # 0e + 1o embedding
 
         for i, (interaction, product, cond_layer) in enumerate(
             zip(self.interactions, self.products, self.conditional_layers)
@@ -448,9 +446,7 @@ class DiffusionMACE(torch.nn.Module):
                 sc=sc,
                 node_attrs=augmented_node_attributes,
             )
-            if (
-                conditional
-            ):  # modify the node features to account for the conditional features i.e. forces
+            if conditional:
                 force_embed = cond_layer(forces_embedding)
                 node_feats += force_embed
 

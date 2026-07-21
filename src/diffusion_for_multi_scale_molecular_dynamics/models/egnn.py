@@ -176,7 +176,7 @@ class E_GCL(nn.Module):
         Returns:
             updated node features. size: number of nodes, output_size
         """
-        row = edge_index[:, 0]
+        row = edge_index[:, 0].long()
         agg = self.msg_agg_fn(
             messages, row, num_segments=x.size(0)
         )  # sum messages m_i = \sum_j m_{ij}
@@ -208,7 +208,7 @@ class E_GCL(nn.Module):
         Returns:
             updates coordinates. size: number of nodes, spatial dimension
         """
-        row = edge_index[:, 0]
+        row = edge_index[:, 0].long()
         trans = coord_diff * self.coord_mlp(messages)  # (x_i  - x_j) *  \phi_m(m_{ij})
         agg = self.coords_agg_fn(trans, row, num_segments=coord.size(0))  # sum over j
         coord += agg
@@ -227,7 +227,7 @@ class E_GCL(nn.Module):
             distance squared between nodes. size: number of edges
             distance vector between nodes. size: number of edges, spatial dimension
         """
-        row, col = edge_index[:, 0], edge_index[:, 1]
+        row, col = edge_index[:, 0].long(), edge_index[:, 1].long()
         coord_diff = coord[row] - coord[col]
         radial = torch.sum(coord_diff**2, 1).unsqueeze(1)
 
@@ -277,9 +277,12 @@ class E_GCL(nn.Module):
             updated node features. size: number of nodes, output_size
             updated coordinates. size: number of nodes, spatial dimension
         """
-        row, col = edge_index[:, 0], edge_index[:, 1]
+        row, col = edge_index[:, 0].long(), edge_index[:, 1].long()
         # compute distances between nodes (atoms)
-        radial, coord_diff = self.coord2radial(edge_index, coord)
+
+        _, coord_diff = self.coord2radial(edge_index, coord)
+
+        radial = edge_index[:, 2].unsqueeze(1)  # cartesian distance in Å
 
         messages = self.message_model(h[row], h[col], radial)  # compute m_{ij}
         coord = self.coord_model(coord, edge_index, coord_diff, messages)  # update x_i

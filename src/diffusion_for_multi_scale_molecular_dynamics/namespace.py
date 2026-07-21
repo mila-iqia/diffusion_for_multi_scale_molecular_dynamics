@@ -16,6 +16,7 @@ CARTESIAN_POSITIONS = "cartesian_positions"  # position in real cartesian space
 RELATIVE_COORDINATES = "relative_coordinates"  # coordinates in the unit cell basis
 CARTESIAN_FORCES = "cartesian_forces"
 
+NUMBER_OF_ATOMS = "natom"  # Number of atoms in each sample
 NOISY_RELATIVE_COORDINATES = (
     "noisy_relative_coordinates"  # relative coordinates perturbed by diffusion noise
 )
@@ -28,6 +29,7 @@ UNIT_CELL = "unit_cell"  # unit cell definition
 
 ATOM_TYPES = "atom_types"
 NOISY_ATOM_TYPES = "noisy_atom_types"
+PADDED_ATOM_TYPE = -1
 
 LATTICE_PARAMETERS = "lattice_parameters"
 NOISY_LATTICE_PARAMETERS = "noisy_lattice_parameters"

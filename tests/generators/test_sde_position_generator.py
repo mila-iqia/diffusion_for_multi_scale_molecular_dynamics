@@ -11,7 +11,7 @@ from tests.generators.conftest import BaseTestGenerator
 
 
 @pytest.mark.parametrize("total_time_steps", [5, 10])
-@pytest.mark.parametrize("sigma_min", [0.15])
+@pytest.mark.parametrize("sigma_min_cart", [0.15])
 @pytest.mark.parametrize("record_samples", [False, True])
 class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
     @pytest.fixture()
@@ -23,9 +23,9 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
         return torch.tensor(1.0)
 
     @pytest.fixture()
-    def noise_parameters(self, total_time_steps, sigma_min):
+    def noise_parameters(self, total_time_steps, sigma_min_cart):
         return NoiseParameters(
-            total_time_steps=total_time_steps, time_delta=0.0, sigma_min=sigma_min
+            total_time_steps=total_time_steps, time_delta=0.0, sigma_min_cart=sigma_min_cart
         )
 
     @pytest.fixture()
@@ -107,7 +107,7 @@ class TestExplodingVarianceSDEPositionGenerator(BaseTestGenerator):
             2.0
             * sigma**2
             * torch.log(
-                torch.tensor(noise_parameters.sigma_max / noise_parameters.sigma_min)
+                torch.tensor(noise_parameters.sigma_max_cart / noise_parameters.sigma_min_cart)
             )
         )
 

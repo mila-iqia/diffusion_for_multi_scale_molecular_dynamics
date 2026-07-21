@@ -20,7 +20,7 @@ class MetricResult:
         None  # default to None, if there is nothing to report
     )
     mode: Union[str, None]  # default to None, if there is nothing to report
-    metric_value: float = np.NaN  # default to NaN, if there is nothing to report
+    metric_value: float = np.nan  # default to NaN, if there is nothing to report
 
 
 def get_optimized_metric_name_and_mode(
@@ -58,11 +58,11 @@ def get_crash_metric_result(hyper_params: Dict[AnyStr, Any]) -> MetricResult:
 
     if metric_name is None:
         return MetricResult(
-            report=False, metric_name=None, mode=None, metric_value=np.NaN
+            report=False, metric_name=None, mode=None, metric_value=np.nan
         )
     else:
         return MetricResult(
-            report=True, metric_name=metric_name, mode=mode, metric_value=np.NaN
+            report=True, metric_name=metric_name, mode=mode, metric_value=np.nan
         )
 
 

@@ -4,8 +4,9 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, LATTICE_PARAMETERS, NOISE, NOISY_ATOM_TYPES,
-    NOISY_LATTICE_PARAMETERS, NOISY_RELATIVE_COORDINATES, Q_BAR_MATRICES,
-    Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME, TIME_INDICES)
+    NOISY_LATTICE_PARAMETERS, NOISY_RELATIVE_COORDINATES, PADDED_ATOM_TYPE,
+    Q_BAR_MATRICES, Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME,
+    TIME_INDICES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import (
@@ -20,11 +21,10 @@ from diffusion_for_multi_scale_molecular_dynamics.transport.transporter import \
     Transporter
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
-from diffusion_for_multi_scale_molecular_dynamics.utils.noise_utils import \
-    scale_sigma_by_number_of_atoms
-from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
-    broadcast_batch_matrix_tensor_to_all_dimensions,
-    broadcast_batch_tensor_to_all_dimensions)
+from diffusion_for_multi_scale_molecular_dynamics.utils.noise_utils import (
+    get_sigma_for_relative_coordinates, scale_sigma_by_number_of_atoms)
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
+    broadcast_batch_matrix_tensor_to_all_dimensions
 
 
 class NoisingTransform:
@@ -137,25 +137,33 @@ class NoisingTransform:
         l0 = batch[LATTICE_PARAMETERS]
         shape = x0.shape
         atom_shape = a0.shape
+        spatial_dimension = shape[-1]
+
+        # We padded configurations such that all configurations have the same number_of_atoms.
+        # We cannot add noise to NaN so we transform NaN to 0, add noise, and retransform padded atoms to NaN
+        pad_mask = (a0 == PADDED_ATOM_TYPE)
+
+        # Convert sigma from Angstrom (Cartesian) to relative coordinate units per direction.
+        # sigma_rel[d] = sigma_cart / L_dd. Shape: [batch_size, spatial_dimension].
+        sigma_rel = get_sigma_for_relative_coordinates(noise_sample.sigma, l0, spatial_dimension)
 
         # the datasets library does mysterious things if we use an AXL. Let's use raw tensors.
         augmentation_data[TIME] = noise_sample.time.reshape(-1, 1)
         augmentation_data[TIME_INDICES] = noise_sample.indices
-        augmentation_data[NOISE] = noise_sample.sigma.reshape(-1, 1)
+        augmentation_data[NOISE] = noise_sample.sigma.reshape(-1, 1)  # sigma_cart: model uses Cartesian sigma
 
-        # noise_sample.sigma has dimension [batch_size]. Broadcast these values to be of shape
-        # [batch_size, number_of_atoms, spatial_dimension] , which can be interpreted as
-        # [batch_size, (configuration)]. All the sigma values must be the same for a given configuration.
-        sigmas = broadcast_batch_tensor_to_all_dimensions(
-            batch_values=noise_sample.sigma, final_shape=shape
-        )
+        # sigma_rel has shape [batch_size, spatial_dimension]. Expand over atoms to
+        # [batch_size, number_of_atoms, spatial_dimension].
+        sigmas_rel = sigma_rel.unsqueeze(1).expand(shape)
 
-        # we can now get noisy coordinates
-        xt = self.noisers.X.get_noisy_relative_coordinates_sample(x0, sigmas)
+        x0_for_noising = torch.nan_to_num(x0, nan=0.0)
+        xt = self.noisers.X.get_noisy_relative_coordinates_sample(x0_for_noising, sigmas_rel)
 
         if self.use_optimal_transport:
             # Transport xt to be as close to x0 as possible
-            xt = self.transporter.get_optimal_transport(x0, xt)
+            xt = self.transporter.get_optimal_transport(x0_for_noising, xt)
+
+        xt = xt.masked_fill(pad_mask.unsqueeze(-1), float('nan'))
 
         # to get noisy atom types, we need to broadcast the transition matrices q, q_bar and q_bar_tm1 from size
         # [batch_size, num_atom_types, num_atom_types] to [batch_size, number_of_atoms, num_atom_types, num_atom_types].
@@ -175,13 +183,14 @@ class NoisingTransform:
         augmentation_data[Q_BAR_MATRICES] = q_bar_matrices
         augmentation_data[Q_BAR_TM1_MATRICES] = q_bar_tm1_matrices
 
-        a0_onehot = class_index_to_onehot(a0, self.num_atom_types + 1)
+        a0_for_noising = a0.masked_fill(pad_mask, 0)
+        a0_onehot = class_index_to_onehot(a0_for_noising, self.num_atom_types + 1)
         at = self.noisers.A.get_noisy_atom_types_sample(a0_onehot, q_bar_matrices)
+        at = at.masked_fill(pad_mask, PADDED_ATOM_TYPE)
 
         # scale sigma by the number of atoms for lattice parameters noising
-        num_atoms = (
-            torch.ones_like(l0) * atom_shape[1]
-        )  # TODO should depend on data - not a constant
+        num_atoms = batch["natom"].unsqueeze(-1).expand_as(l0).to(l0)
+
         # num_atoms should be broadcasted to match sigmas_for_lattice
         sigmas_n = scale_sigma_by_number_of_atoms(
             noise_sample.sigma.reshape(-1, 1),

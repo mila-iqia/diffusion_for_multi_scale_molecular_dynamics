@@ -7,7 +7,7 @@ import torch
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME, UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.utils.symmetry_utils import \
     factorial
 from tests.models.score_network.base_test_score_network import \
@@ -71,6 +71,7 @@ class TestAnalyticalScoreNetwork(BaseTestScoreNetwork):
             TIME: times,
             NOISE: noises,
             UNIT_CELL: unit_cell,
+            NUMBER_OF_ATOMS: torch.full((batch_size,), number_of_atoms, dtype=torch.long),
         }
 
     @pytest.fixture()

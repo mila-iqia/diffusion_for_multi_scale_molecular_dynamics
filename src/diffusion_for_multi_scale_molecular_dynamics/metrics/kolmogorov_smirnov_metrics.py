@@ -1,6 +1,7 @@
 from typing import Tuple
 
 import scipy.stats as ss
+import torch
 from torchmetrics import CatMetric
 
 
@@ -55,6 +56,12 @@ class KolmogorovSmirnovMetrics:
         """
         reference_samples = self.reference_samples_metric.compute()
         predicted_samples = self.predicted_samples_metric.compute()
+
+        if not isinstance(reference_samples, torch.Tensor) or not isinstance(predicted_samples, torch.Tensor):
+            return float('nan'), float('nan')
+
+        if reference_samples.numel() == 0 or predicted_samples.numel() == 0:
+            return float('nan'), float('nan')
 
         test_result = ss.ks_2samp(
             predicted_samples.detach().cpu().numpy(),

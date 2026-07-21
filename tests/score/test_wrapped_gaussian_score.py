@@ -8,8 +8,9 @@ from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score i
     _get_s1b_exponential, _get_sigma_normalized_s2,
     _get_sigma_square_times_score_1_from_exponential,
     _get_small_sigma_large_u_mask, _get_small_sigma_small_u_mask,
-    get_coordinates_sigma_normalized_score, get_log_wrapped_gaussians,
-    get_sigma_normalized_score_brute_force)
+    get_coordinates_sigma_normalized_score,
+    get_coordinates_sigma_normalized_score_cartesian,
+    get_log_wrapped_gaussians, get_sigma_normalized_score_brute_force)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -252,3 +253,49 @@ def test_get_sigma_normalized_score(
         sigma_normalized_score_small_sigma,
         expected_sigma_normalized_scores,
     )
+
+
+@pytest.mark.parametrize("sigma_cart", [0.1, 0.5, 1.0, 1.5])
+@pytest.mark.parametrize("kmax", [4])
+class TestTrainingTargetCellSizeIndependence:
+    """Verifies that the training-target sigma-normalized score is cell-size-independent.
+
+    Two atoms are placed 1 Å apart in a cubic void cell. The sigma-normalized score
+    sigma_cart * score_cart = sigma_rel * score_rel is a function only of the Cartesian
+    displacement and sigma_cart, so it must be identical for any cell size L, as long as
+    sigma_rel = sigma_cart / L remains small enough that wrapping corrections are negligible
+    (guaranteed here for L >= 15 Å with sigma_cart <= 1.5 Å).
+    """
+
+    delta_cart = 1.0  # Å, fixed Cartesian separation between the two atoms
+    cell_sizes = [15.0, 20.0, 30.0, 40.0, 50.0]
+
+    def test_get_coordinates_sigma_normalized_score_cell_size_independent(self, sigma_cart, kmax):
+        scores = []
+        for L in self.cell_sizes:
+            relative_coordinates = torch.tensor(
+                [[0.0, 0.0, 0.0], [self.delta_cart / L, 0.0, 0.0]]
+            )
+            sigma_rel = sigma_cart / L
+            sigmas = torch.full_like(relative_coordinates, sigma_rel)
+            score = get_coordinates_sigma_normalized_score(relative_coordinates, sigmas, kmax)
+            scores.append(score)
+
+        for score in scores[1:]:
+            torch.testing.assert_close(score, scores[0])
+
+    def test_get_coordinates_sigma_normalized_score_cartesian_cell_size_independent(self, sigma_cart, kmax):
+        scores = []
+        for L in self.cell_sizes:
+            relative_coordinates = torch.tensor(
+                [[[0.0, 0.0, 0.0], [self.delta_cart / L, 0.0, 0.0]]]
+            )  # shape [batch=1, natoms=2, spatial_dim=3]
+            sigma_cart_tensor = torch.tensor([sigma_cart])  # shape [batch=1]
+            lattice_diagonals = torch.tensor([[L, L, L]])   # shape [batch=1, spatial_dim=3]
+            score = get_coordinates_sigma_normalized_score_cartesian(
+                relative_coordinates, sigma_cart_tensor, lattice_diagonals, kmax
+            )
+            scores.append(score)
+
+        for score in scores[1:]:
+            torch.testing.assert_close(score, scores[0])

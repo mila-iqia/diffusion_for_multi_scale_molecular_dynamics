@@ -34,9 +34,9 @@ class TestConsistencyRegularizer(BaseTestRegularizer):
         return 10
 
     @pytest.fixture()
-    def noise_parameters(self, sigma_min, sigma_max, total_time_steps):
+    def noise_parameters(self, total_time_steps):
         return NoiseParameters(
-            total_time_steps=total_time_steps, sigma_min=sigma_min, sigma_max=sigma_max
+            total_time_steps=total_time_steps, sigma_min_cart=0.001, sigma_max_cart=2.0
         )
 
     @pytest.fixture()

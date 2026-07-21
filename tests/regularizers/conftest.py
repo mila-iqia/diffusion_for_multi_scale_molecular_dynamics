@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.sigma_calculator import \
     ExponentialSigmaCalculator
 from tests.regularizers.differentiable_score_network import (
@@ -59,6 +59,10 @@ class BaseTestRegularizer:
         return torch.zeros(batch_size, number_of_atoms, dtype=torch.int64).to(device)
 
     @pytest.fixture()
+    def natoms(self, batch_size, number_of_atoms, device):
+        return torch.full((batch_size,), number_of_atoms, dtype=torch.long, device=device)
+
+    @pytest.fixture()
     def cell_dimensions(self, spatial_dimension):
         acell = 5.0
         return acell * torch.ones(spatial_dimension)
@@ -71,7 +75,7 @@ class BaseTestRegularizer:
 
     @pytest.fixture()
     def augmented_batch(
-        self, relative_coordinates, times, sigmas, atom_types, lattice_parameters
+        self, relative_coordinates, times, sigmas, atom_types, lattice_parameters, natoms
     ):
         forces = torch.zeros_like(relative_coordinates)
         composition = AXL(A=atom_types, X=relative_coordinates, L=lattice_parameters)
@@ -81,6 +85,7 @@ class BaseTestRegularizer:
             NOISE: sigmas,
             TIME: times,
             CARTESIAN_FORCES: forces,
+            NUMBER_OF_ATOMS: natoms,
         }
         return batch
 
@@ -104,7 +109,6 @@ class BaseTestRegularizer:
     def test_compute_weighted_regularizer_loss(
         self, regularizer, score_network, augmented_batch
     ):
-
         # Smoke test that the method runs.
         _ = regularizer.compute_weighted_regularizer_loss(
             score_network=score_network,

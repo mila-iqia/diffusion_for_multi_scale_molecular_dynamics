@@ -13,7 +13,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME,
+    UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
     VarianceScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
@@ -149,12 +150,14 @@ class ScoreViewer:
             L=lattice_parameters,
         )
 
+        number_of_atoms = torch.full((batch_size,), self.natoms, dtype=torch.long, device=device)
         batch = {
             NOISY_AXL_COMPOSITION: composition,
             NOISE: sigmas_t,
             TIME: times,
             UNIT_CELL: unit_cells,
             CARTESIAN_FORCES: forces,
+            NUMBER_OF_ATOMS: number_of_atoms,
         }
         return batch
 

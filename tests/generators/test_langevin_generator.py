@@ -6,6 +6,8 @@ from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator 
     LangevinGenerator
 from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
     PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
+    ScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
@@ -13,7 +15,7 @@ from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations im
     map_relative_coordinates_to_unit_cell
 from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
     NoiseScheduler
-from tests.generators.conftest import BaseTestGenerator
+from tests.generators.conftest import BaseTestGenerator, FakeAXLNetwork
 
 
 class TestLangevinGenerator(BaseTestGenerator):
@@ -35,15 +37,20 @@ class TestLangevinGenerator(BaseTestGenerator):
         return request.param
 
     @pytest.fixture()
-    def sigma_min(self):
-        return 0.15
+    def sigma_min_cart(self):
+        return 1.5
 
     @pytest.fixture()
-    def noise_parameters(self, total_time_steps, sigma_min):
+    def sigma_max_cart(self):
+        return 5.
+
+    @pytest.fixture()
+    def noise_parameters(self, total_time_steps, sigma_min_cart, sigma_max_cart):
         noise_parameters = NoiseParameters(
             total_time_steps=total_time_steps,
             time_delta=0.1,
-            sigma_min=sigma_min,
+            sigma_min_cart=sigma_min_cart,
+            sigma_max_cart=sigma_max_cart,
             corrector_step_epsilon=0.25,
         )
         return noise_parameters
@@ -119,14 +126,25 @@ class TestLangevinGenerator(BaseTestGenerator):
         pc_generator.sample(number_of_samples, device)
 
     @pytest.fixture()
+    def cell_dimensions(self, spatial_dimension):
+        # Rectangular (non-cubic) cell: each direction has a distinct length.
+        generator = torch.Generator().manual_seed(23)
+        cell_dimensions = torch.rand(3, generator=generator).tolist()
+        return cell_dimensions[:spatial_dimension]
+
+    @pytest.fixture()
     def axl_i(
         self,
+        cell_dimensions,
         number_of_samples,
         number_of_atoms,
         spatial_dimension,
         num_atomic_classes,
         device,
     ):
+        num_lattice_params = int(spatial_dimension * (spatial_dimension + 1) / 2)
+        L = torch.zeros(number_of_samples, num_lattice_params).to(device)
+        L[:, :spatial_dimension] = torch.tensor(cell_dimensions, dtype=torch.float32, device=device)
         return AXL(
             A=torch.randint(
                 0, num_atomic_classes, (number_of_samples, number_of_atoms)
@@ -134,9 +152,7 @@ class TestLangevinGenerator(BaseTestGenerator):
             X=map_relative_coordinates_to_unit_cell(
                 torch.rand(number_of_samples, number_of_atoms, spatial_dimension)
             ).to(device),
-            L=torch.randn(
-                number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
-            ).to(device),
+            L=L,
         )
 
     def test_predictor_step_relative_coordinates_and_lattice(
@@ -144,16 +160,17 @@ class TestLangevinGenerator(BaseTestGenerator):
         mocker,
         pc_generator,
         noise,
-        sigma_min,
         axl_i,
         total_time_steps,
         number_of_samples,
-        number_of_atoms,
         spatial_dimension,
+        cell_dimensions,
     ):
-        list_sigma = noise.sigma
+        list_sigma = noise.sigma  # Cartesian sigmas
         list_time = noise.time
         forces = torch.zeros_like(axl_i.X)
+        # Diagonal lattice elements per direction: shape [number_of_samples, spatial_dimension].
+        lattice_diagonals = axl_i.L[:, :spatial_dimension]
 
         z_coordinates = pc_generator._draw_coordinates_gaussian_sample(
             number_of_samples
@@ -174,34 +191,29 @@ class TestLangevinGenerator(BaseTestGenerator):
         for index_i in range(1, total_time_steps + 1):
             computed_sample = pc_generator.predictor_step(axl_i, index_i, forces)
 
-            sigma_i = list_sigma[index_i - 1]
-            t_i = list_time[index_i - 1]
-            if index_i == 1:
-                sigma_im1 = sigma_min
-            else:
-                sigma_im1 = list_sigma[index_i - 2]
-
-            g2 = sigma_i**2 - sigma_im1**2
+            idx = index_i - 1
+            sigma_cart_i = list_sigma[idx]
+            t_i = list_time[idx]
+            g_cart_i = noise.g[idx]
+            g2_cart_i = noise.g_squared[idx]
 
             model_predictions = pc_generator._get_model_predictions(
-                axl_i, t_i, sigma_i, forces
+                axl_i, t_i, sigma_cart_i, forces
             )
 
-            s_i_coordinates = model_predictions.X / sigma_i
-
-            expected_coordinates = (
-                axl_i.X + g2 * s_i_coordinates + torch.sqrt(g2) * z_coordinates
-            )
+            dx_cart = g2_cart_i * model_predictions.X / sigma_cart_i + g_cart_i * z_coordinates
             expected_coordinates = map_relative_coordinates_to_unit_cell(
-                expected_coordinates
+                axl_i.X + dx_cart / lattice_diagonals[:, None, :]
             )
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
 
-            # scale back sigma_i for the number of atoms
-            sigma_i_for_lattice = sigma_i / (number_of_atoms ** (1 / spatial_dimension))
-            s_i_lattice = model_predictions.L / sigma_i_for_lattice
-            expected_lattice = axl_i.L + g2 * s_i_lattice + torch.sqrt(g2) * z_lattice
+            # TODO: Unsure if there should be a dependence on the number of atoms.
+            number_of_atoms = axl_i.X.shape[1]
+            sigma_n_i = sigma_cart_i / (number_of_atoms ** (1.0 / spatial_dimension))
+            g2_n_i = g2_cart_i / (number_of_atoms ** (2.0 / spatial_dimension))
+            g_n_i = g_cart_i / (number_of_atoms ** (1.0 / spatial_dimension))
+            expected_lattice = axl_i.L + g2_n_i * model_predictions.L / sigma_n_i + g_n_i * z_lattice
 
             torch.testing.assert_close(computed_sample.L, expected_lattice)
 
@@ -432,6 +444,7 @@ class TestLangevinGenerator(BaseTestGenerator):
         self,
         mocker,
         pc_generator,
+        cell_dimensions,
         total_time_steps,
         number_of_samples,
         number_of_atoms,
@@ -446,9 +459,9 @@ class TestLangevinGenerator(BaseTestGenerator):
 
         forces = torch.zeros_like(random_x)
 
-        random_l = torch.zeros(
-            number_of_samples, int(spatial_dimension * (spatial_dimension + 1) / 2)
-        ).to(device)
+        num_lattice_params = int(spatial_dimension * (spatial_dimension + 1) / 2)
+        random_l = torch.zeros(number_of_samples, num_lattice_params).to(device)
+        random_l[:, :spatial_dimension] = torch.tensor(cell_dimensions, dtype=torch.float32, device=device)
 
         # Initialize to fully masked
         a_ip1 = pc_generator.masked_atom_type_index * torch.ones(
@@ -517,12 +530,13 @@ class TestLangevinGenerator(BaseTestGenerator):
 
         sampler = NoiseScheduler(noise_parameters, num_classes=num_atomic_classes)
         noise, _ = sampler.get_all_sampling_parameters()
-        sigma_min = noise_parameters.sigma_min
+        sigma_min_cart = noise_parameters.sigma_min_cart
         epsilon = noise_parameters.corrector_step_epsilon
-        list_sigma = noise.sigma
+        list_sigma = noise.sigma  # Cartesian sigmas
         list_time = noise.time
-        sigma_1 = list_sigma[0]
+        sigma_1_cart = list_sigma[0]
         forces = torch.zeros_like(axl_i.X)
+        lattice_diagonals = axl_i.L[:, :spatial_dimension]
 
         z_coordinates = pc_generator._draw_coordinates_gaussian_sample(
             number_of_samples
@@ -544,38 +558,31 @@ class TestLangevinGenerator(BaseTestGenerator):
             computed_sample = pc_generator.corrector_step(axl_i, index_i, forces)
 
             if index_i == 0:
-                sigma_i = sigma_min
+                sigma_cart_i = sigma_min_cart
                 t_i = 0.0
             else:
-                sigma_i = list_sigma[index_i - 1]
+                sigma_cart_i = list_sigma[index_i - 1]
                 t_i = list_time[index_i - 1]
 
-            eps_i = 0.5 * epsilon * sigma_i**2 / sigma_1**2
+            eps_i = 0.5 * epsilon * sigma_cart_i**2 / sigma_1_cart**2
 
             model_predictions = pc_generator._get_model_predictions(
-                axl_i, t_i, sigma_i, forces
+                axl_i, t_i, sigma_cart_i, forces
             )
 
             # test coordinates
-            s_i_coordinates = model_predictions.X / sigma_i
-
-            expected_coordinates = (
-                axl_i.X
-                + eps_i * s_i_coordinates
-                + torch.sqrt(2.0 * eps_i) * z_coordinates
-            )
             expected_coordinates = map_relative_coordinates_to_unit_cell(
-                expected_coordinates
+                axl_i.X
+                + eps_i / lattice_diagonals[:, None, :] * model_predictions.X / sigma_cart_i
+                + torch.sqrt(2.0 * eps_i) / lattice_diagonals[:, None, :] * z_coordinates
             )
 
             torch.testing.assert_close(computed_sample.X, expected_coordinates)
 
-            # test lattice
-            sigma_i_for_lattice = sigma_i / (number_of_atoms ** (1 / spatial_dimension))
-            s_i_lattice = model_predictions.L / sigma_i_for_lattice
-
+            # TODO: Unsure if there should be a dependence on the number of atoms.
+            sigma_n_i_corrector = sigma_cart_i / (number_of_atoms ** (1.0 / spatial_dimension))
             expected_lattice = (
-                axl_i.L + eps_i * s_i_lattice + torch.sqrt(2.0 * eps_i) * z_lattice
+                axl_i.L + eps_i * model_predictions.L / sigma_n_i_corrector + torch.sqrt(2.0 * eps_i) * z_lattice
             )
 
             torch.testing.assert_close(computed_sample.L, expected_lattice)
@@ -601,3 +608,221 @@ class TestLangevinGenerator(BaseTestGenerator):
 
             else:
                 assert torch.all(computed_sample.A == axl_i.A)
+
+
+class TestPredictorStepDenoisingDirection:
+    """Tests that the deterministic predictor step correctly inverts the training score normalization."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_random_seed(self):
+        torch.manual_seed(12345)
+
+    @pytest.fixture()
+    def batch_size(self):
+        return 4
+
+    @pytest.fixture()
+    def number_of_atoms(self):
+        return 3
+
+    @pytest.fixture(params=[2, 3])
+    def spatial_dimension(self, request):
+        return request.param
+
+    @pytest.fixture()
+    def num_atom_types(self):
+        return 2
+
+    @pytest.fixture()
+    def generator(self, spatial_dimension, num_atom_types):
+        noise_parameters = NoiseParameters(total_time_steps=5, sigma_min_cart=0.01, sigma_max_cart=1.0)
+        sampling_parameters = PredictorCorrectorSamplingParameters(
+            number_of_atoms=3,
+            number_of_samples=4,
+            spatial_dimension=spatial_dimension,
+            num_atom_types=num_atom_types,
+            number_of_corrector_steps=1,
+        )
+        axl_network = FakeAXLNetwork(
+            ScoreNetworkParameters(
+                architecture="dummy",
+                spatial_dimension=spatial_dimension,
+                num_atom_types=num_atom_types,
+            )
+        )
+        return LangevinGenerator(
+            noise_parameters=noise_parameters,
+            sampling_parameters=sampling_parameters,
+            axl_network=axl_network,
+        )
+
+    @pytest.mark.parametrize("sigma_rel", [0.05, 0.15, 0.3])
+    def test_predictor_step_denoises_gaussian_samples(
+        self,
+        generator,
+        sigma_rel,
+        batch_size,
+        number_of_atoms,
+        spatial_dimension,
+    ):
+        """Deterministic predictor step with perfect Gaussian score moves x_t strictly closer to x_0.
+
+        The training convention is sigma_normalized_scores = sigma_rel * score_rel = -z_noise for Gaussian noising
+        x_t = x_0 + sigma_rel * z_noise. With z=0 (deterministic step) and this perfect score as model output,
+        dx_rel = -g2_rel/sigma_rel^2 * (x_t - x_0), which contracts the displacement toward x_0 for any sigma_rel
+        satisfying g2_rel < sigma_rel^2.
+        """
+        # g_rel small enough that g2_rel < sigma_rel^2 for all tested sigma_rel, so no overshoot.
+        g_rel = 0.02
+        g2_rel = g_rel ** 2
+        L_diag = 10.0
+
+        # Scale z_noise so x_t stays well inside (0, 1) for all tested sigma_rel values (max displacement = 0.03).
+        z_noise = torch.randn(batch_size, number_of_atoms, spatial_dimension)
+        z_noise = z_noise / (z_noise.abs().max() + 1e-8) * 0.1
+
+        x_0 = 0.3 + 0.4 * torch.rand(batch_size, number_of_atoms, spatial_dimension)
+        x_t = x_0 + sigma_rel * z_noise
+
+        sigma_normalized_scores = -z_noise  # perfect model: sigma_rel * score_rel = -z_noise
+
+        z_zero = torch.zeros(batch_size, number_of_atoms, spatial_dimension)
+        lattice_diagonals = L_diag * torch.ones(batch_size, spatial_dimension)
+        sigma_cart = torch.tensor(sigma_rel * L_diag)
+        g2_cart = torch.tensor(g2_rel * L_diag ** 2)
+        g_cart = torch.tensor(g_rel * L_diag)
+
+        x_updated = generator._relative_coordinates_update_predictor_step(
+            x_t, sigma_normalized_scores, sigma_cart, g2_cart, g_cart, lattice_diagonals, z_zero
+        )
+
+        distance_before = (x_t - x_0).norm(dim=-1)
+        distance_after = (x_updated - x_0).norm(dim=-1)
+        assert (distance_after <= distance_before).all()
+
+
+class TestCellSizeIndependence:
+    """Tests that coordinate updates produce cell-size-independent Cartesian displacements."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_random_seed(self):
+        torch.manual_seed(54321)
+
+    @pytest.fixture()
+    def batch_size(self):
+        return 4
+
+    @pytest.fixture()
+    def number_of_atoms(self):
+        return 3
+
+    @pytest.fixture(params=[2, 3])
+    def spatial_dimension(self, request):
+        return request.param
+
+    @pytest.fixture()
+    def num_atom_types(self):
+        return 2
+
+    @pytest.fixture()
+    def generator(self, spatial_dimension, num_atom_types):
+        noise_parameters = NoiseParameters(total_time_steps=5, sigma_min_cart=0.01, sigma_max_cart=1.0)
+        sampling_parameters = PredictorCorrectorSamplingParameters(
+            number_of_atoms=3,
+            number_of_samples=4,
+            spatial_dimension=spatial_dimension,
+            num_atom_types=num_atom_types,
+            number_of_corrector_steps=1,
+        )
+        axl_network = FakeAXLNetwork(
+            ScoreNetworkParameters(
+                architecture="dummy",
+                spatial_dimension=spatial_dimension,
+                num_atom_types=num_atom_types,
+            )
+        )
+        return LangevinGenerator(
+            noise_parameters=noise_parameters,
+            sampling_parameters=sampling_parameters,
+            axl_network=axl_network,
+        )
+
+    @pytest.fixture()
+    def sigma_rel(self):
+        return 0.1
+
+    @pytest.fixture()
+    def relative_coordinates(self, batch_size, number_of_atoms, spatial_dimension):
+        return 0.25 + 0.5 * torch.rand(batch_size, number_of_atoms, spatial_dimension)
+
+    @pytest.fixture()
+    def sigma_normalized_scores(self, batch_size, number_of_atoms, spatial_dimension):
+        return torch.randn(batch_size, number_of_atoms, spatial_dimension)
+
+    @pytest.fixture()
+    def gaussian_noise_z(self, batch_size, number_of_atoms, spatial_dimension):
+        return torch.randn(batch_size, number_of_atoms, spatial_dimension)
+
+    def test_predictor_step_is_cell_independent(
+        self,
+        generator,
+        relative_coordinates,
+        sigma_normalized_scores,
+        gaussian_noise_z,
+        sigma_rel,
+        batch_size,
+        spatial_dimension,
+    ):
+        """Predictor dx_rel is identical for L=5 and L=20 when sigma_rel and g_rel are fixed.
+
+        With g2_cart = g2_rel * L^2, g_cart = g_rel * L, sigma_cart = sigma_rel * L, the pre-scaling
+        by L^{-1} cancels all L-dependence: dx_rel = g2_rel/sigma_rel * sigma_normalized_scores + g_rel * z.
+        """
+        g_rel = 0.05
+        list_updated_coordinates = []
+
+        for L_diag in [5.0, 20.0]:
+            lattice_diagonals = L_diag * torch.ones(batch_size, spatial_dimension)
+            sigma_cart = torch.tensor(sigma_rel * L_diag)
+            g2_cart = torch.tensor(g_rel ** 2 * L_diag ** 2)
+            g_cart = torch.tensor(g_rel * L_diag)
+
+            x_updated = generator._relative_coordinates_update_predictor_step(
+                relative_coordinates, sigma_normalized_scores,
+                sigma_cart, g2_cart, g_cart, lattice_diagonals, gaussian_noise_z,
+            )
+            list_updated_coordinates.append(x_updated)
+
+        torch.testing.assert_close(list_updated_coordinates[0], list_updated_coordinates[1])
+
+    def test_corrector_step_is_cell_independent(
+        self,
+        generator,
+        relative_coordinates,
+        sigma_normalized_scores,
+        gaussian_noise_z,
+        batch_size,
+        spatial_dimension,
+    ):
+        """Corrector dx_cart = L * dx_rel is identical for L=5 and L=20 when sigma_cart and eps are fixed.
+
+        sigma_cart is L-independent (fixed in Angstroms). Both score_weight = eps/L and
+        noise_weight = sqrt_2eps/L scale as 1/L, so dx_rel scales as 1/L and
+        dx_cart = L * dx_rel = eps * score_cart + sqrt_2eps * z is L-independent.
+        """
+        sigma_cart = torch.tensor(0.5)  # fixed in Angstroms, L-independent
+        eps = 0.002
+        sqrt_2eps = torch.sqrt(torch.tensor(2.0 * eps))
+        list_dx_cart = []
+
+        for L_diag in [5.0, 20.0]:
+            lattice_diagonals = L_diag * torch.ones(batch_size, spatial_dimension)
+
+            x_updated = generator._relative_coordinates_update_corrector_step(
+                relative_coordinates, sigma_normalized_scores,
+                sigma_cart, torch.tensor(eps), sqrt_2eps, lattice_diagonals, gaussian_noise_z,
+            )
+            dx_cart = L_diag * (x_updated - relative_coordinates)
+            list_dx_cart.append(dx_cart)
+
+        torch.testing.assert_close(list_dx_cart[0], list_dx_cart[1])

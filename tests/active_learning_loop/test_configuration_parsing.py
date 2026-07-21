@@ -46,8 +46,8 @@ def excision_and_sampler_maker_algorithm_combination(request):
 @pytest.fixture
 def noise_dictionary():
     return dict(total_time_steps=10,
-                sigma_min=0.0001,
-                sigma_max=0.2,
+                sigma_min_cart=0.0001,
+                sigma_max_cart=2.0,
                 schedule_type='linear',
                 corrector_step_epsilon=2.5e-8)
 

@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import \
-    get_periodic_adjacency_information
+from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
+    AdjacencyInfo, get_periodic_adjacency_information)
 
 
 @dataclass(kw_only=True)
@@ -30,46 +30,33 @@ class RepulsiveForce(ABC, torch.nn.Module):
         super().__init__()
         self.radial_cutoff = hyper_params.radial_cutoff
 
-    def get_atomic_distances(self, cartesian_positions, basis_vectors):
-        """Return the atomic distance between every pair of atoms up to radial_cutoff. Else, gives -1.
+    def get_atomic_distances(
+        self, cartesian_positions: torch.Tensor, basis_vectors: torch.Tensor
+    ) -> tuple[AdjacencyInfo, torch.Tensor]:
+        """Return the atomic distances between every neighbor pair within the radial cutoff.
 
         Args:
             cartesian_positions: Cartesian positions [nconf, natoms, 3]
             basis_vectors: Cell basis vectors [nconf, 3, 3]
 
         Returns:
-            atomic_distances: [nconf, natoms, natoms]
-                - d_ij if atom j is within cutoff of atom i (with PBC)
-                - -1 otherwise
+            adj: AdjacencyInfo with source/destination indices, batch indices, etc.
+            distances: interatomic distances for each edge [number_of_edges]
         """
-        nconf, natoms, _ = cartesian_positions.shape
-
-        atomic_distances = torch.full(
-            (nconf, natoms, natoms),
-            -1.0,
-            requires_grad=False,
-            dtype=cartesian_positions.dtype,
-            device=cartesian_positions.device,
-        )
         adj = get_periodic_adjacency_information(
             cartesian_positions=cartesian_positions,
             basis_vectors=basis_vectors,
             radial_cutoff=self.radial_cutoff,
             spatial_dimension=3,
         )
-
-        src = adj.adjacency_matrix[0]
-        dst = adj.adjacency_matrix[1]
-        b = adj.edge_batch_indices  # b indicates the index of the configuration
-        shift = adj.shifts
-        xang1 = cartesian_positions[b, src]
-        xang2 = cartesian_positions[b, dst] + shift
-        distance_unordered = torch.linalg.norm(xang1 - xang2, dim=-1)
-
-        atomic_distances = atomic_distances.index_put((b, src, dst), distance_unordered)
-        atomic_distances = atomic_distances.index_put((b, dst, src), distance_unordered)
-
-        return atomic_distances
+        b = adj.edge_batch_indices
+        src, dst = adj.adjacency_matrix
+        # Recompute distances from positions explicitly so autograd can differentiate through them.
+        # adj.squared_distances comes from KeOps Kmin_argKmin does not support backward which is needed for autograd
+        distances = torch.linalg.norm(
+            cartesian_positions[b, dst] - cartesian_positions[b, src] + adj.shifts, dim=-1
+        )
+        return adj, distances
 
     @abstractmethod
     def get_cartesian_forces(self, A, cartesian_positions, basis_vectors):

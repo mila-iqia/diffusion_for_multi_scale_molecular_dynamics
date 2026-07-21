@@ -114,6 +114,9 @@ class D3PMLossCalculator(torch.nn.Module):
         kl_loss = torch.nn.functional.kl_div(
             log_p, q_atm1_given_at_and_a0, reduction="none"
         )
+        # Padded atoms have q=0 leading to kl_div=NaN when q=0 because 0 * (log(0) - log_p) = 0 * -inf = NaN.
+        # Replace NaN with 0.
+        kl_loss = kl_loss.masked_fill(kl_loss.isnan(), 0.0)
 
         variational_bound_loss = kl_loss
 

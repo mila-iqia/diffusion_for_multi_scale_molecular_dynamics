@@ -10,6 +10,8 @@ from typing import List, Optional, Tuple, Union
 import ase
 import numpy as np
 import pandas as pd
+from ase.calculators.calculator import \
+    PropertyNotImplementedError as ASEPropertyNotImplementedError
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
@@ -178,7 +180,7 @@ class TrajectoryProcessorForDiffusion:
             - cartesian_positions (float) dim[3*natom]: Cartesian positions of each atom (ang)
             - relative_coordinates (float) dim[3*natom]: Fractional/scaled positions of each atom
             - lattice_parameters (float) dim[6] : 3x3 cell indices [m11, m22, m33, m23, m13, m12] Voigt notation (ang)
-            - cartesian_forces (float) dim[3*natom]: Forces acting on each atom (eV/ang**2)
+            - cartesian_forces (float) dim[3*natom]: Forces acting on each atom (eV/ang**2). Optional.
 
         Args:
             trajectory: location of the Trajectory file
@@ -202,18 +204,21 @@ class TrajectoryProcessorForDiffusion:
             if not np.allclose(atoms.get_cell().angles(), 90., atol=1e-5):  # ON : Is the added noise problematic here ?
                 raise ValueError("The diffusion model is trained on orthogonal cell to generate orthogonal cell")
 
-            rows.append(
-                {
-                    "natom": len(atoms),
-                    "box": atoms.get_cell().lengths(),
-                    "element": atoms.get_chemical_symbols(),
-                    "potential_energy": atoms.get_potential_energy(),
-                    CARTESIAN_POSITIONS: atoms.get_positions().reshape(-1),
-                    RELATIVE_COORDINATES: atoms.get_scaled_positions().reshape(-1),
-                    LATTICE_PARAMETERS: lattice_parameters,
-                    CARTESIAN_FORCES: atoms.get_forces().reshape(-1),
-                }
-            )
+            row = {
+                "natom": len(atoms),
+                "box": atoms.get_cell().lengths(),
+                "element": atoms.get_chemical_symbols(),
+                "potential_energy": atoms.get_potential_energy(),
+                CARTESIAN_POSITIONS: atoms.get_positions().reshape(-1),
+                RELATIVE_COORDINATES: atoms.get_scaled_positions().reshape(-1),
+                LATTICE_PARAMETERS: lattice_parameters,
+            }
+            try:
+                forces = atoms.get_forces()
+                row[CARTESIAN_FORCES] = forces.reshape(-1)
+            except ASEPropertyNotImplementedError:
+                pass
+            rows.append(row)
         return pd.DataFrame.from_records(rows)
 
     @staticmethod

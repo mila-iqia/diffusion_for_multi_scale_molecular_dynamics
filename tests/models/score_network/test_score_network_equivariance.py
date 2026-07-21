@@ -16,7 +16,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_pr
     MaceEquivariantScorePredictionHeadParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION,
-    NOISY_CARTESIAN_POSITIONS, TIME)
+    NOISY_CARTESIAN_POSITIONS, NUMBER_OF_ATOMS, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import (
     get_positions_from_coordinates, get_reciprocal_basis_vectors,
     get_relative_coordinates_from_cartesian_positions,
@@ -83,6 +83,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
         noises,
         forces,
     ):
+        batch_size, number_of_atoms, _ = relative_coordinates.shape
         batch = {
             NOISY_AXL_COMPOSITION: AXL(
                 A=atom_types,
@@ -93,6 +94,7 @@ class BaseTestScoreEquivariance(BaseTestScoreNetwork):
             TIME: times,
             NOISE: noises,
             CARTESIAN_FORCES: forces,
+            NUMBER_OF_ATOMS: torch.full((batch_size,), number_of_atoms, dtype=torch.long),
         }
         return batch
 

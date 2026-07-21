@@ -19,7 +19,8 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsiv
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.zbl_force import \
     ZBLForceParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME,
+    UNIT_CELL)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -128,6 +129,8 @@ class TestForceFieldAugmentedScoreNetworkHarmonic(BaseTestScoreNetwork):
         noises,
         basis_vectors,
         lattice_parameters,
+        number_of_atoms,
+        batch_size,
     ):
         return {
             NOISY_AXL_COMPOSITION: AXL(
@@ -139,6 +142,7 @@ class TestForceFieldAugmentedScoreNetworkHarmonic(BaseTestScoreNetwork):
             UNIT_CELL: basis_vectors,  # TODO remove this
             NOISE: noises,
             CARTESIAN_FORCES: cartesian_forces,
+            NUMBER_OF_ATOMS: torch.full((batch_size,), number_of_atoms, dtype=torch.long),
         }
 
     @pytest.fixture
@@ -366,8 +370,8 @@ class TestForceFieldAugmentedScoreNetworkZBL(BaseTestScoreNetwork):
     def noise_parameters_Si32(self):
         noise_parameters = NoiseParameters(
             total_time_steps=3,
-            sigma_min=0.005,
-            sigma_max=0.5,
+            sigma_min_cart=0.005,
+            sigma_max_cart=2.0,
             schedule_type="exponential",
         )
         return noise_parameters
@@ -391,8 +395,7 @@ class TestForceFieldAugmentedScoreNetworkZBL(BaseTestScoreNetwork):
             message_agg="mean",
             n_layers=4,
             edges="radial_cutoff",
-            radial_cutoff=5.,
-            drop_duplicate_edges=True)
+            radial_cutoff=5.)
         return score_network_parameters
 
     @pytest.fixture()
@@ -485,7 +488,7 @@ class TestForceFieldAugmentedScoreNetworkZBL(BaseTestScoreNetwork):
                         generator._relative_coordinates_update(
                             relative_coordinates=composition_Si32.X,
                             sigma_normalized_scores=force_score.X,
-                            sigma_i=sigma_i,
+                            sigma_cart=sigma_i,
                             score_weight=score_weight,
                             gaussian_noise_weight=gaussian_noise,
                             z=z_noise,
@@ -530,9 +533,9 @@ class TestForceFieldAugmentedScoreNetworkZBL(BaseTestScoreNetwork):
         assert torch.allclose(Ttime_struct, composition_Si32.X, atol=1e-4)
 
         # 3.4 Verify that the minimal interatomic distances is bigger in the updated_struct
-        initial_dist = zbl_force.get_atomic_distances(composition_Si32.X, basis_vectors_Si32)
-        zerotime_dist = zbl_force.get_atomic_distances(updated_structs[0][0], basis_vectors_Si32)
-        halftime_dist = zbl_force.get_atomic_distances(updated_structs[1][0], basis_vectors_Si32)
+        initial_adj, initial_dist = zbl_force.get_atomic_distances(composition_Si32.X, basis_vectors_Si32)
+        zerotime_adj, zerotime_dist = zbl_force.get_atomic_distances(updated_structs[0][0], basis_vectors_Si32)
+        halftime_adj, halftime_dist = zbl_force.get_atomic_distances(updated_structs[1][0], basis_vectors_Si32)
 
         # Here, we need to filter out atoms outside rcut (dist=-1) with a mask
         initial_min_dist = initial_dist.masked_fill(initial_dist < 0, float("inf")).min()
@@ -610,7 +613,7 @@ class TestForceFieldAugmentedScoreNetworkZBL(BaseTestScoreNetwork):
             updated_struct = generator._relative_coordinates_update(
                 relative_coordinates=composition_Si32.X,
                 sigma_normalized_scores=force_score.X,
-                sigma_i=sigma,
+                sigma_cart=sigma,
                 score_weight=score_weight,
                 gaussian_noise_weight=gaussian_noise,
                 z=z_noise,

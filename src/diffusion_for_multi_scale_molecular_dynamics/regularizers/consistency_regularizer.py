@@ -13,7 +13,7 @@ from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
     AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
@@ -92,11 +92,14 @@ class ConsistencyRegularizer(Regularizer):
 
         forces = torch.zeros_like(composition.X)
 
+        batch_size, natoms = composition.A.shape
+        number_of_atoms = torch.full((batch_size,), natoms, dtype=torch.long, device=device)
         batch = {
             NOISY_AXL_COMPOSITION: composition,
             NOISE: sigmas,
             TIME: times,
             CARTESIAN_FORCES: forces,
+            NUMBER_OF_ATOMS: number_of_atoms,
         }
         return batch
 

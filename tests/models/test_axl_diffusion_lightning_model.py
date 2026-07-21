@@ -21,13 +21,19 @@ from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
     OptimizerParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.scheduler import (
     CosineAnnealingLRSchedulerParameters, ReduceLROnPlateauSchedulerParameters)
+from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.egnn_score_network import \
+    EGNNScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
     MLPScoreNetworkParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_FORCES, LATTICE_PARAMETERS,
-    RELATIVE_COORDINATES)
+    ATOM_TYPES, AXL_COMPOSITION, CARTESIAN_FORCES, LATTICE_PARAMETERS, NOISE,
+    NOISY_ATOM_TYPES, NOISY_AXL_COMPOSITION, NOISY_LATTICE_PARAMETERS,
+    NOISY_RELATIVE_COORDINATES, PADDED_ATOM_TYPE, Q_BAR_MATRICES,
+    Q_BAR_TM1_MATRICES, Q_MATRICES, RELATIVE_COORDINATES, TIME, TIME_INDICES)
 from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
+    NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import \
     LatticeDataParameters
 from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import (
@@ -38,8 +44,9 @@ from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling_pa
     DiffusionSamplingParameters
 from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
     get_sigma_normalized_score_brute_force
-from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \
-    broadcast_batch_tensor_to_all_dimensions
+from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (
+    broadcast_batch_matrix_tensor_to_all_dimensions,
+    broadcast_batch_tensor_to_all_dimensions)
 from tests.fake_data_utils import generate_random_string
 
 
@@ -92,6 +99,7 @@ class FakeAXLDataModule(LightningDataModule):
                 LATTICE_PARAMETERS: box,
                 CARTESIAN_FORCES: torch.zeros_like(coordinate_configuration),
                 "potential_energy": potential_energy,
+                "natom": torch.tensor(number_of_atoms),
             }
             for coordinate_configuration, atom_configuration, potential_energy in zip(
                 all_relative_coordinates, all_atom_types, potential_energies
@@ -106,6 +114,71 @@ class FakeAXLDataModule(LightningDataModule):
         self.data = [{key: batched_data[key][idx] for key in keys} for idx in range(batch_size)]
 
         self.train_data, self.val_data, self.test_data = None, None, None
+
+    def setup(self, stage: str):
+        self.train_data, self.val_data, self.test_data = random_split(
+            self.data, lengths=[0.5, 0.3, 0.2]
+        )
+
+    def train_dataloader(self):
+        return DataLoader(self.train_data, batch_size=self.batch_size)
+
+    def val_dataloader(self):
+        return DataLoader(self.val_data, batch_size=self.batch_size)
+
+    def test_dataloader(self):
+        return DataLoader(self.test_data, batch_size=self.batch_size)
+
+
+class FakeVariableNatomAXLDataModule(LightningDataModule):
+    """DataModule for variable-natom training smoke tests.
+
+    Samples have different numbers of real atoms; padded atoms get NaN coordinates
+    and PADDED_ATOM_TYPE. The lattice is fixed (not noised) so it stays safely above
+    any radial cutoff.
+    """
+
+    def __init__(
+        self,
+        spatial_dimension: int = 3,
+        num_atom_types: int = 2,
+        max_atoms: int = 8,
+        lattice_size: float = 10.0,
+    ):
+        super().__init__()
+        natoms_list = [3, 5, max_atoms, 4, 6, max_atoms, 5, 3]
+        dataset_size = len(natoms_list)
+        self.batch_size = 4
+
+        noising_transform = NoisingTransform(
+            noise_parameters=NoiseParameters(total_time_steps=10),
+            num_atom_types=num_atom_types,
+            spatial_dimension=spatial_dimension,
+            use_optimal_transport=False,
+            use_fixed_lattice_parameters=True,
+        )
+
+        lattice_params_dim = spatial_dimension * (spatial_dimension + 1) // 2
+        lattice_params = torch.zeros(lattice_params_dim)
+        lattice_params[:spatial_dimension] = lattice_size
+
+        x0 = torch.rand(dataset_size, max_atoms, spatial_dimension)
+        a0 = torch.randint(0, num_atom_types, (dataset_size, max_atoms))
+        for b, n in enumerate(natoms_list):
+            x0[b, n:] = float('nan')
+            a0[b, n:] = PADDED_ATOM_TYPE
+
+        raw_data = {
+            RELATIVE_COORDINATES: x0,
+            ATOM_TYPES: a0,
+            LATTICE_PARAMETERS: lattice_params.unsqueeze(0).expand(dataset_size, -1).clone(),
+            CARTESIAN_FORCES: torch.zeros(dataset_size, max_atoms, spatial_dimension),
+            "natom": torch.tensor(natoms_list),
+        }
+        batched_data = noising_transform.transform(raw_data)
+        keys = batched_data.keys()
+        self.data = [{key: batched_data[key][idx] for key in keys} for idx in range(dataset_size)]
+        self.train_data = self.val_data = self.test_data = None
 
     def setup(self, stage: str):
         self.train_data, self.val_data, self.test_data = random_split(
@@ -291,12 +364,12 @@ class TestPositionDiffusionLightningModel:
         return times
 
     @pytest.fixture()
-    def sigmas(self, batch_size, number_of_atoms, spatial_dimension):
-        sigma_values = 0.5 * torch.rand(batch_size)  # smaller sigmas for harder tests!
-        sigmas = broadcast_batch_tensor_to_all_dimensions(
-            sigma_values, final_shape=(batch_size, number_of_atoms, spatial_dimension)
-        )
-        return sigmas
+    def sigma_cart(self, batch_size):
+        return 0.5 + 4.5 * torch.rand(batch_size)
+
+    @pytest.fixture()
+    def unit_cell_lattice_diagonals(self, unit_cell_size, batch_size, spatial_dimension):
+        return torch.full((batch_size, spatial_dimension), unit_cell_size)
 
     @pytest.fixture()
     def lightning_model(self, mocker, hyper_params):
@@ -311,22 +384,29 @@ class TestPositionDiffusionLightningModel:
 
     @pytest.fixture()
     def brute_force_target_normalized_score(
-        self, noisy_relative_coordinates, real_relative_coordinates, sigmas
+        self, noisy_relative_coordinates, real_relative_coordinates, sigma_cart, unit_cell_size,
+        number_of_atoms, spatial_dimension, batch_size,
     ):
         shape = noisy_relative_coordinates.shape
 
+        # sigma_rel_d = sigma_cart / unit_cell_size (same for all directions for a cubic cell)
+        sigma_rel_values = sigma_cart / unit_cell_size  # shape [batch_size]
+        sigma_rel_broadcast = broadcast_batch_tensor_to_all_dimensions(
+            sigma_rel_values, final_shape=(batch_size, number_of_atoms, spatial_dimension)
+        )
+
         expected_scores = []
-        for xt, x0, sigma in zip(
+        for xt, x0, sigma_rel in zip(
             noisy_relative_coordinates.flatten(),
             real_relative_coordinates.flatten(),
-            sigmas.flatten(),
+            sigma_rel_broadcast.flatten(),
         ):
             u = torch.remainder(xt - x0, 1.0)
 
             # Note that the brute force algorithm is not robust and can sometimes produce NaNs in single precision!
             # Let's compute in double precision to avoid NaNs.
             expected_score = get_sigma_normalized_score_brute_force(
-                u.to(torch.double), sigma.to(torch.double), kmax=20
+                u.to(torch.double), sigma_rel.to(torch.double), kmax=20
             ).to(torch.float)
             expected_scores.append(expected_score)
 
@@ -335,12 +415,6 @@ class TestPositionDiffusionLightningModel:
             expected_scores.isnan()
         ), "The brute force algorithm produced NaN scores. Review input."
         return expected_scores
-
-    @pytest.fixture()
-    def unit_cell_sample(self, unit_cell_size, spatial_dimension, batch_size):
-        return torch.diag(torch.Tensor([unit_cell_size] * spatial_dimension)).repeat(
-            batch_size, 1, 1
-        )
 
     # The brute force target normalized scores are *fragile*; they can return NaNs easily.
     # There is no point in running this test for all possible component combinations.
@@ -352,13 +426,16 @@ class TestPositionDiffusionLightningModel:
         lightning_model,
         noisy_relative_coordinates,
         real_relative_coordinates,
-        sigmas,
+        sigma_cart,
+        unit_cell_lattice_diagonals,
         brute_force_target_normalized_score,
-        unit_cell_sample,
     ):
         computed_target_normalized_scores = (
-            lightning_model._get_coordinates_target_normalized_score(
-                noisy_relative_coordinates, real_relative_coordinates, sigmas
+            lightning_model._get_relative_coordinates_target_cartesian_normalized_score(
+                noisy_relative_coordinates,
+                real_relative_coordinates,
+                sigma_cart,
+                unit_cell_lattice_diagonals,
             )
         )
 
@@ -387,3 +464,218 @@ class TestPositionDiffusionLightningModel:
             number_of_samples,
             number_of_atoms,
         )
+
+
+@pytest.mark.parametrize("num_atom_types", [1, 2])
+@pytest.mark.parametrize("edges_connection", ["radial_cutoff", "fully_connected"])
+class TestAXLDiffusionLightningModelWithPadding:
+    """Tests for _generic_step correctness under variable-natom padding."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def set_random_seed(self):
+        torch.manual_seed(98765432)
+
+    @pytest.fixture()
+    def spatial_dimension(self):
+        return 3
+
+    @pytest.fixture()
+    def loss_parameters(self):
+        return create_loss_parameters(model_dictionary={})
+
+    @pytest.fixture()
+    def optimizer_parameters(self):
+        return OptimizerParameters(name="adam", learning_rate=0.001, weight_decay=0.0)
+
+    @pytest.fixture(params=["radial_cutoff", "fully_connected"])
+    def edges_connection(self, request):
+        return request.param
+
+    @pytest.fixture()
+    def hyper_params(self, num_atom_types, spatial_dimension, loss_parameters, optimizer_parameters, edges_connection):
+        if edges_connection == "radial_cutoff":
+            score_network_parameters = EGNNScoreNetworkParameters(
+                num_atom_types=num_atom_types,
+                spatial_dimension=spatial_dimension,
+                edges="radial_cutoff",
+                radial_cutoff=3.0,
+            )
+        elif edges_connection == "fully_connected":
+            score_network_parameters = EGNNScoreNetworkParameters(
+                num_atom_types=num_atom_types,
+                spatial_dimension=spatial_dimension,
+                edges="fully_connected",
+            )
+        return AXLDiffusionParameters(
+            score_network_parameters=score_network_parameters,
+            loss_parameters=loss_parameters,
+            optimizer_parameters=optimizer_parameters,
+        )
+
+    @pytest.fixture()
+    def lightning_model(self, hyper_params):
+        return AXLDiffusionLightningModel(hyper_params)
+
+    @pytest.fixture()
+    def noising_transform(self, num_atom_types, spatial_dimension):
+        # Fix the lattice so the noisy cell never shrinks below radial_cutoff.
+        # With sigma_max_cart=5.0 and natoms=4, sigma_n ~ 3.15 Å — enough to push an 8 Å
+        # diagonal below radial_cutoff=3.0. This test targets variable-natom padding, not
+        # lattice noising, so fixing the lattice is the right approach.
+        return NoisingTransform(
+            noise_parameters=NoiseParameters(total_time_steps=10),
+            num_atom_types=num_atom_types,
+            spatial_dimension=spatial_dimension,
+            use_optimal_transport=False,
+            use_fixed_lattice_parameters=True,
+        )
+
+    @pytest.fixture()
+    def lattice_parameters_orthogonal(self, spatial_dimension):
+        # Orthogonal box with diagonal > 2.2 * radial_cutoff (6.6) so the EGNN doesn't clip
+        lattice_dim = spatial_dimension * (spatial_dimension + 1) // 2
+        lp = torch.zeros(lattice_dim)
+        lp[:spatial_dimension] = 8.0
+        return lp
+
+    @pytest.fixture()
+    def mixed_natom_noised_batch(
+        self, spatial_dimension, num_atom_types, lattice_parameters_orthogonal, noising_transform
+    ):
+        batch_size = 4
+        max_atom = 8
+        natoms_list = [4, 8, 6, 8]
+        x0 = torch.rand(batch_size, max_atom, spatial_dimension)
+        a0 = torch.randint(0, num_atom_types, (batch_size, max_atom))
+        for b, n in enumerate(natoms_list):
+            x0[b, n:, :] = float('nan')
+            a0[b, n:] = PADDED_ATOM_TYPE
+        batch = {
+            RELATIVE_COORDINATES: x0,
+            ATOM_TYPES: a0,
+            LATTICE_PARAMETERS: lattice_parameters_orthogonal.unsqueeze(0).expand(batch_size, -1).clone(),
+            CARTESIAN_FORCES: torch.zeros(batch_size, max_atom, spatial_dimension),
+            "natom": torch.tensor(natoms_list),
+        }
+        return noising_transform.transform(batch)
+
+    def test_no_padded_atom_type_reaches_score_network(self, mocker, lightning_model, mixed_natom_noised_batch):
+        """PADDED_ATOM_TYPE (-1) must be replaced with 0 before reaching the score network.
+
+        On CPU, nn.Embedding(-1) silently wraps to the last element, so checking the loss
+        is not sufficient. On CUDA the same index produces NaN. This test catches the
+        regression on any device by inspecting the atom types the network actually receives.
+        """
+        spy = mocker.spy(lightning_model.axl_network, 'forward')
+
+        with torch.no_grad():
+            lightning_model._generic_step(mixed_natom_noised_batch, batch_idx=0)
+
+        assert spy.called, "Score network forward was never called"
+        batch_arg = spy.call_args[0][0]
+        at_seen = batch_arg[NOISY_AXL_COMPOSITION].A
+        assert (at_seen != PADDED_ATOM_TYPE).all(), \
+            f"PADDED_ATOM_TYPE (-1) reached the score network in positions: {(at_seen == PADDED_ATOM_TYPE).nonzero()}"
+
+    def test_loss_is_finite_with_variable_natom(self, lightning_model, mixed_natom_noised_batch):
+        with torch.no_grad():
+            output = lightning_model._generic_step(mixed_natom_noised_batch, batch_idx=0)
+        assert output["loss"].isfinite()
+
+    def test_loss_is_independent_of_padding(self, lightning_model, num_atom_types, spatial_dimension):
+        n_real = 5
+        batch_size = 2
+        max_atom_B = 10
+        num_classes = num_atom_types + 1
+
+        # Orthogonal lattice, above EGNN radial-cutoff clip threshold
+        lattice_dim = spatial_dimension * (spatial_dimension + 1) // 2
+        l0 = torch.zeros(batch_size, lattice_dim)
+        l0[:, :spatial_dimension] = 8.0
+
+        torch.manual_seed(42)
+        x0 = torch.rand(batch_size, n_real, spatial_dimension)
+        a0 = torch.randint(0, num_atom_types, (batch_size, n_real))
+        xt = torch.rand(batch_size, n_real, spatial_dimension)
+        at = torch.randint(0, num_atom_types, (batch_size, n_real))
+        lt = l0.clone()
+
+        sigma = torch.full((batch_size, 1), 0.1)
+        time = torch.full((batch_size, 1), 0.5)
+        time_indices = torch.tensor([5, 5])
+
+        noise_scheduler = NoiseScheduler(NoiseParameters(total_time_steps=10), num_classes=num_classes)
+        noise_sample = noise_scheduler.get_noise_from_indices(time_indices)
+        q = broadcast_batch_matrix_tensor_to_all_dimensions(
+            noise_sample.q_matrix, final_shape=(batch_size, n_real)
+        )
+        q_bar = broadcast_batch_matrix_tensor_to_all_dimensions(
+            noise_sample.q_bar_matrix, final_shape=(batch_size, n_real)
+        )
+        q_bar_tm1 = broadcast_batch_matrix_tensor_to_all_dimensions(
+            noise_sample.q_bar_tm1_matrix, final_shape=(batch_size, n_real)
+        )
+
+        # batch_A: 2 samples, each with 5 real atoms, no padding
+        batch_A = {
+            RELATIVE_COORDINATES: x0,
+            ATOM_TYPES: a0,
+            LATTICE_PARAMETERS: l0,
+            NOISY_RELATIVE_COORDINATES: xt,
+            NOISY_ATOM_TYPES: at,
+            NOISY_LATTICE_PARAMETERS: lt,
+            NOISE: sigma,
+            TIME: time,
+            TIME_INDICES: time_indices,
+            Q_MATRICES: q,
+            Q_BAR_MATRICES: q_bar,
+            Q_BAR_TM1_MATRICES: q_bar_tm1,
+            CARTESIAN_FORCES: torch.zeros(batch_size, n_real, spatial_dimension),
+            "natom": torch.tensor([n_real, n_real]),
+        }
+
+        pad_size = max_atom_B - n_real
+        q_pad = torch.zeros(batch_size, pad_size, num_classes, num_classes)
+        # batch_B: same 2 samples, each with 5 real atoms + 5 padded atoms (NaN/PADDED_ATOM_TYPE)
+        batch_B = {
+            RELATIVE_COORDINATES: torch.cat(
+                [x0, torch.full((batch_size, pad_size, spatial_dimension), float('nan'))], dim=1
+            ),
+            ATOM_TYPES: torch.cat(
+                [a0, torch.full((batch_size, pad_size), PADDED_ATOM_TYPE, dtype=a0.dtype)], dim=1
+            ),
+            LATTICE_PARAMETERS: l0,
+            NOISY_RELATIVE_COORDINATES: torch.cat(
+                [xt, torch.full((batch_size, pad_size, spatial_dimension), float('nan'))], dim=1
+            ),
+            NOISY_ATOM_TYPES: torch.cat(
+                [at, torch.full((batch_size, pad_size), PADDED_ATOM_TYPE, dtype=at.dtype)], dim=1
+            ),
+            NOISY_LATTICE_PARAMETERS: lt,
+            NOISE: sigma,
+            TIME: time,
+            TIME_INDICES: time_indices,
+            Q_MATRICES: torch.cat([q, q_pad], dim=1),
+            Q_BAR_MATRICES: torch.cat([q_bar, q_pad], dim=1),
+            Q_BAR_TM1_MATRICES: torch.cat([q_bar_tm1, q_pad], dim=1),
+            CARTESIAN_FORCES: torch.zeros(batch_size, max_atom_B, spatial_dimension),
+            "natom": torch.tensor([n_real, n_real]),
+        }
+
+        with torch.no_grad():
+            output_A = lightning_model._generic_step(batch_A, batch_idx=0)
+            output_B = lightning_model._generic_step(batch_B, batch_idx=0)
+
+        torch.testing.assert_close(output_A["loss"], output_B["loss"])
+
+    @pytest.fixture()
+    def fake_datamodule(self, num_atom_types, spatial_dimension):
+        return FakeVariableNatomAXLDataModule(
+            spatial_dimension=spatial_dimension,
+            num_atom_types=num_atom_types,
+        )
+
+    def test_smoke_test(self, lightning_model, fake_datamodule, accelerator):
+        trainer = Trainer(fast_dev_run=3, accelerator=accelerator)
+        trainer.fit(lightning_model, fake_datamodule)
+        trainer.test(lightning_model, fake_datamodule)

@@ -16,21 +16,25 @@ class TestExplodingVariance:
         torch.manual_seed(23423)
 
     @pytest.fixture()
-    def sigma_min(self):
+    def sigma_min_cart(self):
         return 0.001
 
     @pytest.fixture()
-    def sigma_max(self):
-        return 0.5
+    def sigma_max_cart(self):
+        return 2.0
 
     @pytest.fixture(params=["exponential", "linear"])
     def schedule_type(self, request):
         return request.param
 
     @pytest.fixture()
-    def noise_parameters(self, sigma_min, sigma_max, schedule_type):
+    def noise_parameters(self, sigma_min_cart, sigma_max_cart, schedule_type):
         return NoiseParameters(
-            total_time_steps=10, sigma_min=sigma_min, sigma_max=sigma_max, schedule_type=schedule_type)
+            total_time_steps=10,
+            sigma_min_cart=sigma_min_cart,
+            sigma_max_cart=sigma_max_cart,
+            schedule_type=schedule_type,
+        )
 
     @pytest.fixture()
     def times(self):
@@ -41,11 +45,11 @@ class TestExplodingVariance:
         return VarianceScheduler(noise_parameters)
 
     @pytest.fixture()
-    def expected_sigmas(self, schedule_type, sigma_min, sigma_max, times):
+    def expected_sigmas(self, schedule_type, sigma_min_cart, sigma_max_cart, times):
         if schedule_type == "exponential":
-            return ExponentialSigmaCalculator(sigma_min, sigma_max).get_sigma(times)
+            return ExponentialSigmaCalculator(sigma_min_cart, sigma_max_cart).get_sigma(times)
         elif schedule_type == "linear":
-            return LinearSigmaCalculator(sigma_min, sigma_max).get_sigma(times)
+            return LinearSigmaCalculator(sigma_min_cart, sigma_max_cart).get_sigma(times)
         else:
             raise NotImplementedError("Unknown schedule_type")
 

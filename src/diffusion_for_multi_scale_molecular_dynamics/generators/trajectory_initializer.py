@@ -26,6 +26,10 @@ class TrajectoryInitializerParameters:
     # the number of atoms that must be generated in a sampled configuration.
     number_of_atoms: int
 
+    # If provided, the cubic cell size (in Angstrom) used to initialize the lattice.
+    # If None, a random positive cell size is drawn from a half-normal distribution.
+    cell_dim: Optional[float] = None
+
     # Path to a pickle file that contains starting configuration information.
     path_to_starting_configuration_data_pickle: Optional[str] = None
 
@@ -74,6 +78,7 @@ class TrajectoryInitializer(ABC):
         self.fixed_lattice_parameters = (
             trajectory_initializer_parameters.fixed_lattice_parameters
         )
+        self.cell_dim = trajectory_initializer_parameters.cell_dim
 
     @abstractmethod
     def initialize(self, number_of_samples: int, device: torch.device) -> AXL:
@@ -114,9 +119,17 @@ class FullRandomTrajectoryInitializer(TrajectoryInitializer):
                 number_of_samples, 1
             ).to(device)
         else:
-            lattice_parameters = torch.randn(
-                number_of_samples, self.num_lattice_parameters
-            ).to(device)
+            # Initialize as a cubic cell: zero off-diagonals, equal diagonal elements.
+            if self.cell_dim is not None:
+                cell_size = torch.full((number_of_samples, 1), self.cell_dim, device=device)
+            else:
+                cell_size = torch.abs(torch.randn(number_of_samples, 1, device=device))
+            lattice_parameters = torch.zeros(
+                number_of_samples, self.num_lattice_parameters, device=device
+            )
+            lattice_parameters[:, :self.spatial_dimension] = cell_size.expand(
+                -1, self.spatial_dimension
+            )
         init_composition = AXL(
             A=atom_types, X=relative_coordinates, L=lattice_parameters
         )

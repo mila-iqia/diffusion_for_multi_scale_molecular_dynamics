@@ -136,7 +136,7 @@ class NoiseScheduler(torch.nn.Module):
 
         self._g_squared_array = torch.nn.Parameter(
             self._create_discretized_g_squared_array(
-                self._sigma_squared_array, noise_parameters.sigma_min
+                self._sigma_squared_array, noise_parameters.sigma_min_cart
             ),
             requires_grad=False,
         )
@@ -203,7 +203,7 @@ class NoiseScheduler(torch.nn.Module):
         noise_parameters: NoiseParameters, sigma_squared_array: torch.Tensor
     ) -> torch.Tensor:
 
-        sigma_squared_0 = noise_parameters.sigma_min**2
+        sigma_squared_0 = noise_parameters.sigma_min_cart**2
         sigma_squared_1 = sigma_squared_array[0]
         eps = noise_parameters.corrector_step_epsilon
 

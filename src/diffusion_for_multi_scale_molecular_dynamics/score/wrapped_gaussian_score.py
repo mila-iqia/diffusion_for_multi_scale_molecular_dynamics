@@ -198,6 +198,43 @@ def get_coordinates_sigma_normalized_score(
     return sigma_normalized_scores
 
 
+def get_coordinates_sigma_normalized_score_cartesian(
+    relative_coordinates: torch.Tensor,
+    sigma_cart: torch.Tensor,
+    lattice_diagonals: torch.Tensor,
+    kmax: int,
+    coordinates_bounded: bool = True,
+) -> torch.Tensor:
+    """Get the sigma_cart-normalized Cartesian score for relative coordinates.
+
+    Converts sigma_cart to per-direction sigma_rel (sigma_rel_d = sigma_cart / L_dd) and
+    delegates to get_coordinates_sigma_normalized_score. The result equals both
+    sigma_rel_d * score_rel_d and sigma_cart * score_cart_d.
+
+    Args:
+        relative_coordinates : input relative coordinates; should be between 0 and 1.
+            Shape [batch_size, number_of_atoms, spatial_dimension].
+        sigma_cart : Cartesian sigma in Angstrom. Shape [batch_size].
+        lattice_diagonals : diagonal lattice parameters in Angstrom.
+            Shape [batch_size, spatial_dimension].
+        kmax : largest positive integer in the sum. The sum is from -kmax to +kmax.
+        coordinates_bounded : if True, check that the relative coordinates are between 0 and 1.
+            Defaults to True.
+
+    Returns:
+        sigma_normalized_scores : the sigma_cart-normalized Cartesian score.
+            Shape [batch_size, number_of_atoms, spatial_dimension].
+            Equal to sigma_cart * score_cart_d = sigma_rel_d * score_rel_d.
+    """
+    # sigma_rel_d = sigma_cart / L_dd. Shape: [batch_size, spatial_dimension].
+    sigma_rel = sigma_cart.unsqueeze(-1) / lattice_diagonals
+    # Broadcast to [batch_size, number_of_atoms, spatial_dimension].
+    sigmas_rel = sigma_rel.unsqueeze(1).expand_as(relative_coordinates)
+    return get_coordinates_sigma_normalized_score(
+        relative_coordinates, sigmas_rel, kmax, coordinates_bounded
+    )
+
+
 def _get_small_sigma_small_u_mask(
     list_u: torch.Tensor, list_sigma: torch.Tensor
 ) -> torch.Tensor:

@@ -60,23 +60,19 @@ class ZBLForce(RepulsiveForce):
         with torch.enable_grad():
             # We'll need the grad for forces
             cartesian_positions = cartesian_positions.clone().detach().requires_grad_(True)
-            number_of_atoms = A.shape[1]
+            adj, distances = self.get_atomic_distances(cartesian_positions, basis_vectors)
+            src, dst = adj.adjacency_matrix
+            b = adj.edge_batch_indices
 
-            # atomic_mask is True for interacting atoms with shape [batch_size, number_of_atoms, number_of_atoms]
-            atomic_distances = self.get_atomic_distances(cartesian_positions, basis_vectors)
-            triu = torch.triu(  # To remove double counting
-                torch.ones((number_of_atoms, number_of_atoms),
-                           dtype=torch.bool,
-                           device=cartesian_positions.device),
-                diagonal=1
-            )[None]
-            atomic_mask = (atomic_distances > 0) & triu
-            interacting_atoms = atomic_mask.nonzero(as_tuple=False)  # Find the idx of True elements
-            r_ij = atomic_distances[interacting_atoms[:, 0], interacting_atoms[:, 1], interacting_atoms[:, 2]]
+            # Keep only unique pairs (src < dst) to avoid double counting
+            unique_mask = src < dst
+            b_unique = b[unique_mask]
+            src_unique = src[unique_mask]
+            dst_unique = dst[unique_mask]
+            r_ij = distances[unique_mask]
 
-            # Careful : A starts at index 1, while the object in this class start at index 0
-            idx_i = A[interacting_atoms[:, 0], interacting_atoms[:, 1]]
-            idx_j = A[interacting_atoms[:, 0], interacting_atoms[:, 2]]
+            idx_i = A[b_unique, src_unique]
+            idx_j = A[b_unique, dst_unique]
 
             E_ij = self.zbl_energy(r_ij, idx_i, idx_j)
             E_total = E_ij.sum()

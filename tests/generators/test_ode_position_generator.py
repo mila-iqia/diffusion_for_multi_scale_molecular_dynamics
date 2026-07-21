@@ -11,15 +11,15 @@ from tests.generators.conftest import BaseTestGenerator
 
 
 @pytest.mark.parametrize("total_time_steps", [2, 5, 10])
-@pytest.mark.parametrize("sigma_min", [0.15])
+@pytest.mark.parametrize("sigma_min_cart", [0.15])
 @pytest.mark.parametrize("record_samples", [False, True])
 @pytest.mark.parametrize("number_of_samples", [8])
 class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
 
     @pytest.fixture()
-    def noise_parameters(self, total_time_steps, sigma_min):
+    def noise_parameters(self, total_time_steps, sigma_min_cart):
         return NoiseParameters(
-            total_time_steps=total_time_steps, time_delta=0.0, sigma_min=sigma_min
+            total_time_steps=total_time_steps, time_delta=0.0, sigma_min_cart=sigma_min_cart
         )
 
     @pytest.fixture()
@@ -58,12 +58,12 @@ class TestExplodingVarianceODEAXLGenerator(BaseTestGenerator):
     def test_get_ode_prefactor(self, ode_generator, noise_parameters):
         times = NoiseScheduler._get_time_array(noise_parameters)
         sigmas = (
-            noise_parameters.sigma_min ** (1.0 - times)
-            * noise_parameters.sigma_max**times
+            noise_parameters.sigma_min_cart ** (1.0 - times)
+            * noise_parameters.sigma_max_cart**times
         )
 
         sig_ratio = torch.tensor(
-            noise_parameters.sigma_max / noise_parameters.sigma_min
+            noise_parameters.sigma_max_cart / noise_parameters.sigma_min_cart
         )
         expected_ode_prefactor = torch.log(sig_ratio) * sigmas
         computed_ode_prefactor = ode_generator._get_ode_prefactor(times)

@@ -37,7 +37,7 @@ def input_to_mace(
     # cell is batch, spatial_dimension, spatial_dimension
 
     device = noisy_cartesian_positions.device
-    adj_matrix, shift_matrix, batch_tensor, _ = get_adj_matrix(
+    adj_matrix, shift_matrix, batch_tensor, _, _ = get_adj_matrix(
         positions=noisy_cartesian_positions,
         basis_vectors=cell,
         radial_cutoff=radial_cutoff,

@@ -18,7 +18,7 @@ from typing import AnyStr, Dict, Optional
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME)
+    AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, NUMBER_OF_ATOMS, TIME)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     get_number_of_lattice_parameters
 
@@ -37,6 +37,7 @@ class ScoreNetworkParameters:
         2.0  # conditional score weighting - see eq. B45 in MatterGen
     )
     # p_\gamma(x|c) = p(c|x)^\gamma p(x)
+    supports_variable_natoms: bool = False
 
     def __post_init__(self):
         """Post init."""
@@ -64,6 +65,7 @@ class ScoreNetwork(torch.nn.Module):
         self.num_atom_types = hyper_params.num_atom_types
         self.conditional_prob = hyper_params.conditional_prob
         self.conditional_gamma = hyper_params.conditional_gamma
+        self.supports_variable_natoms = hyper_params.supports_variable_natoms
 
     def _check_batch(self, batch: Dict[AnyStr, torch.Tensor]):
         """Check batch.
@@ -96,9 +98,25 @@ class ScoreNetwork(torch.nn.Module):
             f"the batch dictionary with key '{NOISY_AXL_COMPOSITION}'"
         )
 
+        assert NUMBER_OF_ATOMS in batch, (
+            f"The number of atoms per sample should be present in the batch dictionary "
+            f"with key '{NUMBER_OF_ATOMS}'"
+        )
+
         relative_coordinates = batch[NOISY_AXL_COMPOSITION].X
+        natoms = batch[NUMBER_OF_ATOMS]
+        if not self.supports_variable_natoms:
+            assert natoms.unique().numel() == 1, (
+                "All samples in the batch must have the same number of atoms. "
+                "Variable atom counts are only supported by EGNNScoreNetwork."
+            )
         relative_coordinates_shape = relative_coordinates.shape
         batch_size = relative_coordinates_shape[0]
+        max_natoms_size = relative_coordinates_shape[1]
+        natoms_mask = (
+            torch.arange(max_natoms_size, device=relative_coordinates.device)[None, :]
+            < natoms[:, None]
+        )
         assert (
             len(relative_coordinates_shape) == 3
             and relative_coordinates_shape[2] == self.spatial_dimension
@@ -107,9 +125,10 @@ class ScoreNetwork(torch.nn.Module):
             "shape [batch_size, number_of_atoms, spatial_dimension]"
         )
 
+        natoms_mask_3d = natoms_mask.unsqueeze(-1).expand_as(relative_coordinates)
         assert torch.logical_and(
             relative_coordinates >= 0.0, relative_coordinates < 1.0
-        ).all(), (
+        )[natoms_mask_3d].all(), (
             "All components of the relative coordinates are expected to be in [0,1)."
         )
 
@@ -162,7 +181,7 @@ class ScoreNetwork(torch.nn.Module):
             atom_types >= 0,
             atom_types
             < self.num_atom_types + 1,  # MASK is a possible type in a noised sample
-        ).all(), f"All atom types are expected to be in [0, {self.num_atom_types}]."
+        )[natoms_mask].all(), f"All atom types are expected to be in [0, {self.num_atom_types}]."
 
         if self.conditional_prob > 0:
             assert CARTESIAN_FORCES in batch, (

@@ -141,8 +141,10 @@ class ASEForDiffusionDataModule(pl.LightningDataModule):
         transformed_x["box"] = torch.as_tensor(
             x["box"]
         )  # size: (batchsize, spatial dimension)
-        for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
+        for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES]:
             transformed_x[pos] = torch.as_tensor(x[pos]).view(bsize, -1, spatial_dim)
+        if CARTESIAN_FORCES in x:
+            transformed_x[CARTESIAN_FORCES] = torch.as_tensor(x[CARTESIAN_FORCES]).view(bsize, -1, spatial_dim)
 
         transformed_x[LATTICE_PARAMETERS] = torch.as_tensor(x[LATTICE_PARAMETERS])
         # size: (batchsize, spatial dimension * (spatial dimension + 1) / 2)
@@ -184,9 +186,16 @@ class ASEForDiffusionDataModule(pl.LightningDataModule):
             padded_elements[idx] = element
         x["element"] = padded_elements
 
-        for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES, CARTESIAN_FORCES]:
+        for pos in [CARTESIAN_POSITIONS, RELATIVE_COORDINATES]:
             x[pos] = F.pad(
                 torch.as_tensor(x[pos]).float(),
+                (0, spatial_dim * (max_atom - natom)),
+                "constant",
+                torch.nan,
+            )
+        if CARTESIAN_FORCES in x:
+            x[CARTESIAN_FORCES] = F.pad(
+                torch.as_tensor(x[CARTESIAN_FORCES]).float(),
                 (0, spatial_dim * (max_atom - natom)),
                 "constant",
                 torch.nan,

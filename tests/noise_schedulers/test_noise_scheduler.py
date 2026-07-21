@@ -10,18 +10,18 @@ from src.diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_sch
 
 @pytest.mark.parametrize("total_time_steps", [3, 10, 17])
 @pytest.mark.parametrize("time_delta", [1e-5, 0.1])
-@pytest.mark.parametrize("sigma_min", [0.005, 0.1])
+@pytest.mark.parametrize("sigma_min_cart", [0.005, 0.1])
 @pytest.mark.parametrize("corrector_step_epsilon", [2e-5, 0.1])
 @pytest.mark.parametrize("num_classes", [4])
 class TestExplodingVarianceSampler:
     @pytest.fixture()
     def noise_parameters(
-        self, total_time_steps, time_delta, sigma_min, corrector_step_epsilon
+        self, total_time_steps, time_delta, sigma_min_cart, corrector_step_epsilon
     ):
         return NoiseParameters(
             total_time_steps=total_time_steps,
             time_delta=time_delta,
-            sigma_min=sigma_min,
+            sigma_min_cart=sigma_min_cart,
             corrector_step_epsilon=corrector_step_epsilon,
         )
 
@@ -42,15 +42,15 @@ class TestExplodingVarianceSampler:
 
     @pytest.fixture()
     def expected_sigmas(self, expected_times, noise_parameters):
-        smin = noise_parameters.sigma_min
-        smax = noise_parameters.sigma_max
+        smin = noise_parameters.sigma_min_cart
+        smax = noise_parameters.sigma_max_cart
 
         sigmas = smin ** (1.0 - expected_times) * smax**expected_times
         return sigmas
 
     @pytest.fixture()
     def expected_epsilons(self, expected_sigmas, noise_parameters):
-        smin = noise_parameters.sigma_min
+        smin = noise_parameters.sigma_min_cart
         eps = noise_parameters.corrector_step_epsilon
 
         s1 = expected_sigmas[0]
@@ -110,12 +110,12 @@ class TestExplodingVarianceSampler:
             variance_sampler._sigma_squared_array, expected_sigmas**2
         )
 
-    def test_g_and_g_square_array(self, variance_sampler, expected_sigmas, sigma_min):
+    def test_g_and_g_square_array(self, variance_sampler, expected_sigmas, sigma_min_cart):
         expected_sigmas_square = expected_sigmas**2
 
         sigma1 = torch.sqrt(expected_sigmas_square[0])
 
-        expected_g_squared_array = [sigma1**2 - sigma_min**2]
+        expected_g_squared_array = [sigma1**2 - sigma_min_cart**2]
         for sigma2_t, sigma2_tm1 in zip(
             expected_sigmas_square[1:], expected_sigmas_square[:-1]
         ):
