@@ -321,7 +321,7 @@ class AXLDiffusionLightningModel(pl.LightningModule):
         )
         if self.target_score_matching_parameters is not None:
             assert CARTESIAN_FORCES in batch, \
-                "target_score_matching_parameters requires the forces of the training configurations."
+                "target_score_matching_parameters requires the energy and the forces of the training configurations."
             target_coordinates_normalized_conditional_scores = get_target_score_matching_target(
                 denoising_score_matching_target=target_coordinates_normalized_conditional_scores,
                 forces=batch[CARTESIAN_FORCES].masked_fill(pad_mask.unsqueeze(-1), 0.0),

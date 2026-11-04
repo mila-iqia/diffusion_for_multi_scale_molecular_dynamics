@@ -152,6 +152,13 @@ To activate the pre-commit hook,
 
     cd .git/hooks/ && ln -s ../../hooks/pre-commit .
 
+### Strip jupyter notebook outputs automatically
+`.gitattributes` passes every notebook through the `strip-notebook-outputs` filter, so that git only sees
+notebooks without outputs, execution counts or metadata: running a tutorial does not change them in git, while
+the local file keeps its outputs. Git does not let a repository define this filter, so set it up once per clone:
+
+    git config filter.strip-notebook-outputs.clean "jupyter nbconvert --log-level ERROR --ClearOutputPreprocessor.enabled=True --ClearMetadataPreprocessor.enabled=True --to notebook --stdin --stdout"
+
 Alternatively, to only lint files that have been staged in git, use
 
     cd .git/hooks/ && ln -s ../../hooks/pre-commit_staged pre-commit

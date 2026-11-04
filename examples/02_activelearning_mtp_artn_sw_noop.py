@@ -18,6 +18,7 @@ Notes about this example (the chosen options):
     - Sample maker: no-op, which labels the uncertain structure itself, without excision or repaint.
 """
 
+import os
 from pathlib import Path
 
 from ase.build import bulk
@@ -47,16 +48,33 @@ from diffusion_for_multi_scale_molecular_dynamics.sample_maker.no_op_sample_make
 from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
     label_configurations
 
-# --- User configuration (set these for your machine and task) ---
+
+def get_setting(value, environment_variable, default=None):
+    """Get the value set in this file, else the environment variable, else the default (an error without one)."""
+    if value is not None:
+        return value
+    if environment_variable in os.environ:
+        return os.environ[environment_variable]
+    if default is not None:
+        return default
+    raise ValueError(f"Set the value in this file or the environment variable {environment_variable}.")
+
+
+# --- User configuration (set these for your task) ---
 ELEMENT_LIST = ["Si"]
 UNCERTAINTY_THRESHOLD = 2.0  # MTP extrapolation grade (gamma); atoms above this are treated as uncertain
 WORKING_DIRECTORY = Path("run")
-LAMMPS_EXECUTABLE_PATH = Path("/path/to/lmp")  # your LAMMPS executable (built with mtp/extrapolation + PLUGIN)
+
+# --- Machine configuration (replace None by your value, or set the DFMSMD_* environment variable) ---
+# your LAMMPS executable (built with mtp/extrapolation + PLUGIN)
+LAMMPS_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_LAMMPS_PATH"))
 # Stillinger-Weber coefficients, e.g. diffusion_for_multi_scale_molecular_dynamics/tests/reference_files/aSi.sw
-STILLINGER_WEBER_COEFFICIENTS_FILE_PATH = Path("/path/to/aSi.sw")
-MLP_EXECUTABLE_PATH = Path("/path/to/mlp")  # the MLIP-3 'mlp' executable (fits the MTP)
-# the compiled ARTn plugin (libartn-lmp.so, or a directory containing it); None reads the ARTN_PLUGIN_PATH env var:
-ARTN_LIBRARY_PLUGIN_PATH = Path("/path/to/artn-plugin")
+STILLINGER_WEBER_COEFFICIENTS_FILE_PATH = Path(get_setting(None, "DFMSMD_AMORPHOUS_SW_POTENTIAL"))
+# the MLIP-3 'mlp' executable (fits the MTP)
+MLP_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_MLP_PATH"))
+# the compiled ARTn plugin (libartn-lmp.so, or a directory containing it)
+ARTN_LIBRARY_PLUGIN_PATH = Path(get_setting(None, "DFMSMD_ARTN_LIBRARY_PLUGIN_PATH"))
+MPI_EXECUTABLE = get_setting(None, "DFMSMD_MPI_EXECUTABLE", default="mpirun")
 
 
 def main():
@@ -118,7 +136,8 @@ def create_provided_configurations():
 def create_mlip():
     """Create the MTP MLIP to drive and refine."""
     lammps_runner = SubprocessLammpsRunner(
-        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1, mpi_executable="mpirun",
+        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1,
+        mpi_executable=MPI_EXECUTABLE,
     )
 
     # A. Cold start from a fresh MTP model (default).
@@ -143,7 +162,8 @@ def create_mlip():
 def create_dynamic_driver(initial_configuration):
     """Create an ARTn (saddle-search) dynamic driver."""
     lammps_runner = SubprocessLammpsRunner(
-        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1, mpi_executable="mpirun",
+        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1,
+        mpi_executable=MPI_EXECUTABLE,
     )
     # The parameters written to artn.in (the &ARTN_PARAMETERS namelist and the push); see the ARTn
     # documentation for each variable. push_ids=None picks a random atom each launch; push_add_const is unused
@@ -158,7 +178,7 @@ def create_dynamic_driver(initial_configuration):
     return ArtnDriver(
         lammps_runner=lammps_runner, initial_configuration=initial_configuration,
         artn_input_configuration=artn_input_configuration,
-        artn_library_plugin_path=ARTN_LIBRARY_PLUGIN_PATH,  # or None to read the ARTN_PLUGIN_PATH env var
+        artn_library_plugin_path=ARTN_LIBRARY_PLUGIN_PATH,
         number_of_requested_saddles=50, restart_from_new_min=True, max_eigenvalue_lost_retries=50,
     )
 
@@ -166,7 +186,8 @@ def create_dynamic_driver(initial_configuration):
 def create_oracle():
     """Create a Stillinger-Weber oracle."""
     lammps_runner = SubprocessLammpsRunner(
-        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1, mpi_executable="mpirun",
+        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1,
+        mpi_executable=MPI_EXECUTABLE,
     )
     # Or run LAMMPS in-process (lower overhead); requires the LAMMPS python binding ('import lammps'):
     # from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_runner import InProcessLammpsRunner

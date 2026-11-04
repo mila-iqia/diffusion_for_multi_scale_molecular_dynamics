@@ -1,13 +1,14 @@
 """Generate new Si8 cells with a trained diffusion model: from pure noise, and by excise-and-repaint.
 
-This example uses the pretrained model of references_files/pretrainedmodelSi8_epoch13.ckpt. To use a model trained
-with 03_train_diffusion_model.py instead, point DIFFUSION_MODEL_CHECKPOINT_PATH to one of its checkpoints.
+This example uses the pretrained model of references_files/pretrainedcartesianmodel_Si64_64-4_epoch43.ckpt, trained on
+Si64. To use a model trained with 03_train_diffusion_model.py instead, point model_path in main() to one of its
+checkpoints and use its noise schedule in NOISE_PARAMETERS (exponential, 1e-2 to 5 ang).
 
 Notes about this example (the chosen options):
     - Generation: predictor-corrector, from pure noise, in a fixed cubic cell at the density of the reference.
     - Excise-and-repaint: one random atom and its 2 closest neighbors are kept fixed, the other atoms are repainted.
-    - Noise: the same schedule as the training of 03_train_diffusion_model.py (exponential, 1e-2 to 5 ang).
-    - Corrector: corrector_step_epsilon (ang^2) is set so that each corrector kick is about 1.26 sigma.
+    - Noise: the same schedule as the training of the pretrained model (linear, 1.09e-3 to 2.18 ang).
+    - Corrector: corrector_step_epsilon (ang^2) is 1.6 sigma_min^2, so that each corrector kick is about 1.26 sigma.
     - Structure analysis: the fraction of diamond cells, the bond angle deviation and the Stillinger-Weber energy
       of the generated cells are compared with the training data, which gives their expected values.
 """
@@ -19,6 +20,7 @@ import numpy as np
 import torch
 from ase.neighborlist import neighbor_list
 
+from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.utils import (
     AXL_to_traj, traj_to_AXL)
 from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.axl_diffusion_lightning_model import \
@@ -52,24 +54,25 @@ from diffusion_for_multi_scale_molecular_dynamics.sample_maker.sampling.diffusio
 
 # --- User configuration (set these for your machine and task) ---
 ELEMENT_LIST = ["Si"]
-DIFFUSION_MODEL_CHECKPOINT_PATH = Path(__file__).parent / "references_files" / "pretrainedmodelSi8_epoch13.ckpt"
-REFERENCE_TRAJECTORY_PATH = Path(__file__).parent / "references_files" / "si8_database.traj"
+REFERENCE_TRAJECTORY_PATH = TOP_DIR / "examples" / "references_files" / "si8_database.traj"
 WORKING_DIRECTORY = Path("generated_si8")
 NUMBER_OF_ATOMS = 8
 NUMBER_OF_SAMPLES = 16
 EXCISION_NUMBER_OF_NEIGHBORS = 2  # excise the pivot atom plus its this many closest neighbors
 NOISE_PARAMETERS = NoiseParameters(
     total_time_steps=1000,
-    schedule_type="exponential",
-    sigma_min_cart=1e-2,
-    sigma_max_cart=5.,
-    corrector_step_epsilon=1.6e-4,
+    schedule_type="linear",
+    sigma_min_cart=1.088740e-3,
+    sigma_max_cart=2.177481,
+    corrector_step_epsilon=1.6 * 1.088740e-3**2,
 )
 
 
 def main():
     """Generate new cells from pure noise, excise-and-repaint one atom's environment, and analyse the cells."""
-    model = load_diffusion_model()
+    model_path = TOP_DIR / "examples" / "references_files" / "pretrainedcartesianmodel_Si64_64-4_epoch43.ckpt"
+    # or a checkpoint of 03_train_diffusion_model.py, e.g. Path("run_si8/models/version_0/checkpoints/epoch=24.ckpt")
+    model = load_diffusion_model(model_path)
     cell_dimensions = create_cell_dimensions()
     WORKING_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
@@ -83,9 +86,9 @@ def main():
     analyze_structures({"training data": training_data, "new cells": new_cells, "repainted cells": repainted_cells})
 
 
-def load_diffusion_model():
-    """Load the trained diffusion model from DIFFUSION_MODEL_CHECKPOINT_PATH."""
-    model = AXLDiffusionLightningModel.load_from_checkpoint(DIFFUSION_MODEL_CHECKPOINT_PATH, map_location="cpu")
+def load_diffusion_model(model_path):
+    """Load the trained diffusion model from the checkpoint model_path."""
+    model = AXLDiffusionLightningModel.load_from_checkpoint(model_path, map_location="cpu")
     model.eval()
     return model
 

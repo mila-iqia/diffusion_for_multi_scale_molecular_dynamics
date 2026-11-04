@@ -19,14 +19,16 @@ Notes about this example (the chosen options):
       Cheap rather than converged: the goal is to check the pipeline.
     - Sample maker: excise-and-repaint. All atoms within 4.2 Å of each uncertain atom (itself, 4 first and
       12 second neighbors) are kept fixed in a 64-atom cubic box (2a = 10.86 Å, larger than the 8.4 Å sphere),
-      and the other atoms are repainted by the diffusion model pretrained on Si8
-      (references_files/pretrainedmodelSi8_epoch13.ckpt, see 03_train_diffusion_model.py).
+      and the other atoms are repainted by the diffusion model pretrained on Si64
+      (references_files/pretrainedcartesianmodel_Si64_64-4_epoch43.ckpt).
 """
 
+import os
 from pathlib import Path
 
 from ase.build import bulk
 
+from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.active_learning import \
     ActiveLearning
 from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.axl_diffusion_lightning_model import \
@@ -58,18 +60,39 @@ from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.predict
 from diffusion_for_multi_scale_molecular_dynamics.utils.structure_utils import \
     label_configurations
 
-# --- User configuration (set these for your machine and task) ---
+
+def get_setting(value, environment_variable, default=None):
+    """Get the value set in this file, else the environment variable, else the default (an error without one)."""
+    if value is not None:
+        return value
+    if environment_variable in os.environ:
+        return os.environ[environment_variable]
+    if default is not None:
+        return default
+    raise ValueError(f"Set the value in this file or the environment variable {environment_variable}.")
+
+
+# --- User configuration (set these for your task) ---
 ELEMENT_LIST = ["Si"]
 UNCERTAINTY_THRESHOLD = 2.0  # MTP extrapolation grade (gamma); atoms above this are treated as uncertain
 WORKING_DIRECTORY = Path("run")
-LAMMPS_EXECUTABLE_PATH = Path("/path/to/lmp")  # your LAMMPS executable (built with mtp/extrapolation + PLUGIN)
-MLP_EXECUTABLE_PATH = Path("/path/to/mlp")  # the MLIP-3 'mlp' executable (fits the MTP)
-ABINIT_COMMAND = "env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 abinit"  # one thread per MPI task
 ABINIT_MPI_TASKS = 18  # all the cores of the machine; Abinit decides how to split them (autoparal)
-SILICON_PSEUDOPOTENTIAL_PATH = Path("/path/to/Si.psp8")  # an Abinit pseudopotential for Si
-DIFFUSION_MODEL_CHECKPOINT_PATH = Path(__file__).parent / "references_files" / "pretrainedmodelSi8_epoch13.ckpt"
+REFERENCES_FILES = TOP_DIR / "examples" / "references_files"
+DIFFUSION_MODEL_CHECKPOINT_PATH = REFERENCES_FILES / "pretrainedcartesianmodel_Si64_64-4_epoch43.ckpt"
 SILICON_LATTICE_CONSTANT = 5.43  # Angstrom
 RADIAL_CUTOFF = 4.2  # Angstrom, between the 2nd (3.84 Å) and 3rd (4.50 Å) neighbor shells; MTP and excision
+
+# --- Machine configuration (replace None by your value, or set the DFMSMD_* environment variable) ---
+# your LAMMPS executable (built with mtp/extrapolation)
+LAMMPS_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_LAMMPS_PATH"))
+# the MLIP-3 'mlp' executable (fits the MTP)
+MLP_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_MLP_PATH"))
+# an Abinit pseudopotential for Si
+SILICON_PSEUDOPOTENTIAL_PATH = Path(get_setting(None, "DFMSMD_SI_PSEUDOPOTENTIAL"))
+# one thread per MPI task
+ABINIT_COMMAND = get_setting(None, "DFMSMD_ABINIT_COMMAND",
+                             default="env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 abinit")
+MPI_EXECUTABLE = get_setting(None, "DFMSMD_MPI_EXECUTABLE", default="mpirun")
 
 
 def main():
@@ -131,7 +154,8 @@ def create_provided_configurations():
 def create_mlip():
     """Create the MTP MLIP to drive and refine."""
     lammps_runner = SubprocessLammpsRunner(
-        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1, mpi_executable="mpirun",
+        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1,
+        mpi_executable=MPI_EXECUTABLE,
     )
 
     # A. Cold start from a fresh MTP model (default).
@@ -156,7 +180,8 @@ def create_mlip():
 def create_dynamic_driver(initial_configuration):
     """Create a molecular-dynamics dynamic driver."""
     lammps_runner = SubprocessLammpsRunner(
-        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1, mpi_executable="mpirun",
+        lammps_executable_path=LAMMPS_EXECUTABLE_PATH, mpi_processors=1, openmp_threads=1,
+        mpi_executable=MPI_EXECUTABLE,
     )
     return MdDriver(lammps_runner=lammps_runner, initial_configuration=initial_configuration,
                     temperature=300.0, timestep=0.001, number_of_steps=1000)
@@ -164,7 +189,7 @@ def create_dynamic_driver(initial_configuration):
 
 def create_oracle():
     """Create an Abinit oracle (parameters in the ASE unit convention: eV, Angstrom)."""
-    abinit_runner = AbinitRunner(abinit_command=ABINIT_COMMAND, mpi_runner="mpirun",
+    abinit_runner = AbinitRunner(abinit_command=ABINIT_COMMAND, mpi_runner=MPI_EXECUTABLE,
                                  number_of_mpi_tasks=ABINIT_MPI_TASKS)
     parameters = dict(ecut=550.0, ngkpt=[1, 1, 1], nshiftk=1, shiftk=[0.0, 0.0, 0.0], toldfe=1.0e-6, nstep=100,
                       occopt=3, tsmear=0.1,  # Fermi-Dirac smearing (eV): disordered samples can be metallic
@@ -194,10 +219,10 @@ def create_sample_maker():
         sample_box_size=sample_box_size, max_constrained_substructure=4,
         number_of_samples_per_substructure=number_of_samples_per_substructure, sample_edit_radius=None,
     )
-    # The same noise schedule as the training of the diffusion model (03_train_diffusion_model.py).
+    # The same noise schedule as the training of the diffusion model; each corrector kick is about 1.26 sigma.
     noise_parameters = NoiseParameters(
-        total_time_steps=1000, schedule_type="exponential", sigma_min_cart=1e-2, sigma_max_cart=5.,
-        corrector_step_epsilon=1.6e-4,
+        total_time_steps=1000, schedule_type="linear", sigma_min_cart=1.088740e-3, sigma_max_cart=2.177481,
+        corrector_step_epsilon=1.6 * 1.088740e-3**2,
     )
     sampling_parameters = PredictorCorrectorSamplingParameters(
         algorithm="predictor_corrector", spatial_dimension=3, num_atom_types=len(ELEMENT_LIST), number_of_atoms=64,
