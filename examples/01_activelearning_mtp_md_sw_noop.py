@@ -33,6 +33,8 @@ from diffusion_for_multi_scale_molecular_dynamics.mlip.mtp.mtp_mlip import \
     MtpMlip
 from diffusion_for_multi_scale_molecular_dynamics.mlip.mtp.mtp_trainer import \
     MtpTrainer
+from diffusion_for_multi_scale_molecular_dynamics.oracle import \
+    SW_COEFFICIENTS_DIR
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_runner import \
     SubprocessLammpsRunner
 from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_single_point_calculator import \
@@ -60,15 +62,14 @@ def get_setting(value, environment_variable, default=None):
 ELEMENT_LIST = ["Si"]
 UNCERTAINTY_THRESHOLD = 2.0  # MTP extrapolation grade (gamma); atoms above this are treated as uncertain
 WORKING_DIRECTORY = Path("run")
+STILLINGER_WEBER_COEFFICIENTS_FILE_PATH = SW_COEFFICIENTS_DIR / "Si.sw"
+MPI_EXECUTABLE = "mpirun"  # the MPI launcher (srun on some clusters)
 
 # --- Machine configuration (replace None by your value, or set the DFMSMD_* environment variable) ---
 # your LAMMPS executable (built with mtp/extrapolation)
 LAMMPS_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_LAMMPS_PATH"))
-# Stillinger-Weber coefficients, e.g. diffusion_for_multi_scale_molecular_dynamics/tests/reference_files/aSi.sw
-STILLINGER_WEBER_COEFFICIENTS_FILE_PATH = Path(get_setting(None, "DFMSMD_AMORPHOUS_SW_POTENTIAL"))
 # the MLIP-3 'mlp' executable (fits the MTP)
 MLP_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_MLP_PATH"))
-MPI_EXECUTABLE = get_setting(None, "DFMSMD_MPI_EXECUTABLE", default="mpirun")
 
 
 def main():
@@ -78,9 +79,10 @@ def main():
         Stage.DRIVER (run_dynamic_driver):
             1. Run the dynamic driver with the MLIP.
             2. Extract the uncertainty per atom.
+        Stage.GENERATE (generate_samples):
+            3. Generate the structures to label from the uncertain structure, with the sample maker.
         Stage.ORACLE (oracle_evaluation):
-            3. Make samples from the uncertain structure.
-            4. Label the samples with the oracle.
+            4. Label the structures with the oracle.
             5. Commit the labelled structures to the training database.
         Stage.TRAIN (_retrain):
             6. Fold the labelled structures into the model and retrain the MLIP.
@@ -109,7 +111,7 @@ def main():
         working_directory=WORKING_DIRECTORY,
         provided_configurations=provided_configurations,
         maximum_number_of_rounds=100,
-        restart_from_stage="auto",  # either {"auto", "driver", "oracle", "train"}
+        restart_from_stage="auto",  # either {"auto", "driver", "generate", "oracle", "train"}
     )
 
 

@@ -9,7 +9,6 @@ Required packages (beyond the base install):
     - lammps-mtp-kokkos, a LAMMPS with the mtp/extrapolation pair_style (can be built CPU-only):
       https://github.com/RichardZJM/lammps-mtp-kokkos.git
     - Abinit, providing the 'abinit' executable: https://www.abinit.org
-    - A silicon pseudopotential for Abinit, e.g. Si.psp8 from PseudoDojo: http://www.pseudo-dojo.org
 
 Notes about this example (the chosen options):
     - MLIP: MTP, started cold (a fresh model). Option B in create_mlip loads a pretrained potential instead.
@@ -79,6 +78,8 @@ WORKING_DIRECTORY = Path("run")
 ABINIT_MPI_TASKS = 18  # all the cores of the machine; Abinit decides how to split them (autoparal)
 REFERENCES_FILES = TOP_DIR / "examples" / "references_files"
 DIFFUSION_MODEL_CHECKPOINT_PATH = REFERENCES_FILES / "pretrainedcartesianmodel_Si64_64-4_epoch43.ckpt"
+SILICON_PSEUDOPOTENTIAL_PATH = REFERENCES_FILES / "Si.psp8"  # an Abinit pseudopotential for Si, from PseudoDojo
+MPI_EXECUTABLE = "mpirun"  # the MPI launcher (srun on some clusters)
 SILICON_LATTICE_CONSTANT = 5.43  # Angstrom
 RADIAL_CUTOFF = 4.2  # Angstrom, between the 2nd (3.84 Å) and 3rd (4.50 Å) neighbor shells; MTP and excision
 
@@ -87,12 +88,9 @@ RADIAL_CUTOFF = 4.2  # Angstrom, between the 2nd (3.84 Å) and 3rd (4.50 Å) nei
 LAMMPS_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_LAMMPS_PATH"))
 # the MLIP-3 'mlp' executable (fits the MTP)
 MLP_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_MLP_PATH"))
-# an Abinit pseudopotential for Si
-SILICON_PSEUDOPOTENTIAL_PATH = Path(get_setting(None, "DFMSMD_SI_PSEUDOPOTENTIAL"))
 # one thread per MPI task
 ABINIT_COMMAND = get_setting(None, "DFMSMD_ABINIT_COMMAND",
                              default="env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 abinit")
-MPI_EXECUTABLE = get_setting(None, "DFMSMD_MPI_EXECUTABLE", default="mpirun")
 
 
 def main():
@@ -102,9 +100,10 @@ def main():
         Stage.DRIVER (run_dynamic_driver):
             1. Run the dynamic driver with the MLIP.
             2. Extract the uncertainty per atom.
+        Stage.GENERATE (generate_samples):
+            3. Generate the structures to label from the uncertain structure, with the sample maker.
         Stage.ORACLE (oracle_evaluation):
-            3. Make samples from the uncertain structure.
-            4. Label the samples with the oracle.
+            4. Label the structures with the oracle.
             5. Commit the labelled structures to the training database.
         Stage.TRAIN (_retrain):
             6. Fold the labelled structures into the model and retrain the MLIP.
@@ -133,7 +132,7 @@ def main():
         working_directory=WORKING_DIRECTORY,
         provided_configurations=provided_configurations,
         maximum_number_of_rounds=100,
-        restart_from_stage="auto",  # either {"auto", "driver", "oracle", "train"}
+        restart_from_stage="auto",  # either {"auto", "driver", "generate", "oracle", "train"}
     )
 
 

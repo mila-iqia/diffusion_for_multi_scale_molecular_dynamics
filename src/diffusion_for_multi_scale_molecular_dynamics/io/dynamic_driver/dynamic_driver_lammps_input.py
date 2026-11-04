@@ -74,7 +74,7 @@ fix extreme_extrapolation all halt 1 v_continue_run != 1
 # ----------- OUTPUT DUMP
 {trajectory_dump_block}
 thermo 1
-thermo_style custom step pe v_max_unc
+thermo_style custom step pe temp v_max_unc
 
 dump uncertain_dump_id all custom 1 {UNCERTAIN_DUMP_FILENAME} {dump_fields}
 dump_modify uncertain_dump_id element {elements_string}
