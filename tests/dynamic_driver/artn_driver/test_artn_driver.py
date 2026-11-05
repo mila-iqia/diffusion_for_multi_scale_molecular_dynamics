@@ -111,6 +111,7 @@ class TestRestartFromNewMinimum:
 
 
 @pytest.mark.requires_lammps_bin
+@pytest.mark.requires_artn
 class TestEndToEnd:
     def test_runs_and_returns_a_state(self, lammps_executable_path, initial_configuration, stub_mlip, tmp_path):
         """A real LAMMPS+ARTn run drives to completion and yields a parseable calculation state.
