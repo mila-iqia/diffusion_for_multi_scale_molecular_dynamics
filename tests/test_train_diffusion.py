@@ -121,7 +121,8 @@ def get_config(
     data_config = dict(batch_size=4,
                        num_workers=0,
                        max_atom=number_of_atoms,
-                       noise={"total_time_steps": 10})
+                       noise={"total_time_steps": 10},
+                       use_fixed_lattice_parameters=architecture in ("egnn_cartesian", "egnn_torus"))
 
     model_config = dict(
         score_network=get_score_network(
