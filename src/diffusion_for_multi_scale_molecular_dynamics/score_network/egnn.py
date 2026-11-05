@@ -139,7 +139,7 @@ class E_GCL(nn.Module):
             coordinate_hidden_dimensions_size, 1, bias=False
         )
         # based on the original implementation - multiply the random initialization by 0.001 (default is 1)
-        #torch.nn.init.xavier_uniform_(final_coordinate_layer.weight, gain=0.001)
+        # torch.nn.init.xavier_uniform_(final_coordinate_layer.weight, gain=0.001)
         self.coord_mlp.append(final_coordinate_layer)  # initialized with a different
         if self.tanh:  # optional, add a tanh to saturate the messages
             self.coord_mlp.append(nn.Tanh())

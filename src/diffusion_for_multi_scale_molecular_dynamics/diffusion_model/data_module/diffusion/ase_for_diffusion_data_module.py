@@ -38,10 +38,12 @@ class ComposedTransform:
     """
 
     def __init__(self, formatting_transform, noising_transform):
+        """Init method."""
         self.formatting_transform = formatting_transform
         self.noising_transform = noising_transform
 
     def __call__(self, batch: Dict) -> Dict:
+        """Apply the formatting transform, then the noising transform."""
         return self.noising_transform(self.formatting_transform(batch))
 
 

@@ -59,7 +59,7 @@ UNCERTAINTY_FIELD = "c_unc_at"  # the per-atom uncertainty dump column (the "c_"
 
 
 def numbered_filename(filename: str, index: int) -> str:
-    """Insert an index before the extension: numbered_filename('dump.dump', 3) -> 'dump_3.dump'."""
+    """Insert an index before the extension, for example 'dump.dump' with index 3 becomes 'dump_3.dump'."""
     path = Path(filename)
     return f"{path.stem}_{index}{path.suffix}"
 

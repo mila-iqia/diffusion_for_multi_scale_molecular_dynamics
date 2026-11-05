@@ -2,10 +2,10 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import ase.io
 import numpy as np
 import pytest
 import yaml
-import ase.io
 from ase import Atoms
 
 from diffusion_for_multi_scale_molecular_dynamics.io.lammps.potential.potential import \

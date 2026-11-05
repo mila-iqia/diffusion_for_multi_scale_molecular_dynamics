@@ -13,7 +13,7 @@ from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.di
 from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
-    NOISE, NOISY_ATOM_TYPES, NOISY_RELATIVE_COORDINATES, NUMBER_OF_ATOMS,
+    NOISY_ATOM_TYPES, NOISY_RELATIVE_COORDINATES, NUMBER_OF_ATOMS,
     PADDED_ATOM_TYPE)
 
 
