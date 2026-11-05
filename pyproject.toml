@@ -3,7 +3,7 @@ name = "diffusion-for-multi-scale-molecular-dynamics"
 version = "0.1.0"
 description = "This project trains and samples from diffusion models adapted to periodic materials."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.12"
 authors = [
     {name = "Olivier Nadeau", email = "olivier.nadeau.4@umontreal.ca"},
     {name = "Simon Blackburn", email = "simon.blackburn@mila.quebec"},

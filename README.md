@@ -69,6 +69,7 @@ in without changing the surrounding code. The three main flows below are shown w
 # Instructions to set up the project 
 
 ## Installation
+The project requires Python 3.10 or 3.11, since the `orion` dependency does not support Python 3.12.
 The dependencies are declared in `pyproject.toml`. Install the package in editable mode, adding the optional
 extras for the MLIP backend(s) you need for the active learning loop (`flare` for FLARE, `pyace` for MTP/GRACE):
 
