@@ -23,6 +23,7 @@ and explains the choices behind them step by step.
 > export DFMSMD_MLP_PATH=Replace_with_absolute_path_to_mlp
 > export DFMSMD_ARTN_LIBRARY_PLUGIN_PATH=Replace_with_absolute_path_to_libartn-lmp.so
 > export DFMSMD_ABINIT_COMMAND="env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 abinit"
+> export DFMSMD_ABINIT_MPI_TASKS=4
 > ```
 > 
 > Then launch Jupyter from that same terminal: a notebook only sees the environment variables of the shell that started Jupyter. If you prefer not to use environment variables, replace the `None` in the `get_setting(None, "DFMSMD_...")` lines of the examples by your paths.
@@ -36,5 +37,6 @@ Each tutorial only needs some of these variables:
 | `DFMSMD_MLP_PATH` | The `mlp` executable of MLIP-3, which fits the MTP. | 01, 03 |
 | `DFMSMD_ARTN_LIBRARY_PLUGIN_PATH` | The compiled ARTn plugin (`libartn-lmp.so`). | 01 |
 | `DFMSMD_ABINIT_COMMAND` | The command that runs Abinit. Optional, by default one thread per MPI task. | 03 |
+| `DFMSMD_ABINIT_MPI_TASKS` | The number of MPI tasks of Abinit, usually the number of physical cores. Optional, 4 by default. | 03 |
 
 Tutorial 02 needs none of them, only the LAMMPS python binding (`import lammps`), which computes the Stillinger-Weber energies and forces in-process.

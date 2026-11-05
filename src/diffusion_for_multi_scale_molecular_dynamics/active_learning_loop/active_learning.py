@@ -170,27 +170,30 @@ class ActiveLearning:
         """
         working_directory.mkdir(parents=True, exist_ok=True)
         logger = set_up_campaign_logger(working_directory)
-        logger.info("Starting Active Learning Simulation")
-        self._logger = logger
-        self._working_directory = working_directory
-        self._uncertainty_threshold = uncertainty_threshold
+        # To clean up the logger even if the run is interrupted, especially in a Jupyter notebook.
+        try:
+            logger.info("Starting Active Learning Simulation")
+            self._logger = logger
+            self._working_directory = working_directory
+            self._uncertainty_threshold = uncertainty_threshold
 
-        start_epoch, start_stage = self._prepare_campaign(
-            restart_from_stage, provided_configurations, initial_perturbation_standard_deviation
-        )
+            start_epoch, start_stage = self._prepare_campaign(
+                restart_from_stage, provided_configurations, initial_perturbation_standard_deviation
+            )
 
-        epoch, stage = start_epoch, start_stage
-        for _ in range(maximum_number_of_rounds):
-            self._set_log_stage(epoch, stage)
-            logger.info(f"Starting epoch {epoch} at stage {stage.name}")
-            if self._run_round(epoch, stage):
-                logger.info("Active Learning Campaign is Complete. Exiting.")
-                break
-            epoch += 1
-            stage = Stage.DRIVER
+            epoch, stage = start_epoch, start_stage
+            for _ in range(maximum_number_of_rounds):
+                self._set_log_stage(epoch, stage)
+                logger.info(f"Starting epoch {epoch} at stage {stage.name}")
+                if self._run_round(epoch, stage):
+                    logger.info("Active Learning Campaign is Complete. Exiting.")
+                    break
+                epoch += 1
+                stage = Stage.DRIVER
 
-        self._finish_campaign(uncertainty_threshold, epoch)
-        clean_up_campaign_logger(logger)
+            self._finish_campaign(uncertainty_threshold, epoch)
+        finally:
+            clean_up_campaign_logger(logger)
 
     def _prepare_campaign(
         self,

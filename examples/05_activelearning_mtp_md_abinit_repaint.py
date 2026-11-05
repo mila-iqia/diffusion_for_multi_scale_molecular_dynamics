@@ -13,8 +13,9 @@ Required packages (beyond the base install):
 Notes about this example (the chosen options):
     - MLIP: MTP, started cold (a fresh model). Option B in create_mlip loads a pretrained potential instead.
     - Dynamic driver: NVT molecular dynamics of a 512-atom silicon supercell.
-    - Oracle: Abinit (DFT) on 64-atom cells at the Gamma point only, with 18 MPI tasks (one OpenMP thread each)
-      split by Abinit itself (paral_kgb 1, autoparal 1); about 20 s per cell on an 18-core laptop.
+    - Oracle: Abinit (DFT) on 64-atom cells at the Gamma point only, with ABINIT_MPI_TASKS MPI tasks (one OpenMP
+      thread each) split by Abinit itself (paral_kgb 1, autoparal 1); about 20 s per cell with 18 MPI tasks on an
+      18-core laptop.
       Cheap rather than converged: the goal is to check the pipeline.
     - Sample maker: excise-and-repaint. All atoms within 4.2 Å of each uncertain atom (itself, 4 first and
       12 second neighbors) are kept fixed in a 64-atom cubic box (2a = 10.86 Å, larger than the 8.4 Å sphere),
@@ -75,7 +76,6 @@ def get_setting(value, environment_variable, default=None):
 ELEMENT_LIST = ["Si"]
 UNCERTAINTY_THRESHOLD = 2.0  # MTP extrapolation grade (gamma); atoms above this are treated as uncertain
 WORKING_DIRECTORY = Path("run")
-ABINIT_MPI_TASKS = 18  # all the cores of the machine; Abinit decides how to split them (autoparal)
 REFERENCES_FILES = TOP_DIR / "examples" / "references_files"
 DIFFUSION_MODEL_CHECKPOINT_PATH = REFERENCES_FILES / "pretrainedcartesianmodel_Si64_64-4_epoch43.ckpt"
 SILICON_PSEUDOPOTENTIAL_PATH = REFERENCES_FILES / "Si.psp8"  # an Abinit pseudopotential for Si, from PseudoDojo
@@ -91,6 +91,8 @@ MLP_EXECUTABLE_PATH = Path(get_setting(None, "DFMSMD_MLP_PATH"))
 # one thread per MPI task
 ABINIT_COMMAND = get_setting(None, "DFMSMD_ABINIT_COMMAND",
                              default="env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 abinit")
+# the number of physical cores of the machine; Abinit decides how to split them (autoparal)
+ABINIT_MPI_TASKS = int(get_setting(None, "DFMSMD_ABINIT_MPI_TASKS", default=4))
 
 
 def main():
