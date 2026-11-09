@@ -1,30 +1,26 @@
 import lightning as pl
 import pytest
 
-from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
-    create_loss_parameters
-from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
-    AXLDiffusionLightningModel, AXLDiffusionParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
-    create_optimizer_parameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
-    MLPScoreNetworkParameters
-
-try:
-    import flare_pp  # noqa
-except ImportError:
-    pytest.skip("Skipping FLARE tests:  optional FLARE dependencies not installed.", allow_module_level=True)
-
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.configuration_parsing import \
     get_sample_maker_from_configuration
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_noop_sample_maker import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.loss.loss_parameters import \
+    create_loss_parameters
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.axl_diffusion_lightning_model import (
+    AXLDiffusionLightningModel, AXLDiffusionParameters)
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.optimizer import \
+    create_optimizer_parameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.excise_and_noop_sample_maker import \
     ExciseAndNoOpSampleMaker  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_random_sample_maker import \
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.excise_and_random_sample_maker import \
     ExciseAndRandomSampleMaker  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.excise_and_repaint_sample_maker import \
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.excise_and_repaint_sample_maker import \
     ExciseAndRepaintSampleMaker  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.no_op_sample_maker import \
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.no_op_sample_maker import \
     NoOpSampleMaker
+from diffusion_for_multi_scale_molecular_dynamics.score_network.mlp_score_network import \
+    MLPScoreNetworkParameters
+
+pytest.importorskip("flare.bffs.sgp.calculator", reason="Skipping FLARE tests: optional FLARE dependencies not installed.")
 
 
 @pytest.fixture()

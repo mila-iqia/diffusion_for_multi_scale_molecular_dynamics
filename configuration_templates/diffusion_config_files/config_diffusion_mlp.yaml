@@ -107,7 +107,7 @@ loss_monitoring:
   sample_every_n_epochs: 25
 
 oracle:
-  name: lammps
+  name: stillinger_weber
   sw_coeff_filename: Si.sw
 
 

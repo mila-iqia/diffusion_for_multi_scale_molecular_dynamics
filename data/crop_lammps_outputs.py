@@ -5,7 +5,7 @@ import os
 
 import yaml
 
-from diffusion_for_multi_scale_molecular_dynamics.data.utils import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.utils import \
     crop_lammps_yaml
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger

@@ -4,7 +4,7 @@ from pathlib import Path
 import torch
 from matplotlib import pyplot as plt
 
-from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.callbacks.sampling_visualization_callback import \
     SamplingVisualizationCallback
 
 artifact_directory = Path(__file__).parent / "data_artifacts"

@@ -8,16 +8,16 @@ import lightning as pl
 import torch
 from fixed_position_noising_transform import FixedPositionNoisingTransform
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.data_module_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.diffusion.data_module_parameters import \
     DataModuleParameters
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.diffusion.lammps_for_diffusion_data_module import (
     LammpsDataModuleParameters, LammpsForDiffusionDataModule)
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
+    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, CARTESIAN_FORCES, CARTESIAN_POSITIONS, LATTICE_PARAMETERS,
     NOISY_ATOM_TYPES, NOISY_LATTICE_PARAMETERS, NOISY_RELATIVE_COORDINATES,
     RELATIVE_COORDINATES)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_unit_cell_to_lattice_parameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.reference_configurations import \

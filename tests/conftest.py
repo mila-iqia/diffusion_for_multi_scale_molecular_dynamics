@@ -1,10 +1,17 @@
+import importlib.util
 import os
+import shutil
+import subprocess
 from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
+import pymatgen
 import pytest
 import torch
+from pymatgen.core import Lattice, Structure
 
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from tests.fake_data_utils import (create_dump_yaml_documents,
                                    create_thermo_yaml_documents,
                                    generate_random_string,
@@ -14,7 +21,7 @@ os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "true")
 
 
 @lru_cache(maxsize=1)
-def has_lmp():
+def has_inprocess_lammps():
     # lru_cache allows to run this function once during pytest and keep the results in memory
     try:
         from lammps import lammps
@@ -30,9 +37,96 @@ def has_lmp():
     return True
 
 
+@lru_cache(maxsize=1)
+def has_lammps_bin():
+    return shutil.which("lmp") is not None or shutil.which("lammps") is not None
+
+
+@lru_cache(maxsize=1)
+def has_flare():
+    return importlib.util.find_spec("flare") is not None
+
+
+@lru_cache(maxsize=1)
+def has_mlp():
+    return shutil.which("mlp") is not None
+
+
+@lru_cache(maxsize=1)
+def has_grace():
+    return (shutil.which("gracemaker") is not None
+            and shutil.which("pace_activeset") is not None
+            and importlib.util.find_spec("tensorpotential") is not None
+            and importlib.util.find_spec("pyace") is not None
+            and importlib.util.find_spec("maxvolpy") is not None)
+
+
+@lru_cache(maxsize=1)
+def has_abinit():
+    return shutil.which("abinit") is not None
+
+
+@lru_cache(maxsize=1)
+def has_artn_plugin():
+    plugin_path = os.environ.get("ARTN_PLUGIN_PATH")
+    return plugin_path is not None and Path(plugin_path).exists()
+
+
+@pytest.fixture
+def reference_files_directory():
+    """Absolute path to tests/reference_files, independent of the directory pytest is invoked from."""
+    return Path(__file__).parent / "reference_files"
+
+
+@lru_cache(maxsize=None)
+def inprocess_pair_style_available(pair_style):
+    """Whether the given pair_style is available in the in-process LAMMPS binding."""
+    from lammps import lammps
+
+    lmp = lammps(cmdargs=["-log", "none", "-screen", "none", "-echo", "none"])
+    try:
+        return bool(lmp.has_style("pair", pair_style))
+    finally:
+        lmp.close()
+
+
+@lru_cache(maxsize=None)
+def lammps_bin_pair_style_available(pair_style):
+    """Whether the given pair_style is available in the LAMMPS executable on PATH."""
+    lammps_executable = shutil.which("lmp") or shutil.which("lammps")
+    if lammps_executable is None:
+        return False
+    output = subprocess.run([lammps_executable, "-h"], capture_output=True, text=True).stdout
+    return pair_style in output.split()
+
+
 def pytest_runtest_setup(item):
-    if "requires_lammps" in item.keywords and not has_lmp():
-        pytest.skip("LAMMPS not available/usable")
+    if "requires_inprocess_lammps" in item.keywords and not has_inprocess_lammps():
+        pytest.skip("In-process LAMMPS (python binding) not available/usable")
+    if "requires_lammps_bin" in item.keywords and not has_lammps_bin():
+        pytest.skip("No LAMMPS executable (lmp/lammps) found on PATH")
+    if "requires_mpirun" in item.keywords and shutil.which("mpirun") is None:
+        pytest.skip("No mpirun found on PATH")
+    if "requires_flare" in item.keywords and not has_flare():
+        pytest.skip("The flare package is not installed")
+    if "requires_mlp" in item.keywords and not has_mlp():
+        pytest.skip("No mlp (MLIP-3) executable found on PATH")
+    if "requires_grace" in item.keywords and not has_grace():
+        pytest.skip("The GRACE stack (gracemaker, pace_activeset, tensorpotential, pyace, maxvolpy) is not available")
+    if "requires_abinit" in item.keywords and not has_abinit():
+        pytest.skip("No abinit executable found on PATH")
+    if "requires_artn" in item.keywords and not has_artn_plugin():
+        pytest.skip("The ARTn plugin is not available (ARTN_PLUGIN_PATH is not set or does not exist)")
+    for marker in item.iter_markers(name="requires_pair_style"):
+        pair_style = marker.args[0]
+        if "requires_inprocess_lammps" in item.keywords:
+            available = inprocess_pair_style_available(pair_style)
+        elif "requires_lammps_bin" in item.keywords:
+            available = lammps_bin_pair_style_available(pair_style)
+        else:
+            available = True
+        if not available:
+            pytest.skip(f"pair_style '{pair_style}' is not available in this LAMMPS")
 
 
 def pytest_addoption(parser):
@@ -61,6 +155,23 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "slow" not in item.keywords:
                 item.add_marker(skip)
+
+    # Prepare pytest parallelization by adding a marker on tests that run on a device different than cpu such
+    # that they are not launched in parallel.
+    for item in items:
+        callspec = getattr(item, "callspec", None)
+        if callspec is None:
+            continue
+        device = callspec.params.get("device")
+        accelerator = callspec.params.get("accelerator")
+        device_key = None
+        if device is not None and str(device) != "cpu":
+            device_key = str(device)
+        elif isinstance(accelerator, str) and accelerator != "cpu":
+            # Normalize the accelerator to its torch device so 'gpu' and 'cuda' share a single group.
+            device_key = {"gpu": "cuda"}.get(accelerator, accelerator)
+        if device_key is not None:
+            item.add_marker(pytest.mark.xdist_group(f"device::{device_key}"))
 
 
 _available_devices = [torch.device("cpu")]
@@ -204,3 +315,90 @@ class TestDiffusionDataBase:
         return dict(
             raw_data_dir=str(raw_data_dir), processed_data_dir=str(processed_data_dir)
         )
+
+
+@pytest.fixture()
+def list_element_symbols():
+    return ['Ca', 'Si', 'H', 'C']
+
+
+@pytest.fixture()
+def list_elements(list_element_symbols):
+    return [pymatgen.core.Element(symbol) for symbol in list_element_symbols]
+
+
+@pytest.fixture()
+def structure(list_element_symbols):
+    number_of_atoms = 32
+    lattice = Lattice(matrix=np.diag([10, 12, 14]))
+    relative_coordinates = np.random.rand(number_of_atoms, 3)
+
+    species = np.random.choice(list_element_symbols, size=number_of_atoms, replace=True)
+
+    structure = Structure(lattice=lattice,
+                          species=species,
+                          coords=relative_coordinates,
+                          coords_are_cartesian=False)
+    return structure
+
+
+@pytest.fixture()
+def expected_sorted_list_element_symbols():
+    return ['H', 'C', 'Si', 'Ca']
+
+
+class BaseTestAxlStructure:
+
+    @pytest.fixture
+    def number_of_atoms(self):
+        return 48
+
+    @pytest.fixture
+    def element_list(self):
+        return ['H', 'C', 'Si', 'Ca']
+
+    @pytest.fixture
+    def num_atom_types(self, element_list):
+        return len(element_list)
+
+    @pytest.fixture(params=[1, 2, 3])
+    def spatial_dimension(self, request):
+        return request.param
+
+    @pytest.fixture
+    def basis_vectors(self, spatial_dimension):
+        box_size = 20 + 0.1 * np.random.random((spatial_dimension,))
+        return np.diag(box_size)
+
+    @pytest.fixture
+    def lattice_parameters(self, spatial_dimension, basis_vectors):
+        lp = np.concatenate(
+            (
+                np.diag(basis_vectors),
+                np.zeros(int(spatial_dimension * (spatial_dimension - 1) / 2)),
+            )
+        )
+        return lp
+
+    @pytest.fixture
+    def atom_relative_coordinates(self, number_of_atoms, spatial_dimension):
+        return np.random.random((number_of_atoms, spatial_dimension))
+
+    @pytest.fixture
+    def atom_cartesian_positions(self, atom_relative_coordinates, basis_vectors):
+        return np.matmul(atom_relative_coordinates, basis_vectors)
+
+    @pytest.fixture
+    def atom_species(self, num_atom_types, number_of_atoms):
+        return np.random.randint(low=0, high=num_atom_types, size=(number_of_atoms,))
+
+    @pytest.fixture
+    def structure_axl(self, atom_species, atom_relative_coordinates, lattice_parameters):
+        struct_axl = AXL(
+            A=atom_species, X=atom_relative_coordinates, L=lattice_parameters
+        )
+        return struct_axl
+
+    @pytest.fixture(params=range(48))
+    def central_atom_idx(self, request):
+        return request.param

@@ -114,7 +114,7 @@ sampling_visualization:
   record_trajectories: False
 
 oracle:
-  name: lammps
+  name: stillinger_weber
   sw_coeff_filename: Si.sw
 
 logging:

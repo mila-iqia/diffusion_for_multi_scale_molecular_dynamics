@@ -8,18 +8,18 @@ import einops
 import torch
 from tqdm import tqdm
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.diffusion.lammps_for_diffusion_data_module import (
     LammpsDataModuleParameters, LammpsForDiffusionDataModule)
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_scheduler import \
+    NoiseScheduler
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noisers.atom_types_noiser import \
+    AtomTypesNoiser
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noisers.relative_coordinates_noiser import \
+    RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     ATOM_TYPES, AXL, NOISY_AXL_COMPOSITION, RELATIVE_COORDINATES)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
-    NoiseScheduler
-from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
-    AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.relative_coordinates_noiser import \
-    RelativeCoordinatesNoiser
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import \
     class_index_to_onehot
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import (

@@ -3,12 +3,12 @@ from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.analysis.saddle_energy_extraction import \
-    extract_all_saddle_energies
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.artn.artn_outputs import \
-    get_saddle_energy
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.analysis.saddle_energy_extraction import \
+    extract_all_saddle_energies
+from diffusion_for_multi_scale_molecular_dynamics.io.artn import \
+    get_saddle_energy
 
 plt.style.use(PLOT_STYLE_PATH)
 

@@ -11,14 +11,14 @@ import torch
 from torch.func import jacrev
 from tqdm import tqdm
 
-from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.axl_diffusion_lightning_model import \
     AXLDiffusionLightningModel
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_scheduler import (
+    Noise, NoiseScheduler)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, CARTESIAN_FORCES, NOISE, NOISY_AXL_COMPOSITION, TIME, UNIT_CELL)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import (
-    Noise, NoiseScheduler)
 from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import \
     get_axl_network
 from diffusion_for_multi_scale_molecular_dynamics.utils.closest_neighbors import \

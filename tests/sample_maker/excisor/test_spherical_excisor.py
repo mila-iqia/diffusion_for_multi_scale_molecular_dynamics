@@ -1,0 +1,99 @@
+import numpy as np
+import pytest
+
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.excisor.spherical_excisor import (
+    SphericalExcision, SphericalExcisionArguments)
+from tests.sample_maker.excisor.base_test_excision import BaseTestExcision
+
+
+def test_spherical_excisor_finds_neighbor_across_pbc():
+    """The excisor must find the closest neighbor even when it lies across a periodic boundary.
+
+    Layout (x-axis only, y=z=0.5):
+      - central atom  at x = 0.02  (index 0 in the structure)
+      - PBC neighbor  at x = 0.98  (index 1) — only 0.04 box-lengths away via PBC
+      - 6x6x6 offset grid atoms at (i+0.5)/6, nearest at x ≈ 0.083 (0.063 box-lengths away)
+
+    With box_size = 10 Å:
+      - PBC distance to neighbor:        0.04 × 10 = 0.40 Å
+      - distance to nearest grid atom:   0.063 × 10 = 0.63 Å
+
+    A cutoff of 0.5 Å must include the PBC neighbor and exclude all grid atoms.
+    """
+    box_size = 10.0
+    n = 6
+
+    # Offset grid: positions at (i + 0.5)/n — no atom near 0 or 1 in any direction.
+    grid_1d = (np.arange(n) + 0.5) / n
+    gx, gy, gz = np.meshgrid(grid_1d, grid_1d, grid_1d, indexing="ij")
+    grid_coords = np.stack([gx.ravel(), gy.ravel(), gz.ravel()], axis=1)  # (216, 3)
+
+    central_coord = np.array([[0.02, 0.5, 0.5]])
+    pbc_neighbor_coord = np.array([[0.98, 0.5, 0.5]])
+    all_coords = np.concatenate([central_coord, pbc_neighbor_coord, grid_coords], axis=0)
+
+    n_atoms = all_coords.shape[0]
+    structure = AXL(
+        A=np.zeros(n_atoms, dtype=int),
+        X=all_coords,
+        L=np.array([box_size, box_size, box_size, 0.0, 0.0, 0.0]),
+    )
+
+    excisor = SphericalExcision(SphericalExcisionArguments(radial_cutoff=0.5))
+    excised_env, excised_central_idx = excisor._excise_one_environment(structure, central_atom_idx=0)
+
+    assert excised_env.X.shape[0] == 2, (
+        f"Expected 2 atoms (central + PBC neighbor), got {excised_env.X.shape[0]}"
+    )
+    assert excised_central_idx == 0
+    assert np.isclose(excised_env.X[1, 0], 0.98), (
+        f"Expected PBC neighbor at x ≈ 0.98, got {excised_env.X[1, 0]}"
+    )
+
+
+class TestSphericalExcision(BaseTestExcision):
+    @pytest.fixture(params=[1.2, 2.3])
+    def radial_cutoff(self, request):
+        return request.param
+
+    @pytest.fixture
+    def excisor(self, radial_cutoff):
+        parameters = SphericalExcisionArguments(radial_cutoff=radial_cutoff)
+        return SphericalExcision(parameters)
+
+    @pytest.fixture
+    def expected_excised_atom_index(self):
+        # TODO
+        return 0
+
+    @pytest.fixture
+    def expected_excised_environment(self, structure_axl, radial_cutoff, central_atom_idx,
+                                     atom_cartesian_positions, basis_vectors):
+        central_atom_position = atom_cartesian_positions[central_atom_idx, :]
+        box_dimensions = np.diag(basis_vectors)[np.newaxis, :]
+        atoms_positions_in_environment = []
+        atoms_species_in_environment = []
+        all_distances_squared = []
+        for idx, atom_position in enumerate(atom_cartesian_positions):
+            separation_between_atoms = atom_position - central_atom_position
+            separation_squared_between_atoms = np.minimum(
+                (separation_between_atoms**2),
+                (separation_between_atoms - box_dimensions) ** 2,
+            )
+            separation_squared_between_atoms = np.minimum(
+                separation_squared_between_atoms,
+                (separation_between_atoms + box_dimensions) ** 2,
+            )
+            distance_squared = separation_squared_between_atoms.sum(axis=-1)
+            if distance_squared < radial_cutoff**2:
+                all_distances_squared.append(distance_squared.item())
+                atoms_positions_in_environment.append(structure_axl.X[idx])
+                atoms_species_in_environment.append(structure_axl.A[idx])
+        sorted_idx = np.argsort(all_distances_squared).tolist()
+        expected_environment = AXL(
+            A=np.stack(np.array(atoms_species_in_environment)[sorted_idx]),
+            X=np.stack(np.array(atoms_positions_in_environment)[sorted_idx]),
+            L=structure_axl.L,
+        )
+        return expected_environment

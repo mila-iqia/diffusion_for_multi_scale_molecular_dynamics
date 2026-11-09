@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.flare_single_point_calculator import \
+from diffusion_for_multi_scale_molecular_dynamics.calc.flare_single_point_calculator import \
     FlareSinglePointCalculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.utils import \
+from diffusion_for_multi_scale_molecular_dynamics.calc.utils import \
     compute_errors_and_uncertainties
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
+from diffusion_for_multi_scale_molecular_dynamics.mlip.flare.flare_trainer import \
     FlareTrainer
 
 logging.basicConfig(level=logging.INFO)

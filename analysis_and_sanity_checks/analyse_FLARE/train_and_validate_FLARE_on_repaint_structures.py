@@ -7,16 +7,16 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import \
-    SinglePointCalculation  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.flare_single_point_calculator import \
-    FlareSinglePointCalculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.utils import \
-    compute_errors_and_uncertainties
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import (
-    FlareConfiguration, FlareTrainer)
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.calc.base_single_point_calculator import \
+    SinglePointCalculation  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.calc.flare_single_point_calculator import \
+    FlareSinglePointCalculator  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.calc.utils import \
+    compute_errors_and_uncertainties
+from diffusion_for_multi_scale_molecular_dynamics.mlip.flare.flare_trainer import (
+    FlareConfiguration, FlareTrainer)
 
 plt.style.use(PLOT_STYLE_PATH)
 

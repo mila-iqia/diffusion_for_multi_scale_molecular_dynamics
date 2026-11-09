@@ -1,9 +1,9 @@
 import einops
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import (
-    FullRandomTrajectoryInitializer, TrajectoryInitializerParameters)
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.trajectory_initializer import (
+    FullRandomTrajectoryInitializer, TrajectoryInitializerParameters)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_unit_cell_to_lattice_parameters
 from diffusion_for_multi_scale_molecular_dynamics.utils.reference_configurations import \

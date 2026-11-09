@@ -1,14 +1,14 @@
 from identity_noiser import IdentityRelativeCoordinatesNoiser
 
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.noising_transform import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.diffusion.noising_transform import \
     NoisingTransform
-from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noisers.atom_types_noiser import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noisers.atom_types_noiser import \
     AtomTypesNoiser
-from diffusion_for_multi_scale_molecular_dynamics.noisers.lattice_noiser import (
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noisers.lattice_noiser import (
     LatticeDataParameters, LatticeNoiser)
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 
 class FixedPositionNoisingTransform(NoisingTransform):

@@ -6,26 +6,26 @@ import torch
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics import sample_diffusion
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
-    PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import (
-    SamplingConstraint, write_sampling_constraint)
-from diffusion_for_multi_scale_molecular_dynamics.loss.loss_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.loss.loss_parameters import \
     create_loss_parameters
-from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import (
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.axl_diffusion_lightning_model import (
     AXLDiffusionLightningModel, AXLDiffusionParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.optimizer import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.optimizer import \
     OptimizerParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import \
-    ForceFieldAugmentedScoreNetworkParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.mlp_score_network import \
-    MLPScoreNetworkParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.harmonic_force import \
-    HarmonicForceParameters
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
+    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import \
     AXL_COMPOSITION
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.predictor_corrector_axl_generator import \
+    PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.sampling_constraint import (
+    SamplingConstraint, write_sampling_constraint)
+from diffusion_for_multi_scale_molecular_dynamics.score_network.force_field_augmented_score_network import \
+    ForceFieldAugmentedScoreNetworkParameters
+from diffusion_for_multi_scale_molecular_dynamics.score_network.mlp_score_network import \
+    MLPScoreNetworkParameters
+from diffusion_for_multi_scale_molecular_dynamics.score_network.repulsive_force.harmonic_force import \
+    HarmonicForceParameters
 from tests.fake_data_utils import generate_random_string
 
 

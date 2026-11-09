@@ -1,14 +1,14 @@
 import torch
 from einops import einops
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.ode_position_generator import (
-    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.graph_utils import \
-    get_adj_matrix
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.score_network import \
-    ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.ode_position_generator import (
+    ExplodingVarianceODEPositionGenerator, ODESamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.score_network.graph_utils import \
+    get_adj_matrix
+from diffusion_for_multi_scale_molecular_dynamics.score_network.score_network import \
+    ScoreNetwork
 
 
 class PartialODEPositionGenerator(ExplodingVarianceODEPositionGenerator):

@@ -10,15 +10,15 @@ from typing import Dict, List
 import lightning as pl
 
 from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR, TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.structure_converter import \
-    StructureConverter
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.base_single_point_calculator import \
+from diffusion_for_multi_scale_molecular_dynamics.calc.base_single_point_calculator import \
     SinglePointCalculation  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.lammps_for_diffusion_data_module import (
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.diffusion.lammps_for_diffusion_data_module import (
     LammpsDataModuleParameters, LammpsForDiffusionDataModule)
-from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.utils.structure_converter import \
+    StructureConverter
 
 
 def get_labelled_structures(batch: Dict, structure_converter: StructureConverter) -> List[SinglePointCalculation]:

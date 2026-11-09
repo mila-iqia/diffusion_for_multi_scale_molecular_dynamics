@@ -5,16 +5,16 @@ from matplotlib import pyplot as plt
 from pymatgen.io.lammps.data import LammpsData
 
 from diffusion_for_multi_scale_molecular_dynamics import DATA_DIR, TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
-    LammpsRunner
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.mapped_flare_single_point_calculator import \
-    MappedFlareSinglePointCalculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.stillinger_weber_single_point_calculator import \
-    StillingerWeberSinglePointCalculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.utils import \
-    compute_errors_and_uncertainties
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.calc.lammps_runner import \
+    SubprocessLammpsRunner
+from diffusion_for_multi_scale_molecular_dynamics.calc.mapped_flare_single_point_calculator import \
+    MappedFlareSinglePointCalculator  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.calc.stillinger_weber_single_point_calculator import \
+    StillingerWeberSinglePointCalculator  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.calc.utils import \
+    compute_errors_and_uncertainties
 
 plt.style.use(PLOT_STYLE_PATH)
 
@@ -38,7 +38,7 @@ mapped_uncertainty_file_path = checkpoint_directory / "map_unc_lmp59.flare"
 
 if __name__ == "__main__":
 
-    lammps_runner = LammpsRunner(
+    lammps_runner = SubprocessLammpsRunner(
         lammps_executable_path, mpi_processors=4, openmp_threads=4
     )
 

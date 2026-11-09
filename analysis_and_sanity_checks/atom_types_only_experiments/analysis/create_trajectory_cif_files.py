@@ -6,11 +6,11 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.traje
     create_cif_files
 from diffusion_for_multi_scale_molecular_dynamics.analysis.sample_trajectory_analyser import \
     SampleTrajectoryAnalyser
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
-    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_lattice_parameters_to_unit_cell_vectors
+from diffusion_for_multi_scale_molecular_dynamics.utils.element_types import \
+    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
 

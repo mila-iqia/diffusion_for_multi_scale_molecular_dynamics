@@ -122,7 +122,7 @@ sampling_visualization:
   record_lattice_parameters: False
 
 oracle:
-  name: lammps
+  name: stillinger_weber
   sw_coeff_filename: SiGe.sw
 
 logging:

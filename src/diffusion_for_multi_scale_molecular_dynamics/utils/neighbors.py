@@ -82,6 +82,25 @@ def get_periodic_adjacency_information(
             * the batch indices for each node
             * the number of edges for each structure in the batch.
     """
+    if cartesian_positions.device.type == "mps":
+        # KeOps does not support MPS tensors and would have segfaulted below.
+        original_device = cartesian_positions.device
+        cpu_radial_cutoff = (
+            radial_cutoff.cpu() if isinstance(radial_cutoff, torch.Tensor) else radial_cutoff
+        )
+        cpu_adjacency_info = get_periodic_adjacency_information(
+            cartesian_positions.cpu(),
+            basis_vectors.cpu(),
+            cpu_radial_cutoff,
+            spatial_dimension=spatial_dimension,
+        )
+        return AdjacencyInfo(
+            *(
+                value.to(original_device) if isinstance(value, torch.Tensor) else value
+                for value in cpu_adjacency_info
+            )
+        )
+
     assert (
         len(cartesian_positions.shape) == 3
     ), "Wrong number of dimensions for relative_coordinates"

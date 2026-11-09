@@ -15,7 +15,7 @@ if __name__ == "__main__":
     target1 = "diffusion_for_multi_scale_molecular_dynamics.train_diffusion.load_data_module"
 
     # Patch the generator to never change the relative coordinates"
-    target2 = ("diffusion_for_multi_scale_molecular_dynamics.models."
+    target2 = ("diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models."
                "axl_diffusion_lightning_model.instantiate_generator")
 
     with (

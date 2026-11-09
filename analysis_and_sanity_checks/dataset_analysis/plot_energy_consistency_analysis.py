@@ -17,7 +17,7 @@ from utilities.data import get_data_module
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from diffusion_for_multi_scale_molecular_dynamics.callbacks.sampling_visualization_callback import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.callbacks.sampling_visualization_callback import \
     SamplingVisualizationCallback
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, AXL_COMPOSITION)

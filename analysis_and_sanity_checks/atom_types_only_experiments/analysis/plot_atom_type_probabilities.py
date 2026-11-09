@@ -7,10 +7,10 @@ from diffusion_for_multi_scale_molecular_dynamics.analysis import \
     PLOT_STYLE_PATH
 from diffusion_for_multi_scale_molecular_dynamics.analysis.sample_trajectory_analyser import \
     SampleTrajectoryAnalyser
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
-    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
     class_index_to_onehot, get_probability_at_previous_time_step)
+from diffusion_for_multi_scale_molecular_dynamics.utils.element_types import \
+    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     setup_analysis_logger
 from diffusion_for_multi_scale_molecular_dynamics.utils.tensor_utils import \

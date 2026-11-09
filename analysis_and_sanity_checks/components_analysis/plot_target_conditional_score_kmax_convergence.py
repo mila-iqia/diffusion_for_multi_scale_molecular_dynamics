@@ -11,7 +11,7 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import (
+from diffusion_for_multi_scale_molecular_dynamics.score_network.target_scores.wrapped_gaussian_score import (
     SIGMA_THRESHOLD, get_coordinates_sigma_normalized_score,
     get_sigma_normalized_score_brute_force)
 

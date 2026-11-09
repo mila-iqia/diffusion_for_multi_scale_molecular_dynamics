@@ -3,7 +3,7 @@ name = "diffusion-for-multi-scale-molecular-dynamics"
 version = "0.1.0"
 description = "This project trains and samples from diffusion models adapted to periodic materials."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.12"
 authors = [
     {name = "Olivier Nadeau", email = "olivier.nadeau.4@umontreal.ca"},
     {name = "Simon Blackburn", email = "simon.blackburn@mila.quebec"},
@@ -81,7 +81,7 @@ allow-direct-references = true # This is necessary for the FLARE optional depend
 [tool.pytest.ini_options]
 testpaths = ["tests/"]
 norecursedirs = "__pycache__"
-markers = ["slow", "not_on_github"]
+markers = ["slow", "not_on_github", "requires_inprocess_lammps", "requires_lammps_bin", "requires_mpirun", "requires_flare", "requires_mlp", "requires_grace", "requires_abinit", "requires_artn", "requires_pair_style"]
 
 [tool.uv.sources]
 tensorpotential = { git = "https://github.com/ICAMS/TensorPotential" }

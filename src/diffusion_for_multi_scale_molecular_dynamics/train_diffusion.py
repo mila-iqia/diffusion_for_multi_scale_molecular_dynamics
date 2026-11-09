@@ -9,16 +9,16 @@ import typing
 import lightning as pl
 import yaml
 
-from diffusion_for_multi_scale_molecular_dynamics.callbacks.callback_loader import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.callbacks.callback_loader import \
     create_all_callbacks
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.instantiate_data_module import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.diffusion.instantiate_data_module import \
     load_data_module
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
-    ElementTypes
-from diffusion_for_multi_scale_molecular_dynamics.loggers.logger_loader import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.loggers.logger_loader import \
     create_all_loggers
-from diffusion_for_multi_scale_molecular_dynamics.models.instantiate_diffusion_model import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.instantiate_diffusion_model import \
     load_diffusion_model
+from diffusion_for_multi_scale_molecular_dynamics.utils.element_types import \
+    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.utils.hp_utils import \
     check_and_log_hp
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (

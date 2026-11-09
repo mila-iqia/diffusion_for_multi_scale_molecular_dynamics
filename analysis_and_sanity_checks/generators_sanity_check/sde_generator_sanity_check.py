@@ -12,14 +12,14 @@ from utilities.utils import (DisplacementCalculator,
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from diffusion_for_multi_scale_molecular_dynamics.data.diffusion.gaussian_data_module import (
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.data_module.diffusion.gaussian_data_module import (
     GaussianDataModule, GaussianDataModuleParameters)
-from diffusion_for_multi_scale_molecular_dynamics.generators.sde_position_generator import (
-    ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.sde_position_generator import (
+    ExplodingVarianceSDEPositionGenerator, SDESamplingParameters)
+from diffusion_for_multi_scale_molecular_dynamics.score_network.analytical_score_network import (
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
 
 plt.style.use(PLOT_STYLE_PATH)
 

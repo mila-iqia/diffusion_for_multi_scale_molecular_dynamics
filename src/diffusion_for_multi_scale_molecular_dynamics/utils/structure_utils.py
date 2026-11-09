@@ -1,10 +1,14 @@
-from typing import List
+from typing import List, Union
 
 import numpy as np
 import torch
+from ase import Atoms
+from ase.geometry import find_mic
 from pykeops.torch import LazyTensor
 from pymatgen.core import Lattice, Structure
 
+from diffusion_for_multi_scale_molecular_dynamics.oracle.base_single_point_calculator import \
+    BaseSinglePointCalculator
 from diffusion_for_multi_scale_molecular_dynamics.utils.lattice_utils import \
     get_relative_coordinates_lattice_vectors
 from diffusion_for_multi_scale_molecular_dynamics.utils.neighbors import (
@@ -161,3 +165,86 @@ def compute_distances(
     distances = torch.linalg.norm(cartesian_displacements, dim=-1)
     # Identify neighbors within the radial_cutoff, but avoiding self.
     return distances[distances > 0.0]
+
+
+def atoms_per_element(configuration: Atoms, element_order: List[str]) -> np.ndarray:
+    """Count the atoms of each element in a configuration, ordered by element_order."""
+    chemical_symbols = configuration.get_chemical_symbols()
+    return np.array([chemical_symbols.count(element) for element in element_order], dtype=float)
+
+
+def configurations_are_equivalent(
+    atoms_a: Atoms, atoms_b: Atoms, position_tolerance: float = 0.1
+) -> bool:
+    """Whether two configurations (same atom ordering) match within a per-atom position and cell tolerance.
+
+    Compares the cells and the minimum-image per-atom displacement; True when the cells match and the largest
+    displacement is below position_tolerance (Ang).
+    """
+    if not np.allclose(atoms_a.cell.array, atoms_b.cell.array, atol=position_tolerance):
+        return False
+    displacement = atoms_b.get_positions() - atoms_a.get_positions()
+    _, distances = find_mic(displacement, atoms_a.cell, atoms_a.pbc)
+    return float(distances.max()) < position_tolerance
+
+
+def create_perturbed_structures(
+    atoms: Union[Atoms, List[Atoms]], standard_deviation: float, number_of_configurations: int
+) -> List[Atoms]:
+    """Create slightly perturbed copies of each input structure.
+
+    Each structure's atoms are displaced by small Gaussian noise (ASE's rattle), number_of_configurations
+    times, keeping the same cell and species. This augments a training set around known configurations; it is
+    not a fully-random placement of atoms.
+
+    Args:
+        atoms: an ase.Atoms (or list of them) to perturb.
+        standard_deviation: standard deviation (Angstrom) of the Gaussian displacements.
+        number_of_configurations: number of perturbed configurations to generate per input structure.
+
+    Returns:
+        perturbed_structures: the perturbed configurations.
+    """
+    if isinstance(atoms, Atoms):
+        atoms = [atoms]
+    random_generator = np.random.default_rng()
+    perturbed_structures = []
+    for structure in atoms:
+        for _ in range(number_of_configurations):
+            perturbed_structure = structure.copy()
+            perturbed_structure.rattle(stdev=standard_deviation, rng=random_generator)
+            perturbed_structures.append(perturbed_structure)
+    return perturbed_structures
+
+
+def label_configurations(
+    configurations: List[Atoms], single_point_calculator: BaseSinglePointCalculator
+) -> List[Atoms]:
+    """Compute the energy and forces of each configuration with the single-point calculator.
+
+    Args:
+        configurations: the ase.Atoms to label.
+        single_point_calculator: the oracle used to evaluate them.
+
+    Returns:
+        the configurations as labelled ase.Atoms (energy and forces on their calculator).
+    """
+    calculations = single_point_calculator.calculate_many(configurations)
+    return [calculation.to_atoms(list(range(len(calculation.atoms)))) for calculation in calculations]
+
+
+def assert_orthogonal_cell(atoms: Atoms, angle_tolerance: float = 1e-3) -> None:
+    """Raise a ValueError unless the configuration's cell is orthogonal (all angles are 90 degrees).
+
+    The LAMMPS dump reader assumes an orthogonal box; a tilted (triclinic) cell would be silently misread.
+
+    Args:
+        atoms: the ase.Atoms configuration to check.
+        angle_tolerance: maximum allowed deviation (degrees) of each cell angle from 90.
+    """
+    angles = atoms.cell.angles()
+    if not np.allclose(angles, 90.0, atol=angle_tolerance):
+        raise ValueError(
+            f"The configuration's cell is not orthogonal (angles {angles} degrees); only orthogonal cells "
+            "are supported. Build a cubic/orthorhombic cell, e.g. ase.build.bulk(..., cubic=True)."
+        )

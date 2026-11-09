@@ -12,7 +12,7 @@ import numpy as np
 from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import (
+from diffusion_for_multi_scale_molecular_dynamics.mlip.flare.flare_trainer import (
     FlareConfiguration, FlareTrainer)
 
 experiment_dir = TOP_DIR / "experiments/active_learning/pretraining_flare/"

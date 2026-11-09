@@ -7,11 +7,11 @@ import einops
 import numpy as np
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_scheduler import \
     NoiseScheduler
+from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
 
 logger = logging.getLogger(__name__)
 

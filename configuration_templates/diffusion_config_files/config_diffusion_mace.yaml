@@ -101,7 +101,7 @@ diffusion_sampling:
     cell_dimensions: [5.43, 5.43, 5.43]
 
 oracle:
-  name: lammps
+  name: stillinger_weber
   sw_coeff_filename: Si.sw
 
 logging:

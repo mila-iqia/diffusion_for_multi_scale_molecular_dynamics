@@ -2,16 +2,16 @@ import torch
 from fixed_starting_point_trajectory_initializer import \
     FixedStartingPointTrajectoryInitializer
 
-from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
-    SamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
-    LangevinGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
-    TrajectoryInitializer
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
-    ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.axl_generator import \
+    SamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.langevin_generator import \
+    LangevinGenerator
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.trajectory_initializer import \
+    TrajectoryInitializer
+from diffusion_for_multi_scale_molecular_dynamics.score_network import \
+    ScoreNetwork
 
 
 class IdentityRelativeCoordinatesUpdateLangevinGenerator(LangevinGenerator):

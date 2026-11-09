@@ -8,41 +8,47 @@ import logging
 import os
 import socket
 from pathlib import Path
-from typing import Any, AnyStr, Dict, Optional, Union
+from typing import Any, AnyStr, Dict, List, Optional, Union
 
 import orion.client
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
-    ElementTypes
-from diffusion_for_multi_scale_molecular_dynamics.generators.axl_generator import \
-    SamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.instantiate_generator import \
-    instantiate_generator
-from diffusion_for_multi_scale_molecular_dynamics.generators.langevin_generator import \
-    LangevinGenerator
-from diffusion_for_multi_scale_molecular_dynamics.generators.load_sampling_parameters import \
-    load_sampling_parameters
-from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import \
-    read_sampling_constraint
-from diffusion_for_multi_scale_molecular_dynamics.generators.trajectory_initializer import \
-    instantiate_trajectory_initializer
-from diffusion_for_multi_scale_molecular_dynamics.models.axl_diffusion_lightning_model import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.axl_diffusion_lightning_model import \
     AXLDiffusionLightningModel
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
-    ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.force_field_augmented_score_network import (
-    ForceFieldAugmentedScoreNetwork, ForceFieldAugmentedScoreNetworkParameters)
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.repulsive_force.repulsive_force_factory import \
-    create_repulsive_force_parameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle import \
-    OracleParameters
-from diffusion_for_multi_scale_molecular_dynamics.oracle.energy_oracle_factory import (
-    create_energy_oracle, create_energy_oracle_parameters)
-from diffusion_for_multi_scale_molecular_dynamics.sampling.diffusion_sampling import \
+from diffusion_for_multi_scale_molecular_dynamics.namespace import \
+    AXL_COMPOSITION
+from diffusion_for_multi_scale_molecular_dynamics.oracle.axl_adapter import \
+    compute_axl_energies_and_forces
+from diffusion_for_multi_scale_molecular_dynamics.oracle.base_single_point_calculator import \
+    BaseSinglePointCalculator
+from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_runner import \
+    InProcessLammpsRunner
+from diffusion_for_multi_scale_molecular_dynamics.oracle.single_point_calculator_factory import \
+    instantiate_single_point_calculator
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.axl_generator import \
+    SamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.instantiate_generator import \
+    instantiate_generator
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.langevin_generator import \
+    LangevinGenerator
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.load_sampling_parameters import \
+    load_sampling_parameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.sampling_constraint import \
+    read_sampling_constraint
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.trajectory_initializer import \
+    instantiate_trajectory_initializer
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.sampling.diffusion_sampling import \
     create_batch_of_samples
+from diffusion_for_multi_scale_molecular_dynamics.score_network import \
+    ScoreNetwork
+from diffusion_for_multi_scale_molecular_dynamics.score_network.force_field_augmented_score_network import (
+    ForceFieldAugmentedScoreNetwork, ForceFieldAugmentedScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.score_network.repulsive_force.repulsive_force_factory import \
+    create_repulsive_force_parameters
+from diffusion_for_multi_scale_molecular_dynamics.utils.element_types import \
+    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import (
     configure_logging, get_git_hash)
 from diffusion_for_multi_scale_molecular_dynamics.utils.main_utils import \
@@ -119,12 +125,15 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     if "elements" in hyper_params:
         ElementTypes.validate_elements(hyper_params["elements"])
 
-    oracle_parameters = None
+    single_point_calculator = None
+    elements = None
     if "oracle" in hyper_params:
         assert "elements" in hyper_params, \
-            "elements are needed to define the energy oracle."
+            "elements are needed to define the single-point calculator."
         elements = hyper_params["elements"]
-        oracle_parameters = create_energy_oracle_parameters(hyper_params["oracle"], elements)
+        single_point_calculator = instantiate_single_point_calculator(
+            hyper_params["oracle"], lammps_runner=InProcessLammpsRunner()
+        )
 
     if axl_network is None:
         # Very opinionated logger, which writes to the output folder.
@@ -167,7 +176,8 @@ def main(args: Optional[Any] = None, axl_network: Optional[ScoreNetwork] = None)
     create_samples_and_write_to_disk(
         generator=generator,
         sampling_parameters=sampling_parameters,
-        oracle_parameters=oracle_parameters,
+        single_point_calculator=single_point_calculator,
+        elements=elements,
         device=device,
         output_path=args.output,
     )
@@ -216,7 +226,8 @@ def get_axl_network(checkpoint_path: Union[str, Path]) -> ScoreNetwork:
 def create_samples_and_write_to_disk(
     generator: LangevinGenerator,
     sampling_parameters: SamplingParameters,
-    oracle_parameters: Union[OracleParameters, None],
+    single_point_calculator: Optional[BaseSinglePointCalculator],
+    elements: Optional[List[str]],
     device: torch.device,
     output_path: Union[str, Path],
 ):
@@ -249,10 +260,11 @@ def create_samples_and_write_to_disk(
         torch.save(samples_batch, fd)
 
     sample_energies = None
-    if oracle_parameters:
+    if single_point_calculator is not None:
         logger.info("Compute energy from Oracle...")
-        oracle = create_energy_oracle(oracle_parameters)
-        sample_energies, _ = oracle.compute_oracle_energies_and_forces(samples_batch)
+        sample_energies, _ = compute_axl_energies_and_forces(
+            samples_batch[AXL_COMPOSITION], single_point_calculator, elements
+        )
 
         logger.info("Writing energies to disk...")
         with open(output_directory / "energies.pt", "wb") as fd:
@@ -266,7 +278,7 @@ def create_samples_and_write_to_disk(
 
     # If Orion is on, report something to tell Orion the calculation is done.
     if orion.client.cli.IS_ORION_ON:
-        if oracle_parameters:
+        if single_point_calculator is not None:
             logger.info("Reporting largest sample energy to ORION.")
             results = dict(name='maximum_oracle_energy', type="objective", value=sample_energies.max().item())
             orion.client.report_results([results])

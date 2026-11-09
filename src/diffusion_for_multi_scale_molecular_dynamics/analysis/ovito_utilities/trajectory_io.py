@@ -8,9 +8,9 @@ from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis.ovito_utilities.xyz_utils import \
     generate_xyz_text
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
-    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import AXL
+from diffusion_for_multi_scale_molecular_dynamics.utils.element_types import \
+    ElementTypes
 
 UNKNOWN_ATOM_TYPE = "X"
 

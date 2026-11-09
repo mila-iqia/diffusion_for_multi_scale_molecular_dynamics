@@ -88,6 +88,8 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.jupyter/
+.jupyter_ystore.db
 
 # pyenv
 .python-version

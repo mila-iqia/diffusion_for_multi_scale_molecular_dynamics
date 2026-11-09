@@ -3,22 +3,22 @@ from typing import Any, AnyStr, Dict, List, Optional, Tuple, Union
 
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.atom_selector.atom_selector_factory import \
-    create_atom_selector_parameters
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.excisor.excisor_factory import \
-    create_excisor_parameters
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.base_sample_maker import \
-    BaseSampleMaker
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.sample_maker.sample_maker_factory import (
-    create_sample_maker, create_sample_maker_parameters)
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
-    PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks import \
-    ScoreNetwork
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import \
     get_axl_network
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.atom_selector.atom_selector_factory import \
+    create_atom_selector_parameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.base_sample_maker import \
+    BaseSampleMaker
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.excisor.excisor_factory import \
+    create_excisor_parameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.predictor_corrector_axl_generator import \
+    PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.sample_maker_factory import (
+    create_sample_maker, create_sample_maker_parameters)
+from diffusion_for_multi_scale_molecular_dynamics.score_network import \
+    ScoreNetwork
 
 
 def get_repaint_parameters(

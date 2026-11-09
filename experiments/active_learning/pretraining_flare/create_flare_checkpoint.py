@@ -5,15 +5,15 @@ from pathlib import Path
 import numpy as np
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
-    LammpsRunner
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.flare_single_point_calculator import \
+from diffusion_for_multi_scale_molecular_dynamics.calc.flare_single_point_calculator import \
     FlareSinglePointCalculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.mapped_flare_single_point_calculator import \
+from diffusion_for_multi_scale_molecular_dynamics.calc.lammps_runner import \
+    SubprocessLammpsRunner
+from diffusion_for_multi_scale_molecular_dynamics.calc.mapped_flare_single_point_calculator import \
     MappedFlareSinglePointCalculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.utils import \
+from diffusion_for_multi_scale_molecular_dynamics.calc.utils import \
     compute_errors_and_uncertainties
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
+from diffusion_for_multi_scale_molecular_dynamics.mlip.flare.flare_trainer import \
     FlareTrainer
 
 logging.basicConfig(level=logging.INFO)
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     logging.info("Instantiate calculators")
     flare_calculator = FlareSinglePointCalculator(sgp_model=flare_trainer.sgp_model)
 
-    lammps_runner = LammpsRunner(
+    lammps_runner = SubprocessLammpsRunner(
         lammps_executable_path, mpi_processors=4, openmp_threads=4
     )
 

@@ -3,9 +3,9 @@ from copy import copy
 import pytest
 import torch
 
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
     NoiseParameters
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_scheduler import \
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_scheduler import \
     NoiseScheduler
 from diffusion_for_multi_scale_molecular_dynamics.utils.d3pm_utils import (
     class_index_to_onehot, compute_q_at_given_a0, compute_q_at_given_atm1,

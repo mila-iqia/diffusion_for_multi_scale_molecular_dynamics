@@ -10,7 +10,7 @@ import torch
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
-from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
+from diffusion_for_multi_scale_molecular_dynamics.score_network.target_scores.wrapped_gaussian_score import \
     get_coordinates_sigma_normalized_score
 
 PLOTS_OUTPUT_DIRECTORY = Path(__file__).parent / "images"

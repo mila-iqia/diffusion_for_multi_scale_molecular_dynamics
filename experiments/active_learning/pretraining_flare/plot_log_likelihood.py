@@ -3,10 +3,10 @@ from flare.bffs.sgp.sparse_gp import compute_negative_likelihood_grad_stable
 from matplotlib import pyplot as plt
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
-    FlareTrainer
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.mlip.flare.flare_trainer import \
+    FlareTrainer
 
 plt.style.use(PLOT_STYLE_PATH)
 

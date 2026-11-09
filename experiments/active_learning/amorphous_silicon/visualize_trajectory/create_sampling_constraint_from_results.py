@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.generators.sampling_constraint import (
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.sampling_constraint import (
     SamplingConstraint, write_sampling_constraint)
 
 results_top_dir = Path("/Users/brunorousseau/courtois/july26/active_learning/amorphous_silicon")

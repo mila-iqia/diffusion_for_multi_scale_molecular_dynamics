@@ -1,6 +1,7 @@
 # Diffusion for Multiscale Molecular Dynamics
 
-This project implements diffusion-based generative models for periodic atomistic systems (i.e., crystals).
+This project implements diffusion-based generative models for periodic atomistic systems, primarily
+disordered (amorphous) atomic structures.
 The aim of this project is to be able to train such a model and use it as part of an active learning
 framework, where a Machine Learning Interatomic Potential (MLIP) is continually fine-tuned on labels obtained
 from a costly oracle such as Density Functional Theory (DFT). The generative model is used to create
@@ -23,40 +24,70 @@ keep track of.
 * `hooks/`: git pre-commit hooks, for developers.
 * `resources/`: miscellaneous.
 
+# Code structure
+
+The codebase is built from a handful of generic base classes; concrete "flavors" (subclasses) are swapped
+in without changing the surrounding code. The three main flows below are shown with the generic classes only.
+
+### Training the diffusion model (`train_diffusion`)
+
+    DataModule                     -> serves noised training samples (via a NoisingTransform)
+    AXLDiffusionLightningModel     -> the trained model, which holds:
+        ScoreNetwork               -> predicts the score from a noisy AXL (atoms, coordinates, lattice) and sigma
+        NoiseScheduler             -> maps discrete time steps to sigma values
+        loss calculators (one per AXL component) + optional regularizers
+
+### Generating structures (excise and repaint)
+
+    BaseSampleMaker                -> makes candidate structures from a structure and its per-atom uncertainty:
+        BaseAtomSelector           -> picks the atoms of interest (e.g. the uncertain ones)
+        BaseEnvironmentExcision    -> cuts a small region around them
+        AXLGenerator               -> repaints the region by reverse diffusion, calling the ScoreNetwork
+                                      under a SamplingConstraint (which atoms are frozen vs free)
+
+### The active learning loop (`run_campaign`)
+
+    ActiveLearning                 -> iterates until convergence; each round:
+        DynamicDriver              -> runs LAMMPS to search for an uncertain structure
+        BaseSampleMaker            -> proposes candidates around it (the excise-and-repaint flow above)
+        BaseSinglePointCalculator  -> labels the candidates with the oracle (energy + forces)
+        BaseMLIP                   -> folds the labels into the model and retrains
+        TrainingDatabase           -> the persistent training set and crash-restart bookkeeping
+
+### The flavors (concrete subclasses)
+
+    ScoreNetwork               : MLP, EGNN, MACE, DiffusionMACE, Analytical, ForceFieldAugmented
+    AXLGenerator               : LangevinGenerator, ConstrainedLangevinGenerator, ODE / SDE samplers
+    BaseAtomSelector           : TopKAtomSelector, ThresholdAtomSelector
+    BaseEnvironmentExcision    : NearestNeighborsExcision, SphericalExcision, NoOpExcision
+    BaseSampleMaker            : NoOp, ExciseAndNoOp, ExciseAndRandom, ExciseAndRepaint
+    DynamicDriver              : ArtnDriver (ARTn saddle search), MdDriver (NVT molecular dynamics)
+    BaseSinglePointCalculator  : LammpsSinglePointCalculator (Stillinger-Weber / FLARE / MTP / GRACE potentials),
+                                 AbinitSinglePointCalculator, FlareSinglePointCalculator
+    BaseMLIP                   : FlareMLIP, MtpMlip, GraceMlip
+
 # Instructions to set up the project 
 
-## Creating a Virtual Environment
-The project dependencies are stated in the `pyproject.toml` file. They must be installed in a virtual environment.
+## Installation
+The project requires Python 3.10 or 3.11, since the `orion` dependency does not support Python 3.12.
+The dependencies are declared in `pyproject.toml`. Install the package in editable mode, adding the optional
+extras for the MLIP backend(s) you need for the active learning loop (`flare` for FLARE, `pyace` for MTP/GRACE):
 
-### uv
-The recommended way of creating a virtual environment is to use the tool [`uv`](https://docs.astral.sh/uv/). 
-Once `uv` is installed locally, the virtual environment can be created with the command
-    
-    uv sync [--extra pyace] [--extra flare]
+    pip install -e ".[flare]"
 
+### Optional dependencies for the active learning backends
+The backends below are all optional — install only the ones you use. Each is checked at runtime (via
+`check_dependency`), so a missing one raises a clear error rather than failing obscurely.
 
-which will install the exact environment described in file `uv.lock`. The environment can then be activated with
-the command
-
-    source .venv/bin/activate
-
-Note that an optional dependency like "pyace" or "flare" is needed for the active learning loop. It is recommended to install it 
-for development.
-
-### pip
-
-Alternatively, `pip` can be used to create the virtual environment. Assuming `python` and `pip` are already
-available on the system, create a virtual env folder in the root directory with the command
-
-    python -m venv ./.venv/
-
-The environment must then be activated with the command
-
-    source .venv/bin/activate
-
-and the environment should be created in `editable` mode so that the source code can be modified directly,
-
-    pip install -e .
+* **FLARE** (MLIP): the `flare` extra.
+* **MTP** (MLIP): the MLIP-3 `mlp` executable (fits the potential), and a LAMMPS built with the MTP-Kokkos
+  pair style, from [`lammps-mtp-kokkos`](https://github.com/RichardZJM/lammps-mtp-kokkos).
+* **GRACE** (MLIP): `gracemaker` from [`grace-tensorpotential`](https://github.com/ICAMS/grace-tensorpotential)
+  and `pace_activeset` from [`python-ace`](https://github.com/ICAMS/python-ace) (branch `feature/grace_fs`),
+  plus a LAMMPS with the `grace/fs` pair style, from
+  [`lammps` (branch `grace`)](https://github.com/yury-lysogorskiy/lammps).
+* **ARTn** (dynamic driver): the ARTn LAMMPS plugin, from [`artn-plugin`](https://gitlab.com/mammasmias/artn-plugin).
+* **Abinit** (oracle): the `abinit` executable, from [abinit.org](https://www.abinit.org).
 
 ### Testing the Installation
 The test suite should be executed to make sure that the environment is properly installed. After activating the 
@@ -65,7 +96,8 @@ environment, the tests can be executed with the command
     pytest [--quick] [-n auto]
 
 The argument `--quick` is optional; a few tests are a bit slow and will be skipped if this flag is present.
-The argument `-n auto` is optional; if toggled, the tests will run in parallel and go a little faster. 
+The argument `-n auto` is optional; if toggled, the tests will run in parallel and go a little faster.
+The full suite takes around 10 minutes on a normal laptop.
 
 # Getting Started
 
@@ -120,6 +152,13 @@ validates files that are staged in git, making it more developer-friendly.
 To activate the pre-commit hook,
 
     cd .git/hooks/ && ln -s ../../hooks/pre-commit .
+
+### Strip jupyter notebook outputs automatically
+`.gitattributes` passes every notebook through the `strip-notebook-outputs` filter, so that git only sees
+notebooks without outputs, execution counts or metadata: running a tutorial does not change them in git, while
+the local file keeps its outputs. Git does not let a repository define this filter, so set it up once per clone:
+
+    git config filter.strip-notebook-outputs.clean "jupyter nbconvert --log-level ERROR --ClearOutputPreprocessor.enabled=True --ClearMetadataPreprocessor.enabled=True --to notebook --stdin --stdout"
 
 Alternatively, to only lint files that have been staged in git, use
 

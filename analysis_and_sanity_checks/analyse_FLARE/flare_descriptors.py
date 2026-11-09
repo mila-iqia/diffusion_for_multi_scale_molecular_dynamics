@@ -5,17 +5,17 @@ from pathlib import Path
 import einops
 import numpy as np
 import pandas as pd
-from flare_pp import Structure as FlareStructure
+from flare.bffs.sgp._C_flare import Structure as FlareStructure
 from matplotlib import pyplot as plt
 from pymatgen.core import Structure
 from pymatgen.io.lammps.data import LammpsData
 from tqdm import tqdm
 
 from diffusion_for_multi_scale_molecular_dynamics import TOP_DIR
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import (
-    FlareConfiguration, FlareTrainer)
 from diffusion_for_multi_scale_molecular_dynamics.analysis import (
     PLEASANT_FIG_SIZE, PLOT_STYLE_PATH)
+from diffusion_for_multi_scale_molecular_dynamics.mlip.flare.flare_trainer import (
+    FlareConfiguration, FlareTrainer)
 
 logging.basicConfig(level=logging.INFO)
 

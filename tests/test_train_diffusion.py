@@ -15,7 +15,7 @@ import pytest
 import yaml
 
 from diffusion_for_multi_scale_molecular_dynamics import train_diffusion
-from diffusion_for_multi_scale_molecular_dynamics.callbacks.standard_callbacks import (
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.callbacks.standard_callbacks import (
     BEST_MODEL_NAME, LAST_MODEL_NAME)
 from tests.conftest import TestDiffusionDataBase
 
@@ -102,8 +102,8 @@ def get_score_network(
             num_atom_types=num_atom_types,
         )
 
-    elif architecture == "egnn":
-        score_network = dict(architecture="egnn", num_atom_types=num_atom_types)
+    elif architecture in ("egnn_cartesian", "egnn_torus"):
+        score_network = dict(architecture=architecture, num_atom_types=num_atom_types, radial_cutoff=3.0)
     else:
         raise NotImplementedError("This score network is not implemented")
     return score_network
@@ -121,7 +121,8 @@ def get_config(
     data_config = dict(batch_size=4,
                        num_workers=0,
                        max_atom=number_of_atoms,
-                       noise={"total_time_steps": 10})
+                       noise={"total_time_steps": 10},
+                       use_fixed_lattice_parameters=architecture in ("egnn_cartesian", "egnn_torus"))
 
     model_config = dict(
         score_network=get_score_network(
@@ -138,11 +139,16 @@ def get_config(
         spatial_dimension=3,
         number_of_atoms=number_of_atoms,
         num_atom_types=num_atom_types,
-        number_of_samples=4,
+        number_of_samples=2,
         record_samples=True,
+        use_fixed_lattice_parameters=True,
+        cell_dimensions=[10., 10., 10.],
     )
     if sampling_algorithm == "predictor_corrector":
         sampling_dict["number_of_corrector_steps"] = 1
+    elif sampling_algorithm == "ode":
+        sampling_dict["absolute_solver_tolerance"] = 0.1
+        sampling_dict["relative_solver_tolerance"] = 0.1
 
     early_stopping_config = dict(
         metric="validation_epoch_loss", mode="min", patience=max_epoch
@@ -180,13 +186,14 @@ def get_config(
 
 @pytest.mark.parametrize("sampling_algorithm", ["ode", "predictor_corrector"])
 @pytest.mark.parametrize(
-    "architecture, head_name",
+    "architecture, head_name, all_devices",
     [
-        ("egnn", None),
-        ("diffusion_mace", None),
-        ("mlp", None),
-        ("mace", "equivariant"),
-        ("mace", "mlp"),
+        ("egnn_cartesian", None, True),
+        ("egnn_torus", None, True),
+        ("diffusion_mace", None, True),
+        ("mlp", None, True),
+        ("mace", "equivariant", True),
+        ("mace", "mlp", False),
     ],
 )
 class TestTrainDiffusion(TestDiffusionDataBase):
@@ -196,9 +203,14 @@ class TestTrainDiffusion(TestDiffusionDataBase):
         if accelerator == 'mps':
             pytest.skip("Skipping MPS accelerator: it is incompatible with KeOps and leads to segfaults")
 
+    @pytest.fixture(autouse=True)
+    def skip_non_cpu_for_cpu_only(self, all_devices, accelerator):
+        if not all_devices and accelerator != 'cpu':
+            pytest.skip("This architecture is smoke-tested on CPU only.")
+
     @pytest.fixture()
     def max_epoch(self):
-        return 5
+        return 2
 
     @pytest.fixture()
     def num_atom_types(self):
@@ -297,7 +309,7 @@ class TestTrainDiffusion(TestDiffusionDataBase):
         last_model_path = os.path.join(all_paths["output"], LAST_MODEL_NAME)
 
         method_to_patch = (
-            "diffusion_for_multi_scale_molecular_dynamics.models.position_diffusion_lightning_model."
+            "diffusion_for_multi_scale_molecular_dynamics.diffusion_model.models.position_diffusion_lightning_model."
             "PositionDiffusionLightningModel.on_train_epoch_start"
         )
 

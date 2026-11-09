@@ -12,17 +12,17 @@ from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.active_le
     ActiveLearning
 from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.configuration_parsing import \
     get_sample_maker_from_configuration
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.dynamic_driver.artn_driver import \
+from diffusion_for_multi_scale_molecular_dynamics.dynamic_driver.artn_driver.artn_driver import \
     ArtnDriver
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.lammps.lammps_runner import \
-    instantiate_lammps_runner
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.single_point_calculators.single_point_calculator_factory import \
-    instantiate_single_point_calculator  # noqa
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_hyperparameter_optimizer import (
+from diffusion_for_multi_scale_molecular_dynamics.mlip.flare.flare_hyperparameter_optimizer import (
     FlareHyperparametersOptimizer, FlareOptimizerConfiguration)
-from diffusion_for_multi_scale_molecular_dynamics.active_learning_loop.trainer.flare_trainer import \
-    FlareTrainer
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
+from diffusion_for_multi_scale_molecular_dynamics.mlip.flare.flare_mlip import \
+    FlareMLIP
+from diffusion_for_multi_scale_molecular_dynamics.oracle.lammps_runner import \
+    instantiate_lammps_runner
+from diffusion_for_multi_scale_molecular_dynamics.oracle.single_point_calculator_factory import \
+    instantiate_single_point_calculator  # noqa
+from diffusion_for_multi_scale_molecular_dynamics.utils.element_types import \
     ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.utils.logging_utils import \
     configure_logging
@@ -182,28 +182,32 @@ def run(args: argparse.Namespace, configuration: typing.Dict):
             active_learning = ActiveLearning(
                 oracle_single_point_calculator=oracle_calculator,
                 sample_maker=sample_maker,
-                artn_driver=artn_driver,
-                flare_hyperparameters_optimizer=flare_optimizer,
+                dynamic_driver=artn_driver,
             )
 
             checkpoint_path = list_flare_checkpoint_paths[-1]
             logger.info(f"  - Loading checkpoint from {checkpoint_path}")
-            flare_trainer = FlareTrainer.from_checkpoint(checkpoint_path)
+            mlip = FlareMLIP.load_checkpoint(
+                checkpoint_path, hyperparameter_optimizer=flare_optimizer, lammps_runner=lammps_runner
+            )
 
             working_directory = Path(args.output_directory).absolute() / f"campaign_{campaign_id}"
             working_directory.mkdir(parents=True, exist_ok=False)
             time1 = time.time()
             active_learning.run_campaign(
                 uncertainty_threshold=uncertainty_threshold,
-                flare_trainer=flare_trainer,
+                mlip=mlip,
                 working_directory=working_directory,
             )
             time2 = time.time()
             logger.info(f"Campaign {campaign_id} completed in {time2-time1: 6.2f} seconds.")
 
-            new_checkpoint_path = working_directory / "trained_flare.json"
-            assert new_checkpoint_path.is_file(), \
-                f"The checkpoint file at the end of campaign {campaign_id} is missing! Something went wrong."
+            latest_mlip_directory = working_directory / "latest_mlip"
+            if latest_mlip_directory.exists():
+                new_checkpoint_path = (latest_mlip_directory / "checkpoint.json").resolve()
+            else:
+                # No training happened this campaign (an immediate SUCCESS); carry the input checkpoint forward.
+                new_checkpoint_path = checkpoint_path
             list_flare_checkpoint_paths.append(new_checkpoint_path)
 
     except RuntimeError as err:

@@ -14,19 +14,19 @@ from matplotlib import pyplot as plt
 
 from diffusion_for_multi_scale_molecular_dynamics.analysis import \
     PLEASANT_FIG_SIZE
-from diffusion_for_multi_scale_molecular_dynamics.generators.predictor_corrector_axl_generator import \
-    PredictorCorrectorSamplingParameters
-from diffusion_for_multi_scale_molecular_dynamics.models.score_networks.analytical_score_network import (
-    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.exploding_variance import \
+    VarianceScheduler
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
+    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.namespace import \
     AXL_COMPOSITION
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.exploding_variance import \
-    VarianceScheduler
-from diffusion_for_multi_scale_molecular_dynamics.noise_schedulers.noise_parameters import \
-    NoiseParameters
 from diffusion_for_multi_scale_molecular_dynamics.sample_diffusion import (
     get_axl_network, main)
-from diffusion_for_multi_scale_molecular_dynamics.score.wrapped_gaussian_score import \
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.predictor_corrector_axl_generator import \
+    PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.score_network.analytical_score_network import (
+    AnalyticalScoreNetwork, AnalyticalScoreNetworkParameters)
+from diffusion_for_multi_scale_molecular_dynamics.score_network.target_scores.wrapped_gaussian_score import \
     get_log_wrapped_gaussians
 
 from . import EXPERIMENTS_DIR

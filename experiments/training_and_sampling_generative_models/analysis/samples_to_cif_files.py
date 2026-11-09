@@ -4,12 +4,12 @@ import torch
 from pymatgen.core import Lattice, Structure
 from tqdm import tqdm
 
-from diffusion_for_multi_scale_molecular_dynamics.data.element_types import \
-    ElementTypes
 from diffusion_for_multi_scale_molecular_dynamics.namespace import (
     AXL, AXL_COMPOSITION)
 from diffusion_for_multi_scale_molecular_dynamics.utils.basis_transformations import \
     map_lattice_parameters_to_unit_cell_vectors
+from diffusion_for_multi_scale_molecular_dynamics.utils.element_types import \
+    ElementTypes
 
 samples_top_directory = Path(__file__).parent / "cif_samples"
 samples_top_directory.mkdir(exist_ok=True)

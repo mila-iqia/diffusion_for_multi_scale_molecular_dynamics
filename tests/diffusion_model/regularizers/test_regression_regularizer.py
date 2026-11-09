@@ -1,0 +1,72 @@
+import pytest
+import torch
+
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.noise_schedulers.noise_parameters import \
+    NoiseParameters
+from diffusion_for_multi_scale_molecular_dynamics.diffusion_model.regularizers.regression_regularizer import (
+    RegressionRegularizer, RegressionRegularizerParameters)
+from diffusion_for_multi_scale_molecular_dynamics.sample_maker.generator.predictor_corrector_axl_generator import \
+    PredictorCorrectorSamplingParameters
+from diffusion_for_multi_scale_molecular_dynamics.score_network.analytical_score_network import \
+    AnalyticalScoreNetworkParameters
+from diffusion_for_multi_scale_molecular_dynamics.score_network.equivariant_analytical_score_network import \
+    EquivariantAnalyticalScoreNetworkParameters
+from tests.diffusion_model.regularizers.conftest import BaseTestRegularizer
+
+
+class TestRegressionRegularizer(BaseTestRegularizer):
+
+    @pytest.fixture()
+    def maximum_number_of_steps(self):
+        return 5
+
+    @pytest.fixture()
+    def total_time_steps(
+        self,
+    ):
+        return 10
+
+    @pytest.fixture()
+    def noise_parameters(self, total_time_steps):
+        return NoiseParameters(
+            total_time_steps=total_time_steps, sigma_min_cart=0.001, sigma_max_cart=2.0
+        )
+
+    @pytest.fixture()
+    def sampling_parameters(
+        self, num_atom_types, number_of_atoms, batch_size, cell_dimensions
+    ):
+        return PredictorCorrectorSamplingParameters(
+            number_of_corrector_steps=0,
+            num_atom_types=num_atom_types,
+            cell_dimensions=list(cell_dimensions.numpy()),
+            number_of_atoms=number_of_atoms,
+            number_of_samples=batch_size,
+        )
+
+    @pytest.fixture(params=[True, False])
+    def use_equivariant_analytical_score_network(self, request):
+        return request.param
+
+    @pytest.fixture()
+    def regularizer_parameters(
+        self, number_of_atoms, spatial_dimension, num_atom_types, use_equivariant_analytical_score_network
+    ):
+        coords = torch.rand(number_of_atoms, spatial_dimension)
+        equilibrium_relative_coordinates = list(list(x) for x in coords.numpy())
+
+        common_params_dict = dict(number_of_atoms=number_of_atoms,
+                                  equilibrium_relative_coordinates=equilibrium_relative_coordinates,
+                                  kmax=5,
+                                  sigma_d=0.01,
+                                  num_atom_types=num_atom_types)
+        if use_equivariant_analytical_score_network:
+            params = EquivariantAnalyticalScoreNetworkParameters(**common_params_dict)
+        else:
+            params = AnalyticalScoreNetworkParameters(**common_params_dict, use_permutation_invariance=False)
+
+        return RegressionRegularizerParameters(score_network_parameters=params)
+
+    @pytest.fixture()
+    def regularizer(self, regularizer_parameters, device):
+        return RegressionRegularizer(regularizer_parameters).to(device)
